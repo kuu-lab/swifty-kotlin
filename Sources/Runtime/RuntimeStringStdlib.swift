@@ -187,6 +187,13 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_asSequence")
+public func kk_string_asSequence(_ strRaw: Int) -> Int {
+    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let seq = RuntimeSequenceBox(steps: [.source(elements: charRaws)])
+    return registerRuntimeObject(seq)
+}
+
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
 
 @_cdecl("kk_string_iterator")

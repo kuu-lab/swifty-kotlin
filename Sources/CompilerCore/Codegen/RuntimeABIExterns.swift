@@ -855,6 +855,19 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // STDLIB-317: String.asSequence / asIterable
+    public static let kk_string_asSequence = ExternDecl(
+        name: "kk_string_asSequence",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_string_asIterable = ExternDecl(
+        name: "kk_string_asIterable",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_char_isDigit = ExternDecl(
         name: "kk_char_isDigit",
         parameterTypes: ["intptr_t"],
@@ -2257,6 +2270,8 @@ public enum RuntimeABIExterns {
             kk_string_commonSuffixWith_ignoreCase,
             kk_string_zipWithNext,
             kk_string_orEmpty,
+            kk_string_asSequence,
+            kk_string_asIterable,
             // Print / Println
             kk_print_any,
             kk_print_noarg,
