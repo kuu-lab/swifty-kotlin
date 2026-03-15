@@ -434,6 +434,7 @@ extension CallTypeChecker {
             "indexOfFirst", "indexOfLast",
             "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile",
             "sort", "sortBy", "sortByDescending",
+            "eachCount",
         ]
         let flowHOFNames: Set = ["map", "filter", "collect"]
         let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapKeys", "maxByOrNull", "minByOrNull"]
@@ -790,13 +791,15 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 // Return Grouping<T, K> type
-                let groupingSymbol = sema.symbols.lookupByShortName(interner.intern("Grouping")).first
-                    ?? sema.symbols.lookupByShortName(interner.intern("Grouping")).first!
-                resultType = sema.types.make(.classType(ClassType(
-                    classSymbol: groupingSymbol,
-                    args: [.invariant(collectionElementType), .invariant(sema.types.anyType)],
-                    nullability: .nonNull
-                )))
+                if let groupingSymbol = sema.symbols.lookupByShortName(interner.intern("Grouping")).first {
+                    resultType = sema.types.make(.classType(ClassType(
+                        classSymbol: groupingSymbol,
+                        args: [.invariant(collectionElementType), .invariant(sema.types.anyType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    resultType = sema.types.anyType
+                }
 
             case "eachCount":
                 // Called on Grouping, returns Map<K, Int>
