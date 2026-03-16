@@ -198,6 +198,7 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.kkStringSplitName
             || callee == lookup.kkStringChunkedName
             || callee == lookup.kkStringWindowedName
+            || callee == lookup.kkStringAsIterableName
         {
             listExprIDs.insert(result.rawValue)
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
@@ -223,7 +224,9 @@ extension CollectionLiteralLoweringPass {
     ) {
         guard let result, !arguments.isEmpty else { return }
         let src = arguments[0].rawValue
-        if callee == lookup.asSequenceName {
+        if callee == lookup.asSequenceName
+            || callee == lookup.kkStringAsSequenceName
+        {
             sequenceExprIDs.insert(result.rawValue)
         } else if callee == lookup.toListName, sequenceExprIDs.contains(src) {
             listExprIDs.insert(result.rawValue)
@@ -289,6 +292,7 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.kkStringSplitName
             || callee == lookup.kkStringChunkedName
             || callee == lookup.kkStringWindowedName
+            || callee == lookup.kkStringAsIterableName
         {
             if let result { listExprIDs.insert(result.rawValue) }
             return
