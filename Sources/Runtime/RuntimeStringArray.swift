@@ -177,7 +177,7 @@ public func kk_string_length(_ strRaw: Int) -> Int {
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isObjectPointer, let stringBox = tryCast(ptr, to: RuntimeStringBox.self) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_length received invalid string pointer")
+        return runtimeNullSentinelInt
     }
     return stringBox.value.utf8.count
 }
