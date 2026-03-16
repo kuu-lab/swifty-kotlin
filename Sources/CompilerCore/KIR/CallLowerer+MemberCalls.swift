@@ -2791,6 +2791,17 @@ extension CallLowerer {
             ) {
                 return unresolvedSynthetic
             }
+            // Collection interface members (size, isEmpty) resolved on a
+            // concrete receiver (List, Array, Map, Set) must be lowered to
+            // the matching runtime function instead of virtual dispatch.
+            if let collectionProperty = unresolvedCollectionPropertyCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) {
+                return collectionProperty
+            }
             return fallback
         }
 
