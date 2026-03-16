@@ -27,7 +27,6 @@ extension ABIMismatchTests {
             "kk_sequence_of",
             "kk_sequence_generate",
             "kk_system_exitProcess",
-            "kk_system_measureTimeMillis",
             "kk_system_currentTimeMillis",
         ]
 
@@ -54,13 +53,15 @@ extension ABIMismatchTests {
         ]
 
         for linkName in varargLinkNames {
-            if let externDecl = RuntimeABIExterns.externDecl(named: linkName) {
-                XCTAssertEqual(
-                    externDecl.parameterTypes.count, 1,
-                    "Vararg function '\(linkName)' should accept 1 packed array parameter, " +
-                        "but has \(externDecl.parameterTypes.count) parameters"
-                )
+            guard let externDecl = RuntimeABIExterns.externDecl(named: linkName) else {
+                XCTFail("Vararg function '\(linkName)' not found in RuntimeABIExterns.allExterns")
+                continue
             }
+            XCTAssertEqual(
+                externDecl.parameterTypes.count, 1,
+                "Vararg function '\(linkName)' should accept 1 packed array parameter, " +
+                    "but has \(externDecl.parameterTypes.count) parameters"
+            )
         }
     }
 }
