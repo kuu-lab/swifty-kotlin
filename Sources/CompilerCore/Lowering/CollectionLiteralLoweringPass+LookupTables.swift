@@ -62,6 +62,7 @@ struct CollectionLiteralLookupTables {
     let kkStringChunkedName: InternedString
     let kkStringWindowedName: InternedString
     let kkStringAsSequenceName: InternedString
+    let kkStringAsIterableName: InternedString
     let kkStringIteratorName: InternedString
     let kkStringIteratorHasNextName: InternedString
     let kkStringIteratorNextName: InternedString
@@ -544,6 +545,7 @@ struct CollectionLiteralLookupTables {
         kkStringChunkedName = interner.intern("kk_string_chunked")
         kkStringWindowedName = interner.intern("kk_string_windowed")
         kkStringAsSequenceName = interner.intern("kk_string_asSequence")
+        kkStringAsIterableName = interner.intern("kk_string_asIterable")
         kkStringIteratorName = interner.intern("kk_string_iterator")
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
