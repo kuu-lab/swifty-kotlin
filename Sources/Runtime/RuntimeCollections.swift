@@ -158,7 +158,7 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
 @_cdecl("kk_list_to_mutable_list")
 public func kk_list_to_mutable_list(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_to_mutable_list")
     }
     return registerRuntimeObject(RuntimeListBox(elements: list.elements))
 }
@@ -1166,7 +1166,7 @@ public func kk_triple_toList(_ tripleRaw: Int) -> Int {
 @_cdecl("kk_array_toList")
 public func kk_array_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_toList")
     }
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
@@ -1174,7 +1174,7 @@ public func kk_array_toList(_ arrayRaw: Int) -> Int {
 @_cdecl("kk_array_toMutableList")
 public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_toMutableList")
     }
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
@@ -1182,7 +1182,7 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
 @_cdecl("kk_list_toTypedArray")
 public func kk_list_toTypedArray(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toTypedArray")
     }
     let box = RuntimeArrayBox(length: list.elements.count)
     for (i, elem) in list.elements.enumerated() {
@@ -1312,7 +1312,7 @@ public func kk_arraydeque_toString(_ dequeRaw: Int) -> UnsafeMutableRawPointer {
 @_cdecl("kk_array_copyOf")
 public func kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf")
     }
     let box = RuntimeArrayBox(length: array.elements.count)
     for (i, elem) in array.elements.enumerated() {
@@ -1324,7 +1324,7 @@ public func kk_array_copyOf(_ arrayRaw: Int) -> Int {
 @_cdecl("kk_array_copyOfRange")
 public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return registerRuntimeObject(RuntimeArrayBox(length: 0))
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOfRange")
     }
     // Kotlin semantics: validate boundaries
     let size = array.elements.count
@@ -1340,7 +1340,9 @@ public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: I
 
 @_cdecl("kk_array_fill")
 public func kk_array_fill(_ arrayRaw: Int, _ value: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else { return 0 }
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_fill")
+    }
     for i in 0 ..< array.elements.count {
         array.elements[i] = value
     }
