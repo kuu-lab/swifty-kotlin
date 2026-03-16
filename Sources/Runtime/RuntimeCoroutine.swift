@@ -788,7 +788,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
 @_cdecl("kk_flow_collect")
 public func kk_flow_collect(_ flowHandle: Int, _ collectorFnPtr: Int, _ continuation: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_collect received invalid flow handle")
+        return 0
     }
 
     // Cold-stream semantics: evaluate source emissions anew on each collect.
