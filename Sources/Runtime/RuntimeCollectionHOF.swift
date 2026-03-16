@@ -29,11 +29,13 @@ private func handleCollectionLambdaThrow(_ thrown: Int, _ outThrown: UnsafeMutab
 // MARK: - Closeable.use {} (STDLIB-250)
 
 /// Calls `close()` on a Closeable resource via vtable dispatch (slot 0).
+/// The vtable function pointer follows the standard compiler ABI:
+///   (self, outThrown) -> Int
 private func runtimeCloseableClose(_ resourceRaw: Int) {
     let closeFnPtr = kk_vtable_lookup(resourceRaw, 0)
     guard closeFnPtr != 0 else { return }
-    let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int) -> Void).self)
-    closeFn(resourceRaw)
+    let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    _ = closeFn(resourceRaw, nil)
 }
 
 /// `resource.use { block }` — calls the block with the resource, then calls

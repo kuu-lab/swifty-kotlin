@@ -266,8 +266,16 @@ extension CallTypeChecker {
                 .scopeApply
             } else if calleeName == interner.intern("also") {
                 .scopeAlso
-            } else if calleeName == interner.intern("use") {
-                .scopeUse // STDLIB-250
+            } else if calleeName == interner.intern("use"),
+                      // STDLIB-250: use {} is only valid on Closeable/AutoCloseable receivers.
+                      // Check that the receiver type has a close() method; otherwise fall through
+                      // to normal member resolution (which will correctly produce a compile error).
+                      !driver.helpers.collectMemberFunctionCandidates(
+                          named: interner.intern("close"),
+                          receiverType: receiverType,
+                          sema: sema
+                      ).isEmpty {
+                .scopeUse
             } else {
                 nil
             }
