@@ -1359,6 +1359,9 @@ extension DataFlowSemaPhase {
                 nullability: .nonNull
             )))
         } else {
+            // TODO: Replace this fallback with a precondition or register the
+            // Sequence stub earlier so misconfiguration fails loudly instead
+            // of silently degrading the return type.
             returnType = types.anyType
         }
         let memberSymbol = symbols.define(

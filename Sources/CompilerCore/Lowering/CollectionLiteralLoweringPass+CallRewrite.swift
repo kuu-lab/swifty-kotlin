@@ -977,6 +977,11 @@ extension CollectionLiteralLoweringPass {
                     // asSequence() on collection → kk_list_asSequence or kk_array_asSequence
                     // Guard with arrayExprIDs / listExprIDs so we only rewrite
                     // receivers whose concrete collection kind is known.
+                    // KNOWN LIMITATION: Non-tracked receivers (e.g., a List<Int>
+                    // parameter or a function return value) are not rewritten here.
+                    // They fall through to virtual-call rewrite or original symbol
+                    // linkage.  A future improvement could use the receiver's static
+                    // type (from KIR type info) to dispatch regardless of tracking.
                     if callee == lookup.asSequenceName, arguments.count == 1 {
                         let receiverID = arguments[0]
                         let kkName: InternedString?
