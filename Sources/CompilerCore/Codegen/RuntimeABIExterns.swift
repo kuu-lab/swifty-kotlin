@@ -1144,7 +1144,7 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    // Channel (P5-134)
+    // Channel (CORO-001)
 
     public static let kk_channel_create = ExternDecl(
         name: "kk_channel_create",
@@ -1166,6 +1166,12 @@ public enum RuntimeABIExterns {
 
     public static let kk_channel_close = ExternDecl(
         name: "kk_channel_close",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_channel_is_closed_token = ExternDecl(
+        name: "kk_channel_is_closed_token",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
@@ -2125,11 +2131,12 @@ public enum RuntimeABIExterns {
             kk_dispatcher_io,
             kk_dispatcher_main,
             kk_with_context,
-            // Channel
+            // Channel (CORO-001)
             kk_channel_create,
             kk_channel_send,
             kk_channel_receive,
             kk_channel_close,
+            kk_channel_is_closed_token,
             // Deferred / awaitAll
             kk_await_all,
             // Structured Concurrency (P5-89)
