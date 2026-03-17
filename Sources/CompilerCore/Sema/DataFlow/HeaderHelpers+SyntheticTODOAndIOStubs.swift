@@ -432,16 +432,49 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-410: emptyList/emptySet/emptyMap ---
-        let kotlinCollectionsPkg = ensureSyntheticPackage(
-            path: [interner.intern("kotlin"), interner.intern("collections")],
-            symbols: symbols
-        )
+        let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
+        _ = ensureSyntheticPackage(fqName: kotlinCollectionsPkg, symbols: symbols)
+
+        // Build proper collection return types (List<Nothing>, Set<Nothing>, Map<Nothing, Nothing>)
+        // by looking up the interface symbols registered by registerSyntheticCollectionStubs.
+        let listFQName = kotlinCollectionsPkg + [interner.intern("List")]
+        let emptyListReturnType: TypeID = if let listSymbol = symbols.lookup(fqName: listFQName) {
+            types.make(.classType(ClassType(
+                classSymbol: listSymbol,
+                args: [.out(types.nothingType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
+
+        let setFQName = kotlinCollectionsPkg + [interner.intern("Set")]
+        let emptySetReturnType: TypeID = if let setSymbol = symbols.lookup(fqName: setFQName) {
+            types.make(.classType(ClassType(
+                classSymbol: setSymbol,
+                args: [.out(types.nothingType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
+
+        let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
+        let emptyMapReturnType: TypeID = if let mapSymbol = symbols.lookup(fqName: mapFQName) {
+            types.make(.classType(ClassType(
+                classSymbol: mapSymbol,
+                args: [.out(types.nothingType), .out(types.nothingType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
 
         registerSyntheticTopLevelFunction(
             named: "emptyList",
             packageFQName: kotlinCollectionsPkg,
             parameters: [],
-            returnType: types.anyType,
+            returnType: emptyListReturnType,
             externalLinkName: "kk_emptyList",
             symbols: symbols,
             interner: interner
@@ -451,7 +484,7 @@ extension DataFlowSemaPhase {
             named: "emptySet",
             packageFQName: kotlinCollectionsPkg,
             parameters: [],
-            returnType: types.anyType,
+            returnType: emptySetReturnType,
             externalLinkName: "kk_emptySet",
             symbols: symbols,
             interner: interner
@@ -461,7 +494,7 @@ extension DataFlowSemaPhase {
             named: "emptyMap",
             packageFQName: kotlinCollectionsPkg,
             parameters: [],
-            returnType: types.anyType,
+            returnType: emptyMapReturnType,
             externalLinkName: "kk_emptyMap",
             symbols: symbols,
             interner: interner

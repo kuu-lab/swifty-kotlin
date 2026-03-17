@@ -861,23 +861,13 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
-    let box = RuntimeMapBox(keys: keys, values: values)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
 }
 
 // STDLIB-410: emptyMap<K,V>()
 @_cdecl("kk_emptyMap")
 public func kk_emptyMap() -> Int {
-    let box = RuntimeMapBox(keys: [], values: [])
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
 }
 
 @_cdecl("kk_mutable_map_put")
