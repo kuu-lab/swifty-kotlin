@@ -76,6 +76,13 @@ func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
 // Empty collections are immutable, so we cache a single instance per kind
 // to avoid redundant allocations when emptyList()/emptySet()/emptyMap() are
 // called repeatedly.
+// SAFETY: These singletons are safe because Kotlin's emptyList/emptySet/emptyMap
+// return read-only collection interfaces.  Mutable runtime operations (e.g.,
+// kk_mutable_list_add, kk_mutable_map_put) operate on distinct MutableList/
+// MutableMap boxes and will never receive these cached handles through correct
+// lowering.  If a future lowering bug or unsafe cast routes a mutable operation
+// to one of these singletons, the shared state would be corrupted; at that point
+// the fix belongs in the lowering/type-check layer, not here.
 private let cachedEmptyList: Int = registerRuntimeObject(RuntimeListBox(elements: []))
 private let cachedEmptySet: Int = registerRuntimeObject(RuntimeSetBox(elements: []))
 private let cachedEmptyMap: Int = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
