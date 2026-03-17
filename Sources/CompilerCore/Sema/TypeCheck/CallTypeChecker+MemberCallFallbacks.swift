@@ -348,6 +348,7 @@ extension CallTypeChecker {
             receiverElementType: receiverElementType,
             isMapReceiver: isMapReceiver,
             isSetReceiver: isSetReceiver,
+            args: args,
             sema: sema,
             interner: interner
         )
@@ -546,6 +547,7 @@ extension CallTypeChecker {
             interner.intern("takeWhile"), interner.intern("dropWhile"),
             interner.intern("subList"),
             interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"),
+            interner.intern("scan"), interner.intern("runningFold"), interner.intern("runningReduce"),
         ]
         let setReturningMembers: Set = [
             interner.intern("intersect"),
@@ -632,6 +634,7 @@ extension CallTypeChecker {
         receiverElementType: TypeID,
         isMapReceiver: Bool,
         isSetReceiver: Bool,
+        args: [CallArgument],
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
@@ -762,13 +765,30 @@ extension CallTypeChecker {
             )))
         }
 
-        if (memberName == interner.intern("scan") || memberName == interner.intern("runningFold")
-            || memberName == interner.intern("runningReduce")),
+        if memberName == interner.intern("runningReduce"),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: listSymbol,
                 args: [.invariant(receiverElementType)],
+                nullability: .nonNull
+            )))
+        }
+
+        if (memberName == interner.intern("scan") || memberName == interner.intern("runningFold")),
+           let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+        {
+            // scan/runningFold return List<R> where R is the accumulator type,
+            // derived from the initial value (first argument).
+            let accumulatorType: TypeID
+            if args.count >= 1, let inferredInitType = sema.bindings.exprTypes[args[0].expr] {
+                accumulatorType = inferredInitType
+            } else {
+                accumulatorType = sema.types.anyType
+            }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: listSymbol,
+                args: [.invariant(accumulatorType)],
                 nullability: .nonNull
             )))
         }
@@ -936,8 +956,11 @@ extension CallTypeChecker {
         }
 
         if (memberName == interner.intern("scan") || memberName == interner.intern("runningFold")), argCount == 2 {
+            // scan/runningFold: (acc: R, element: T) -> R
+            // The accumulator type is unknown in the fallback path, so use Any;
+            // but the element type (second param) is the receiver element type.
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.anyType, sema.types.anyType],
+                params: [sema.types.anyType, receiverElementType],
                 returnType: sema.types.anyType,
                 isSuspend: false,
                 nullability: .nonNull
@@ -946,9 +969,10 @@ extension CallTypeChecker {
         }
 
         if memberName == interner.intern("runningReduce"), argCount == 1 {
+            // runningReduce: (acc: T, element: T) -> T
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.anyType, sema.types.anyType],
-                returnType: sema.types.anyType,
+                params: [receiverElementType, receiverElementType],
+                returnType: receiverElementType,
                 isSuspend: false,
                 nullability: .nonNull
             )))

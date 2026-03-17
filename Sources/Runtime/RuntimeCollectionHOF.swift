@@ -478,6 +478,7 @@ public func kk_list_scan(
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var acc = initial
     var results = [acc]
+    results.reserveCapacity(list.elements.count + 1)
     for elem in list.elements {
         var thrown = 0
         acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: elem, outThrown: &thrown))
@@ -505,6 +506,7 @@ public func kk_list_runningReduce(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: In
     }
     var acc = list.elements[0]
     var results = [acc]
+    results.reserveCapacity(list.elements.count)
     for idx in 1 ..< list.elements.count {
         var thrown = 0
         acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: list.elements[idx], outThrown: &thrown))
