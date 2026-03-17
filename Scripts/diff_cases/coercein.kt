@@ -1,0 +1,16 @@
+fun main() {
+    println(5.coerceIn(1, 10))
+    println(0.coerceIn(1, 10))
+    println(15.coerceIn(1, 10))
+    println(5L.coerceIn(1L, 10L))
+    println(0L.coerceIn(1L, 10L))
+    println(5.0.coerceIn(1.0, 10.0))
+    println(0.0.coerceIn(1.0, 10.0))
+    println(15.0.coerceIn(1.0, 10.0))
+    println(5.0f.coerceIn(1.0f, 10.0f))
+    println((-1.0f).coerceIn(0.0f, 1.0f))
+    println(5.coerceAtLeast(3))
+    println(1.coerceAtLeast(3))
+    println(5.coerceAtMost(3))
+    println(1.coerceAtMost(3))
+}
