@@ -58,7 +58,7 @@ public func kk_check_lazy(
 @_cdecl("kk_error")
 public func kk_error(_ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let message = runtimePreconditionMessage(from: messageRaw) ?? "An operation is not supported."
+    let message = runtimePreconditionMessage(from: messageRaw)
     outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalStateException: \(message)")
     return 0
 }
@@ -90,33 +90,30 @@ private func preconditionWithLazyMessage(
         return 0
     }
 
-    let message = runtimeEvaluateLazyMessage(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-        ?? defaultMessage
-    if outThrown?.pointee != 0 {
+    // No lazy message lambda provided — use the default message directly
+    guard fnPtr != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: defaultMessage)
         return 0
     }
+
+    // Evaluate the lazy message lambda
+    var lazyThrown = 0
+    let rawMessage = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &lazyThrown)
+
+    if lazyThrown != 0 {
+        // Lazy message evaluation itself threw — propagate that exception directly.
+        // This is a distinct failure path from the precondition failure itself.
+        outThrown?.pointee = lazyThrown
+        return 0
+    }
+
+    // Lazy message evaluated successfully — use it for the precondition failure
+    let message = runtimePreconditionMessage(from: rawMessage)
     outThrown?.pointee = runtimeAllocateThrowable(message: message)
     return 0
 }
 
-private func runtimeEvaluateLazyMessage(
-    fnPtr: Int,
-    closureRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> String? {
-    guard fnPtr != 0 else {
-        return nil
-    }
-    var lazyThrown = 0
-    let rawMessage = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &lazyThrown)
-    if lazyThrown != 0 {
-        outThrown?.pointee = lazyThrown
-        return nil
-    }
-    return runtimePreconditionMessage(from: rawMessage)
-}
-
-private func runtimePreconditionMessage(from rawValue: Int) -> String? {
+private func runtimePreconditionMessage(from rawValue: Int) -> String {
     if let message = extractString(from: UnsafeMutableRawPointer(bitPattern: rawValue)) {
         return message
     }
