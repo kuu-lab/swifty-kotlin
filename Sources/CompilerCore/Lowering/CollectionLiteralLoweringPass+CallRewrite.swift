@@ -2168,6 +2168,11 @@ extension CollectionLiteralLoweringPass {
 
                     // scan / runningFold: args = [receiver, initial, lambda, closureRaw?]
                     // Runtime expects (listRaw, initial, fnPtr, closureRaw, outThrown)
+                    // NOTE: The rewrite blocks below intentionally duplicate the "allocate temp +
+                    // emit .call + copy to result" pattern used by emitHOFCall in VirtualCallRewrite.
+                    // This non-virtual call path operates on different data structures (loweredBody array
+                    // vs. VirtualCallRewrite's builder), so reusing emitHOFCall is not straightforward.
+                    // Kept inline for clarity and to avoid coupling the two rewrite paths.
                     if (callee == lookup.scanName || callee == lookup.runningFoldName), arguments.count == 3 || arguments.count == 4 {
                         let receiverID = arguments[0]
                         let initialID = arguments[1]
