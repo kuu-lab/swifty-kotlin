@@ -132,10 +132,14 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-331: iterator {} builder → Iterator<T>
+        let iteratorBlockType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.unitType
+        )))
         registerSyntheticTopLevelFunction(
             named: "iterator",
             packageFQName: kotlinSequencesPkg,
-            parameters: [(name: "block", type: types.anyType)],
+            parameters: [(name: "block", type: iteratorBlockType)],
             returnType: types.anyType,
             externalLinkName: "kk_iterator_builder_build",
             symbols: symbols,
