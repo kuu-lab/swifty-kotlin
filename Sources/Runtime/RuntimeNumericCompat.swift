@@ -369,6 +369,9 @@ public func kk_float_to_long(_ value: Int) -> Int {
     return Int(Int64(f))
 }
 
+// Long→* conversions: `Int` (intptr_t) is used for Long values.
+// This is correct on 64-bit macOS where Int == Int64; see the note above
+// kk_long_coerceIn for the full rationale.
 @_cdecl("kk_long_to_int")
 public func kk_long_to_int(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
@@ -401,6 +404,7 @@ public func kk_long_to_short(_ value: Int) -> Int {
 
 @_cdecl("kk_int_coerceIn")
 public func kk_int_coerceIn(_ value: Int, _ minimum: Int, _ maximum: Int) -> Int {
+    precondition(minimum <= maximum, "Cannot coerce value to an empty range: maximum \(maximum) is less than minimum \(minimum).")
     if value < minimum { return minimum }
     if value > maximum { return maximum }
     return value
@@ -414,6 +418,90 @@ public func kk_int_coerceAtLeast(_ value: Int, _ minimum: Int) -> Int {
 @_cdecl("kk_int_coerceAtMost")
 public func kk_int_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
     value > maximum ? maximum : value
+}
+
+// Long coercion (STDLIB-500) — Long uses the same Int representation on 64-bit.
+//
+// NOTE: All kk_long_* entrypoints take and return Swift `Int` (intptr_t).
+// On the current macOS-only 64-bit target Int and Int64 are identical, so
+// Kotlin Long (64-bit signed) maps directly to intptr_t without loss.
+// If the compiler ever targets 32-bit platforms this assumption must be
+// revisited: Long would need a dedicated 64-bit representation distinct
+// from the pointer-sized Int used for Kotlin Int.
+//
+// Compile-time assertion: Long == Int requires 64-bit Int.
+#if !arch(arm64) && !arch(x86_64)
+#error("KSwiftK runtime requires a 64-bit platform where Int == Int64.")
+#endif
+
+@_cdecl("kk_long_coerceIn")
+public func kk_long_coerceIn(_ value: Int, _ minimum: Int, _ maximum: Int) -> Int {
+    precondition(minimum <= maximum, "Cannot coerce value to an empty range: maximum \(maximum) is less than minimum \(minimum).")
+    if value < minimum { return minimum }
+    if value > maximum { return maximum }
+    return value
+}
+
+@_cdecl("kk_long_coerceAtLeast")
+public func kk_long_coerceAtLeast(_ value: Int, _ minimum: Int) -> Int {
+    value < minimum ? minimum : value
+}
+
+@_cdecl("kk_long_coerceAtMost")
+public func kk_long_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
+    value > maximum ? maximum : value
+}
+
+// Double coercion (STDLIB-500) — values passed as bit-encoded intptr_t.
+@_cdecl("kk_double_coerceIn")
+public func kk_double_coerceIn(_ value: Int, _ minimum: Int, _ maximum: Int) -> Int {
+    let v = kk_bits_to_double(value)
+    let lo = kk_bits_to_double(minimum)
+    let hi = kk_bits_to_double(maximum)
+    precondition(!(lo > hi), "Cannot coerce value to an empty range: maximum \(hi) is less than minimum \(lo).")
+    if v < lo { return minimum }
+    if v > hi { return maximum }
+    return value
+}
+
+@_cdecl("kk_double_coerceAtLeast")
+public func kk_double_coerceAtLeast(_ value: Int, _ minimum: Int) -> Int {
+    let v = kk_bits_to_double(value)
+    let lo = kk_bits_to_double(minimum)
+    return v < lo ? minimum : value
+}
+
+@_cdecl("kk_double_coerceAtMost")
+public func kk_double_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
+    let v = kk_bits_to_double(value)
+    let hi = kk_bits_to_double(maximum)
+    return v > hi ? maximum : value
+}
+
+// Float coercion (STDLIB-500) — values passed as bit-encoded intptr_t.
+@_cdecl("kk_float_coerceIn")
+public func kk_float_coerceIn(_ value: Int, _ minimum: Int, _ maximum: Int) -> Int {
+    let v = kk_bits_to_float(value)
+    let lo = kk_bits_to_float(minimum)
+    let hi = kk_bits_to_float(maximum)
+    precondition(!(lo > hi), "Cannot coerce value to an empty range: maximum \(hi) is less than minimum \(lo).")
+    if v < lo { return minimum }
+    if v > hi { return maximum }
+    return value
+}
+
+@_cdecl("kk_float_coerceAtLeast")
+public func kk_float_coerceAtLeast(_ value: Int, _ minimum: Int) -> Int {
+    let v = kk_bits_to_float(value)
+    let lo = kk_bits_to_float(minimum)
+    return v < lo ? minimum : value
+}
+
+@_cdecl("kk_float_coerceAtMost")
+public func kk_float_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
+    let v = kk_bits_to_float(value)
+    let hi = kk_bits_to_float(maximum)
+    return v > hi ? maximum : value
 }
 
 @_cdecl("kk_uint_to_int")

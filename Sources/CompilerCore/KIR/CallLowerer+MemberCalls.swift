@@ -824,16 +824,13 @@ extension CallLowerer {
             }
         }
 
-        // Int.coerceIn(min, max) (STDLIB-150)
+        // Int/Long/Double/Float.coerceIn(min, max) (STDLIB-150, STDLIB-500)
         if interner.resolve(calleeName) == "coerceIn", args.count == 2 {
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let longType = sema.types.make(.primitive(.long, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType {
+            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_int_coerceIn"),
+                    callee: interner.intern(prefix + "_coerceIn"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
@@ -843,19 +840,16 @@ extension CallLowerer {
             }
         }
 
-        // Int.coerceAtLeast(min) / Int.coerceAtMost(max) (STDLIB-150)
+        // Int/Long/Double/Float.coerceAtLeast(min) / coerceAtMost(max) (STDLIB-150, STDLIB-500)
         if args.count == 1 {
             let calleeStr = interner.resolve(calleeName)
             if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
-                let intType = sema.types.make(.primitive(.int, .nonNull))
-                let longType = sema.types.make(.primitive(.long, .nonNull))
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType || nonNullReceiverType == longType {
-                    let runtimeName = calleeStr == "coerceAtLeast" ? "kk_int_coerceAtLeast" : "kk_int_coerceAtMost"
+                if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
+                    let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast" : "_coerceAtMost"
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern(runtimeName),
+                        callee: interner.intern(prefix + suffix),
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
                         canThrow: false,
