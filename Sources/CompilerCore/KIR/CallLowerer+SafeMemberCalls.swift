@@ -146,6 +146,37 @@ extension CallLowerer {
             }
         }
 
+        // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
+        // NOTE: This bit-count lowering logic is intentionally duplicated in
+        // CallLowerer+MemberCalls.swift for the non-safe-call path.
+        // Keep the callee-name -> runtime-name mapping in sync.
+        if args.isEmpty {
+            let calleeStr = interner.resolve(effectiveCalleeName)
+            if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" {
+                let intType = sema.types.intType
+                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+                if nonNullReceiverType == intType {
+                    let runtimeName: String
+                    switch calleeStr {
+                    case "countOneBits": runtimeName = "kk_int_countOneBits"
+                    case "countLeadingZeroBits": runtimeName = "kk_int_countLeadingZeroBits"
+                    case "countTrailingZeroBits": runtimeName = "kk_int_countTrailingZeroBits"
+                    default: fatalError("unreachable: calleeStr already guarded to countOneBits|countLeadingZeroBits|countTrailingZeroBits")
+                    }
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeName),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+        }
+
         // Primitive infix member functions: Int/Long/UInt/ULong.and|or|xor|shl|shr|ushr (EXPR-003, TYPE-005)
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))

@@ -135,9 +135,10 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testBitwiseFunctionCount() {
-        // kk_bitwise_and, kk_bitwise_or, kk_bitwise_xor, kk_op_inv,
-        // kk_op_shl, kk_op_shr, kk_op_ushr, kk_int_toString_radix
-        XCTAssertEqual(RuntimeABISpec.bitwiseFunctions.count, 8)
+        // kk_bitwise_and, kk_bitwise_or, kk_bitwise_xor, kk_op_not, kk_op_inv,
+        // kk_op_shl, kk_op_shr, kk_op_ushr, kk_int_toString_radix,
+        // kk_int_countOneBits, kk_int_countLeadingZeroBits, kk_int_countTrailingZeroBits
+        XCTAssertEqual(RuntimeABISpec.bitwiseFunctions.count, 12)
     }
 
     func testPrimitiveNumericConversionFunctionCount() {
