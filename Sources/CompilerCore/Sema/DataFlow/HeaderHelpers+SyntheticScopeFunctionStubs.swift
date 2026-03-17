@@ -2,7 +2,7 @@ import Foundation
 
 /// Synthetic stdlib stubs for Kotlin scope functions.
 /// - with<T, R>(receiver: T, block: T.() -> R): R   (STDLIB-061)
-/// - T.let<T, R>(block: (T) -> R): R                (STDLIB-400)
+/// - fun <T, R> T.let(block: (T) -> R): R            (STDLIB-400)
 /// Inline-expanded by CallLowerer; no runtime call.
 extension DataFlowSemaPhase {
     func registerSyntheticScopeFunctionStubs(
@@ -123,7 +123,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `T.let<T, R>(block: (T) -> R): R` (STDLIB-400)
+    /// `fun <T, R> T.let(block: (T) -> R): R` (STDLIB-400)
     /// Inline extension function on T (upper bound Any?, so T is nullable-capable).
     /// The block receives T as its parameter (`it`).
     private func registerLetStub(
@@ -161,9 +161,12 @@ extension DataFlowSemaPhase {
             flags: []
         )
 
-        // T and R have upper bound Any? (nullable-capable) per Kotlin spec
-        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nullable)))
-        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nullable)))
+        // T and R use .nonNull here because TypeParamType.nullability distinguishes T (.nonNull)
+        // from T? (.nullable). The fact that T/R can *instantiate* to a nullable type (e.g. String?)
+        // is conveyed by the implicit Any? upper bound, not by marking the type parameter itself
+        // as .nullable. This matches the `with` stub and all other synthetic stubs in the codebase.
+        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
+        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
 
         // block: (T) -> R — lambda that takes T as an explicit parameter (not a receiver)
         let blockType = types.make(.functionType(FunctionType(
@@ -198,7 +201,8 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(letSymbol, for: rSymbol)
         symbols.setParentSymbol(letSymbol, for: blockSymbol)
 
-        // Extension function: receiverType is T (already nullable-capable, no double-wrapping)
+        // Extension function: receiverType is T (not T?). Nullable-capability comes from
+        // T's implicit Any? upper bound, not from the type parameter's own nullability flag.
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: tType,
