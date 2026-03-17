@@ -1006,6 +1006,17 @@ extension CallTypeChecker {
                 }
                 resultType = sema.types.makeNullable(collectionElementType)
 
+            case "distinctBy":
+                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), case .lambdaLiteral = lambdaExpr {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                resultType = receiverType
+
             default:
                 resultType = sema.types.anyType
             }
