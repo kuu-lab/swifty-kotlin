@@ -261,19 +261,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticMathTopLevelProperty(
+        registerSyntheticMathTopLevelFunction(
             named: "PI",
             packageFQName: kotlinMathPkg,
-            type: types.doubleType,
+            parameters: [],
+            returnType: types.doubleType,
             externalLinkName: "kk_math_PI",
             symbols: symbols,
             interner: interner
         )
 
-        registerSyntheticMathTopLevelProperty(
+        registerSyntheticMathTopLevelFunction(
             named: "E",
             packageFQName: kotlinMathPkg,
-            type: types.doubleType,
+            parameters: [],
+            returnType: types.doubleType,
             externalLinkName: "kk_math_E",
             symbols: symbols,
             interner: interner
@@ -362,39 +364,6 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-    }
-
-    private func registerSyntheticMathTopLevelProperty(
-        named name: String,
-        packageFQName: [InternedString],
-        type: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(type, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(type, for: propertySymbol)
     }
 
     private func ensureSyntheticPackage(

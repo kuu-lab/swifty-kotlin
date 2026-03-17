@@ -312,7 +312,8 @@ public func kk_math_sign(_ value: Int) -> Int {
     if d.isNaN { return kk_double_to_bits(Double.nan) }
     if d > 0 { return kk_double_to_bits(1.0) }
     if d < 0 { return kk_double_to_bits(-1.0) }
-    return kk_double_to_bits(0.0)
+    // Preserve sign of zero: return the original value for +0.0 / -0.0
+    return value
 }
 
 @_cdecl("kk_math_hypot")
