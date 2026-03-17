@@ -1556,6 +1556,11 @@ final class RuntimeBigNumberBox {
 
 /// Locale-independent validation for BigDecimal format matching Kotlin/Java:
 /// `[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?`
+///
+/// Note: We intentionally avoid `Decimal(string:)` or `NumberFormatter` because
+/// Foundation's decimal parsing is locale-sensitive (e.g., decimal separator may
+/// vary by locale). Instead, this hand-written parser validates against a fixed
+/// POSIX-style grammar that matches Kotlin/JVM BigDecimal semantics.
 private func isValidBigDecimalFormat(_ s: String) -> Bool {
     var i = s.startIndex
     guard i < s.endIndex else { return false }
@@ -1599,12 +1604,13 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimal received invalid string handle")
     }
-    let trimmed = str.trimmingCharacters(in: .whitespaces)
-    guard isValidBigDecimalFormat(trimmed) else {
+    // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
+    // leading/trailing whitespace, so we validate the raw string as-is.
+    guard isValidBigDecimalFormat(str) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
         return 0
     }
-    let box = RuntimeBigNumberBox(value: trimmed, kind: .decimal)
+    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
     return registerRuntimeObject(box)
 }
 
@@ -1616,26 +1622,27 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
     }
-    // Validate integer format: [+-]?\d+ (optional single leading sign, then digits)
-    let trimmed = str.trimmingCharacters(in: .whitespaces)
-    var idx = trimmed.startIndex
-    guard idx < trimmed.endIndex else {
+    // Validate integer format: [+-]?\d+ (optional single leading sign, then digits).
+    // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
+    // leading/trailing whitespace, so we validate the raw string as-is.
+    var idx = str.startIndex
+    guard idx < str.endIndex else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
         return 0
     }
-    if trimmed[idx] == "+" || trimmed[idx] == "-" {
-        idx = trimmed.index(after: idx)
+    if str[idx] == "+" || str[idx] == "-" {
+        idx = str.index(after: idx)
     }
     let digitStart = idx
-    while idx < trimmed.endIndex, trimmed[idx] >= "0", trimmed[idx] <= "9" {
-        idx = trimmed.index(after: idx)
+    while idx < str.endIndex, str[idx] >= "0", str[idx] <= "9" {
+        idx = str.index(after: idx)
     }
-    let isValid = idx > digitStart && idx == trimmed.endIndex
+    let isValid = idx > digitStart && idx == str.endIndex
     guard isValid else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
         return 0
     }
-    let box = RuntimeBigNumberBox(value: trimmed, kind: .integer)
+    let box = RuntimeBigNumberBox(value: str, kind: .integer)
     return registerRuntimeObject(box)
 }
 
