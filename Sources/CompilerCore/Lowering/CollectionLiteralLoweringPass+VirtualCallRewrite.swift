@@ -106,7 +106,12 @@ extension CollectionLiteralLoweringPass {
         sequenceExprIDs: inout Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
-        if callee == lookup.asSequenceName, arguments.isEmpty {
+        // asSequence() → kk_list_asSequence only when receiver is a tracked list.
+        // Array receivers are handled by rewriteArrayVirtualCall (guarded by arrayExprIDs).
+        // Unknown receivers fall through so the original symbol linkage is preserved.
+        if callee == lookup.asSequenceName, arguments.isEmpty,
+           listExprIDs.contains(receiver.rawValue)
+        {
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkListAsSequenceName,
