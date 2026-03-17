@@ -37,11 +37,14 @@ private func invalidContainerPanic(_ caller: StaticString, _ kind: StaticString)
 /// Calls `close()` on a Closeable resource via vtable dispatch (slot 0).
 /// The vtable function pointer follows the standard compiler ABI:
 ///   (self, outThrown) -> Int
-private func runtimeCloseableClose(_ resourceRaw: Int) {
+/// Returns 0 on success, or the thrown exception handle if close() threw.
+private func runtimeCloseableClose(_ resourceRaw: Int) -> Int {
     let closeFnPtr = kk_vtable_lookup(resourceRaw, 0)
-    guard closeFnPtr != 0 else { return }
+    guard closeFnPtr != 0 else { return 0 }
     let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    _ = closeFn(resourceRaw, nil)
+    var closeThrown = 0
+    _ = closeFn(resourceRaw, &closeThrown)
+    return closeThrown
 }
 
 /// `resource.use { block }` — calls the block with the resource, then calls
@@ -51,15 +54,25 @@ private func runtimeCloseableClose(_ resourceRaw: Int) {
 @_cdecl("kk_use")
 public func kk_use(_ resourceRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     // Call the lambda with the resource as its argument
-    var thrown = 0
-    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: resourceRaw, outThrown: &thrown)
+    var blockThrown = 0
+    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: resourceRaw, outThrown: &blockThrown)
 
     // Always close the resource (finally semantics)
-    runtimeCloseableClose(resourceRaw)
+    let closeThrown = runtimeCloseableClose(resourceRaw)
 
-    // Propagate any exception from the block
-    if thrown != 0 {
-        return handleCollectionLambdaThrow(thrown, outThrown)
+    // Kotlin use {} exception semantics:
+    // 1. If block threw and close() also threw, propagate the block exception
+    //    (close exception is suppressed — mirrors Kotlin's addSuppressed behavior).
+    // 2. If only block threw, propagate the block exception.
+    // 3. If only close() threw, propagate the close exception.
+    if blockThrown != 0 {
+        // Block threw — propagate the block exception (case 1 & 2).
+        // Note: close exception, if any, is suppressed.
+        return handleCollectionLambdaThrow(blockThrown, outThrown)
+    }
+    if closeThrown != 0 {
+        // Only close() threw (case 3) — propagate it.
+        return handleCollectionLambdaThrow(closeThrown, outThrown)
     }
     return result
 }
