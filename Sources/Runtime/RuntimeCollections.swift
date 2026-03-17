@@ -223,6 +223,59 @@ public func kk_list_to_set(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(list.elements)))
 }
 
+// MARK: - List intersect / union / subtract / toHashSet (STDLIB-510)
+
+@_cdecl("kk_list_intersect")
+public func kk_list_intersect(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
+    var otherElements: [Int] = []
+    if let otherSet = runtimeSetBox(from: otherRaw) {
+        otherElements = otherSet.elements
+    } else if let otherList = runtimeListBox(from: otherRaw) {
+        otherElements = otherList.elements
+    }
+    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
+        otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: result))
+}
+
+@_cdecl("kk_list_union")
+public func kk_list_union(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
+    var otherElements: [Int] = []
+    if let otherSet = runtimeSetBox(from: otherRaw) {
+        otherElements = otherSet.elements
+    } else if let otherList = runtimeListBox(from: otherRaw) {
+        otherElements = otherList.elements
+    }
+    let combined = selfElements + otherElements
+    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
+}
+
+@_cdecl("kk_list_subtract")
+public func kk_list_subtract(_ listRaw: Int, _ otherRaw: Int) -> Int {
+    let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
+    var otherElements: [Int] = []
+    if let otherSet = runtimeSetBox(from: otherRaw) {
+        otherElements = otherSet.elements
+    } else if let otherList = runtimeListBox(from: otherRaw) {
+        otherElements = otherList.elements
+    }
+    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
+        !otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: result))
+}
+
+@_cdecl("kk_list_toHashSet")
+public func kk_list_toHashSet(_ listRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        return registerRuntimeObject(RuntimeSetBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(list.elements)))
+}
+
 // MARK: - List getOrNull / elementAtOrNull (STDLIB-212)
 
 @_cdecl("kk_list_getOrNull")
