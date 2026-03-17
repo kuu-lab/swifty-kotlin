@@ -201,6 +201,73 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- java.io.File (STDLIB-320) ---
+        let javaIOPkg = ensureSyntheticPackage(
+            path: [interner.intern("java"), interner.intern("io")],
+            symbols: symbols
+        )
+        let fileSymbol = ensureClassSymbol(
+            named: "File",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let fileType = types.make(.classType(ClassType(
+            classSymbol: fileSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(fileType, for: fileSymbol)
+
+        // File(path: String) constructor
+        registerSyntheticConstructor(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            externalLinkName: "kk_file_new",
+            parameters: [(name: "path", type: types.stringType)],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // readText(): String
+        registerSyntheticSystemMember(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            name: "readText",
+            externalLinkName: "kk_file_readText",
+            returnType: types.stringType,
+            parameters: [],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // writeText(text: String): Unit
+        registerSyntheticSystemMember(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            name: "writeText",
+            externalLinkName: "kk_file_writeText",
+            returnType: types.unitType,
+            parameters: [(name: "text", type: types.stringType)],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // readLines(): List<String>
+        let listOfStringType = makeFileListOfStringType(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticSystemMember(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            name: "readLines",
+            externalLinkName: "kk_file_readLines",
+            returnType: listOfStringType,
+            parameters: [],
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func ensureSyntheticObjectSymbol(
@@ -643,5 +710,89 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
 
         return sequenceSymbol
+    }
+
+    private func makeFileListOfStringType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let listFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]
+        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: listSymbol,
+            args: [.out(types.stringType)],
+            nullability: .nonNull
+        )))
+    }
+
+    private func registerSyntheticConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        externalLinkName: String,
+        parameters: [(name: String, type: TypeID)],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let ctorFQName = ownerInfo.fqName + [initName]
+        let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameters.map(\.type)
+        }
+        guard !hasMatchingConstructor else {
+            return
+        }
+
+        let ctorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: ctorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
+
+        var valueParameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: ctorFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameters.map(\.type),
+                returnType: ownerType,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+            ),
+            for: ctorSymbol
+        )
     }
 }
