@@ -1554,6 +1554,43 @@ final class RuntimeBigNumberBox {
     }
 }
 
+/// Locale-independent validation for BigDecimal format matching Kotlin/Java:
+/// `[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?`
+private func isValidBigDecimalFormat(_ s: String) -> Bool {
+    var i = s.startIndex
+    guard i < s.endIndex else { return false }
+    // Optional leading sign
+    if s[i] == "+" || s[i] == "-" {
+        i = s.index(after: i)
+        guard i < s.endIndex else { return false }
+    }
+    // Must have at least one digit before or after the decimal point
+    let digitStart = i
+    while i < s.endIndex, s[i] >= "0", s[i] <= "9" { i = s.index(after: i) }
+    let hasIntPart = i > digitStart
+    var hasFracPart = false
+    if i < s.endIndex, s[i] == "." {
+        i = s.index(after: i)
+        let fracStart = i
+        while i < s.endIndex, s[i] >= "0", s[i] <= "9" { i = s.index(after: i) }
+        hasFracPart = i > fracStart
+    }
+    guard hasIntPart || hasFracPart else { return false }
+    // Optional exponent
+    if i < s.endIndex, s[i] == "e" || s[i] == "E" {
+        i = s.index(after: i)
+        guard i < s.endIndex else { return false }
+        if s[i] == "+" || s[i] == "-" {
+            i = s.index(after: i)
+            guard i < s.endIndex else { return false }
+        }
+        let expStart = i
+        while i < s.endIndex, s[i] >= "0", s[i] <= "9" { i = s.index(after: i) }
+        guard i > expStart else { return false }
+    }
+    return i == s.endIndex
+}
+
 @_cdecl("kk_string_toBigDecimal")
 public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1562,11 +1599,12 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimal received invalid string handle")
     }
-    guard Decimal(string: str) != nil else {
+    let trimmed = str.trimmingCharacters(in: .whitespaces)
+    guard isValidBigDecimalFormat(trimmed) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
         return 0
     }
-    let box = RuntimeBigNumberBox(value: str, kind: .decimal)
+    let box = RuntimeBigNumberBox(value: trimmed, kind: .decimal)
     return registerRuntimeObject(box)
 }
 
@@ -1578,9 +1616,21 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
     }
-    // Validate integer format
+    // Validate integer format: [+-]?\d+ (optional single leading sign, then digits)
     let trimmed = str.trimmingCharacters(in: .whitespaces)
-    let isValid = !trimmed.isEmpty && trimmed.allSatisfy { $0.isNumber || $0 == "-" || $0 == "+" }
+    var idx = trimmed.startIndex
+    guard idx < trimmed.endIndex else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
+        return 0
+    }
+    if trimmed[idx] == "+" || trimmed[idx] == "-" {
+        idx = trimmed.index(after: idx)
+    }
+    let digitStart = idx
+    while idx < trimmed.endIndex, trimmed[idx] >= "0", trimmed[idx] <= "9" {
+        idx = trimmed.index(after: idx)
+    }
+    let isValid = idx > digitStart && idx == trimmed.endIndex
     guard isValid else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
         return 0
