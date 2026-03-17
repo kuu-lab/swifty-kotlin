@@ -597,7 +597,7 @@ extension CallLowerer {
         return knownNames.isStringBuilderSymbol(symbol)
     }
 
-    private func isSequenceLikeType(
+    func isSequenceLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner

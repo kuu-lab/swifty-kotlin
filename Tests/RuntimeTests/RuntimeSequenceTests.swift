@@ -315,6 +315,72 @@ final class RuntimeSequenceTests: XCTestCase {
         kk_sequence_from_list(makeList(elements))
     }
 
+    // MARK: - Sequence.plus (STDLIB-561)
+
+    func testPlusConcatenatesTwoSequences() {
+        let seq1 = makeSequence([1, 2, 3])
+        let seq2 = makeSequence([4, 5])
+        let combined = kk_sequence_plus(seq1, seq2)
+        XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 4, 5])
+    }
+
+    func testPlusWithEmptySequence() {
+        let seq1 = makeSequence([1, 2])
+        let seq2 = makeSequence([])
+        XCTAssertEqual(sequenceElements(kk_sequence_plus(seq1, seq2)), [1, 2])
+        XCTAssertEqual(sequenceElements(kk_sequence_plus(seq2, seq1)), [1, 2])
+    }
+
+    func testPlusWithListAsOther() {
+        let seq = makeSequence([1, 2])
+        let list = makeList([3, 4])
+        let combined = kk_sequence_plus(seq, list)
+        XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 4])
+    }
+
+    // MARK: - Sequence.minus (STDLIB-562)
+
+    func testMinusRemovesFirstOccurrenceOfElement() {
+        let seq = makeSequence([1, 2, 3, 2, 4])
+        let result = kk_sequence_minus(seq, 2)
+        XCTAssertEqual(sequenceElements(result), [1, 3, 2, 4])
+    }
+
+    func testMinusElementNotPresent() {
+        let seq = makeSequence([1, 2, 3])
+        let result = kk_sequence_minus(seq, 99)
+        XCTAssertEqual(sequenceElements(result), [1, 2, 3])
+    }
+
+    func testMinusOnEmptySequence() {
+        let seq = makeSequence([])
+        let result = kk_sequence_minus(seq, 1)
+        XCTAssertEqual(sequenceElements(result), [])
+    }
+
+    func testPlusResultIsSequence() {
+        // Verify the result of plus can be chained with other sequence operations
+        let seq1 = makeSequence([1, 2])
+        let seq2 = makeSequence([3, 4])
+        let combined = kk_sequence_plus(seq1, seq2)
+        let asList = kk_sequence_to_list(combined)
+        XCTAssertEqual(listElements(asList), [1, 2, 3, 4])
+    }
+
+    func testMinusResultIsSequence() {
+        // Verify the result of minus can be chained with other sequence operations
+        let seq = makeSequence([1, 2, 3])
+        let reduced = kk_sequence_minus(seq, 2)
+        let asList = kk_sequence_to_list(reduced)
+        XCTAssertEqual(listElements(asList), [1, 3])
+    }
+
+    // MARK: - Helpers
+
+    private func sequenceElements(_ seqRaw: Int) -> [Int] {
+        listElements(kk_sequence_to_list(seqRaw))
+    }
+
     private func listElements(_ listRaw: Int) -> [Int] {
         let size = kk_list_size(listRaw)
         if size <= 0 {

@@ -540,6 +540,34 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
+        // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
+        if callee == lookup.plusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkSequencePlusName,
+                arguments: [receiver] + arguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result { sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+
+        // minus(element) on sequence → kk_sequence_minus (STDLIB-562)
+        if callee == lookup.minusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkSequenceMinusName,
+                arguments: [receiver] + arguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result { sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+
         return false
     }
 

@@ -1832,6 +1832,55 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
+// MARK: - Sequence plus/minus Operations (STDLIB-561, STDLIB-562)
+
+@_cdecl("kk_sequence_plus")
+public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
+    let lhsElements: [Int]
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        lhsElements = evaluateSequence(seq)
+    } else if let list = runtimeListBox(from: seqRaw) {
+        lhsElements = list.elements
+    } else if let array = runtimeArrayBox(from: seqRaw) {
+        lhsElements = array.elements
+    } else {
+        lhsElements = []
+    }
+    let rhsElements: [Int]
+    if let seq = runtimeSequenceBox(from: otherRaw) {
+        rhsElements = evaluateSequence(seq)
+    } else if let list = runtimeListBox(from: otherRaw) {
+        rhsElements = list.elements
+    } else if let array = runtimeArrayBox(from: otherRaw) {
+        rhsElements = array.elements
+    } else {
+        // Single element case: otherRaw is a plain value, not a collection
+        rhsElements = [otherRaw]
+    }
+    let newSeq = RuntimeSequenceBox(steps: [.source(elements: lhsElements + rhsElements)])
+    return registerRuntimeObject(newSeq)
+}
+
+@_cdecl("kk_sequence_minus")
+public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
+    let elements: [Int]
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        elements = evaluateSequence(seq)
+    } else if let list = runtimeListBox(from: seqRaw) {
+        elements = list.elements
+    } else if let array = runtimeArrayBox(from: seqRaw) {
+        elements = array.elements
+    } else {
+        elements = []
+    }
+    var result = elements
+    if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
+        result.remove(at: index)
+    }
+    let newSeq = RuntimeSequenceBox(steps: [.source(elements: result)])
+    return registerRuntimeObject(newSeq)
+}
+
 // MARK: - Sequence Builder (sequence { yield(x) })
 
 @_cdecl("kk_sequence_builder_create")

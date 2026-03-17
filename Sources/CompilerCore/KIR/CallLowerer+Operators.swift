@@ -166,6 +166,22 @@ extension CallLowerer {
             }
             return result
         }
+        // STDLIB-561/562: Sequence plus/minus operators
+        if (op == .add || op == .subtract),
+           isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
+            let calleeName = op == .subtract ? "kk_sequence_minus" : "kk_sequence_plus"
+            instructions.append(
+                .call(
+                    symbol: nil,
+                    callee: interner.intern(calleeName),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            )
+            return result
+        }
         // STDLIB-345: List plus/minus operators
         if (op == .add || op == .subtract), sema.bindings.isCollectionExpr(exprID),
            isConcreteListLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {

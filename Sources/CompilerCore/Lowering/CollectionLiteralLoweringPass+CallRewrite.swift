@@ -1148,6 +1148,7 @@ extension CollectionLiteralLoweringPass {
                         || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
                         || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
                         || callee == lookup.kkSequenceZipName
+                        || callee == lookup.kkSequencePlusName || callee == lookup.kkSequenceMinusName
                     {
                         loweredBody.append(instruction)
                         if let result { sequenceExprIDs.insert(result.rawValue) }
@@ -1324,6 +1325,40 @@ extension CollectionLiteralLoweringPass {
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: lookup.kkSequenceZipName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            if let result { sequenceExprIDs.insert(result.rawValue) }
+                            continue
+                        }
+                    }
+
+                    // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
+                    if callee == lookup.plusMemberName, arguments.count == 2 {
+                        let receiverID = arguments[0]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSequencePlusName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            if let result { sequenceExprIDs.insert(result.rawValue) }
+                            continue
+                        }
+                    }
+
+                    // minus(element) on sequence → kk_sequence_minus (STDLIB-562)
+                    if callee == lookup.minusMemberName, arguments.count == 2 {
+                        let receiverID = arguments[0]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSequenceMinusName,
                                 arguments: arguments,
                                 result: result,
                                 canThrow: false,

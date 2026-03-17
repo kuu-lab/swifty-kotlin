@@ -214,6 +214,10 @@ struct CollectionLiteralLookupTables {
     let kkSequenceFoldIndexedName: InternedString
     let kkSequenceReduceIndexedName: InternedString
 
+    // STDLIB-561/562: Sequence plus/minus
+    let kkSequencePlusName: InternedString
+    let kkSequenceMinusName: InternedString
+
     let kkMapOfName: InternedString
     let kkMapSizeName: InternedString
     let kkMapGetName: InternedString
@@ -371,6 +375,10 @@ struct CollectionLiteralLookupTables {
     let copyOfName: InternedString
     let copyOfRangeName: InternedString
     let fillName: InternedString
+
+    // Sequence plus/minus member names (STDLIB-561/562)
+    let plusMemberName: InternedString
+    let minusMemberName: InternedString
 
     // Sequence member names (STDLIB-003)
     let asSequenceName: InternedString
@@ -689,6 +697,9 @@ struct CollectionLiteralLookupTables {
         kkSequenceFoldIndexedName = interner.intern("kk_sequence_foldIndexed")
         kkSequenceReduceIndexedName = interner.intern("kk_sequence_reduceIndexed")
 
+        kkSequencePlusName = interner.intern("kk_sequence_plus")
+        kkSequenceMinusName = interner.intern("kk_sequence_minus")
+
         kkMapOfName = interner.intern("kk_map_of")
         kkMapSizeName = interner.intern("kk_map_size")
         kkMapGetName = interner.intern("kk_map_get")
@@ -839,6 +850,9 @@ struct CollectionLiteralLookupTables {
         copyOfName = interner.intern("copyOf")
         copyOfRangeName = interner.intern("copyOfRange")
         fillName = interner.intern("fill")
+
+        plusMemberName = interner.intern("plus")
+        minusMemberName = interner.intern("minus")
 
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")

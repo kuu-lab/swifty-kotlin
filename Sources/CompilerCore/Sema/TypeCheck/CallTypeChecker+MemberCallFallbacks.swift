@@ -494,6 +494,8 @@ extension CallTypeChecker {
             interner.intern("firstOrNull"),
             interner.intern("lastOrNull"),
             interner.intern("joinToString"),
+            interner.intern("plus"),
+            interner.intern("minus"),
         ]
         let setOnlyMembers: Set = [
             interner.intern("intersect"),
@@ -527,6 +529,8 @@ extension CallTypeChecker {
             knownNames.getOrDefault,
             interner.intern("plus"),
             interner.intern("minus"),
+            interner.intern("maxByOrNull"),
+            interner.intern("minByOrNull"),
         ]
         if listOnlyMembers.contains(memberName) {
             return isListReceiver
@@ -577,11 +581,12 @@ extension CallTypeChecker {
             interner.intern("subtract"),
         ]
         if memberName == interner.intern("mapValues") ||
-            memberName == interner.intern("mapKeys") ||
-            memberName == interner.intern("plus") ||
-            memberName == interner.intern("minus")
+            memberName == interner.intern("mapKeys")
         {
             return isMapReceiver
+        }
+        if memberName == interner.intern("plus") || memberName == interner.intern("minus") {
+            return true
         }
         if setReturningMembers.contains(memberName) {
             return isSetReceiver
@@ -642,7 +647,7 @@ extension CallTypeChecker {
         case knownNames.putAll:
             return isMutableMapReceiver && argCount == 1
         case interner.intern("plus"), interner.intern("minus"):
-            return isMapReceiver && argCount == 1
+            return argCount == 1
         case interner.intern("fold"), interner.intern("foldIndexed"), interner.intern("scan"), interner.intern("runningFold"), interner.intern("windowed"), interner.intern("subList"):
             return argCount == 2
         case interner.intern("reduceIndexed"):
