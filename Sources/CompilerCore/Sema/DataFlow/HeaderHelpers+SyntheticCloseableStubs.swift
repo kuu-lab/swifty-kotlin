@@ -58,6 +58,7 @@ extension DataFlowSemaPhase {
         let closeableType = types.make(.classType(ClassType(
             classSymbol: closeableSymbol, args: [], nullability: .nonNull
         )))
+        types.closeableTypeID = closeableType
 
         // Register `fun close(): Unit` on Closeable.
         let closeName = interner.intern("close")

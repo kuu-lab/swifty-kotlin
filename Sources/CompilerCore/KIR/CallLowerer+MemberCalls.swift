@@ -3624,7 +3624,7 @@ extension CallLowerer {
                 callee: info.callee,
                 arguments: callArgs,
                 result: result,
-                canThrow: false,
+                canThrow: true,
                 thrownResult: nil
             ))
 
@@ -3642,21 +3642,49 @@ extension CallLowerer {
             )
             instructions.append(.jump(finallyLabel))
 
-            // finally: always call close() on the receiver.
+            // finally: always call close() on the receiver via virtual dispatch.
+            // close() is an interface method on Closeable and requires dynamic dispatch
+            // through the itable so that concrete implementations are invoked correctly.
             instructions.append(.label(finallyLabel))
             let closeName = interner.intern("close")
             let closeResult = arena.appendExpr(
                 .temporary(Int32(arena.expressions.count)),
                 type: sema.types.unitType
             )
-            instructions.append(.call(
-                symbol: nil,
-                callee: closeName,
-                arguments: [loweredReceiverID],
-                result: closeResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // Resolve the close() symbol from the Closeable interface and use
+            // virtualCall with interface dispatch instead of a static .call.
+            let closeableFQName: [InternedString] = [
+                interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")
+            ]
+            let closeFQName = closeableFQName + [closeName]
+            let closeSymbol = sema.symbols.lookup(fqName: closeFQName)
+            let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+            let closeDispatch: KIRDispatchKind? = closeSymbol.flatMap { sym in
+                resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema)
+            }
+            if let closeDispatch, let closeSymbol {
+                instructions.append(.virtualCall(
+                    symbol: closeSymbol,
+                    callee: closeName,
+                    receiver: loweredReceiverID,
+                    arguments: [],
+                    result: closeResult,
+                    canThrow: true,
+                    thrownResult: nil,
+                    dispatch: closeDispatch
+                ))
+            } else {
+                // Fallback: if dispatch resolution fails (e.g. synthetic-only receiver),
+                // emit a static call so compilation still proceeds.
+                instructions.append(.call(
+                    symbol: closeSymbol,
+                    callee: closeName,
+                    arguments: [loweredReceiverID],
+                    result: closeResult,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+            }
 
             // After finally: rethrow if an exception was caught, otherwise continue.
             instructions.append(.jumpIfNotNull(value: exceptionSlot, target: rethrowLabel))

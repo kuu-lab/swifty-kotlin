@@ -381,6 +381,10 @@ extension CallTypeChecker {
                 case .scopeUse:
                     // use: lambda receives `it` parameter typed as T, returns R.
                     // Semantically equivalent to `let` but wraps in try-finally { close() }.
+                    // NOTE: The lambda inference below intentionally duplicates scopeLet logic.
+                    // The duplication is deliberate — use and let share the same type inference
+                    // semantics (receiver passed as `it`, lambda return type becomes call result)
+                    // but differ in lowering (use emits try-finally with close()).
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [nonNullReceiverType],
                         returnType: expectedType ?? sema.types.anyType
@@ -3474,16 +3478,16 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns true if `receiverType` conforms to Closeable or AutoCloseable,
+    /// Returns true if `receiverType` conforms to Closeable,
     /// so that `.use {}` is only treated as a scope function on Closeable receivers.
+    /// Note: AutoCloseable is registered as a typealias to Closeable (see
+    /// HeaderHelpers+SyntheticCloseableStubs.swift), so checking Closeable alone
+    /// covers both Closeable and AutoCloseable receivers.
     private func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
-        guard let closeableSymbol = sema.types.closeableInterfaceSymbol else {
+        guard let closeableType = sema.types.closeableTypeID else {
             return false
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        let closeableType = sema.types.make(.classType(ClassType(
-            classSymbol: closeableSymbol, args: [], nullability: .nonNull
-        )))
         return sema.types.isSubtype(nonNullReceiver, closeableType)
     }
 }
