@@ -153,6 +153,30 @@ public func kk_file_forEachLine(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
     return 0
 }
 
+// MARK: - STDLIB-566: File.useLines {}
+
+@_cdecl("kk_file_useLines")
+public func kk_file_useLines(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_useLines received invalid File handle")
+    }
+    guard let content = try? String(contentsOfFile: file.path, encoding: .utf8) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read file \(file.path)")
+        return 0
+    }
+    let lines = content.components(separatedBy: "\n")
+    let linesList = RuntimeListBox(elements: lines.map { fileMakeStringRaw($0) })
+    let linesListRaw = registerRuntimeObject(linesList)
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: linesListRaw, outThrown: &thrown)
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
+}
+
 // MARK: - STDLIB-323: File filesystem operations
 
 @_cdecl("kk_file_delete")
