@@ -210,6 +210,9 @@ public func kk_string_builder_append(_ strRaw: Int) -> Int {
     return 0
 }
 
+// NOTE: The PR description originally referenced "kk_string_builder_appendLine" (camelCase),
+// but the actual exported symbol uses snake_case ("kk_string_builder_append_line") to match
+// the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
 @_cdecl("kk_string_builder_append_line")
 public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
@@ -222,6 +225,7 @@ public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
     return 0
 }
 
+// NOTE: See comment above on kk_string_builder_append_line — same snake_case convention applies.
 @_cdecl("kk_string_builder_append_line_noarg")
 public func kk_string_builder_append_line_noarg() -> Int {
     runtimeBuilderState.appendString("\n")
