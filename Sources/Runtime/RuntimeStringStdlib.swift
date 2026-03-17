@@ -539,6 +539,10 @@ public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
 
 // MARK: - STDLIB-420 String.toLong / toLongOrNull / toFloat / toFloatOrNull
 
+#if !arch(arm64) && !arch(x86_64)
+#error("Long conversion assumes 64-bit Int")
+#endif
+
 /// Shared helper: parse a trimmed string into a Float, handling NaN/Infinity literals.
 private func runtimeParseFloat(_ trimmed: String) -> Float? {
     switch trimmed {
