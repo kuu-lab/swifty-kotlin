@@ -189,8 +189,8 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
 
 @_cdecl("kk_string_asSequence")
 public func kk_string_asSequence(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    let seq = RuntimeSequenceBox(steps: [.source(elements: charRaws)])
+    // Lazy: store only the string handle; characters are yielded on demand
+    let seq = RuntimeSequenceBox(steps: [.stringSource(strRaw: strRaw)])
     return registerRuntimeObject(seq)
 }
 

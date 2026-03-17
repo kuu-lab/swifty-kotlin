@@ -1291,12 +1291,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let iterableCharType = makeIterableType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: charType
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
             externalLinkName: "kk_string_asIterable",
             receiverType: stringType,
             parameters: [],
-            returnType: listCharType,
+            returnType: iterableCharType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1358,6 +1365,27 @@ extension DataFlowSemaPhase {
         }
         return types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    private func makeIterableType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        let iterableFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
             args: [.out(elementType)],
             nullability: .nonNull
         )))

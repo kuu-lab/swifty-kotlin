@@ -189,9 +189,10 @@ extension CollectionLiteralLoweringPass {
                 charRangeExprIDs.insert(result.rawValue)
             }
         }
-        // Classify sequence factory calls (STDLIB-097)
+        // Classify sequence factory calls (STDLIB-097, STDLIB-317)
         if let result,
            callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
+            || callee == lookup.kkStringAsSequenceName
         {
             sequenceExprIDs.insert(result.rawValue)
         }

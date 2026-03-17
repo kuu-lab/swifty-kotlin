@@ -259,7 +259,7 @@ private func runtimeSequenceTransformElement(
             outThrown: outThrown,
             yield: yield
         )
-    case .source, .builder, .generator:
+    case .source, .stringSource, .builder, .generator:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -281,7 +281,7 @@ private func runtimeTraverseSequenceWithState(
 ) {
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .builder, .generator:
+        case .source, .stringSource, .builder, .generator:
             false
         default:
             true
@@ -303,6 +303,14 @@ private func runtimeTraverseSequenceWithState(
         case let .source(sourceElements), let .builder(sourceElements):
             for element in sourceElements {
                 emit(element)
+                if state.stop { return }
+            }
+            return
+        case let .stringSource(strRaw):
+            // Lazy: iterate string characters on demand without pre-materializing
+            let str = runtimeResolveStringOrPanic(strRaw, caller: "kk_string_asSequence")
+            for scalar in str.unicodeScalars {
+                emit(kk_box_char(Int(scalar.value)))
                 if state.stop { return }
             }
             return
@@ -336,6 +344,15 @@ private func runtimeTraverseSequenceWithState(
     }
 }
 
+/// Resolves a string raw handle to its Swift String value, or panics.
+private func runtimeResolveStringOrPanic(_ strRaw: Int, caller: StaticString) -> String {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
+          let box = tryCast(ptr, to: RuntimeStringBox.self) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid string handle")
+    }
+    return box.value
+}
+
 /// Convenience wrapper that creates its own `SequenceTraversalState`.
 private func runtimeTraverseSequence(
     _ seq: RuntimeSequenceBox,
@@ -347,11 +364,18 @@ private func runtimeTraverseSequence(
 }
 
 /// Extracts source elements from a sequence step, if applicable.
+/// For `.stringSource`, materializes characters at this point (terminal evaluation).
 private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     switch step {
-    case let .source(sourceElements): sourceElements
-    case let .builder(builderElements): builderElements
-    default: nil
+    case let .source(sourceElements):
+        return sourceElements
+    case let .builder(builderElements):
+        return builderElements
+    case let .stringSource(strRaw):
+        let str = runtimeResolveStringOrPanic(strRaw, caller: "kk_string_asSequence")
+        return str.unicodeScalars.map { kk_box_char(Int($0.value)) }
+    default:
+        return nil
     }
 }
 
@@ -471,7 +495,7 @@ private func evaluateSequence(_ seq: RuntimeSequenceBox) -> [Int] {
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .builder, .generator:
+        case .source, .stringSource, .builder, .generator:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
