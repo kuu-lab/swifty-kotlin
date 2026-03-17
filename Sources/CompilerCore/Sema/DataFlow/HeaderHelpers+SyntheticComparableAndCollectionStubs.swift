@@ -1181,6 +1181,38 @@ extension DataFlowSemaPhase {
         registerMember(name: "windowed", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_windowed")
         registerMember(name: "sortedDescending", parameterTypes: [], externalLinkName: "kk_list_sortedDescending")
         registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
+
+        // distinctBy (HOF, selector lambda)
+        let distinctByName = interner.intern("distinctBy")
+        let distinctByFQName = listFQName + [distinctByName]
+        if symbols.lookup(fqName: distinctByFQName) == nil {
+            let selectorType = types.make(.functionType(FunctionType(
+                params: [listTypeParamType],
+                returnType: types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: distinctByName,
+                fqName: distinctByFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_distinctBy", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [selectorType],
+                    returnType: listReturnType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
     }
 
     private func registerListAggregateMembers(

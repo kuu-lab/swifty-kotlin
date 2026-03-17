@@ -901,6 +901,25 @@ public func kk_list_distinct(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeDeduplicatePreservingOrder(elements)))
 }
 
+@_cdecl("kk_list_distinctBy")
+public func kk_list_distinctBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    var seenKeys = Set<Int>()
+    var result: [Int] = []
+    for elem in list.elements {
+        var thrown = 0
+        let key = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        let unboxedKey = maybeUnbox(key)
+        if seenKeys.insert(unboxedKey).inserted {
+            result.append(elem)
+        }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
 @_cdecl("kk_list_shuffled")
 public func kk_list_shuffled(_ listRaw: Int) -> Int {
     guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
