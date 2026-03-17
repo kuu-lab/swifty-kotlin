@@ -3,6 +3,8 @@ import Foundation
 /// Synthetic stdlib stubs for Kotlin scope functions.
 /// - with<T, R>(receiver: T, block: T.() -> R): R   (STDLIB-061)
 /// - fun <T, R> T.let(block: (T) -> R): R            (STDLIB-400)
+/// - T.apply(block: T.() -> Unit): T                  (STDLIB-402)
+/// - T.also(block: (T) -> Unit): T                    (STDLIB-403)
 /// Inline-expanded by CallLowerer; no runtime call.
 extension DataFlowSemaPhase {
     func registerSyntheticScopeFunctionStubs(
@@ -24,9 +26,12 @@ extension DataFlowSemaPhase {
 
         registerWithStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerLetStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
+        registerApplyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
+        registerAlsoStub(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
     }
 
-    /// `with<T, R>(receiver: T, block: T.() -> R): R` (STDLIB-061)
+    // MARK: - with<T, R>(receiver: T, block: T.() -> R): R  (STDLIB-061)
+
     private func registerWithStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -320,7 +325,8 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// `fun <T, R> T.let(block: (T) -> R): R` (STDLIB-400)
+    // MARK: - fun <T, R> T.let(block: (T) -> R): R  (STDLIB-400)
+
     /// Inline extension function on T (upper bound Any?, so T is nullable-capable).
     /// The block receives T as its parameter (`it`).
     private func registerLetStub(
@@ -413,6 +419,161 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 0
             ),
             for: letSymbol
+        )
+    }
+
+    // MARK: - T.apply(block: T.() -> Unit): T  (STDLIB-402)
+
+    private func registerApplyStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]
+    ) {
+        let applyName = interner.intern("apply")
+        let applyFQName = kotlinPkg + [applyName]
+
+        if symbols.lookup(fqName: applyFQName) != nil {
+            return
+        }
+
+        let tName = interner.intern("T")
+        let tFQName = applyFQName + [tName]
+
+        let tSymbol = symbols.define(
+            kind: .typeParameter,
+            name: tName,
+            fqName: tFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+
+        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
+
+        // block: T.() -> Unit — lambda with receiver T, returns Unit
+        let blockType = types.make(.functionType(FunctionType(
+            receiver: tType,
+            params: [],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let blockName = interner.intern("block")
+        let blockSymbol = symbols.define(
+            kind: .valueParameter,
+            name: blockName,
+            fqName: applyFQName + [blockName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let applySymbol = symbols.define(
+            kind: .function,
+            name: applyName,
+            fqName: applyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(packageSymbol, for: applySymbol)
+        }
+        symbols.setParentSymbol(applySymbol, for: tSymbol)
+        symbols.setParentSymbol(applySymbol, for: blockSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: tType,
+                parameterTypes: [blockType],
+                returnType: tType,
+                isSuspend: false,
+                valueParameterSymbols: [blockSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [tSymbol],
+                classTypeParameterCount: 0
+            ),
+            for: applySymbol
+        )
+    }
+
+    // MARK: - T.also(block: (T) -> Unit): T  (STDLIB-403)
+
+    private func registerAlsoStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]
+    ) {
+        let alsoName = interner.intern("also")
+        let alsoFQName = kotlinPkg + [alsoName]
+
+        if symbols.lookup(fqName: alsoFQName) != nil {
+            return
+        }
+
+        let tName = interner.intern("T")
+        let tFQName = alsoFQName + [tName]
+
+        let tSymbol = symbols.define(
+            kind: .typeParameter,
+            name: tName,
+            fqName: tFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+
+        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
+
+        // block: (T) -> Unit — lambda takes T as parameter, returns Unit
+        let blockType = types.make(.functionType(FunctionType(
+            params: [tType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let blockName = interner.intern("block")
+        let blockSymbol = symbols.define(
+            kind: .valueParameter,
+            name: blockName,
+            fqName: alsoFQName + [blockName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let alsoSymbol = symbols.define(
+            kind: .function,
+            name: alsoName,
+            fqName: alsoFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(packageSymbol, for: alsoSymbol)
+        }
+        symbols.setParentSymbol(alsoSymbol, for: tSymbol)
+        symbols.setParentSymbol(alsoSymbol, for: blockSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: tType,
+                parameterTypes: [blockType],
+                returnType: tType,
+                isSuspend: false,
+                valueParameterSymbols: [blockSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [tSymbol],
+                classTypeParameterCount: 0
+            ),
+            for: alsoSymbol
         )
     }
 }
