@@ -1046,6 +1046,7 @@ extension DataFlowSemaPhase {
     }
 
     /// STDLIB-510: Register `List<T>.intersect(other)`, `.union(other)`, `.subtract(other)` returning `Set<T>`.
+    /// Kotlin stdlib declares the parameter as `Iterable<T>`.
     private func registerListSetOperationMembers(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1054,7 +1055,7 @@ extension DataFlowSemaPhase {
         listTypeParamSymbol: SymbolID,
         listTypeParamType: TypeID,
         setInterfaceSymbol: SymbolID,
-        collectionInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID
     ) {
         guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
         let receiverType = types.make(.classType(ClassType(
@@ -1068,7 +1069,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let paramType = types.make(.classType(ClassType(
-            classSymbol: collectionInterfaceSymbol,
+            classSymbol: iterableInterfaceSymbol,
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
@@ -1853,13 +1854,16 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol,
             mapInterfaceSymbol: mapInterfaceSymbol
         )
+        let iterableSymbolForOps = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("Iterable")]
+        ) ?? collectionInterfaceSymbol
         registerListSetOperationMembers(
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType,
             setInterfaceSymbol: setInterfaceSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            iterableInterfaceSymbol: iterableSymbolForOps
         )
         registerListToHashSetMember(
             symbols: symbols, types: types, interner: interner,

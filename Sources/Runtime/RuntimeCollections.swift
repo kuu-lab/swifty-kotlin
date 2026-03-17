@@ -1,12 +1,42 @@
 import Foundation
 
+/// Hashable wrapper around an opaque runtime value (`Int`) that uses
+/// `runtimeAnyHashCode` / `runtimeValuesEqual` so it can be stored in a
+/// Swift `Set` for O(1) amortised lookups.
+private struct RuntimeElementKey: Hashable {
+    let value: Int
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(kk_any_hashCode(value, 0))
+    }
+
+    static func == (lhs: RuntimeElementKey, rhs: RuntimeElementKey) -> Bool {
+        runtimeValuesEqual(lhs.value, rhs.value)
+    }
+}
+
+/// Extracts elements from an opaque `otherRaw` handle that may be either a
+/// set or a list box.  Used by intersect / union / subtract to avoid
+/// duplicating the same unboxing logic.
+func runtimeUnboxCollectionElements(_ otherRaw: Int) -> [Int] {
+    if let otherSet = runtimeSetBox(from: otherRaw) {
+        return otherSet.elements
+    }
+    if let otherList = runtimeListBox(from: otherRaw) {
+        return otherList.elements
+    }
+    return []
+}
+
 func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
-    var seen: [Int] = []
+    var seen = Set<RuntimeElementKey>()
+    seen.reserveCapacity(elements.count)
     var unique: [Int] = []
     unique.reserveCapacity(elements.count)
-    for element in elements where !seen.contains(where: { runtimeValuesEqual($0, element) }) {
-        seen.append(element)
-        unique.append(element)
+    for element in elements {
+        if seen.insert(RuntimeElementKey(value: element)).inserted {
+            unique.append(element)
+        }
     }
     return unique
 }
@@ -228,14 +258,10 @@ public func kk_list_to_set(_ listRaw: Int) -> Int {
 @_cdecl("kk_list_intersect")
 public func kk_list_intersect(_ listRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    let otherKeys = Set(otherElements.map { RuntimeElementKey(value: $0) })
     let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+        otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
@@ -243,12 +269,7 @@ public func kk_list_intersect(_ listRaw: Int, _ otherRaw: Int) -> Int {
 @_cdecl("kk_list_union")
 public func kk_list_union(_ listRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
     let combined = selfElements + otherElements
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
 }
@@ -256,14 +277,10 @@ public func kk_list_union(_ listRaw: Int, _ otherRaw: Int) -> Int {
 @_cdecl("kk_list_subtract")
 public func kk_list_subtract(_ listRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeListBox(from: listRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    let otherKeys = Set(otherElements.map { RuntimeElementKey(value: $0) })
     let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
-        !otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+        !otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
@@ -678,14 +695,10 @@ public func kk_set_toList(_ setRaw: Int) -> Int {
 @_cdecl("kk_set_intersect")
 public func kk_set_intersect(_ setRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    let otherKeys = Set(otherElements.map { RuntimeElementKey(value: $0) })
     let result = selfElements.filter { elem in
-        otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+        otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
@@ -693,12 +706,7 @@ public func kk_set_intersect(_ setRaw: Int, _ otherRaw: Int) -> Int {
 @_cdecl("kk_set_union")
 public func kk_set_union(_ setRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
     let combined = selfElements + otherElements
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(combined)))
 }
@@ -706,14 +714,10 @@ public func kk_set_union(_ setRaw: Int, _ otherRaw: Int) -> Int {
 @_cdecl("kk_set_subtract")
 public func kk_set_subtract(_ setRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeSetBox(from: setRaw)?.elements ?? []
-    var otherElements: [Int] = []
-    if let otherSet = runtimeSetBox(from: otherRaw) {
-        otherElements = otherSet.elements
-    } else if let otherList = runtimeListBox(from: otherRaw) {
-        otherElements = otherList.elements
-    }
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    let otherKeys = Set(otherElements.map { RuntimeElementKey(value: $0) })
     let result = selfElements.filter { elem in
-        !otherElements.contains(where: { runtimeValuesEqual($0, elem) })
+        !otherKeys.contains(RuntimeElementKey(value: elem))
     }
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
