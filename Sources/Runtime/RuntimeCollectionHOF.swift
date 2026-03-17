@@ -913,6 +913,7 @@ public func kk_list_distinctBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
         invalidContainerPanic(#function, "list")
     }
     var seenKeys = Set<Int>()
+    seenKeys.reserveCapacity(list.elements.count)
     var result: [Int] = []
     result.reserveCapacity(list.elements.count)
     for elem in list.elements {

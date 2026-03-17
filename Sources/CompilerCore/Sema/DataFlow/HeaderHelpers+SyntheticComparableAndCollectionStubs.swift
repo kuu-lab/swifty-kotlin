@@ -1189,6 +1189,9 @@ extension DataFlowSemaPhase {
         // the runtime compares keys by handle/unboxed-value identity, not structural
         // equality. Introducing `K` would require plumbing a second type parameter
         // through KIR and codegen with no runtime behaviour change.
+        // KNOWN LIMITATION: Nullable keys (selectors returning `K?`) are not supported.
+        // Kotlin's `distinctBy` signature is `fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T>`
+        // where `K` can be nullable, but this stub rejects selectors that return null.
         let distinctByName = interner.intern("distinctBy")
         let distinctByFQName = listFQName + [distinctByName]
         if symbols.lookup(fqName: distinctByFQName) == nil {

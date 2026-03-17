@@ -432,7 +432,7 @@ extension CallTypeChecker {
             "onEach", "onEachIndexed",
             "sumOf", "maxOrNull", "minOrNull",
             "indexOfFirst", "indexOfLast",
-            "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile",
+            "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile", "distinctBy",
             "sort", "sortBy", "sortByDescending",
         ]
         let flowHOFNames: Set = ["map", "filter", "collect"]
@@ -1012,7 +1012,7 @@ extension CallTypeChecker {
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
             if isSyntheticSequenceReceiver,
-               ["map", "filter", "flatMap", "sortedBy", "sortedByDescending", "takeWhile", "dropWhile", "onEach", "onEachIndexed"].contains(calleeStr)
+               ["map", "filter", "flatMap", "sortedBy", "sortedByDescending", "takeWhile", "dropWhile", "onEach", "onEachIndexed", "distinctBy"].contains(calleeStr)
             {
                 sema.bindings.markCollectionExpr(id)
             }
