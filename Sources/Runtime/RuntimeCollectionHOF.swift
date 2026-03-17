@@ -901,6 +901,12 @@ public func kk_list_distinct(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: runtimeDeduplicatePreservingOrder(elements)))
 }
 
+/// Returns a list containing only elements with distinct keys returned by the selector.
+///
+/// - Note: Key deduplication uses `Set<Int>` over the raw handle/unboxed value.
+///   For non-primitive keys (e.g. data classes), this compares by identity (handle)
+///   rather than structural equality. This is a known limitation — full value equality
+///   requires runtime-level `equals`/`hashCode` dispatch which is not yet implemented.
 @_cdecl("kk_list_distinctBy")
 public func kk_list_distinctBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -908,6 +914,7 @@ public func kk_list_distinctBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
     }
     var seenKeys = Set<Int>()
     var result: [Int] = []
+    result.reserveCapacity(list.elements.count)
     for elem in list.elements {
         var thrown = 0
         let key = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)

@@ -1183,6 +1183,12 @@ extension DataFlowSemaPhase {
         registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
 
         // distinctBy (HOF, selector lambda)
+        // NOTE: The selector return type is hard-coded to non-null `Any` instead of
+        // introducing a second type parameter `K : Any`. This mirrors the pattern used
+        // by other HOF selectors (sortedByDescending, etc.) and is sufficient because
+        // the runtime compares keys by handle/unboxed-value identity, not structural
+        // equality. Introducing `K` would require plumbing a second type parameter
+        // through KIR and codegen with no runtime behaviour change.
         let distinctByName = interner.intern("distinctBy")
         let distinctByFQName = listFQName + [distinctByName]
         if symbols.lookup(fqName: distinctByFQName) == nil {
