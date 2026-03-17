@@ -57,6 +57,7 @@ public enum StdlibSpecialCallKind: Equatable {
     case minOfInt
     case arrayConstructor
     case measureTimeMillis
+    case measureNanoTime
     case enumValues
     case enumValueOf
 }

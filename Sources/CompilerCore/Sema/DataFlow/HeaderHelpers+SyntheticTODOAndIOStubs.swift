@@ -164,6 +164,16 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticTopLevelFunction(
+            named: "measureNanoTime",
+            packageFQName: kotlinSystemPkg,
+            parameters: [(name: "block", type: types.anyType)],
+            returnType: types.longType,
+            externalLinkName: "kk_system_measureNanoTime",
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- kotlin.system.System object (STDLIB-131) ---
         let systemSymbol = ensureSyntheticObjectSymbol(
             named: "System",

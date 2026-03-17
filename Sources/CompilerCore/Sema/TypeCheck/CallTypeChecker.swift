@@ -320,6 +320,29 @@ final class CallTypeChecker {
             return longType
         }
 
+        // --- Stdlib measureNanoTime { ... } (STDLIB-550) ---
+        if let calleeName,
+           interner.resolve(calleeName) == "measureNanoTime",
+           args.count == 1,
+           locals[calleeName] == nil
+        {
+            let unitType = sema.types.unitType
+            let longType = sema.types.longType
+            let blockExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: unitType
+            )))
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: blockExpectedType
+            )
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureNanoTime)
+            sema.bindings.bindExprType(id, type: longType)
+            return longType
+        }
+
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086) ---
         if let calleeName,
            ["Array", "IntArray", "LongArray", "DoubleArray", "BooleanArray", "CharArray"]
