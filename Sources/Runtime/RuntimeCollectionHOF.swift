@@ -1388,7 +1388,7 @@ public func kk_grouping_fold(
     }
     var keys: [Int] = []
     var accumulators: [Int] = []
-    var keyIndex: [Int: Int] = [:]
+    var keyIndex: [Int: Int] = [:]  // normalizedKey -> index (O(1) lookup for immediate values)
     for elem in grouping.sourceElements {
         var thrown = 0
         let key = runtimeInvokeCollectionLambda1(
@@ -1397,10 +1397,7 @@ public func kk_grouping_fold(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         let normalizedKey = maybeUnbox(key)
-        let idx: Int? = keyIndex[normalizedKey]
-            ?? keys.firstIndex(where: { runtimeValuesEqual($0, normalizedKey) })
-        if let idx {
-            keyIndex[normalizedKey] = idx
+        if let idx = keyIndex[normalizedKey] {
             var thrown2 = 0
             accumulators[idx] = maybeUnbox(runtimeInvokeCollectionLambda2(
                 fnPtr: fnPtr, closureRaw: closureRaw,
@@ -1425,6 +1422,7 @@ public func kk_grouping_fold(
 
 /// `grouping.reduce { acc, element -> ... }` — reduces per key, returns Map<K, T>.
 /// The lambda receives (accumulator, element); the first element of each group becomes the initial accumulator.
+/// Keys are indexed via Dictionary for O(1) lookup per element.
 @_cdecl("kk_grouping_reduce")
 public func kk_grouping_reduce(
     _ groupingRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
@@ -1436,7 +1434,7 @@ public func kk_grouping_reduce(
     }
     var keys: [Int] = []
     var accumulators: [Int] = []
-    var keyIndex: [Int: Int] = [:]
+    var keyIndex: [Int: Int] = [:]  // normalizedKey -> index (O(1) lookup per element)
     for elem in grouping.sourceElements {
         var thrown = 0
         let key = runtimeInvokeCollectionLambda1(
@@ -1445,10 +1443,7 @@ public func kk_grouping_reduce(
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         let normalizedKey = maybeUnbox(key)
-        let idx: Int? = keyIndex[normalizedKey]
-            ?? keys.firstIndex(where: { runtimeValuesEqual($0, normalizedKey) })
-        if let idx {
-            keyIndex[normalizedKey] = idx
+        if let idx = keyIndex[normalizedKey] {
             var thrown2 = 0
             accumulators[idx] = maybeUnbox(runtimeInvokeCollectionLambda2(
                 fnPtr: fnPtr, closureRaw: closureRaw,
