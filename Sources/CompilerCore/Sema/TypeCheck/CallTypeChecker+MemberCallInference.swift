@@ -797,7 +797,7 @@ extension CallTypeChecker {
                 guard args.count == 2 else {
                     ctx.semaCtx.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
-                        "No viable overload found for call.",
+                        "\(calleeStr)() expects 2 arguments (initial value and a lambda), but \(args.count) were supplied.",
                         range: ast.arena.exprRange(id)
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
@@ -825,7 +825,7 @@ extension CallTypeChecker {
                 guard args.count == 1 else {
                     ctx.semaCtx.diagnostics.error(
                         "KSWIFTK-SEMA-0024",
-                        "No viable overload found for call.",
+                        "runningReduce() expects 1 argument (a lambda), but \(args.count) were supplied.",
                         range: ast.arena.exprRange(id)
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
