@@ -236,6 +236,49 @@ public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
     return registerRuntimeObject(matchResult)
 }
 
+// MARK: - STDLIB-480: Regex(pattern, option) / Regex.containsMatchIn
+
+/// Maps a Kotlin RegexOption ordinal to NSRegularExpression.Options.
+private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Options {
+    switch ordinal {
+    case 0: return .caseInsensitive          // IGNORE_CASE
+    case 1: return .anchorsMatchLines        // MULTILINE
+    case 2: return .dotMatchesLineSeparators  // DOT_MATCHES_ALL
+    case 3: return []                        // LITERAL (handled via escapedPattern)
+    case 4: return []                        // UNIX_LINES (no direct NSRegularExpression equivalent)
+    case 5: return .allowCommentsAndWhitespace // COMMENTS
+    case 6: return []                        // CANON_EQ (no direct equivalent)
+    default: return []
+    }
+}
+
+@_cdecl("kk_regex_create_with_option")
+public func kk_regex_create_with_option(_ patternRaw: Int, _ optionRaw: Int) -> Int {
+    let pattern = regexStringFromRaw(patternRaw) ?? ""
+    let ordinal = kk_unbox_int(optionRaw)
+    let isLiteral = ordinal == 3
+    let effectivePattern = isLiteral ? NSRegularExpression.escapedPattern(for: pattern) : pattern
+    let options = nsRegexOption(fromOrdinal: Int(ordinal))
+    guard let regex = try? NSRegularExpression(pattern: effectivePattern, options: options) else {
+        do {
+            let fallback = try NSRegularExpression(pattern: "(?!)", options: [])
+            return registerRuntimeObject(RuntimeRegexBox(regex: fallback, pattern: pattern))
+        } catch {
+            fatalError("Failed to create fallback NSRegularExpression")
+        }
+    }
+    return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
+}
+
+@_cdecl("kk_regex_containsMatchIn")
+public func kk_regex_containsMatchIn(_ regexRaw: Int, _ inputRaw: Int) -> Int {
+    let input = regexStringFromRaw(inputRaw) ?? ""
+    guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
+    let range = NSRange(input.startIndex..., in: input)
+    let match = regexBox.regex.firstMatch(in: input, options: [], range: range)
+    return kk_box_bool(match != nil ? 1 : 0)
+}
+
 // MARK: - STDLIB-103: String.toRegex() / Regex.pattern
 
 @_cdecl("kk_string_toRegex")

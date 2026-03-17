@@ -2367,6 +2367,26 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
+        // STDLIB-480: Regex(pattern, option) constructor
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_create_with_option",
+            parameters: [
+                RuntimeABIParameter(name: "patternRaw", type: .intptr),
+                RuntimeABIParameter(name: "optionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        // STDLIB-480: Regex.containsMatchIn(input)
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_containsMatchIn",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "inputRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_chunked",
             parameters: [

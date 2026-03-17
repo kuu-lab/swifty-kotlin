@@ -111,10 +111,14 @@ extension CallSupportLowerer {
             }
             return interner.intern("kk_array_new")
         case "Regex":
-            guard argumentCount == 1 else {
+            switch argumentCount {
+            case 1:
+                return interner.intern("kk_regex_create")
+            case 2:
+                return interner.intern("kk_regex_create_with_option")
+            default:
                 return nil
             }
-            return interner.intern("kk_regex_create")
         case "StringBuilder":
             switch argumentCount {
             case 0:

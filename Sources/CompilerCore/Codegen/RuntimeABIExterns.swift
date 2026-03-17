@@ -1657,6 +1657,20 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // STDLIB-480: Regex(pattern, option) constructor
+    public static let kk_regex_create_with_option = ExternDecl(
+        name: "kk_regex_create_with_option",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // STDLIB-480: Regex.containsMatchIn(input)
+    public static let kk_regex_containsMatchIn = ExternDecl(
+        name: "kk_regex_containsMatchIn",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let regexExterns: [ExternDecl] = [
         kk_regex_create,
         kk_string_matches_regex,
@@ -1671,6 +1685,8 @@ public enum RuntimeABIExterns {
         kk_match_result_groupValues,
         kk_regex_replace_lambda,
         kk_regex_matchEntire,
+        kk_regex_create_with_option,
+        kk_regex_containsMatchIn,
     ]
 
     // MARK: - All Functions (canonical list)
