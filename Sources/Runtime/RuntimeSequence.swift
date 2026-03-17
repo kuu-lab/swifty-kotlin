@@ -1430,6 +1430,140 @@ public func kk_sequence_onEach(
     return registerRuntimeObject(newSeq)
 }
 
+// MARK: - Sequence Terminal Operations: toSet/toMap/groupBy/maxOrNull/minOrNull/flatten (STDLIB-470)
+
+@_cdecl("kk_sequence_toSet")
+public func kk_sequence_toSet(_ seqRaw: Int) -> Int {
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
+}
+
+@_cdecl("kk_sequence_toMap")
+public func kk_sequence_toMap(_ seqRaw: Int) -> Int {
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    var keys: [Int] = []
+    var values: [Int] = []
+    for element in elements {
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
+            continue
+        }
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: pointer))
+        }
+        guard isObjectPointer, let pair = tryCast(pointer, to: RuntimePairBox.self) else {
+            continue
+        }
+        var found = false
+        for (idx, existingKey) in keys.enumerated() where runtimeValuesEqual(existingKey, pair.first) {
+            values[idx] = pair.second
+            found = true
+            break
+        }
+        if !found {
+            keys.append(pair.first)
+            values.append(pair.second)
+        }
+    }
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values))
+}
+
+@_cdecl("kk_sequence_groupBy")
+public func kk_sequence_groupBy(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var groupKeys: [Int] = []
+    var groupElements: [[Int]] = []
+    var keyToIndex: [Int: Int] = [:]
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+            var thrown = 0
+            let key = lambda(closureRaw, elem, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return false
+            }
+            let unboxedKey = maybeUnbox(key)
+            if let grpIdx = keyToIndex[unboxedKey] {
+                groupElements[grpIdx].append(elem)
+            } else {
+                let newIndex = groupKeys.count
+                keyToIndex[unboxedKey] = newIndex
+                groupKeys.append(unboxedKey)
+                groupElements.append([elem])
+            }
+            return true
+        }
+    } else {
+        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            var thrown = 0
+            let key = lambda(closureRaw, elem, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
+            }
+            let unboxedKey = maybeUnbox(key)
+            if let grpIdx = keyToIndex[unboxedKey] {
+                groupElements[grpIdx].append(elem)
+            } else {
+                let newIndex = groupKeys.count
+                keyToIndex[unboxedKey] = newIndex
+                groupKeys.append(unboxedKey)
+                groupElements.append([elem])
+            }
+        }
+    }
+    if let outThrown, outThrown.pointee != 0 {
+        return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
+    }
+    let values = groupElements.map { registerRuntimeObject(RuntimeListBox(elements: $0)) }
+    return registerRuntimeObject(RuntimeMapBox(keys: groupKeys, values: values))
+}
+
+@_cdecl("kk_sequence_maxOrNull")
+public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    guard let first = elements.first else {
+        return runtimeNullSentinelInt
+    }
+    var best = first
+    for elem in elements.dropFirst() where runtimeCompareValues(elem, best) > 0 {
+        best = elem
+    }
+    return best
+}
+
+@_cdecl("kk_sequence_minOrNull")
+public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    guard let first = elements.first else {
+        return runtimeNullSentinelInt
+    }
+    var best = first
+    for elem in elements.dropFirst() where runtimeCompareValues(elem, best) < 0 {
+        best = elem
+    }
+    return best
+}
+
+@_cdecl("kk_sequence_flatten")
+public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
+    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    var result: [Int] = []
+    for subRaw in elements {
+        if let subList = runtimeListBox(from: subRaw) {
+            result.append(contentsOf: subList.elements)
+        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
+            result.append(contentsOf: evaluateSequence(subSeq))
+        }
+    }
+    let newSeq = RuntimeSequenceBox(steps: [.source(elements: result)])
+    return registerRuntimeObject(newSeq)
+}
+
 // MARK: - Sequence Builder (sequence { yield(x) })
 
 @_cdecl("kk_sequence_builder_create")
