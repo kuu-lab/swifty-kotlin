@@ -143,6 +143,14 @@ struct KnownCompilerNames {
     let launch: InternedString
     let async: InternedString
 
+    // Scope function names (STDLIB-004 / STDLIB-250)
+    let letFn: InternedString
+    let runFn: InternedString
+    let applyFn: InternedString
+    let alsoFn: InternedString
+    let useFn: InternedString
+    let closeFn: InternedString
+
     // StringBuilder member names
     let append: InternedString
     let appendLine: InternedString
@@ -257,6 +265,14 @@ struct KnownCompilerNames {
         runBlocking = interner.intern("runBlocking")
         launch = interner.intern("launch")
         async = interner.intern("async")
+
+        // Scope function names (STDLIB-004 / STDLIB-250)
+        letFn = interner.intern("let")
+        runFn = interner.intern("run")
+        applyFn = interner.intern("apply")
+        alsoFn = interner.intern("also")
+        useFn = interner.intern("use")
+        closeFn = interner.intern("close")
 
         // StringBuilder member names
         append = interner.intern("append")
