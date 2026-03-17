@@ -529,7 +529,10 @@ extension DataFlowSemaPhase {
 
         let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
 
-        // block: (T) -> Unit — lambda takes T as parameter, returns Unit
+        // block: (T) -> Unit — regular lambda that takes T as a normal parameter (`it`),
+        // NOT a lambda-with-receiver. This is the key difference from apply's block
+        // (T.() -> Unit), which uses receiver (`this`) instead of a parameter.
+        // Accordingly, FunctionType has no `receiver:` and passes tType via `params:`.
         let blockType = types.make(.functionType(FunctionType(
             params: [tType],
             returnType: types.unitType,
