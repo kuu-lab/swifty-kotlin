@@ -23,91 +23,89 @@ extension DataFlowSemaPhase {
         let withName = interner.intern("with")
         let withFQName = kotlinPkg + [withName]
 
-        if symbols.lookup(fqName: withFQName) != nil {
-            return
-        }
+        if symbols.lookup(fqName: withFQName) == nil {
+            let tName = interner.intern("T")
+            let rName = interner.intern("R")
+            let tFQName = withFQName + [tName]
+            let rFQName = withFQName + [rName]
 
-        let tName = interner.intern("T")
-        let rName = interner.intern("R")
-        let tFQName = withFQName + [tName]
-        let rFQName = withFQName + [rName]
+            let tSymbol = symbols.define(
+                kind: .typeParameter,
+                name: tName,
+                fqName: tFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: rFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
 
-        let tSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tName,
-            fqName: tFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let rSymbol = symbols.define(
-            kind: .typeParameter,
-            name: rName,
-            fqName: rFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+            let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
 
-        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
-        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-
-        let blockType = types.make(.functionType(FunctionType(
-            receiver: tType,
-            params: [],
-            returnType: rType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        let receiverName = interner.intern("receiver")
-        let blockName = interner.intern("block")
-        let receiverSymbol = symbols.define(
-            kind: .valueParameter,
-            name: receiverName,
-            fqName: withFQName + [receiverName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let blockSymbol = symbols.define(
-            kind: .valueParameter,
-            name: blockName,
-            fqName: withFQName + [blockName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-
-        let withSymbol = symbols.define(
-            kind: .function,
-            name: withName,
-            fqName: withFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
-            symbols.setParentSymbol(packageSymbol, for: withSymbol)
-        }
-        symbols.setParentSymbol(withSymbol, for: tSymbol)
-        symbols.setParentSymbol(withSymbol, for: rSymbol)
-        symbols.setParentSymbol(withSymbol, for: receiverSymbol)
-        symbols.setParentSymbol(withSymbol, for: blockSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [tType, blockType],
+            let blockType = types.make(.functionType(FunctionType(
+                receiver: tType,
+                params: [],
                 returnType: rType,
                 isSuspend: false,
-                valueParameterSymbols: [receiverSymbol, blockSymbol],
-                valueParameterHasDefaultValues: [false, false],
-                valueParameterIsVararg: [false, false],
-                typeParameterSymbols: [tSymbol, rSymbol],
-                classTypeParameterCount: 0
-            ),
-            for: withSymbol
-        )
+                nullability: .nonNull
+            )))
+
+            let receiverName = interner.intern("receiver")
+            let blockName = interner.intern("block")
+            let receiverSymbol = symbols.define(
+                kind: .valueParameter,
+                name: receiverName,
+                fqName: withFQName + [receiverName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            let blockSymbol = symbols.define(
+                kind: .valueParameter,
+                name: blockName,
+                fqName: withFQName + [blockName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+
+            let withSymbol = symbols.define(
+                kind: .function,
+                name: withName,
+                fqName: withFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(packageSymbol, for: withSymbol)
+            }
+            symbols.setParentSymbol(withSymbol, for: tSymbol)
+            symbols.setParentSymbol(withSymbol, for: rSymbol)
+            symbols.setParentSymbol(withSymbol, for: receiverSymbol)
+            symbols.setParentSymbol(withSymbol, for: blockSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [tType, blockType],
+                    returnType: rType,
+                    isSuspend: false,
+                    valueParameterSymbols: [receiverSymbol, blockSymbol],
+                    valueParameterHasDefaultValues: [false, false],
+                    valueParameterIsVararg: [false, false],
+                    typeParameterSymbols: [tSymbol, rSymbol],
+                    classTypeParameterCount: 0
+                ),
+                for: withSymbol
+            )
+        }
 
         // --- Top-level run<R>(block: () -> R): R (STDLIB-401) ---
         registerTopLevelRunStub(
