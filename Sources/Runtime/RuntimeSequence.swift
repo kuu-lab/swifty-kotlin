@@ -1434,32 +1434,50 @@ public func kk_sequence_onEach(
 
 @_cdecl("kk_sequence_toSet")
 public func kk_sequence_toSet(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)))
+    var collected: [Int] = []
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            collected.append(elem)
+            return true
+        }
+    } else {
+        collected = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(collected)))
 }
 
 @_cdecl("kk_sequence_toMap")
 public func kk_sequence_toMap(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    var collected: [Int] = []
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            collected.append(elem)
+            return true
+        }
+    } else {
+        collected = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    }
     var keys: [Int] = []
     var values: [Int] = []
-    for element in elements {
+    // Dictionary mapping key index in `keys` for O(1) duplicate-key lookup.
+    // Keyed by unboxed value; for primitives this is the value itself.
+    var keyIndexByUnboxed: [Int: Int] = [:]
+    for element in collected {
         guard let pointer = UnsafeMutableRawPointer(bitPattern: element) else {
-            continue
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
         }
         let isObjectPointer = runtimeStorage.withLock { state in
             state.objectPointers.contains(UInt(bitPattern: pointer))
         }
         guard isObjectPointer, let pair = tryCast(pointer, to: RuntimePairBox.self) else {
-            continue
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_toMap element is not a valid Pair handle")
         }
-        var found = false
-        for (idx, existingKey) in keys.enumerated() where runtimeValuesEqual(existingKey, pair.first) {
+        let unboxedKey = maybeUnbox(pair.first)
+        if let idx = keyIndexByUnboxed[unboxedKey] {
             values[idx] = pair.second
-            found = true
-            break
-        }
-        if !found {
+        } else {
+            let newIndex = keys.count
+            keyIndexByUnboxed[unboxedKey] = newIndex
             keys.append(pair.first)
             values.append(pair.second)
         }
@@ -1525,35 +1543,71 @@ public func kk_sequence_groupBy(
 
 @_cdecl("kk_sequence_maxOrNull")
 public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    guard let first = elements.first else {
-        return runtimeNullSentinelInt
+    var best: Int? = nil
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            if let current = best {
+                if runtimeCompareValues(elem, current) > 0 {
+                    best = elem
+                }
+            } else {
+                best = elem
+            }
+            return true
+        }
+    } else {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+        guard let first = elements.first else {
+            return runtimeNullSentinelInt
+        }
+        best = first
+        for elem in elements.dropFirst() where runtimeCompareValues(elem, best!) > 0 {
+            best = elem
+        }
     }
-    var best = first
-    for elem in elements.dropFirst() where runtimeCompareValues(elem, best) > 0 {
-        best = elem
-    }
-    return best
+    return best ?? runtimeNullSentinelInt
 }
 
 @_cdecl("kk_sequence_minOrNull")
 public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    guard let first = elements.first else {
-        return runtimeNullSentinelInt
+    var best: Int? = nil
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            if let current = best {
+                if runtimeCompareValues(elem, current) < 0 {
+                    best = elem
+                }
+            } else {
+                best = elem
+            }
+            return true
+        }
+    } else {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+        guard let first = elements.first else {
+            return runtimeNullSentinelInt
+        }
+        best = first
+        for elem in elements.dropFirst() where runtimeCompareValues(elem, best!) < 0 {
+            best = elem
+        }
     }
-    var best = first
-    for elem in elements.dropFirst() where runtimeCompareValues(elem, best) < 0 {
-        best = elem
-    }
-    return best
+    return best ?? runtimeNullSentinelInt
 }
 
 @_cdecl("kk_sequence_flatten")
 public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    var outerElements: [Int] = []
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            outerElements.append(elem)
+            return true
+        }
+    } else {
+        outerElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    }
     var result: [Int] = []
-    for subRaw in elements {
+    for subRaw in outerElements {
         if let subList = runtimeListBox(from: subRaw) {
             result.append(contentsOf: subList.elements)
         } else if let subSeq = runtimeSequenceBox(from: subRaw) {

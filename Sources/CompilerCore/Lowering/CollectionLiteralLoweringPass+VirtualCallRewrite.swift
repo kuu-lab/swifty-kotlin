@@ -38,7 +38,7 @@ extension CollectionLiteralLoweringPass {
         if rewriteSequenceVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, module: module, lookup: lookup,
-            listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
+            listExprIDs: &listExprIDs, setExprIDs: &setExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -101,6 +101,7 @@ extension CollectionLiteralLoweringPass {
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
+        setExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
         loweredBody: inout [KIRInstruction]
@@ -423,6 +424,8 @@ extension CollectionLiteralLoweringPass {
                 thrownResult: nil
             ))
             if let result {
+                setExprIDs.insert(result.rawValue)
+                setExprIDs.insert(toSetResult.rawValue)
                 loweredBody.append(.copy(from: toSetResult, to: result))
             }
             return true
