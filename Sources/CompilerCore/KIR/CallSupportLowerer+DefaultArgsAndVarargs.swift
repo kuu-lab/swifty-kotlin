@@ -124,11 +124,6 @@ extension CallSupportLowerer {
             default:
                 return nil
             }
-        case "File":
-            guard argumentCount == 1 else {
-                return nil
-            }
-            return interner.intern("kk_file_new")
         default:
             return nil
         }
