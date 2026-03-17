@@ -395,33 +395,49 @@ extension LoweringPassRegressionTests {
         XCTAssertTrue(globalSymbols.contains(greenSymbol), "Missing KIRGlobal for GREEN")
         XCTAssertTrue(globalSymbols.contains(blueSymbol), "Missing KIRGlobal for BLUE")
 
-        // Verify the static init body stores ordinals (0, 1, 2) via copy instructions
+        // Verify the static init body stores ordinals (0, 1, 2) into the expected entry globals.
         let staticInitFn = try findKIRFunction(named: "__enum_static_init_Color", in: module, interner: interner)
 
-        let ordinals = staticInitFn.body.compactMap { inst -> Int64? in
-            guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
-            return v
-        }
-        XCTAssertTrue(ordinals.contains(0), "Static init should store ordinal 0")
-        XCTAssertTrue(ordinals.contains(1), "Static init should store ordinal 1")
-        XCTAssertTrue(ordinals.contains(2), "Static init should store ordinal 2")
+        var ordinalStores: [(ordinal: Int64, target: SymbolID)] = []
 
-        // Verify entry globals are referenced via symbolRef constValues
-        let entrySymbolRefs = staticInitFn.body.compactMap { inst -> SymbolID? in
-            guard case let .constValue(_, value) = inst,
-                  case let .symbolRef(sym) = value else { return nil }
-            return sym
+        for instruction in staticInitFn.body {
+            switch instruction {
+            case let .copy(from, to):
+                guard case let .intLiteral(ordinal)? = module.arena.expr(from),
+                      case let .symbolRef(target)? = module.arena.expr(to)
+                else {
+                    XCTFail("Static init copy should connect an ordinal literal to an entry global")
+                    continue
+                }
+                ordinalStores.append((ordinal, target))
+            case let .call(_, _, arguments, result, _, _, _):
+                guard arguments.count == 1,
+                      let result,
+                      case let .intLiteral(ordinal)? = module.arena.expr(arguments[0]),
+                      case let .symbolRef(target)? = module.arena.expr(result)
+                else {
+                    continue
+                }
+                ordinalStores.append((ordinal, target))
+            default:
+                break
+            }
         }
-        XCTAssertTrue(entrySymbolRefs.contains(redSymbol), "Static init should reference RED entry global")
-        XCTAssertTrue(entrySymbolRefs.contains(greenSymbol), "Static init should reference GREEN entry global")
-        XCTAssertTrue(entrySymbolRefs.contains(blueSymbol), "Static init should reference BLUE entry global")
+        XCTAssertEqual(ordinalStores.count, 3, "Static init should emit one ordinal store per enum entry")
+        XCTAssertEqual(ordinalStores.map(\.ordinal), [0, 1, 2], "Static init should store sequential ordinals")
+        XCTAssertEqual(
+            ordinalStores.map(\.target),
+            [redSymbol, greenSymbol, blueSymbol],
+            "Static init should store ordinals into RED, GREEN, BLUE globals in order"
+        )
 
-        // Verify the function ends with returnUnit
-        let hasReturnUnit = staticInitFn.body.contains { inst in
-            if case .returnUnit = inst { return true }
-            return false
+        // Verify the function ends with returnUnit.
+        guard let lastInstruction = staticInitFn.body.last else {
+            return XCTFail("Static init should not be empty")
         }
-        XCTAssertTrue(hasReturnUnit, "Static init should end with returnUnit")
+        guard case .returnUnit = lastInstruction else {
+            return XCTFail("Static init should end with returnUnit, got \(lastInstruction)")
+        }
     }
 
     func testEnumStaticInitSkipsWhenNoEntries() throws {

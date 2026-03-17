@@ -879,9 +879,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     /// Synthesizes `__enum_static_init_<ClassName>()` which initialises the
     /// global slots for each enum entry with their ordinal values, and ensures
     /// KIRGlobal declarations exist so that codegen allocates LLVM global
-    /// variables for the entries. This is the "static initializer" that the
-    /// CallLowerer+EnumStdlib expects when it emits `symbolRef(entry.id)`
-    /// references for `enumValues<T>()` / `valueOf(String)`.
+    /// variables for the entries. These globals model ordinal storage, so the
+    /// slot declarations and writes must stay typed as `Int`.
     private func appendSyntheticEnumStaticInitIfNeeded(
         owner: SemanticSymbol,
         entries: [SemanticSymbol],
@@ -893,14 +892,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         guard !entries.isEmpty else { return }
 
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let entryType = sema.types.make(.classType(ClassType(
-            classSymbol: owner.id,
-            args: [],
-            nullability: .nonNull
-        )))
-
         // Collect existing global symbols so we don't create duplicates.
-        let existingGlobalSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
+        var existingGlobalSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .global(global) = decl else {
                 return nil
             }
@@ -913,7 +906,8 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         // absent. Adding them here is idempotent thanks to the guard.
         for entry in entries {
             if !existingGlobalSymbols.contains(entry.id) {
-                _ = module.arena.appendDecl(.global(KIRGlobal(symbol: entry.id, type: entryType)))
+                _ = module.arena.appendDecl(.global(KIRGlobal(symbol: entry.id, type: intType)))
+                existingGlobalSymbols.insert(entry.id)
             }
         }
 
@@ -934,7 +928,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             // Reference the entry's global slot.
             let entryRef = module.arena.appendExpr(
                 .symbolRef(entry.id),
-                type: entryType
+                type: intType
             )
             body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
 
