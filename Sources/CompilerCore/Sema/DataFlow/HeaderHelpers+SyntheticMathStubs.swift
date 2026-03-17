@@ -93,10 +93,42 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Trigonometric functions (STDLIB-430)
-        // TODO: Kotlin's kotlin.math exposes Float overloads for all trig functions
-        // (sin, cos, tan, asin, acos, atan, atan2). Add Float variants once
-        // the runtime ABI supports them (tracked as part of STDLIB-430).
+        // STDLIB-500~509: Float overloads for trig/math functions
+        let floatType = types.floatType
+
+        for (name, linkName) in [
+            ("sin", "kk_math_sin_float"), ("cos", "kk_math_cos_float"),
+            ("tan", "kk_math_tan_float"), ("asin", "kk_math_asin_float"),
+            ("acos", "kk_math_acos_float"), ("atan", "kk_math_atan_float"),
+            ("sqrt", "kk_math_sqrt_float"), ("round", "kk_math_round_float"),
+            ("ceil", "kk_math_ceil_float"), ("floor", "kk_math_floor_float"),
+        ] {
+            registerSyntheticMathTopLevelFunction(
+                named: name,
+                packageFQName: kotlinMathPkg,
+                parameterName: "x",
+                parameterType: floatType,
+                returnType: floatType,
+                externalLinkName: linkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerSyntheticMathTopLevelFunction(
+            named: "atan2",
+            packageFQName: kotlinMathPkg,
+            parameters: [
+                (name: "y", type: floatType),
+                (name: "x", type: floatType),
+            ],
+            returnType: floatType,
+            externalLinkName: "kk_math_atan2_float",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Trigonometric functions (STDLIB-430) — Double variants
         registerSyntheticMathTopLevelFunction(
             named: "sin",
             packageFQName: kotlinMathPkg,

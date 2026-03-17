@@ -333,6 +333,117 @@ public func kk_math_E() -> Int {
     kk_double_to_bits(M_E)
 }
 
+// MARK: - STDLIB-500~509: Float overloads for trig/math functions
+
+@_cdecl("kk_math_sin_float")
+public func kk_math_sin_float(_ value: Int) -> Int {
+    kk_float_to_bits(sin(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_cos_float")
+public func kk_math_cos_float(_ value: Int) -> Int {
+    kk_float_to_bits(cos(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_tan_float")
+public func kk_math_tan_float(_ value: Int) -> Int {
+    kk_float_to_bits(tan(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_asin_float")
+public func kk_math_asin_float(_ value: Int) -> Int {
+    kk_float_to_bits(asin(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_acos_float")
+public func kk_math_acos_float(_ value: Int) -> Int {
+    kk_float_to_bits(acos(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_atan_float")
+public func kk_math_atan_float(_ value: Int) -> Int {
+    kk_float_to_bits(atan(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_atan2_float")
+public func kk_math_atan2_float(_ y: Int, _ x: Int) -> Int {
+    kk_float_to_bits(atan2(kk_bits_to_float(y), kk_bits_to_float(x)))
+}
+
+@_cdecl("kk_math_sqrt_float")
+public func kk_math_sqrt_float(_ value: Int) -> Int {
+    kk_float_to_bits(sqrt(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_round_float")
+public func kk_math_round_float(_ value: Int) -> Int {
+    kk_float_to_bits(round(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_ceil_float")
+public func kk_math_ceil_float(_ value: Int) -> Int {
+    kk_float_to_bits(ceil(kk_bits_to_float(value)))
+}
+
+@_cdecl("kk_math_floor_float")
+public func kk_math_floor_float(_ value: Int) -> Int {
+    kk_float_to_bits(floor(kk_bits_to_float(value)))
+}
+
+// MARK: - STDLIB-510~511: roundToInt / roundToLong extensions
+
+@_cdecl("kk_float_roundToInt")
+public func kk_float_roundToInt(_ value: Int) -> Int {
+    Int(kk_bits_to_float(value).rounded(.toNearestOrAwayFromZero))
+}
+
+@_cdecl("kk_double_roundToInt")
+public func kk_double_roundToInt(_ value: Int) -> Int {
+    Int(kk_bits_to_double(value).rounded(.toNearestOrAwayFromZero))
+}
+
+@_cdecl("kk_float_roundToLong")
+public func kk_float_roundToLong(_ value: Int) -> Int {
+    Int(kk_bits_to_float(value).rounded(.toNearestOrAwayFromZero))
+}
+
+@_cdecl("kk_double_roundToLong")
+public func kk_double_roundToLong(_ value: Int) -> Int {
+    Int(kk_bits_to_double(value).rounded(.toNearestOrAwayFromZero))
+}
+
+// MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
+
+@_cdecl("kk_double_ulp")
+public func kk_double_ulp(_ value: Int) -> Int {
+    kk_double_to_bits(kk_bits_to_double(value).ulp)
+}
+
+@_cdecl("kk_double_nextUp")
+public func kk_double_nextUp(_ value: Int) -> Int {
+    kk_double_to_bits(kk_bits_to_double(value).nextUp)
+}
+
+@_cdecl("kk_double_nextDown")
+public func kk_double_nextDown(_ value: Int) -> Int {
+    kk_double_to_bits(kk_bits_to_double(value).nextDown)
+}
+
+@_cdecl("kk_float_ulp")
+public func kk_float_ulp(_ value: Int) -> Int {
+    kk_float_to_bits(kk_bits_to_float(value).ulp)
+}
+
+@_cdecl("kk_float_nextUp")
+public func kk_float_nextUp(_ value: Int) -> Int {
+    kk_float_to_bits(kk_bits_to_float(value).nextUp)
+}
+
+@_cdecl("kk_float_nextDown")
+public func kk_float_nextDown(_ value: Int) -> Int {
+    kk_float_to_bits(kk_bits_to_float(value).nextDown)
+}
+
 @_cdecl("kk_println_char")
 public func kk_println_char(_ value: Int) {
     if let scalar = UnicodeScalar(value) {
