@@ -478,6 +478,83 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([iterableInterfaceSymbol], for: collectionInterfaceSymbol)
         symbols.setSupertypeTypeArgs([.out(typeParamType)], for: collectionInterfaceSymbol, supertype: iterableInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: collectionInterfaceSymbol, supertype: iterableInterfaceSymbol)
+
+        // Register Collection<T> members: size, isEmpty, contains (STDLIB-295)
+        let collectionReceiverType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        // Helper to define a synthetic Collection function member and register
+        // its parent + function signature in one place.
+        func defineCollectionFunctionMember(
+            name: String,
+            parameterTypes: [TypeID],
+            returnType: TypeID,
+            flags: SymbolFlags
+        ) {
+            let memberName = interner.intern(name)
+            let memberFQName = collectionFQName + [memberName]
+            guard symbols.lookup(fqName: memberFQName) == nil else { return }
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: flags
+            )
+            symbols.setParentSymbol(collectionInterfaceSymbol, for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: collectionReceiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: returnType,
+                    typeParameterSymbols: [typeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+
+        // size: Int — Kotlin val property, registered as .property kind.
+        // NOTE: size is registered inline (not via defineCollectionFunctionMember)
+        // because it is a property (.property kind), not a function.
+        let sizeName = interner.intern("size")
+        let sizeFQName = collectionFQName + [sizeName]
+        if symbols.lookup(fqName: sizeFQName) == nil {
+            let sizeSymbol = symbols.define(
+                kind: .property,
+                name: sizeName,
+                fqName: sizeFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(collectionInterfaceSymbol, for: sizeSymbol)
+            symbols.setPropertyType(types.intType, for: sizeSymbol)
+        }
+
+        // isEmpty(): Boolean
+        defineCollectionFunctionMember(
+            name: "isEmpty",
+            parameterTypes: [],
+            returnType: types.booleanType,
+            flags: [.synthetic]
+        )
+
+        // contains(element: E): Boolean — operator for Kotlin `in`.
+        // Variance note: Collection declares `out E`, but contains() uses E in
+        // parameter (contravariant) position. This matches Kotlin's own declaration
+        // where `contains` has `@UnsafeVariance E` — the mismatch is intentional.
+        defineCollectionFunctionMember(
+            name: "contains",
+            parameterTypes: [typeParamType],
+            returnType: types.booleanType,
+            flags: [.synthetic, .operatorFunction]
+        )
+
         return collectionInterfaceSymbol
     }
 

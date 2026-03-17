@@ -2876,6 +2876,17 @@ extension CallLowerer {
             ) {
                 return unresolvedSynthetic
             }
+            // Collection interface members (size property, isEmpty function)
+            // resolved on a concrete receiver (List, Array, Map, Set) must be
+            // lowered to the matching runtime function instead of virtual dispatch.
+            if let collectionProperty = unresolvedCollectionMemberCallee(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) {
+                return collectionProperty
+            }
             return fallback
         }
 
@@ -2903,7 +2914,7 @@ extension CallLowerer {
                 break
             }
         }
-        if let collectionProperty = unresolvedCollectionPropertyCallee(
+        if let collectionProperty = unresolvedCollectionMemberCallee(
             memberName: fallbackName,
             receiverType: receiverType,
             sema: sema,
@@ -3192,7 +3203,10 @@ extension CallLowerer {
 
     // swiftlint:enable cyclomatic_complexity
 
-    private func unresolvedCollectionPropertyCallee(
+    /// Resolves collection-level accessor members (`size`, `isEmpty`) to
+    /// their concrete runtime callee by mapping receiver kind to the
+    /// corresponding runtime symbol (e.g. `.list` -> `kk_list_size`).
+    private func unresolvedCollectionMemberCallee(
         memberName: String,
         receiverType: TypeID,
         sema: SemaModule,
@@ -3226,6 +3240,8 @@ extension CallLowerer {
                 return interner.intern("kk_map_is_empty")
             case .set?:
                 return interner.intern("kk_set_is_empty")
+            case .array?:
+                return interner.intern("kk_array_is_empty")
             case .list?, .collection?:
                 return interner.intern("kk_list_is_empty")
             default:

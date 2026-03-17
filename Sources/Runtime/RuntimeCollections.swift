@@ -1117,6 +1117,17 @@ public func kk_array_size(_ arrayRaw: Int) -> Int {
     return array.elements.count
 }
 
+@_cdecl("kk_array_is_empty")
+public func kk_array_is_empty(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        // Gracefully return true (empty) for invalid handles, consistent with
+        // kk_array_size returning 0.  Avoids crashing on invalid input per
+        // the project's "never crash on invalid input" design principle.
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(array.elements.isEmpty ? 1 : 0)
+}
+
 // MARK: - Pair Functions (FUNC-002)
 
 @_cdecl("kk_pair_new")
