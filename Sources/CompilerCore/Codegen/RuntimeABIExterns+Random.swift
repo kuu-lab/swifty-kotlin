@@ -1,4 +1,4 @@
-// MARK: - Random (STDLIB-165)
+// MARK: - Random (STDLIB-165, STDLIB-514, STDLIB-515)
 
 public extension RuntimeABIExterns {
     static let randomExterns: [ExternDecl] = [

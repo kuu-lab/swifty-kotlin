@@ -1,4 +1,4 @@
-// Random functions (STDLIB-165).
+// Random functions (STDLIB-165, STDLIB-514, STDLIB-515).
 
 public extension RuntimeABISpec {
     static let randomFunctions: [RuntimeABIFunctionSpec] = [
