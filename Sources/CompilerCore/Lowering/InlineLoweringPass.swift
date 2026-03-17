@@ -40,11 +40,21 @@ final class InlineLoweringPass: LoweringPass {
         }
         let inlineFunctionsByName = Dictionary(grouping: inlineFunctionsBySymbol.values, by: \.name)
 
+        // Build a lookup of all KIR functions by symbol so that lambda bodies
+        // can be resolved during inline expansion.
+        var allFunctionsBySymbol: [SymbolID: KIRFunction] = [:]
+        for decl in module.arena.declarations {
+            if case let .function(function) = decl {
+                allFunctionsBySymbol[function.symbol] = function
+            }
+        }
+
         module.arena.transformFunctions { [self] function in
             inlineTransform(
                 function: function,
                 inlineFunctionsBySymbol: inlineFunctionsBySymbol,
                 inlineFunctionsByName: inlineFunctionsByName,
+                allFunctionsBySymbol: allFunctionsBySymbol,
                 module: module,
                 ctx: ctx,
                 unitType: unitType
@@ -134,6 +144,7 @@ final class InlineLoweringPass: LoweringPass {
         function: KIRFunction,
         inlineFunctionsBySymbol: [SymbolID: KIRFunction],
         inlineFunctionsByName: [InternedString: [KIRFunction]],
+        allFunctionsBySymbol: [SymbolID: KIRFunction],
         module: KIRModule,
         ctx: KIRContext,
         unitType: TypeID?
@@ -173,6 +184,7 @@ final class InlineLoweringPass: LoweringPass {
             let expansion = expandInlineCall(
                 inlineTarget: inlineTarget,
                 arguments: arguments,
+                allFunctionsBySymbol: allFunctionsBySymbol,
                 module: module,
                 ctx: ctx
             )
@@ -296,6 +308,7 @@ final class InlineLoweringPass: LoweringPass {
     private func expandInlineCall(
         inlineTarget: KIRFunction,
         arguments: [KIRExprID],
+        allFunctionsBySymbol: [SymbolID: KIRFunction],
         module: KIRModule,
         ctx: KIRContext
     ) -> InlineExpansion? {
@@ -310,6 +323,19 @@ final class InlineLoweringPass: LoweringPass {
             parameterValues: parameterValues,
             ctx: ctx
         )
+
+        // Build a set of parameter symbols that have function types so we can
+        // detect calls to lambda parameters inside the inline body.
+        let lambdaParamSymbols: Set<SymbolID> = {
+            guard let sema = ctx.sema else { return [] }
+            var result: Set<SymbolID> = []
+            for param in inlineTarget.params {
+                if case .functionType = sema.types.kind(of: param.type) {
+                    result.insert(param.symbol)
+                }
+            }
+            return result
+        }()
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var lowered: [KIRInstruction] = []
@@ -370,6 +396,252 @@ final class InlineLoweringPass: LoweringPass {
             case let .constValue(result, value):
                 if case let .symbolRef(symbol) = value,
                    let mapped = parameterValues[symbol] ?? typeParamTokenValues[symbol]
+                {
+                    localExprMap[result] = mapped
+                    continue
+                }
+                let loweredResult = cloneExpr(result, in: module.arena)
+                localExprMap[result] = loweredResult
+                lowered.append(.constValue(result: loweredResult, value: value))
+
+            case let .binary(op, lhs, rhs, result):
+                let loweredResult = cloneExpr(result, in: module.arena)
+                localExprMap[result] = loweredResult
+                lowered.append(
+                    .binary(
+                        op: op,
+                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        result: loweredResult
+                    )
+                )
+
+            case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall):
+                // Attempt to inline a lambda argument passed to this inline function.
+                // When the call target is a parameter with function type, and the
+                // caller passed a known lambda function, we expand the lambda body
+                // in place instead of emitting an indirect call.
+                if let symbol, lambdaParamSymbols.contains(symbol),
+                   let argExpr = parameterValues[symbol],
+                   let lambdaFunction = resolveLambdaFunction(
+                       argExpr: argExpr,
+                       arena: module.arena,
+                       allFunctionsBySymbol: allFunctionsBySymbol
+                   )
+                {
+                    let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let lambdaExpansion = expandLambdaBody(
+                        lambdaFunction: lambdaFunction,
+                        arguments: resolvedArgs,
+                        module: module
+                    )
+                    lowered.append(contentsOf: lambdaExpansion.instructions)
+                    if let result {
+                        let cloned = cloneExpr(result, in: module.arena)
+                        localExprMap[result] = cloned
+                        if let lambdaReturn = lambdaExpansion.returnedExpr {
+                            localExprMap[cloned] = lambdaReturn
+                        }
+                    }
+                    break
+                }
+
+                let loweredResult = result.map { expr -> KIRExprID in
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
+                }
+                let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
+                }
+                lowered.append(
+                    .call(
+                        symbol: symbol,
+                        callee: callee,
+                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        result: loweredResult,
+                        canThrow: canThrow,
+                        thrownResult: loweredThrownResult,
+                        isSuperCall: isSuperCall
+                    )
+                )
+
+            case let .virtualCall(symbol, callee, receiver, args, result, canThrow, thrownResult, dispatch):
+                let loweredResult = result.map { expr -> KIRExprID in
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
+                }
+                let loweredThrownResult = thrownResult.map { expr -> KIRExprID in
+                    let cloned = cloneExpr(expr, in: module.arena)
+                    localExprMap[expr] = cloned
+                    return cloned
+                }
+                lowered.append(
+                    .virtualCall(
+                        symbol: symbol,
+                        callee: callee,
+                        receiver: resolveAlias(of: receiver, aliases: localExprMap),
+                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        result: loweredResult,
+                        canThrow: canThrow,
+                        thrownResult: loweredThrownResult,
+                        dispatch: dispatch
+                    )
+                )
+
+            case let .returnIfEqual(lhs, rhs):
+                lowered.append(
+                    .returnIfEqual(
+                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: resolveAlias(of: rhs, aliases: localExprMap)
+                    )
+                )
+
+            case let .jumpIfNotNull(value, target):
+                lowered.append(
+                    .jumpIfNotNull(
+                        value: resolveAlias(of: value, aliases: localExprMap),
+                        target: target
+                    )
+                )
+
+            case let .copy(from, to):
+                lowered.append(
+                    .copy(
+                        from: resolveAlias(of: from, aliases: localExprMap),
+                        to: resolveAlias(of: to, aliases: localExprMap)
+                    )
+                )
+
+            case let .storeGlobal(value, symbol):
+                lowered.append(
+                    .storeGlobal(
+                        value: resolveAlias(of: value, aliases: localExprMap),
+                        symbol: symbol
+                    )
+                )
+
+            case let .loadGlobal(result, symbol):
+                let loweredResult = cloneExpr(result, in: module.arena)
+                localExprMap[result] = loweredResult
+                lowered.append(.loadGlobal(result: loweredResult, symbol: symbol))
+
+            case let .rethrow(value):
+                lowered.append(
+                    .rethrow(value: resolveAlias(of: value, aliases: localExprMap))
+                )
+
+            case let .unary(op, operand, result):
+                let loweredResult = cloneExpr(result, in: module.arena)
+                localExprMap[result] = loweredResult
+                lowered.append(
+                    .unary(
+                        op: op,
+                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        result: loweredResult
+                    )
+                )
+
+            case let .nullAssert(operand, result):
+                let loweredResult = cloneExpr(result, in: module.arena)
+                localExprMap[result] = loweredResult
+                lowered.append(
+                    .nullAssert(
+                        operand: resolveAlias(of: operand, aliases: localExprMap),
+                        result: loweredResult
+                    )
+                )
+            }
+        }
+
+        return InlineExpansion(instructions: lowered, returnedExpr: returnedExpr)
+    }
+
+    // MARK: - Lambda Inlining
+
+    /// Resolve the lambda function for an argument expression. The argument
+    /// expression should be a `symbolRef` pointing to a lambda KIR function.
+    private func resolveLambdaFunction(
+        argExpr: KIRExprID,
+        arena: KIRArena,
+        allFunctionsBySymbol: [SymbolID: KIRFunction]
+    ) -> KIRFunction? {
+        guard case let .symbolRef(lambdaSymbol)? = arena.expr(argExpr) else {
+            return nil
+        }
+        return allFunctionsBySymbol[lambdaSymbol]
+    }
+
+    /// Expand a lambda function body inline, substituting parameters with the
+    /// provided call arguments. This is analogous to `expandInlineCall` but
+    /// operates on non-inline lambda functions that are passed as arguments to
+    /// inline functions.
+    private func expandLambdaBody(
+        lambdaFunction: KIRFunction,
+        arguments: [KIRExprID],
+        module: KIRModule
+    ) -> InlineExpansion {
+        // Map lambda parameters to arguments. If the argument count does not
+        // match the parameter count, skip capture parameters at the front and
+        // map only the trailing value parameters.
+        var lambdaParamValues: [SymbolID: KIRExprID] = [:]
+        let paramCount = lambdaFunction.params.count
+        if arguments.count == paramCount {
+            for (param, arg) in zip(lambdaFunction.params, arguments) {
+                lambdaParamValues[param.symbol] = arg
+            }
+        } else if arguments.count < paramCount {
+            // The call supplies only value arguments; the leading parameters
+            // are captures that were already bound at the call site.
+            let offset = paramCount - arguments.count
+            for i in 0 ..< arguments.count {
+                lambdaParamValues[lambdaFunction.params[offset + i].symbol] = arguments[i]
+            }
+        } else {
+            // More arguments than parameters -- fall back to non-inlined call.
+            return InlineExpansion(instructions: [], returnedExpr: nil)
+        }
+
+        var localExprMap: [KIRExprID: KIRExprID] = [:]
+        var lowered: [KIRInstruction] = []
+        lowered.reserveCapacity(lambdaFunction.body.count)
+        var returnedExpr: KIRExprID?
+
+        for instruction in lambdaFunction.body {
+            switch instruction {
+            case .beginBlock, .endBlock:
+                continue
+
+            case .nop:
+                lowered.append(.nop)
+
+            case let .label(id):
+                lowered.append(.label(id))
+
+            case let .jump(target):
+                lowered.append(.jump(target))
+
+            case let .jumpIfEqual(lhs, rhs, target):
+                lowered.append(
+                    .jumpIfEqual(
+                        lhs: resolveAlias(of: lhs, aliases: localExprMap),
+                        rhs: resolveAlias(of: rhs, aliases: localExprMap),
+                        target: target
+                    )
+                )
+
+            case .returnUnit:
+                returnedExpr = nil
+
+            case let .returnValue(value):
+                returnedExpr = resolveAlias(of: value, aliases: localExprMap)
+
+            case let .constValue(result, value):
+                if case let .symbolRef(symbol) = value,
+                   let mapped = lambdaParamValues[symbol]
                 {
                     localExprMap[result] = mapped
                     continue
