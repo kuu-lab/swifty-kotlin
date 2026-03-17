@@ -476,7 +476,7 @@ public func kk_list_scan(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    var acc = initial
+    var acc = maybeUnbox(initial)
     var results: [Int] = []
     results.reserveCapacity(list.elements.count + 1)
     results.append(acc)

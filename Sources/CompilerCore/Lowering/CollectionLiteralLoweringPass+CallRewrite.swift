@@ -2170,9 +2170,9 @@ extension CollectionLiteralLoweringPass {
                     // Runtime expects (listRaw, initial, fnPtr, closureRaw, outThrown)
                     // NOTE: The rewrite blocks below intentionally duplicate the "allocate temp +
                     // emit .call + copy to result" pattern used by emitHOFCall in VirtualCallRewrite.
-                    // This non-virtual call path operates on different data structures (loweredBody array
-                    // vs. VirtualCallRewrite's builder), so reusing emitHOFCall is not straightforward.
-                    // Kept inline for clarity and to avoid coupling the two rewrite paths.
+                    // emitHOFCall is a private method on the VirtualCallRewrite extension and not
+                    // visible from this file-scope rewrite path.  Kept inline to avoid coupling
+                    // the two rewrite paths; extracting a shared helper is a future cleanup.
                     if (callee == lookup.scanName || callee == lookup.runningFoldName), arguments.count == 3 || arguments.count == 4 {
                         let receiverID = arguments[0]
                         let initialID = arguments[1]
