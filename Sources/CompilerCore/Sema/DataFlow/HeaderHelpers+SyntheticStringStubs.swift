@@ -1355,20 +1355,67 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         elementType: TypeID
     ) -> TypeID {
-        let sequenceFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("sequences"),
-            interner.intern("Sequence"),
-        ]
-        guard let sequenceSymbol = symbols.lookup(fqName: sequenceFQName) else {
-            assertionFailure("STDLIB-317: kotlin.sequences.Sequence not found in symbol table; falling back to Any")
-            return types.anyType
-        }
+        let sequenceSymbol = ensureSequenceSymbol(
+            symbols: symbols, types: types, interner: interner
+        )
         return types.make(.classType(ClassType(
             classSymbol: sequenceSymbol,
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+    }
+
+    private func ensureSequenceSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID {
+        let sequenceName = interner.intern("Sequence")
+        let sequenceFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            sequenceName,
+        ]
+        if let existing = symbols.lookup(fqName: sequenceFQName) {
+            return existing
+        }
+        // Ensure the kotlin.sequences package exists
+        let sequencesPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+        ]
+        if symbols.lookup(fqName: sequencesPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("sequences"),
+                fqName: sequencesPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let sym = symbols.define(
+            kind: .interface,
+            name: sequenceName,
+            fqName: sequenceFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // Register type parameter T for Sequence<T>
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = sequenceFQName + [typeParamName]
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
+        types.setNominalTypeParameterVariances([.out], for: sym)
+        return sym
     }
 
     private func makeIterableType(
@@ -1377,20 +1424,67 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         elementType: TypeID
     ) -> TypeID {
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterable"),
-        ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            assertionFailure("STDLIB-317: kotlin.collections.Iterable not found in symbol table; falling back to Any")
-            return types.anyType
-        }
+        let iterableSymbol = ensureIterableSymbol(
+            symbols: symbols, types: types, interner: interner
+        )
         return types.make(.classType(ClassType(
             classSymbol: iterableSymbol,
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+    }
+
+    private func ensureIterableSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID {
+        let iterableName = interner.intern("Iterable")
+        let iterableFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            iterableName,
+        ]
+        if let existing = symbols.lookup(fqName: iterableFQName) {
+            return existing
+        }
+        // Ensure the kotlin.collections package exists
+        let collectionsPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        if symbols.lookup(fqName: collectionsPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("collections"),
+                fqName: collectionsPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let sym = symbols.define(
+            kind: .interface,
+            name: iterableName,
+            fqName: iterableFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // Register type parameter T for Iterable<T>
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = iterableFQName + [typeParamName]
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
+        types.setNominalTypeParameterVariances([.out], for: sym)
+        return sym
     }
 
     private func makeListOfStringType(
