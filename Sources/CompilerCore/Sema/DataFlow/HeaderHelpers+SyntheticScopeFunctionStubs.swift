@@ -108,5 +108,185 @@ extension DataFlowSemaPhase {
             ),
             for: withSymbol
         )
+
+        // --- Top-level run<R>(block: () -> R): R (STDLIB-401) ---
+        registerTopLevelRunStub(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinPkg: kotlinPkg
+        )
+
+        // --- Extension T.run<R>(block: T.() -> R): R (STDLIB-401) ---
+        registerExtensionRunStub(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinPkg: kotlinPkg
+        )
+    }
+
+    /// Top-level `run<R>(block: () -> R): R` — just executes block and returns result.
+    private func registerTopLevelRunStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]
+    ) {
+        let runName = interner.intern("run")
+        let runFQName = kotlinPkg + [runName]
+
+        // Skip if already registered.
+        if symbols.lookup(fqName: runFQName) != nil {
+            return
+        }
+
+        let rName = interner.intern("R")
+        let rFQName = runFQName + [rName]
+
+        let rSymbol = symbols.define(
+            kind: .typeParameter,
+            name: rName,
+            fqName: rFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+
+        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+
+        let blockType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: rType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let blockName = interner.intern("block")
+        let blockSymbol = symbols.define(
+            kind: .valueParameter,
+            name: blockName,
+            fqName: runFQName + [blockName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let runSymbol = symbols.define(
+            kind: .function,
+            name: runName,
+            fqName: runFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(packageSymbol, for: runSymbol)
+        }
+        symbols.setParentSymbol(runSymbol, for: rSymbol)
+        symbols.setParentSymbol(runSymbol, for: blockSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [blockType],
+                returnType: rType,
+                isSuspend: false,
+                valueParameterSymbols: [blockSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [rSymbol],
+                classTypeParameterCount: 0
+            ),
+            for: runSymbol
+        )
+    }
+
+    /// Extension `T.run<R>(block: T.() -> R): R` — receiver becomes `this` in lambda.
+    private func registerExtensionRunStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]
+    ) {
+        let runName = interner.intern("run")
+        // Use a distinct FQN to avoid collision with the top-level run stub.
+        let extRunFQName = kotlinPkg + [interner.intern("run\u{200B}ext")]
+
+        if symbols.lookup(fqName: extRunFQName) != nil {
+            return
+        }
+
+        let tName = interner.intern("T")
+        let rName = interner.intern("R")
+        let tFQName = extRunFQName + [tName]
+        let rFQName = extRunFQName + [rName]
+
+        let tSymbol = symbols.define(
+            kind: .typeParameter,
+            name: tName,
+            fqName: tFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        let rSymbol = symbols.define(
+            kind: .typeParameter,
+            name: rName,
+            fqName: rFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+
+        let tType = types.make(.typeParam(TypeParamType(symbol: tSymbol, nullability: .nonNull)))
+        let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+
+        let blockType = types.make(.functionType(FunctionType(
+            receiver: tType,
+            params: [],
+            returnType: rType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let blockName = interner.intern("block")
+        let blockSymbol = symbols.define(
+            kind: .valueParameter,
+            name: blockName,
+            fqName: extRunFQName + [blockName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+
+        let runSymbol = symbols.define(
+            kind: .function,
+            name: runName,
+            fqName: extRunFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(packageSymbol, for: runSymbol)
+        }
+        symbols.setParentSymbol(runSymbol, for: tSymbol)
+        symbols.setParentSymbol(runSymbol, for: rSymbol)
+        symbols.setParentSymbol(runSymbol, for: blockSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: tType,
+                parameterTypes: [blockType],
+                returnType: rType,
+                isSuspend: false,
+                valueParameterSymbols: [blockSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [tSymbol, rSymbol],
+                classTypeParameterCount: 0
+            ),
+            for: runSymbol
+        )
     }
 }

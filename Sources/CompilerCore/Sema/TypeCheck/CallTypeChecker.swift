@@ -142,6 +142,40 @@ final class CallTypeChecker {
             return returnType
         }
 
+        // --- Scope function: top-level run(block) (STDLIB-401) ---
+        // `run { expr }` simply executes the block lambda and returns the result.
+        // Intercept when no local or user-defined (non-synthetic) `run` shadows the stdlib helper.
+        if let calleeName, args.count == 1,
+           calleeName == knownNames.run,
+           locals[calleeName] == nil,
+           !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
+               guard let sym = ctx.cachedSymbol(candidate) else { return false }
+               return !sym.flags.contains(.synthetic)
+           })
+        {
+            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: expectedType ?? sema.types.anyType
+            )))
+            let lambdaType = driver.inferExpr(
+                args[0].expr, ctx: ctx, locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                fnType.returnType
+            } else {
+                sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                    if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                        return fnType.returnType
+                    }
+                    return nil
+                } ?? sema.types.anyType
+            }
+            sema.bindings.markScopeFunctionExpr(id, kind: .scopeTopLevelRun)
+            sema.bindings.bindExprType(id, type: returnType)
+            return returnType
+        }
+
         // --- Flow builder function (CORO-003) ---
         // `flow { emit(...) }` is treated as a builtin cold stream factory.
         // We infer the lambda with a flow-builder scope so unqualified `emit`

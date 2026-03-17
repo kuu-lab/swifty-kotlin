@@ -112,6 +112,7 @@ struct KnownCompilerNames {
     let it: InternedString
     let main: InternedString
     let with: InternedString
+    let run: InternedString
     let withContext: InternedString
     let flow: InternedString
     let emit: InternedString
@@ -223,6 +224,7 @@ struct KnownCompilerNames {
         it = interner.intern("it")
         main = interner.intern("main")
         with = interner.intern("with")
+        run = interner.intern("run")
         withContext = interner.intern("withContext")
         flow = interner.intern("flow")
         emit = interner.intern("emit")
