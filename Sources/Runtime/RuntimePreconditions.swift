@@ -57,6 +57,34 @@ public func kk_check_lazy(
     )
 }
 
+// MARK: - assert (STDLIB-258)
+
+@_cdecl("kk_precondition_assert")
+public func kk_precondition_assert(_ condition: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if condition == 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "AssertionError: Assertion failed.")
+        return 0
+    }
+    return 0
+}
+
+@_cdecl("kk_precondition_assert_lazy")
+public func kk_precondition_assert_lazy(
+    _ condition: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    preconditionWithLazyMessage(
+        condition,
+        fnPtr,
+        closureRaw,
+        outThrown,
+        defaultMessage: "AssertionError: Assertion failed."
+    )
+}
+
 @_cdecl("kk_error")
 public func kk_error(_ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

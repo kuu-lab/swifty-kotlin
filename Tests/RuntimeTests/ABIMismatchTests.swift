@@ -76,8 +76,9 @@ final class ABIMismatchTests: XCTestCase {
     func testExceptionFunctionCount() {
         // kk_throwable_new, kk_throwable_is_cancellation, kk_panic, kk_abort_unreachable,
         // kk_require, kk_check, kk_require_lazy, kk_check_lazy,
+        // kk_precondition_assert, kk_precondition_assert_lazy,
         // kk_error, kk_todo, kk_todo_noarg, kk_dispatch_error
-        XCTAssertEqual(RuntimeABISpec.exceptionFunctions.count, 15)
+        XCTAssertEqual(RuntimeABISpec.exceptionFunctions.count, 18)
     }
 
     func testStringFunctionCount() {
