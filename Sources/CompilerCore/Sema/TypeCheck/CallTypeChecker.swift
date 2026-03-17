@@ -380,6 +380,33 @@ final class CallTypeChecker {
             return longType
         }
 
+        // --- Stdlib kotlin.time.measureTime { ... } (STDLIB-585) ---
+        if let calleeName,
+           interner.resolve(calleeName) == "measureTime",
+           args.count == 1,
+           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+        {
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: nil
+            )
+            // Look up the synthetic Duration class to build the return type.
+            let durationFQName = [interner.intern("kotlin"), interner.intern("time"), interner.intern("Duration")]
+            let durationType: TypeID
+            if let durationSymbol = sema.symbols.lookup(fqName: durationFQName) {
+                durationType = sema.types.make(.classType(ClassType(
+                    classSymbol: durationSymbol, args: [], nullability: .nonNull
+                )))
+            } else {
+                durationType = sema.types.anyType
+            }
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureTime)
+            sema.bindings.bindExprType(id, type: durationType)
+            return durationType
+        }
+
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086) ---
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),

@@ -334,20 +334,91 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- kotlin.time package (STDLIB-230/231) ---
+        // --- kotlin.time package (STDLIB-230/231/585) ---
         let kotlinTimePkg = ensureSyntheticPackageHierarchy(
             fqName: [interner.intern("kotlin"), interner.intern("time")],
             symbols: symbols
         )
 
-        // NOTE: (block: Any) -> Any follows the established synthetic stub pattern used by
-        // measureTimeMillis, synchronized, generateSequence, etc. The runtime entrypoint handles
-        // the actual callable dispatch; type erasure to Any is intentional at the synthetic level.
+        // Register synthetic Duration class (STDLIB-585)
+        let durationName = interner.intern("Duration")
+        let durationFQName = kotlinTimePkg + [durationName]
+        let durationSymbol: SymbolID = if let existing = symbols.lookup(fqName: durationFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: durationName,
+                fqName: durationFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let packageSymbol = symbols.lookup(fqName: kotlinTimePkg) {
+            symbols.setParentSymbol(packageSymbol, for: durationSymbol)
+        }
+
+        let durationClassType = types.make(.classType(ClassType(
+            classSymbol: durationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        // Register Duration.inWholeMilliseconds property (returns Long)
+        registerSyntheticDurationMember(
+            named: "inWholeMilliseconds",
+            externalLinkName: "kk_duration_inWholeMilliseconds",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.longType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Register Duration.inWholeSeconds property (returns Long)
+        registerSyntheticDurationMember(
+            named: "inWholeSeconds",
+            externalLinkName: "kk_duration_inWholeSeconds",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.longType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Register Duration.inWholeNanoseconds property (returns Long)
+        registerSyntheticDurationMember(
+            named: "inWholeNanoseconds",
+            externalLinkName: "kk_duration_inWholeNanoseconds",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.longType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Register Duration.toString() (returns String)
+        registerSyntheticDurationMember(
+            named: "toString",
+            externalLinkName: "kk_duration_toString",
+            durationSymbol: durationSymbol,
+            durationFQName: durationFQName,
+            receiverType: durationClassType,
+            returnType: types.stringType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // measureTime returns Duration (STDLIB-585)
         registerSyntheticTopLevelFunction(
             named: "measureTime",
             packageFQName: kotlinTimePkg,
             parameters: [(name: "block", type: types.anyType)],
-            returnType: types.anyType,
+            returnType: durationClassType,
             externalLinkName: "kk_measureTime",
             symbols: symbols,
             interner: interner
@@ -1406,6 +1477,46 @@ extension DataFlowSemaPhase {
                 valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
                 valueParameterIsVararg: Array(repeating: false, count: parameters.count),
                 classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
+    }
+
+    private func registerSyntheticDurationMember(
+        named name: String,
+        externalLinkName: String,
+        durationSymbol: SymbolID,
+        durationFQName: [InternedString],
+        receiverType: TypeID,
+        returnType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let memberName = interner.intern(name)
+        let memberFQName = durationFQName + [memberName]
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        symbols.setParentSymbol(durationSymbol, for: memberSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: returnType,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: [],
+                typeParameterSymbols: [],
+                classTypeParameterCount: 0
             ),
             for: memberSymbol
         )

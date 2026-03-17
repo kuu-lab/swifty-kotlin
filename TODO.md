@@ -227,7 +227,7 @@
 - [ ] STDLIB-582: `Duration.inWholeMilliseconds` の Runtime 確認
 - [ ] STDLIB-583: `Duration.inWholeSeconds` の Runtime 確認
 - [ ] STDLIB-584: `Duration.inWholeMinutes` の Runtime 確認
-- [ ] STDLIB-585: `measureTime { }` の戻り型を `Duration` に統一
+- [x] STDLIB-585: `measureTime { }` の戻り型を `Duration` に統一
 - [ ] STDLIB-586: `RuntimeDuration` の RuntimeTests 追加
 - [ ] STDLIB-587: `measureTimeMillis` の diff テスト追加
 - [ ] STDLIB-588: `measureNanoTime` の diff テスト追加
