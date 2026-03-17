@@ -272,6 +272,7 @@ extension CallTypeChecker {
             case "run": .scopeRun
             case "apply": .scopeApply
             case "also": .scopeAlso
+            case "use": .scopeUse
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -373,6 +374,32 @@ extension CallTypeChecker {
                     let finalType = safeCall
                         ? sema.types.makeNullable(nonNullReceiverType)
                         : nonNullReceiverType
+                    sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+
+                case .scopeUse:
+                    // use: lambda receives `it` parameter typed as T, returns R.
+                    // Semantically equivalent to `let` but wraps in try-finally { close() }.
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [nonNullReceiverType],
+                        returnType: expectedType ?? sema.types.anyType
+                    )))
+                    let lambdaType = driver.inferExpr(
+                        args[0].expr, ctx: ctx, locals: &locals,
+                        expectedType: lambdaExpectedType
+                    )
+                    let returnType: TypeID = if case let .functionType(fnType) = sema.types.kind(of: lambdaType) {
+                        fnType.returnType
+                    } else {
+                        sema.bindings.exprTypes[args[0].expr].flatMap { typeID in
+                            if case let .functionType(fnType) = sema.types.kind(of: typeID) {
+                                return fnType.returnType
+                            }
+                            return nil
+                        } ?? sema.types.anyType
+                    }
+                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType

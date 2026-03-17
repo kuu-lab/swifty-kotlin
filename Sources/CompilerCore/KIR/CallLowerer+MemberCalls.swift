@@ -3575,6 +3575,55 @@ extension CallLowerer {
             }
             return result
 
+        case .scopeUse:
+            // use: like `let`, lambda takes `it` as explicit parameter,
+            // but receiver.close() is called afterwards (try-finally semantics).
+            let loweredLambdaID = driver.lowerExpr(
+                args[0].expr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: boundType
+            )
+            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
+                let callArgs: [KIRExprID]
+                if info.hasClosureParam {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
+                } else {
+                    callArgs = info.captureArguments + [loweredReceiverID]
+                }
+                instructions.append(.call(
+                    symbol: info.symbol,
+                    callee: info.callee,
+                    arguments: callArgs,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                return nil
+            }
+            // finally: call close() on the receiver.
+            let closeName = interner.intern("close")
+            let closeResult = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: sema.types.unitType
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: closeName,
+                arguments: [loweredReceiverID],
+                result: closeResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
         case .scopeWith:
             return nil // with is handled in lowerCallExpr
 
