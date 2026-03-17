@@ -185,16 +185,20 @@ final class CallLowerer {
                 .temporary(Int32(arena.expressions.count)),
                 type: boundType
             )
-            if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
-                instructions.append(.call(
-                    symbol: info.symbol,
-                    callee: info.callee,
-                    arguments: info.captureArguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+            guard let info = driver.ctx.callableValueInfo(for: loweredLambdaID) else {
+                // Non-lambda argument passed to top-level run(); return the
+                // already-lowered expression directly instead of leaving
+                // `result` uninitialized.
+                return loweredLambdaID
             }
+            instructions.append(.call(
+                symbol: info.symbol,
+                callee: info.callee,
+                arguments: info.captureArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
             return result
         }
 

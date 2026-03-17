@@ -145,18 +145,33 @@ final class CallTypeChecker {
         // --- Scope function: top-level run(block) (STDLIB-401) ---
         // `run { expr }` simply executes the block lambda and returns the result.
         // Intercept when no local or user-defined (non-synthetic) `run` shadows the stdlib helper.
+        // The single argument must be a lambda literal or callable reference;
+        // otherwise (e.g. `run(123)`) fall through to normal call resolution.
         if let calleeName, args.count == 1,
            calleeName == knownNames.run,
            locals[calleeName] == nil,
+           ({
+               guard let argExpr = ast.arena.expr(args[0].expr) else { return false }
+               switch argExpr {
+               case .lambdaLiteral, .callableRef:
+                   return true
+               default:
+                   return false
+               }
+           })(),
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
                guard let sym = ctx.cachedSymbol(candidate) else { return false }
                return !sym.flags.contains(.synthetic)
            })
         {
-            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                params: [],
-                returnType: expectedType ?? sema.types.anyType
-            )))
+            let lambdaExpectedType: TypeID? = if let expectedType {
+                sema.types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: expectedType
+                )))
+            } else {
+                nil
+            }
             let lambdaType = driver.inferExpr(
                 args[0].expr, ctx: ctx, locals: &locals,
                 expectedType: lambdaExpectedType

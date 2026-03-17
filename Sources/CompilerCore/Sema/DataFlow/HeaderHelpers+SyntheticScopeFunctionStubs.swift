@@ -210,7 +210,7 @@ extension DataFlowSemaPhase {
     ) {
         let runName = interner.intern("run")
         // Use a distinct FQN to avoid collision with the top-level run stub.
-        let extRunFQName = kotlinPkg + [interner.intern("run\u{200B}ext")]
+        let extRunFQName = kotlinPkg + [interner.intern("run_toplevel")]
 
         if symbols.lookup(fqName: extRunFQName) != nil {
             return
