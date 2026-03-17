@@ -126,6 +126,10 @@ struct CollectionLiteralLookupTables {
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
     let kkListPartitionName: InternedString
+    let kkListTakeWhileName: InternedString
+    let kkListDropWhileName: InternedString
+    let kkListTakeLastWhileName: InternedString
+    let kkListDropLastWhileName: InternedString
 
     // Comparator ABI names (STDLIB-175, STDLIB-177)
     let kkComparatorFromSelectorName: InternedString
@@ -315,6 +319,10 @@ struct CollectionLiteralLookupTables {
     let sortedByDescendingName: InternedString
     let sortedWithName: InternedString
     let partitionName: InternedString
+    let takeWhileName: InternedString
+    let dropWhileName: InternedString
+    let takeLastWhileName: InternedString
+    let dropLastWhileName: InternedString
 
     // Array member names (STDLIB-087/088/089)
     let toMutableListName: InternedString
@@ -515,6 +523,10 @@ struct CollectionLiteralLookupTables {
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
         kkListPartitionName = interner.intern("kk_list_partition")
+        kkListTakeWhileName = interner.intern("kk_list_takeWhile")
+        kkListDropWhileName = interner.intern("kk_list_dropWhile")
+        kkListTakeLastWhileName = interner.intern("kk_list_takeLastWhile")
+        kkListDropLastWhileName = interner.intern("kk_list_dropLastWhile")
 
         kkComparatorFromSelectorName = interner.intern("kk_comparator_from_selector")
         kkComparatorFromSelectorDescendingName = interner.intern("kk_comparator_from_selector_descending")
@@ -695,6 +707,10 @@ struct CollectionLiteralLookupTables {
         sortedByDescendingName = interner.intern("sortedByDescending")
         sortedWithName = interner.intern("sortedWith")
         partitionName = interner.intern("partition")
+        takeWhileName = interner.intern("takeWhile")
+        dropWhileName = interner.intern("dropWhile")
+        takeLastWhileName = interner.intern("takeLastWhile")
+        dropLastWhileName = interner.intern("dropLastWhile")
 
         toMutableListName = interner.intern("toMutableList")
         toTypedArrayName = interner.intern("toTypedArray")

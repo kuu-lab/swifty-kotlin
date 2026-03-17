@@ -1167,6 +1167,96 @@ public func kk_list_sortedWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
     return registerRuntimeObject(RuntimeListBox(elements: sorted))
 }
 
+// MARK: - takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
+
+/// Invoke a predicate lambda and evaluate its boolean result.
+/// Returns `(thrownValue, satisfied)`. When `thrownValue != 0` the caller must
+/// propagate the exception via `handleCollectionLambdaThrow`.
+private func evalPredicate(
+    fnPtr: Int, closureRaw: Int, value: Int
+) -> (thrownValue: Int, satisfied: Bool) {
+    var thrown = 0
+    let predResult = runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr, closureRaw: closureRaw, value: value, outThrown: &thrown)
+    if thrown != 0 { return (thrownValue: thrown, satisfied: false) }
+    return (thrownValue: 0, satisfied: maybeUnbox(predResult) != 0)
+}
+
+@_cdecl("kk_list_takeWhile")
+public func kk_list_takeWhile(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    for (i, elem) in list.elements.enumerated() {
+        let (thrownValue, satisfied) = evalPredicate(
+            fnPtr: fnPtr, closureRaw: closureRaw, value: elem)
+        if thrownValue != 0 { return handleCollectionLambdaThrow(thrownValue, outThrown) }
+        if !satisfied {
+            let result = Array(list.elements[..<i])
+            return registerRuntimeObject(RuntimeListBox(elements: result))
+        }
+    }
+    // Predicate was true for all elements — always return a new list (Kotlin snapshot semantics).
+    return registerRuntimeObject(RuntimeListBox(elements: list.elements))
+}
+
+@_cdecl("kk_list_dropWhile")
+public func kk_list_dropWhile(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    for (i, elem) in list.elements.enumerated() {
+        let (thrownValue, satisfied) = evalPredicate(
+            fnPtr: fnPtr, closureRaw: closureRaw, value: elem)
+        if thrownValue != 0 { return handleCollectionLambdaThrow(thrownValue, outThrown) }
+        if !satisfied {
+            // Use array slice for the remaining elements instead of appending one-by-one.
+            let result = Array(list.elements[i...])
+            return registerRuntimeObject(RuntimeListBox(elements: result))
+        }
+    }
+    // All elements matched the predicate — everything was dropped.
+    return registerRuntimeObject(RuntimeListBox(elements: []))
+}
+
+/// Count how many elements from the end of `elements` satisfy the predicate.
+/// Returns `(thrownValue: non-zero, count: 0)` when the predicate throws;
+/// the caller is expected to propagate the exception via `handleCollectionLambdaThrow`.
+private func computeMatchingSuffixCount(
+    elements: [Int], fnPtr: Int, closureRaw: Int
+) -> (thrownValue: Int, count: Int) {
+    var count = 0
+    for elem in elements.reversed() {
+        let (thrownValue, satisfied) = evalPredicate(
+            fnPtr: fnPtr, closureRaw: closureRaw, value: elem)
+        if thrownValue != 0 { return (thrownValue: thrownValue, count: 0) }
+        if !satisfied { break }
+        count += 1
+    }
+    return (thrownValue: 0, count: count)
+}
+
+@_cdecl("kk_list_takeLastWhile")
+public func kk_list_takeLastWhile(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    let (thrownValue, count) = computeMatchingSuffixCount(
+        elements: list.elements, fnPtr: fnPtr, closureRaw: closureRaw)
+    if thrownValue != 0 { return handleCollectionLambdaThrow(thrownValue, outThrown) }
+    var result = [Int]()
+    result.reserveCapacity(count)
+    result.append(contentsOf: list.elements.suffix(count))
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+@_cdecl("kk_list_dropLastWhile")
+public func kk_list_dropLastWhile(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    let (thrownValue, dropCount) = computeMatchingSuffixCount(
+        elements: list.elements, fnPtr: fnPtr, closureRaw: closureRaw)
+    if thrownValue != 0 { return handleCollectionLambdaThrow(thrownValue, outThrown) }
+    let keepCount = list.elements.count - dropCount
+    var result = [Int]()
+    result.reserveCapacity(keepCount)
+    result.append(contentsOf: list.elements.prefix(keepCount))
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
 // MARK: - onEach / onEachIndexed (STDLIB-300)
 
 @_cdecl("kk_list_onEach")
