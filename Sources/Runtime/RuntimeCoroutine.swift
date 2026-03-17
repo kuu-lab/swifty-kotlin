@@ -838,13 +838,31 @@ public func kk_flow_release(_ flowHandle: Int) -> Int {
     return 0
 }
 
-// MARK: - Dispatcher Runtime Stubs (P5-133)
+// MARK: - Dispatcher Runtime (P5-133)
 
 /// Dispatcher tag constants used as opaque handles.
 private enum RuntimeDispatcherTag {
     static let defaultDispatcher: Int = 0x4B4B_4401 // "KKD\x01"
     static let ioDispatcher: Int = 0x4B4B_4402 // "KKD\x02"
     static let mainDispatcher: Int = 0x4B4B_4403 // "KKD\x03"
+}
+
+/// Maps a dispatcher tag to the corresponding GCD dispatch queue.
+/// - `Dispatchers.Default` -> global queue (concurrent, default QoS)
+/// - `Dispatchers.IO`      -> global queue (concurrent, utility QoS — I/O-appropriate)
+/// - `Dispatchers.Main`    -> main queue (serial)
+/// Unknown tags fall back to `Dispatchers.Default`.
+private func dispatchQueue(for dispatcherTag: Int) -> DispatchQueue {
+    switch dispatcherTag {
+    case RuntimeDispatcherTag.ioDispatcher:
+        return DispatchQueue.global(qos: .utility)
+    case RuntimeDispatcherTag.mainDispatcher:
+        return DispatchQueue.main
+    case RuntimeDispatcherTag.defaultDispatcher:
+        return DispatchQueue.global()
+    default:
+        return DispatchQueue.global()
+    }
 }
 
 @_cdecl("kk_dispatcher_default")
@@ -862,11 +880,13 @@ public func kk_dispatcher_main() -> Int {
     RuntimeDispatcherTag.mainDispatcher
 }
 
+/// Kotlin `withContext(dispatcher) { block }` — switches coroutine execution
+/// to the dispatch queue that corresponds to `dispatcherRaw`, runs the
+/// suspend-aware block through the full entry loop (supporting intermediate
+/// suspension points such as `delay`), and blocks the caller until the block
+/// completes, returning its result.
 @_cdecl("kk_with_context")
 public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuation: Int) -> Int {
-    // The runtime still executes synchronously today, but we preserve
-    // dispatcher selection here so the requested context is observed
-    // instead of being silently discarded by the stub.
     let resolvedDispatcher = switch dispatcherRaw {
     case RuntimeDispatcherTag.defaultDispatcher,
          RuntimeDispatcherTag.ioDispatcher,
@@ -875,15 +895,34 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     default:
         RuntimeDispatcherTag.defaultDispatcher
     }
-    _ = resolvedDispatcher
-    guard let entryPoint = suspendEntryPoint(from: blockFnPtr) else {
+
+    guard suspendEntryPoint(from: blockFnPtr) != nil else {
         return 0
     }
-    var outThrown = 0
-    let result = entryPoint(continuation, &outThrown)
-    if outThrown != 0 {
-        return 0
+
+    let queue = dispatchQueue(for: resolvedDispatcher)
+
+    // Capture the current coroutine scope so child launches inside the block
+    // are registered with the correct scope on the target queue's thread.
+    let parentScope = RuntimeCoroutineScope.current
+
+    let semaphore = DispatchSemaphore(value: 0)
+    var result = 0
+
+    queue.async {
+        // Propagate the coroutine scope to the target thread.
+        let savedScope = RuntimeCoroutineScope.current
+        RuntimeCoroutineScope.current = parentScope
+        defer { RuntimeCoroutineScope.current = savedScope }
+
+        result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: blockFnPtr,
+            continuation: continuation
+        )
+        semaphore.signal()
     }
+
+    semaphore.wait()
     return result
 }
 
