@@ -918,6 +918,16 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_range",
+            parameters: [
+                RuntimeABIParameter(name: "csqRaw", type: .intptr),
+                RuntimeABIParameter(name: "startIndex", type: .intptr),
+                RuntimeABIParameter(name: "endIndex", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_builder_insert",
             parameters: [
                 RuntimeABIParameter(name: "index", type: .intptr),

@@ -441,11 +441,13 @@ struct CollectionLiteralLookupTables {
     let insertName: InternedString
     let deleteName: InternedString
     let lengthName: InternedString
+    let appendRangeName: InternedString
     let kkStringBuilderAppendLineName: InternedString
     let kkStringBuilderAppendLineNoargName: InternedString
     let kkStringBuilderInsertName: InternedString
     let kkStringBuilderDeleteName: InternedString
     let kkStringBuilderLengthName: InternedString
+    let kkStringBuilderAppendRangeName: InternedString
 
     // File I/O names (STDLIB-565)
     let fileConstructorName: InternedString
@@ -902,11 +904,13 @@ struct CollectionLiteralLookupTables {
         insertName = interner.intern("insert")
         deleteName = interner.intern("delete")
         lengthName = interner.intern("length")
+        appendRangeName = interner.intern("appendRange")
         kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
         kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
         kkStringBuilderInsertName = interner.intern("kk_string_builder_insert")
         kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")
         kkStringBuilderLengthName = interner.intern("kk_string_builder_length")
+        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range")
 
         // File I/O names (STDLIB-565)
         fileConstructorName = interner.intern("File")

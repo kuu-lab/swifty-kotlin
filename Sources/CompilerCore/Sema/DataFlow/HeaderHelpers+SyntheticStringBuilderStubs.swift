@@ -146,6 +146,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // appendRange(CharSequence, Int, Int): StringBuilder (STDLIB-580)
+        registerStringBuilderMemberFunction(
+            named: "appendRange",
+            externalLinkName: "kk_string_builder_appendRange_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", stringType, false, false), ("startIndex", intType, false, false), ("endIndex", intType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Private Helpers

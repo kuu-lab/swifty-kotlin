@@ -143,6 +143,18 @@ public func kk_string_builder_deleteCharAt(_ sbRaw: Int, _ index: Int) -> Int {
     return sbRaw
 }
 
+@_cdecl("kk_string_builder_appendRange_obj")
+public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    let csq = runtimeElementToString(csqRaw)
+    let csqChars = Array(csq)
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= csqChars.count else {
+        fatalError("IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(csqChars.count)")
+    }
+    sb.value.append(contentsOf: csqChars[startIndex..<endIndex].map { String($0) }.joined())
+    return sbRaw
+}
+
 @_cdecl("kk_string_builder_get")
 public func kk_string_builder_get(_ sbRaw: Int, _ index: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }

@@ -232,6 +232,21 @@ public func kk_string_builder_append_line_noarg() -> Int {
     return 0
 }
 
+@_cdecl("kk_string_builder_append_range")
+public func kk_string_builder_append_range(_ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: csqRaw),
+          let string = extractString(from: pointer)
+    else {
+        return 0
+    }
+    let chars = Array(string)
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= chars.count else {
+        fatalError("IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(chars.count)")
+    }
+    runtimeBuilderState.appendString(String(chars[startIndex..<endIndex]))
+    return 0
+}
+
 @_cdecl("kk_string_builder_insert")
 public func kk_string_builder_insert(_ index: Int, _ valueRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
