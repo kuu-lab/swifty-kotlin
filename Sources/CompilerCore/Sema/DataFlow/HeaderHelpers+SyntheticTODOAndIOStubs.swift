@@ -815,8 +815,9 @@ extension DataFlowSemaPhase {
 
         let scopeName = interner.intern("SequenceScope")
         let scopeFQName = kotlinSequencesPkg + [scopeName]
-        let scopeSymbol: SymbolID = if let existing = symbols.lookup(fqName: scopeFQName) {
-            existing
+        let scopeSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: scopeFQName) {
+            scopeSymbol = existing
         } else {
             let sym = symbols.define(
                 kind: .class,
@@ -829,12 +830,13 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinSequencesPkg) {
                 symbols.setParentSymbol(packageSymbol, for: sym)
             }
-            sym
+            scopeSymbol = sym
         }
         let scopeTypeParamName = interner.intern("T")
         let scopeTypeParamFQName = scopeFQName + [scopeTypeParamName]
-        let scopeTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: scopeTypeParamFQName) {
-            existing
+        let scopeTypeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: scopeTypeParamFQName) {
+            scopeTypeParamSymbol = existing
         } else {
             let param = symbols.define(
                 kind: .typeParameter,
@@ -845,7 +847,7 @@ extension DataFlowSemaPhase {
                 flags: []
             )
             symbols.setParentSymbol(scopeSymbol, for: param)
-            param
+            scopeTypeParamSymbol = param
         }
         types.setNominalTypeParameterSymbols([scopeTypeParamSymbol], for: scopeSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: scopeSymbol)
