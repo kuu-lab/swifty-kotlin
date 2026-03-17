@@ -433,124 +433,87 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-410: emptyList/emptySet/emptyMap ---
         // kotlinCollectionsPkg already declared above (line 148)
+        //
+        // These synthetic registrations are intentionally non-generic and return
+        // List<Nothing>/Set<Nothing>/Map<Nothing, Nothing>. This matches Kotlin's
+        // actual emptyList<T>() signature where T defaults to Nothing. Because
+        // Nothing is the bottom type and List/Set/Map are covariant (out T),
+        // List<Nothing> is a subtype of List<T> for all T, so the result is
+        // assignable to any typed collection variable via normal covariance.
+        //
+        // Registering them as generic (with typeParameterSymbols) would cause the
+        // OverloadResolver to emit "Cannot infer type argument" when emptyList()
+        // is used as an argument (e.g. list.containsAll(emptyList())) because
+        // there are no call-site arguments or expected type to constrain T.
 
-        func registerGenericCollectionFactory(
-            named name: String,
-            externalLinkName: String,
-            typeParameterNames: [String],
-            returnTypeBuilder: @escaping (_ typeParamSymbols: [SymbolID]) -> TypeID
-        ) {
-            let functionName = interner.intern(name)
-            let functionFQName = kotlinCollectionsPkg + [functionName]
-            let functionSymbol: SymbolID = if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-                symbols.symbol(symbolID)?.kind == .function
-            }) {
-                existing
-            } else {
-                symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-
-            if let packageSymbol = symbols.lookup(fqName: kotlinCollectionsPkg) {
-                symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-            }
-            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-            var typeParamSymbols: [SymbolID] = []
-            for typeParamName in typeParameterNames {
-                let typeParamID = interner.intern(typeParamName)
-                let typeParamFQName = functionFQName + [typeParamID]
-                let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-                    existing
-                } else {
-                    symbols.define(
-                        kind: .typeParameter,
-                        name: typeParamID,
-                        fqName: typeParamFQName,
-                        declSite: nil,
-                        visibility: .private,
-                        flags: []
-                    )
-                }
-                symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-                typeParamSymbols.append(typeParamSymbol)
-            }
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    parameterTypes: [],
-                    returnType: returnTypeBuilder(typeParamSymbols),
-                    isSuspend: false,
-                    valueParameterSymbols: [],
-                    valueParameterHasDefaultValues: [],
-                    valueParameterIsVararg: [],
-                    typeParameterSymbols: typeParamSymbols
-                ),
-                for: functionSymbol
-            )
-        }
-
-        let listSymbolID = kotlinCollectionsPkg + [interner.intern("List")]
-        let setSymbolID = kotlinCollectionsPkg + [interner.intern("Set")]
-        let mapSymbolID = kotlinCollectionsPkg + [interner.intern("Map")]
-
-        registerGenericCollectionFactory(
-            named: "emptyList",
-            externalLinkName: "kk_emptyList",
-            typeParameterNames: ["T"]
-        ) { typeParams in
-            if let listSymbol = symbols.lookup(fqName: listSymbolID) {
-                let tType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-                return types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.out(tType)],
-                    nullability: .nonNull
-                )))
-            }
+        let listFQName = kotlinCollectionsPkg + [interner.intern("List")]
+        let emptyListReturnType: TypeID
+        if let listSymbol = symbols.lookup(fqName: listFQName) {
+            emptyListReturnType = types.make(.classType(ClassType(
+                classSymbol: listSymbol,
+                args: [.out(types.nothingType)],
+                nullability: .nonNull
+            )))
+        } else {
             assertionFailure("List interface not found in symbol table; collection stubs must be registered before emptyList")
-            return types.errorType
+            emptyListReturnType = types.anyType
         }
 
-        registerGenericCollectionFactory(
-            named: "emptySet",
-            externalLinkName: "kk_emptySet",
-            typeParameterNames: ["T"]
-        ) { typeParams in
-            guard let setSymbol = symbols.lookup(fqName: setSymbolID) else {
-                assertionFailure("Set interface not found in symbol table; collection stubs must be registered before emptySet")
-                return types.errorType
-            }
-            let tType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-            return types.make(.classType(ClassType(
+        let setFQName = kotlinCollectionsPkg + [interner.intern("Set")]
+        let emptySetReturnType: TypeID
+        if let setSymbol = symbols.lookup(fqName: setFQName) {
+            emptySetReturnType = types.make(.classType(ClassType(
                 classSymbol: setSymbol,
-                args: [.out(tType)],
+                args: [.out(types.nothingType)],
                 nullability: .nonNull
             )))
+        } else {
+            assertionFailure("Set interface not found in symbol table; collection stubs must be registered before emptySet")
+            emptySetReturnType = types.anyType
         }
 
-        registerGenericCollectionFactory(
-            named: "emptyMap",
-            externalLinkName: "kk_emptyMap",
-            typeParameterNames: ["K", "V"]
-        ) { typeParams in
-            guard let mapSymbol = symbols.lookup(fqName: mapSymbolID) else {
-                assertionFailure("Map interface not found in symbol table; collection stubs must be registered before emptyMap")
-                return types.errorType
-            }
-            let kType = types.make(.typeParam(TypeParamType(symbol: typeParams[0], nullability: .nonNull)))
-            let vType = types.make(.typeParam(TypeParamType(symbol: typeParams[1], nullability: .nonNull)))
-            return types.make(.classType(ClassType(
+        let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
+        let emptyMapReturnType: TypeID
+        if let mapSymbol = symbols.lookup(fqName: mapFQName) {
+            emptyMapReturnType = types.make(.classType(ClassType(
                 classSymbol: mapSymbol,
-                args: [.out(kType), .out(vType)],
+                args: [.out(types.nothingType), .out(types.nothingType)],
                 nullability: .nonNull
             )))
+        } else {
+            assertionFailure("Map interface not found in symbol table; collection stubs must be registered before emptyMap")
+            emptyMapReturnType = types.anyType
         }
+
+        registerSyntheticTopLevelFunction(
+            named: "emptyList",
+            packageFQName: kotlinCollectionsPkg,
+            parameters: [],
+            returnType: emptyListReturnType,
+            externalLinkName: "kk_emptyList",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticTopLevelFunction(
+            named: "emptySet",
+            packageFQName: kotlinCollectionsPkg,
+            parameters: [],
+            returnType: emptySetReturnType,
+            externalLinkName: "kk_emptySet",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticTopLevelFunction(
+            named: "emptyMap",
+            packageFQName: kotlinCollectionsPkg,
+            parameters: [],
+            returnType: emptyMapReturnType,
+            externalLinkName: "kk_emptyMap",
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func ensureSyntheticObjectSymbol(
