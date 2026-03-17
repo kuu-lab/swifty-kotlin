@@ -92,6 +92,7 @@ struct KnownCompilerNames {
     let intArray: InternedString
     let longArray: InternedString
     let doubleArray: InternedString
+    let floatArray: InternedString
     let booleanArray: InternedString
     let charArray: InternedString
 
@@ -203,6 +204,7 @@ struct KnownCompilerNames {
         intArray = interner.intern("IntArray")
         longArray = interner.intern("LongArray")
         doubleArray = interner.intern("DoubleArray")
+        floatArray = interner.intern("FloatArray")
         booleanArray = interner.intern("BooleanArray")
         charArray = interner.intern("CharArray")
 
@@ -374,9 +376,38 @@ struct KnownCompilerNames {
             || name == intArray
             || name == longArray
             || name == doubleArray
+            || name == floatArray
             || name == booleanArray
             || name == charArray
     }
+
+    /// Returns true if the name is a primitive array constructor type name
+    /// (e.g. Array, IntArray, LongArray, etc.).
+    func isPrimitiveArrayConstructorTypeName(_ name: InternedString) -> Bool {
+        name == array
+            || name == intArray
+            || name == longArray
+            || name == doubleArray
+            || name == floatArray
+            || name == booleanArray
+            || name == charArray
+    }
+
+    /// The set of stdlib collection factory function names used for marking
+    /// collection literal expressions. Shared across call type-checking sites
+    /// to avoid duplication.
+    static let stdlibCollectionFactoryNames: Set<String> = [
+        "listOf", "mutableListOf", "emptyList",
+        "arrayOf", "intArrayOf", "longArrayOf",
+        "doubleArrayOf", "floatArrayOf", "booleanArrayOf", "charArrayOf",
+        "mapOf", "mutableMapOf", "emptyMap",
+        "setOf", "mutableSetOf", "emptySet",
+        "listOfNotNull",
+        "sequenceOf", "generateSequence",
+        "ArrayList",
+        "HashMap", "LinkedHashMap",
+        "HashSet", "LinkedHashSet",
+    ]
 
     func isConcreteListLikeSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == list || symbol.name == mutableList
