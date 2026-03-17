@@ -56,12 +56,26 @@ extension CollectionLiteralLoweringPass {
                     // --- Rewrite listOf/mutableListOf/emptyList → kk_list_of / kk_emptyList ---
                     if lookup.listFactoryNames.contains(callee) {
                         let count = arguments.count
-                        if count == 0 {
+                        if count == 0 && callee != lookup.mutableListOfName {
                             // emptyList() / listOf() → kk_emptyList()
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: lookup.kkEmptyListName,
                                 arguments: [],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        } else if count == 0 {
+                            // mutableListOf() → fresh instance via kk_list_of(null, 0)
+                            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                            let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkListOfName,
+                                arguments: [nullExpr, zeroExpr],
                                 result: result,
                                 canThrow: false,
                                 thrownResult: nil
@@ -196,12 +210,26 @@ extension CollectionLiteralLoweringPass {
                     // --- Rewrite setOf/mutableSetOf/emptySet → kk_set_of / kk_emptySet ---
                     if lookup.setFactoryNames.contains(callee) {
                         let count = arguments.count
-                        if count == 0 {
+                        if count == 0 && callee != lookup.mutableSetOfName {
                             // emptySet() / setOf() → kk_emptySet()
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: lookup.kkEmptySetName,
                                 arguments: [],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        } else if count == 0 {
+                            // mutableSetOf() → fresh instance via kk_set_of(null, 0)
+                            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                            let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSetOfName,
+                                arguments: [nullExpr, zeroExpr],
                                 result: result,
                                 canThrow: false,
                                 thrownResult: nil
@@ -250,12 +278,28 @@ extension CollectionLiteralLoweringPass {
                     // --- Rewrite mapOf/mutableMapOf/emptyMap → kk_map_of / kk_emptyMap ---
                     if lookup.mapFactoryNames.contains(callee) {
                         let count = arguments.count
-                        if count == 0 {
+                        if count == 0 && callee != lookup.mutableMapOfName {
                             // emptyMap() / mapOf() → kk_emptyMap()
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: lookup.kkEmptyMapName,
                                 arguments: [],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        } else if count == 0 {
+                            // mutableMapOf() → fresh instance via kk_map_of(null, null, 0)
+                            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                            let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: nullKeysExpr, value: .intLiteral(0)))
+                            let nullValsExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                            loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkMapOfName,
+                                arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                                 result: result,
                                 canThrow: false,
                                 thrownResult: nil
