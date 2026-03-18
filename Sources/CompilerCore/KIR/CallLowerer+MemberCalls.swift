@@ -2165,6 +2165,7 @@ extension CallLowerer {
             "forEachIndexed", "mapIndexed", "sumOf", "mapValues", "mapKeys",
             "getOrElse", "getOrPut",
             "maxByOrNull", "minByOrNull",
+            "maxOfOrNull", "minOfOrNull",
             "indexOfFirst", "indexOfLast",
             "sortedByDescending", "sortedWith", "partition",
             "takeWhile", "dropWhile",
@@ -2998,8 +2999,6 @@ extension CallLowerer {
                 return interner.intern("kk_list_subList")
             case "containsAll":
                 return interner.intern("kk_list_containsAll")
-            case "binarySearch":
-                return interner.intern("kk_list_binarySearch")
             default:
                 break
             }
