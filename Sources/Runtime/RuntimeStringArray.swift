@@ -717,7 +717,7 @@ private func runtimeRenderStringIterableForPrint(_ strRaw: Int) -> String {
     guard let raw = UnsafeMutableRawPointer(bitPattern: strRaw),
           let string = extractString(from: raw)
     else {
-        return "[]"
+        return "<invalid String iterable>"
     }
     let rendered = string.unicodeScalars.map { String(Character($0)) }.joined(separator: ", ")
     return "[\(rendered)]"

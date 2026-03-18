@@ -619,9 +619,7 @@ extension CallLowerer {
             interner.intern("collections"),
             interner.intern("Iterable"),
         ]
-        guard symbol.name == interner.intern("Iterable")
-                || symbol.fqName == iterableFQName
-        else {
+        guard symbol.fqName == iterableFQName else {
             return false
         }
         // Verify the type argument is Char

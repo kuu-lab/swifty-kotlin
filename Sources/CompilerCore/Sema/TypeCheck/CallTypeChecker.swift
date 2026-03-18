@@ -1503,7 +1503,9 @@ final class CallTypeChecker {
         )))
     }
 
-    private func makeSyntheticIterableType(
+    /// Shared helper for synthesizing `Iterable<T>` types.
+    /// Falls back to `Any` if `kotlin.collections.Iterable` is not registered.
+    func makeSyntheticIterableType(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
@@ -1515,12 +1517,9 @@ final class CallTypeChecker {
             interner.intern("Iterable"),
         ]
         guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            return makeSyntheticListType(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                elementType: elementType
-            )
+            // Fall back to Any rather than List<Char> to avoid granting
+            // list-only members (e.g. get()) to the iterable result type.
+            return types.anyType
         }
         return types.make(.classType(ClassType(
             classSymbol: iterableSymbol,

@@ -3262,32 +3262,6 @@ extension CallTypeChecker {
         )))
     }
 
-    private func makeSyntheticIterableType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterable"),
-        ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            return makeSyntheticListType(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                elementType: elementType
-            )
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     private func makeSyntheticNominalType(
         symbols: SymbolTable,
         types: TypeSystem,

@@ -168,10 +168,23 @@ public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
 /// Create an iterator from a lazy string iterable (for `for (c in str.asIterable())`).
 @_cdecl("kk_string_iterable_iterator")
 public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
-    guard let box = runtimeStringIterableBox(from: iterableRaw) else {
+    if let box = runtimeStringIterableBox(from: iterableRaw) {
+        return kk_string_iterator(box.strRaw)
+    }
+    // Validate that the raw value is a valid string handle before falling
+    // back, to avoid reinterpreting an unrelated object pointer as a string.
+    if iterableRaw == runtimeNullSentinelInt
+        || extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
         return kk_string_iterator(iterableRaw)
     }
-    return kk_string_iterator(box.strRaw)
+    // Return an empty iterator for unrecognised inputs rather than
+    // misinterpreting them as string handles.
+    let box = RuntimeStringIteratorBox(charRaws: [])
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return Int(bitPattern: opaque)
 }
 
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
