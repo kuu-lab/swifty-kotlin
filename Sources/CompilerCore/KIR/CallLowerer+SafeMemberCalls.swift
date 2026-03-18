@@ -375,7 +375,8 @@ extension CallLowerer {
         // Int/Long.coerceIn(range) — single ClosedRange argument (STDLIB-525)
         if args.count == 1, interner.resolve(effectiveCalleeName) == "coerceIn" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
+            if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema),
+               prefix == "kk_int" || prefix == "kk_long" {
                 let argExprID = args[0].expr
                 if sema.bindings.isRangeExpr(argExprID) {
                     let callLabel = driver.ctx.makeLoopLabel()

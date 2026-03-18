@@ -1398,6 +1398,14 @@ extension CallTypeChecker {
         }
 
         // Int/Long.coerceIn(range) — single ClosedRange argument (STDLIB-525)
+        // Currently only recognizes range expression literals (e.g. `1..10`)
+        // via the `isRangeExpr` marker. Precomputed range values
+        // (e.g. `val r = 1..10; x.coerceIn(r)`) are not yet supported because
+        // the type system does not distinguish range types (IntRange/LongRange)
+        // from their element types (Int/Long). Supporting variable ranges would
+        // require introducing dedicated range type IDs. The element-type equality
+        // check ensures mismatched ranges (e.g. Int.coerceIn(1L..10L)) are
+        // rejected.
         if interner.resolve(calleeName) == "coerceIn", args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -1407,10 +1415,6 @@ extension CallTypeChecker {
             if receiverForCheck == intType || receiverForCheck == longType {
                 let argExpr = args[0].expr
                 let argType = driver.inferExpr(argExpr, ctx: ctx, locals: &locals, expectedType: nil)
-                // Verify the range element type matches the receiver type.
-                // Range expressions are typed with their element type (Int or Long),
-                // so e.g. Int.coerceIn(1L..10L) is rejected because the LongRange
-                // argument has element type Long which does not match Int.
                 if sema.bindings.isRangeExpr(argExpr),
                    argType == receiverForCheck {
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
