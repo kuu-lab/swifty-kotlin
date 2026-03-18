@@ -5,6 +5,9 @@ struct InlineExpansion {
     let returnedExpr: KIRExprID?
     /// True when the expansion contains non-local returns that exit the caller.
     let hasNonLocalReturn: Bool
+    /// True when the expansion contains normal return terminators (returnValue/returnUnit)
+    /// that need to be converted to exit-label jumps in the NLR path.
+    let hasNormalReturn: Bool
 }
 
 final class InlineLoweringPass: LoweringPass {
@@ -190,10 +193,10 @@ final class InlineLoweringPass: LoweringPass {
                 // The expansion contains non-local returns from lambdas.
                 // Rewrite each nonLocalReturn into a real return from the caller.
                 // If there is a potential fallthrough path (i.e., the expansion has
-                // a normal return expression), emit an exit label and jump to it
+                // any normal return terminator), emit an exit label and jump to it
                 // so normal control flow continues past the expansion site.
 
-                let hasFallthroughPath = expansion.returnedExpr != nil
+                let hasFallthroughPath = expansion.hasNormalReturn
                 let exitLabel: Int32?
                 if hasFallthroughPath {
                     exitLabel = nextExitLabel
@@ -207,10 +210,19 @@ final class InlineLoweringPass: LoweringPass {
                 var afterTerminator = false
 
                 for expandedInstruction in remappedInstructions {
+                    // Skip unreachable instructions after a terminator until
+                    // the next label starts a new block.
+                    if afterTerminator {
+                        if case .label = expandedInstruction {
+                            afterTerminator = false
+                            loweredBody.append(expandedInstruction)
+                        }
+                        continue
+                    }
+
                     switch expandedInstruction {
                     case let .nonLocalReturn(value):
-                        // Skip if we're already after a terminator (unreachable code).
-                        guard !afterTerminator else { break }
+                        // Convert to a real return from the caller.
                         if let value {
                             loweredBody.append(.returnValue(resolveAlias(of: value, aliases: aliases)))
                         } else {
@@ -219,20 +231,24 @@ final class InlineLoweringPass: LoweringPass {
                         afterTerminator = true
                     case .label:
                         // A label starts a new block, so we are no longer after a terminator.
-                        afterTerminator = false
                         loweredBody.append(expandedInstruction)
                     case .returnValue, .returnUnit:
                         // The inline body's own return: jump to exit label instead,
                         // so normal control flow continues in the caller.
-                        // Skip if we're already after a terminator (unreachable code).
-                        if !afterTerminator, let exitLabel {
+                        if let exitLabel {
                             loweredBody.append(.jump(exitLabel))
                         }
                         afterTerminator = true
-                    default:
-                        if !afterTerminator {
-                            loweredBody.append(expandedInstruction)
+                    case .returnIfEqual:
+                        // returnIfEqual is a conditional normal return from the inline body.
+                        // In the NLR path, convert it to a conditional jump to the exit label
+                        // to avoid prematurely returning from the caller.
+                        if let exitLabel, case let .returnIfEqual(lhs, rhs) = expandedInstruction {
+                            loweredBody.append(.jumpIfEqual(lhs: lhs, rhs: rhs, target: exitLabel))
                         }
+                        // returnIfEqual is conditional, so it does NOT set afterTerminator.
+                    default:
+                        loweredBody.append(expandedInstruction)
                     }
                 }
 
@@ -243,9 +259,19 @@ final class InlineLoweringPass: LoweringPass {
                     loweredBody.append(.label(exitLabel))
                 }
             } else {
-                // No non-local returns -- use the original simple expansion path.
+                // No non-local returns -- strip returnValue/returnUnit from the
+                // expansion (they are only needed for the NLR path exit-label
+                // mechanism) and use the original simple expansion path.
                 // Labels have already been remapped above; nextExitLabel is up to date.
-                loweredBody.append(contentsOf: remappedInstructions)
+                let filtered = remappedInstructions.filter { inst in
+                    switch inst {
+                    case .returnValue, .returnUnit:
+                        return false
+                    default:
+                        return true
+                    }
+                }
+                loweredBody.append(contentsOf: filtered)
             }
 
             // Alias the call result to the expansion's returned expression (shared
@@ -290,6 +316,7 @@ final class InlineLoweringPass: LoweringPass {
         lowered.reserveCapacity(inlineTarget.body.count)
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
+        var hasNormalReturn = false
 
         for instruction in inlineTarget.body {
             switch instruction {
@@ -315,10 +342,19 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case .returnUnit:
+                hasNormalReturn = true
                 returnedExpr = nil
+                // Preserve in lowered instructions so inlineTransform can
+                // convert it to an exit-label jump in the NLR path.
+                lowered.append(.returnUnit)
 
             case let .returnValue(value):
-                returnedExpr = resolveAlias(of: value, aliases: localExprMap)
+                hasNormalReturn = true
+                let resolved = resolveAlias(of: value, aliases: localExprMap)
+                returnedExpr = resolved
+                // Preserve in lowered instructions so inlineTransform can
+                // convert it to an exit-label jump in the NLR path.
+                lowered.append(.returnValue(resolved))
 
             case let .nonLocalReturn(value):
                 // Non-local return from a lambda inside this inline function.
@@ -469,7 +505,8 @@ final class InlineLoweringPass: LoweringPass {
         return InlineExpansion(
             instructions: lowered,
             returnedExpr: returnedExpr,
-            hasNonLocalReturn: hasNonLocalReturn
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn
         )
     }
 

@@ -1356,9 +1356,10 @@ extension NativeEmitter {
 
             case let .nonLocalReturn(value):
                 // Non-local returns should have been lowered by InlineLoweringPass.
-                // Treat as a normal return as a safety fallback.
-                // For nil (Unit) returns, emit the same `ret i64 0` as returnUnit
-                // to avoid ill-typed IR when the function returns void/Unit.
+                // If one reaches codegen, it indicates a lowering bug. Emit a
+                // trap in debug builds; in release builds fall back to a return
+                // to avoid crashing the compiler, but the output is incorrect.
+                assertionFailure("nonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
@@ -1366,7 +1367,6 @@ extension NativeEmitter {
                 if let value {
                     _ = bindings.buildRet(builder, value: resolveValue(value))
                 } else {
-                    // Mirror returnUnit behavior: return zero sentinel value.
                     _ = bindings.buildRet(builder, value: zeroValue)
                 }
             }

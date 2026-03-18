@@ -214,12 +214,12 @@ extension LoweringPassRegressionTests {
         let inlineParamSym = SymbolID(rawValue: 602)
 
         let inlineArgExpr = arena.appendExpr(.temporary(0))
-        let falseExpr = arena.appendExpr(.temporary(1))
+        let zeroExpr = arena.appendExpr(.temporary(1))
         let callerArg = arena.appendExpr(.temporary(2))
         let callerResult = arena.appendExpr(.temporary(3))
         let oneExpr = arena.appendExpr(.temporary(4))
 
-        // Inline function: if param == false, non-local return param; else normal return 1
+        // Inline function: if param == 0, non-local return param; else normal return 1
         let inlineFn = KIRFunction(
             symbol: inlineSym,
             name: interner.intern("conditionalReturn"),
@@ -227,8 +227,8 @@ extension LoweringPassRegressionTests {
             returnType: types.make(.primitive(.int, .nonNull)),
             body: [
                 .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
-                .constValue(result: falseExpr, value: .boolLiteral(false)),
-                .jumpIfEqual(lhs: inlineArgExpr, rhs: falseExpr, target: 10),
+                .constValue(result: zeroExpr, value: .intLiteral(0)),
+                .jumpIfEqual(lhs: inlineArgExpr, rhs: zeroExpr, target: 10),
                 // Non-local return path
                 .nonLocalReturn(inlineArgExpr),
                 .label(10),
@@ -417,5 +417,133 @@ extension LoweringPassRegressionTests {
             return id
         }
         XCTAssertTrue(labels.isEmpty, "No non-local return labels expected for normal inline expansion")
+    }
+
+    // MARK: - Unit inline body with mixed control flow (NLR + returnUnit in branches)
+
+    /// When an inline function returns Unit and has one branch with nonLocalReturn
+    /// and another branch with returnUnit, the returnUnit branch should jump to
+    /// an exit label (not fall through into subsequent code).
+    func testInlineLoweringUnitBodyWithMixedNonLocalAndNormalReturn() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let callerSym = SymbolID(rawValue: 800)
+        let inlineSym = SymbolID(rawValue: 801)
+        let inlineParamSym = SymbolID(rawValue: 802)
+
+        let inlineArgExpr = arena.appendExpr(.temporary(0))
+        let zeroExpr = arena.appendExpr(.temporary(1))
+        let callerArg = arena.appendExpr(.temporary(2))
+        let callerResult = arena.appendExpr(.temporary(3))
+
+        // Inline function returning Unit:
+        //   if param == 0: nonLocalReturn (exits caller)
+        //   else at label 10: returnUnit (normal return from inline body)
+        let inlineFn = KIRFunction(
+            symbol: inlineSym,
+            name: interner.intern("maybeExit"),
+            params: [KIRParameter(symbol: inlineParamSym, type: types.make(.primitive(.int, .nonNull)))],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: inlineArgExpr, value: .symbolRef(inlineParamSym)),
+                .constValue(result: zeroExpr, value: .intLiteral(0)),
+                .jumpIfEqual(lhs: inlineArgExpr, rhs: zeroExpr, target: 10),
+                // Non-local return path (exits the caller)
+                .nonLocalReturn(nil),
+                .label(10),
+                // Normal return path (should NOT exit the caller)
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: true
+        )
+
+        let callerFn = KIRFunction(
+            symbol: callerSym,
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: callerArg, value: .intLiteral(1)),
+                .call(
+                    symbol: inlineSym,
+                    callee: interner.intern("maybeExit"),
+                    arguments: [callerArg],
+                    result: callerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                // Code after the inline call -- should be reachable when
+                // the normal (non-NLR) branch is taken.
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let callerID = arena.appendDecl(.function(callerFn))
+        _ = arena.appendDecl(.function(inlineFn))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])],
+            arena: arena
+        )
+
+        let ctx = CompilationContext(
+            options: CompilerOptions(
+                moduleName: "InlineUnitMixedReturn",
+                inputs: [],
+                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                emit: .kirDump,
+                target: defaultTargetTriple()
+            ),
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: interner
+        )
+        ctx.kir = module
+        try LoweringPhase().run(ctx)
+
+        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
+            XCTFail("expected lowered caller function")
+            return
+        }
+
+        // The inline call should be expanded.
+        let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
+        XCTAssertFalse(calleeNames.contains("maybeExit"), "Inline call should be expanded")
+
+        // No residual nonLocalReturn.
+        let hasNonLocalReturn = loweredCaller.body.contains { instruction in
+            if case .nonLocalReturn = instruction { return true }
+            return false
+        }
+        XCTAssertFalse(hasNonLocalReturn, "nonLocalReturn should have been lowered away")
+
+        // The normal-return branch (returnUnit from inline body) should have
+        // been converted to a jump to the exit label. Verify that a jump
+        // instruction exists targeting a label that also appears in the body.
+        let labels = Set(loweredCaller.body.compactMap { instruction -> Int32? in
+            guard case let .label(id) = instruction else { return nil }
+            return id
+        })
+        let jumpTargets = Set(loweredCaller.body.compactMap { instruction -> Int32? in
+            guard case let .jump(target) = instruction else { return nil }
+            return target
+        })
+        // There should be at least one exit label that is targeted by a jump.
+        let exitLabelsWithIncomingEdges = labels.intersection(jumpTargets)
+        XCTAssertFalse(exitLabelsWithIncomingEdges.isEmpty,
+                       "Expected an exit label with incoming jump from the normal-return branch")
+
+        // Should have at least one returnUnit (from the NLR path converting
+        // nonLocalReturn(nil) into a real returnUnit).
+        let returnUnitCount = loweredCaller.body.filter { instruction in
+            if case .returnUnit = instruction { return true }
+            return false
+        }.count
+        XCTAssertGreaterThanOrEqual(returnUnitCount, 1,
+                                    "Expected at least one returnUnit from non-local return conversion")
     }
 }
