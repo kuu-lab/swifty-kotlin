@@ -517,6 +517,7 @@ private func roundFloatJava7(_ raw: Float) -> Int64 {
         return Int64(raw)
     }
 }
+// towards positive infinity, i.e. floor(x + 0.5).
 
 @_cdecl("kk_float_roundToInt")
 public func kk_float_roundToInt(_ value: Int) -> Int {
@@ -559,28 +560,28 @@ public func kk_double_roundToLong(_ value: Int) -> Int {
 public func kk_float_roundToInt(_ v: Int) -> Int {
     let f = kk_bits_to_float(v)
     if f.isNaN { return 0 }
-    let rounded = roundf(f)
+    let rounded = floorf(f + 0.5)
     if rounded >= Float(Int32.max) { return Int(Int32.max) }
     if rounded <= Float(Int32.min) { return Int(Int32.min) }
     return Int(Int32(rounded))
 public func kk_double_roundToInt(_ v: Int) -> Int {
     let d = kk_bits_to_double(v)
     if d.isNaN { return 0 }
-    let rounded = round(d)
+    let rounded = floor(d + 0.5)
     if rounded >= Double(Int32.max) { return Int(Int32.max) }
     if rounded <= Double(Int32.min) { return Int(Int32.min) }
     return Int(Int32(rounded))
 public func kk_float_roundToLong(_ v: Int) -> Int {
     let f = kk_bits_to_float(v)
     if f.isNaN { return 0 }
-    let rounded = roundf(f)
+    let rounded = floorf(f + 0.5)
     if rounded >= Float(Int64.max) { return Int(Int64.max) }
     if rounded <= Float(Int64.min) { return Int(Int64.min) }
     return Int(Int64(rounded))
 public func kk_double_roundToLong(_ v: Int) -> Int {
     let d = kk_bits_to_double(v)
     if d.isNaN { return 0 }
-    let rounded = round(d)
+    let rounded = floor(d + 0.5)
     if rounded >= Double(Int64.max) { return Int(Int64.max) }
     if rounded <= Double(Int64.min) { return Int(Int64.min) }
     return Int(Int64(rounded))
