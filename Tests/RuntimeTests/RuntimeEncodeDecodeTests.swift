@@ -24,6 +24,11 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
         runtimeListBox(from: raw)?.elements
     }
 
+    private func makeListRaw(_ elements: [Int]) -> Int {
+        let box = RuntimeListBox(elements: elements)
+        return registerRuntimeObject(box)
+    }
+
     // MARK: - encodeToByteArray: basic ASCII round-trip
 
     func testEncodeToByteArrayASCII() {
@@ -58,7 +63,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
     // MARK: - decodeToString: basic ASCII round-trip
 
     func testDecodeToStringASCII() {
-        let byteArray = runtimeMakeListRaw([72, 101, 108, 108, 111]) // "Hello"
+        let byteArray = makeListRaw([72, 101, 108, 108, 111]) // "Hello"
         let result = kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "Hello")
     }
@@ -67,7 +72,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
 
     func testDecodeToStringNonASCII() {
         // U+00E9 (e-acute) -> UTF-8: [0xC3, 0xA9]
-        let byteArray = runtimeMakeListRaw([0xC3, 0xA9])
+        let byteArray = makeListRaw([0xC3, 0xA9])
         let result = kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "\u{00E9}")
     }
@@ -88,7 +93,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
         // In Kotlin, ByteArray stores signed bytes. -1 should become 0xFF (255).
         // [0xC3, 0xA9] encodes U+00E9 — test using negative representations.
         // -61 truncated to UInt8 = 195 = 0xC3; -87 truncated to UInt8 = 169 = 0xA9
-        let byteArray = runtimeMakeListRaw([-61, -87])
+        let byteArray = makeListRaw([-61, -87])
         let result = kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "\u{00E9}")
     }
@@ -97,7 +102,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
 
     func testDecodeToStringMalformedUTF8() {
         // 0xFF is not valid in UTF-8 — should produce replacement character U+FFFD
-        let byteArray = runtimeMakeListRaw([0xFF])
+        let byteArray = makeListRaw([0xFF])
         let result = kk_bytearray_decodeToString(byteArray)
         let decoded = extractSwiftString(result)
         XCTAssertNotNil(decoded)
@@ -108,7 +113,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
     // MARK: - decodeToString: empty array
 
     func testDecodeToStringEmptyArray() {
-        let byteArray = runtimeMakeListRaw([])
+        let byteArray = makeListRaw([])
         let result = kk_bytearray_decodeToString(byteArray)
         XCTAssertEqual(extractSwiftString(result), "")
     }
