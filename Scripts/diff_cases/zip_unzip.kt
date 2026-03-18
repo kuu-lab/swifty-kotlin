@@ -7,5 +7,5 @@ fun main() {
     println(unzipped.first)
     println(unzipped.second)
     println(listOf(1, 2).zip(listOf("x")))
-    println(listOf<Pair<Int, String>>().unzip())
+    println(emptyList<Pair<Int, String>>().unzip())
 }
