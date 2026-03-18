@@ -491,6 +491,7 @@ private func evaluateSequence(_ seq: RuntimeSequenceBox) -> [Int] {
             }
         case .distinctStep:
             var seen = Set<RuntimeElementKey>()
+            seen.reserveCapacity(elements.count)
             elements = elements.filter { seen.insert(RuntimeElementKey(value: $0)).inserted }
         case let .zipStep(otherElements):
             let minCount = min(elements.count, otherElements.count)
