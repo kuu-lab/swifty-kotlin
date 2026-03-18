@@ -6,6 +6,6 @@ fun main() {
     failure.onSuccess { println("should not print") }.onFailure { println("failure: ${it.message}") }
     println(success.getOrNull())
     println(failure.getOrNull())
-    println(success.getOrDefault(0))
-    println(failure.getOrDefault(0))
+    println(success.getOrElse { 0 })
+    println(failure.getOrElse { 0 })
 }
