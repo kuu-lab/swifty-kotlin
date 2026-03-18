@@ -135,7 +135,9 @@ func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> 
     }
     let start = utf16.index(utf16.startIndex, offsetBy: startIndex)
     let end = utf16.index(utf16.startIndex, offsetBy: endIndex)
-    return String(utf16[start..<end]) ?? ""
+    // Use decoding initializer to handle unpaired surrogates with U+FFFD
+    // replacement instead of silently returning an empty string.
+    return String(decoding: utf16[start..<end], as: UTF16.self)
 }
 
 func extractString(from ptr: UnsafeMutableRawPointer?) -> String? {
