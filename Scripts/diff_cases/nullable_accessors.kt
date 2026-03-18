@@ -40,7 +40,7 @@ fun main() {
     // STDLIB-545: singleOrNull (predicate – empty list)
     println(empty.singleOrNull { it > 0 })
 
-    // STDLIB-545: getOrNull
+    // getOrNull (index-based nullable access)
     println(list.getOrNull(0))
     println(list.getOrNull(5))
     println(empty.getOrNull(0))
