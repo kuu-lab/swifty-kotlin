@@ -1833,6 +1833,22 @@ public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
 }
 
 // MARK: - Sequence plus/minus Operations (STDLIB-561, STDLIB-562)
+//
+// NOTE: Both plus and minus eagerly materialize the input sequence via
+// evaluateSequence.  This is an intentional simplification -- Kotlin's
+// stdlib returns a lazy sequence, but our runtime does not yet have a
+// concat/remove step kind in the sequence pipeline.  Eager evaluation
+// is correct for finite sequences and keeps the implementation simple.
+// A future optimisation (adding .concat / .minus step kinds to
+// RuntimeSequenceBox) can make these lazy without changing the public
+// ABI.
+//
+// NOTE: The compiler resolves the correct Kotlin overload (element vs
+// collection) at compile time via sema.bindings.isCollectionExpr, so
+// at the runtime level otherRaw in kk_sequence_plus is always a
+// collection handle (sequence/list/array).  The single-element overload
+// is handled by the compiler emitting the element wrapped in a
+// single-element sequence before calling this function.
 
 @_cdecl("kk_sequence_plus")
 public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
@@ -1844,7 +1860,7 @@ public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     } else if let array = runtimeArrayBox(from: seqRaw) {
         lhsElements = array.elements
     } else {
-        lhsElements = []
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid LHS sequence handle")
     }
     let rhsElements: [Int]
     if let seq = runtimeSequenceBox(from: otherRaw) {
@@ -1854,7 +1870,9 @@ public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     } else if let array = runtimeArrayBox(from: otherRaw) {
         rhsElements = array.elements
     } else {
-        // Single element case: otherRaw is a plain value, not a collection
+        // Single element case: otherRaw is a plain value, not a collection.
+        // This path is kept as a defensive fallback; the compiler should
+        // normally wrap single elements before reaching here.
         rhsElements = [otherRaw]
     }
     let newSeq = RuntimeSequenceBox(steps: [.source(elements: lhsElements + rhsElements)])
@@ -1871,7 +1889,7 @@ public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
     } else if let array = runtimeArrayBox(from: seqRaw) {
         elements = array.elements
     } else {
-        elements = []
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_minus received invalid sequence handle")
     }
     var result = elements
     if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {

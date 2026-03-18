@@ -375,6 +375,36 @@ final class RuntimeSequenceTests: XCTestCase {
         XCTAssertEqual(listElements(asList), [1, 3])
     }
 
+    // MARK: - Eager Materialization (Intentional Simplification)
+
+    func testPlusEagerlyMaterializesResult() {
+        // NOTE: Kotlin's Sequence.plus returns a lazy sequence, but our
+        // runtime intentionally materializes eagerly via evaluateSequence.
+        // This test documents the current eager behavior; it should be
+        // updated if/when lazy concat steps are added to the pipeline.
+        let seq1 = makeSequence([10, 20])
+        let seq2 = makeSequence([30, 40])
+        let combined = kk_sequence_plus(seq1, seq2)
+        // The result is immediately available (eagerly materialized).
+        XCTAssertEqual(sequenceElements(combined), [10, 20, 30, 40])
+    }
+
+    func testMinusEagerlyMaterializesResult() {
+        // Same as above: documents intentional eager materialization.
+        let seq = makeSequence([5, 10, 15, 10])
+        let result = kk_sequence_minus(seq, 10)
+        XCTAssertEqual(sequenceElements(result), [5, 15, 10])
+    }
+
+    // MARK: - Plus with array as RHS
+
+    func testPlusWithArrayAsOther() {
+        let seq = makeSequence([1, 2])
+        let array = makeArray([3, 4])
+        let combined = kk_sequence_plus(seq, array)
+        XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 4])
+    }
+
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {

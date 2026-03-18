@@ -737,9 +737,10 @@ extension CallTypeChecker {
         }
 
         if memberName == interner.intern("plus") || memberName == interner.intern("minus") {
-            // plus/minus return the same Map type as the receiver.
-            // receiverElementType for maps is Map.Entry<K,V>, so reconstruct Map<K,V>.
-            if case let .classType(entryType) = sema.types.kind(of: receiverElementType),
+            // plus/minus return the same collection type as the receiver.
+            // For Map receivers, receiverElementType is Map.Entry<K,V> so reconstruct Map<K,V>.
+            if isMapReceiver,
+               case let .classType(entryType) = sema.types.kind(of: receiverElementType),
                entryType.args.count >= 2
             {
                 let keyArg = entryType.args[0]
@@ -755,6 +756,34 @@ extension CallTypeChecker {
                         nullability: .nonNull
                     )))
                 }
+            }
+            // For Set receivers, return Set<E>.
+            if isSetReceiver,
+               let setSymbol = sema.symbols.lookup(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   interner.intern("Set"),
+               ])
+            {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: setSymbol,
+                    args: [.invariant(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            }
+            // For List (and other non-Map, non-Set) receivers, return List<E>.
+            if !isMapReceiver, !isSetReceiver,
+               let listSymbol = sema.symbols.lookup(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   interner.intern("List"),
+               ])
+            {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(receiverElementType)],
+                    nullability: .nonNull
+                )))
             }
             return sema.types.anyType
         }
