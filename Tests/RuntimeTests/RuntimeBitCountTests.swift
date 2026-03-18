@@ -1,12 +1,18 @@
 @testable import Runtime
 import XCTest
 
-/// Edge case tests for Int.countOneBits, Int.countLeadingZeroBits,
-/// Int.countTrailingZeroBits (STDLIB-604, STDLIB-605, STDLIB-606).
+/// Edge case tests for the kk_int_countOneBits, kk_int_countLeadingZeroBits,
+/// kk_int_countTrailingZeroBits runtime functions (STDLIB-604, STDLIB-605, STDLIB-606).
 ///
-/// The runtime functions operate on Kotlin Int (32-bit signed) semantics:
+/// These implement Kotlin `Int.countOneBits`, `Int.countLeadingZeroBits`, and
+/// `Int.countTrailingZeroBits` with Kotlin Int (32-bit signed) semantics:
 /// the Swift Int argument is truncated to Int32 before querying bit properties.
 final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
+
+    // MARK: - Shared constants
+
+    /// 0xAAAAAAAA as a signed Int, converted via two's complement.
+    private static let alternating0xAAAAAAAA = Int(Int32(bitPattern: 0xAAAA_AAAA))
 
     // MARK: - countOneBits (STDLIB-604)
 
@@ -23,12 +29,12 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_int_countOneBits(-1), 32)
     }
 
-    func testCountOneBits_intMax() {
+    func testCountOneBits_int32Max() {
         // Int32.max == 0x7FFF_FFFF -> 31 bits set
         XCTAssertEqual(kk_int_countOneBits(Int(Int32.max)), 31)
     }
 
-    func testCountOneBits_intMin() {
+    func testCountOneBits_int32Min() {
         // Int32.min == 0x8000_0000 -> 1 bit set (sign bit)
         XCTAssertEqual(kk_int_countOneBits(Int(Int32.min)), 1)
     }
@@ -51,9 +57,7 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
 
     func testCountOneBits_alternatingPattern_0xAAAAAAAA() {
         // 0xAAAAAAAA = 1010...1010 -> 16 bits set
-        // This value exceeds Int32.max, pass as negative via two's complement
-        let value = Int(Int32(bitPattern: 0xAAAA_AAAA))
-        XCTAssertEqual(kk_int_countOneBits(value), 16)
+        XCTAssertEqual(kk_int_countOneBits(Self.alternating0xAAAAAAAA), 16)
     }
 
     // MARK: - countLeadingZeroBits (STDLIB-605)
@@ -73,12 +77,12 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_int_countLeadingZeroBits(-1), 0)
     }
 
-    func testCountLeadingZeroBits_intMax() {
+    func testCountLeadingZeroBits_int32Max() {
         // 0x7FFFFFFF -> MSB is 0, 1 leading zero
         XCTAssertEqual(kk_int_countLeadingZeroBits(Int(Int32.max)), 1)
     }
 
-    func testCountLeadingZeroBits_intMin() {
+    func testCountLeadingZeroBits_int32Min() {
         // 0x80000000 -> MSB is set, 0 leading zeros
         XCTAssertEqual(kk_int_countLeadingZeroBits(Int(Int32.min)), 0)
     }
@@ -101,8 +105,7 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
 
     func testCountLeadingZeroBits_alternatingPattern_0xAAAAAAAA() {
         // 0xAAAAAAAA -> MSB is set -> 0 leading zeros
-        let value = Int(Int32(bitPattern: 0xAAAA_AAAA))
-        XCTAssertEqual(kk_int_countLeadingZeroBits(value), 0)
+        XCTAssertEqual(kk_int_countLeadingZeroBits(Self.alternating0xAAAAAAAA), 0)
     }
 
     // MARK: - countTrailingZeroBits (STDLIB-606)
@@ -122,12 +125,12 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_int_countTrailingZeroBits(-1), 0)
     }
 
-    func testCountTrailingZeroBits_intMax() {
+    func testCountTrailingZeroBits_int32Max() {
         // 0x7FFFFFFF -> LSB is set, 0 trailing zeros
         XCTAssertEqual(kk_int_countTrailingZeroBits(Int(Int32.max)), 0)
     }
 
-    func testCountTrailingZeroBits_intMin() {
+    func testCountTrailingZeroBits_int32Min() {
         // 0x80000000 -> only MSB set, 31 trailing zeros
         XCTAssertEqual(kk_int_countTrailingZeroBits(Int(Int32.min)), 31)
     }
@@ -150,7 +153,6 @@ final class RuntimeBitCountTests: IsolatedRuntimeXCTestCase {
 
     func testCountTrailingZeroBits_alternatingPattern_0xAAAAAAAA() {
         // 0xAAAAAAAA -> LSB is 0, bit 1 is set -> 1 trailing zero
-        let value = Int(Int32(bitPattern: 0xAAAA_AAAA))
-        XCTAssertEqual(kk_int_countTrailingZeroBits(value), 1)
+        XCTAssertEqual(kk_int_countTrailingZeroBits(Self.alternating0xAAAAAAAA), 1)
     }
 }
