@@ -1856,6 +1856,42 @@ extension DataFlowSemaPhase {
         registerMember(name: "sortedDescending", parameterTypes: [], externalLinkName: "kk_list_sortedDescending")
         registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
 
+        // chunked(size, transform) — HOF overload (STDLIB-548)
+        // Kotlin signature: fun <T, R> Iterable<T>.chunked(size: Int, transform: (List<T>) -> R): List<R>
+        // The transform receives a List<T> chunk and returns R. We use List<Any> -> Any
+        // to match the simplified runtime ABI (kk_list_chunked_transform).
+        let chunkedTransformName = interner.intern("chunked")
+        let chunkedTransformFQName = listFQName + [chunkedTransformName]
+        // Only register if there isn't already a 2-param overload for "chunked"
+        do {
+            let transformType = types.make(.functionType(FunctionType(
+                params: [listReturnType],
+                returnType: types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: chunkedTransformName,
+                fqName: chunkedTransformFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_chunked_transform", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [types.intType, transformType],
+                    returnType: listReturnType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+
         // distinctBy (HOF, selector lambda)
         // Kotlin's `distinctBy` is declared as an extension on Iterable<T>:
         //   fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T>
