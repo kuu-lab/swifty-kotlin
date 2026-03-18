@@ -1123,7 +1123,7 @@ public extension RuntimeABIExterns {
 
     static let kk_list_chunked_transform = ExternDecl(
         name: "kk_list_chunked_transform",
-        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t*"],
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
         returnType: "intptr_t"
     )
 
