@@ -2143,6 +2143,14 @@ extension CallTypeChecker {
                         return finalType
                     }
                 }
+                // STDLIB-574: ByteArray/List<Int>.decodeToString() -> String
+                if interner.resolve(calleeName) == "decodeToString" {
+                    let finalType = safeCall
+                        ? sema.types.makeNullable(sema.types.stringType)
+                        : sema.types.stringType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
             }
             // String stdlib: 1-arg methods (STDLIB-006)
             if args.count == 1 {
