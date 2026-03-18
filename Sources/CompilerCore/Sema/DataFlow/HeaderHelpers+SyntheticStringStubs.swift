@@ -1288,8 +1288,10 @@ extension DataFlowSemaPhase {
             interner.intern("Iterable"),
         ]
         guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            // Fallback to List<Char> if Iterable is not yet registered.
-            return makeListType(symbols: symbols, types: types, interner: interner, elementType: elementType)
+            // Fall back to Any rather than List<Char> to avoid granting
+            // list-only members (e.g. get()) to the iterable result type.
+            // This is consistent with CallTypeChecker.makeSyntheticIterableType.
+            return types.anyType
         }
         return types.make(.classType(ClassType(
             classSymbol: iterableSymbol,

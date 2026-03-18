@@ -159,8 +159,13 @@ public func kk_string_asIterable(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_iterable_toList")
 public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
     guard let box = runtimeStringIterableBox(from: iterableRaw) else {
-        // Fallback: treat the raw value as a string handle directly.
-        return kk_string_toList(iterableRaw)
+        // Validate that the raw value is a valid string handle before falling
+        // back, to avoid reinterpreting an unrelated object pointer as a string.
+        if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
+            return kk_string_toList(iterableRaw)
+        }
+        // Unrecognised input — return an empty list.
+        return kk_string_toList(runtimeMakeStringRaw(""))
     }
     return kk_string_toList(box.strRaw)
 }
@@ -173,18 +178,13 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     }
     // Validate that the raw value is a valid string handle before falling
     // back, to avoid reinterpreting an unrelated object pointer as a string.
-    if iterableRaw == runtimeNullSentinelInt
-        || extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
+    if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
         return kk_string_iterator(iterableRaw)
     }
-    // Return an empty iterator for unrecognised inputs rather than
-    // misinterpreting them as string handles.
+    // Return an empty iterator for unrecognised inputs (including null
+    // sentinel) rather than misinterpreting them as string handles.
     let box = RuntimeStringIteratorBox(charRaws: [])
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(box)
 }
 
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
