@@ -315,9 +315,15 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-589: Result.recover ---
         // recover(transform: (Throwable) -> T): Result<T>
-        // Note: Kotlin's full signature is `<R, T : R> Result<T>.recover(transform: (Throwable) -> R): Result<R>`
-        // but our type system does not support upper-bound constraints (T : R).
-        // Using single type parameter T keeps the success-path pass-through type-sound.
+        //
+        // Kotlin stdlib signature: `<R, T : R> Result<T>.recover(transform: (Throwable) -> R): Result<R>`
+        // Limitation: Our type system does not support upper-bound constraints (T : R).
+        // We intentionally use single type parameter T rather than introducing an unconstrained R,
+        // because without the T : R bound an unconstrained R would allow callers to choose an
+        // unrelated R while the success path still returns the original T value, breaking type safety.
+        // Consequence: valid Kotlin code that widens the type via recover (e.g., Result<Int>.recover
+        // returning Result<Number>) will not type-check in this compiler. This is a known limitation
+        // tracked as a source-compatibility gap.
         let recoverTransformType = types.make(.functionType(FunctionType(
             receiver: nil,
             params: [throwableType],
