@@ -2144,7 +2144,7 @@ extension CallTypeChecker {
                     }
                 }
                 // STDLIB-574: ByteArray/List<Int>.decodeToString() -> String
-                if interner.resolve(calleeName) == "decodeToString" {
+                if interner.resolve(calleeName) == "decodeToString", args.isEmpty {
                     let finalType = safeCall
                         ? sema.types.makeNullable(sema.types.stringType)
                         : sema.types.stringType
