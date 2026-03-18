@@ -10,8 +10,8 @@ import Foundation
 /// This pass rewrites the KIR so that each lambda with captures gets a stable
 /// closure object:
 ///
-///  1. A synthetic `kk_closure_obj_<N>` nominal type is created.  Captures are
-///     stored by convention in object/array slots starting at offset 2.
+///  1. A synthetic `kk_closure_obj_<N>` nominal marker type is created so the
+///     runtime can identify closure boxes by class ID.
 ///  2. A synthetic `kk_closure_invoke_<N>` wrapper function is created that
 ///     loads captures from the object and forwards to the original lambda.
 ///  3. Call sites that previously prepended capture arguments are rewritten to
@@ -30,8 +30,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         let function: KIRFunction
         let captureParamCount: Int
         let valueParamCount: Int
-        /// Whether any call site invokes this lambda with `canThrow == true`.
-        let canThrow: Bool
 
         var captureParams: [KIRParameter] {
             Array(function.params.prefix(captureParamCount))
@@ -40,6 +38,11 @@ final class LambdaClosureConversionPass: LoweringPass {
         var valueParams: [KIRParameter] {
             Array(function.params.suffix(valueParamCount))
         }
+    }
+
+    private struct InvokeWrapperInfo: Hashable {
+        let name: InternedString
+        let symbol: SymbolID
     }
 
     // MARK: - shouldRun
@@ -58,8 +61,18 @@ final class LambdaClosureConversionPass: LoweringPass {
                 }
             }
             let name = ctx.interner.resolve(function.name)
-            if name.hasPrefix(lambdaPrefix), function.params.count > 0,
-               detectCaptureParamCount(function: function, module: module) > 0 {
+            if name.hasPrefix(lambdaPrefix),
+               detectCaptureParamCount(
+                   function: function,
+                   lambdaExprID: lambdaExprID(from: function.name, interner: ctx.interner),
+                   module: module
+               ) > 0,
+               !detectCanThrow(
+                   lambdaName: function.name,
+                   lambdaSymbol: function.symbol,
+                   module: module
+               )
+            {
                 return true
             }
         }
@@ -85,22 +98,25 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         // Phase 2: For each lambda with captures, synthesize a closure object
         // and invoke wrapper.
-        var invokeWrapperByLambdaSymbol: [SymbolID: InternedString] = [:]
+        var invokeWrapperByLambdaSymbol: [SymbolID: InvokeWrapperInfo] = [:]
 
         for info in lambdaInfos {
-            let (invokeWrapperName, newDecls) = synthesizeClosureObject(
+            let (invokeWrapperName, invokeWrapperSymbol, newDecls) = synthesizeClosureObject(
                 lambdaInfo: info,
                 module: module,
                 ctx: ctx
             )
-            invokeWrapperByLambdaSymbol[info.function.symbol] = invokeWrapperName
+            invokeWrapperByLambdaSymbol[info.function.symbol] = InvokeWrapperInfo(
+                name: invokeWrapperName,
+                symbol: invokeWrapperSymbol
+            )
             for decl in newDecls {
                 _ = module.arena.appendDecl(decl)
             }
         }
 
         // Collect invoke wrapper names so we skip rewriting their internal calls.
-        let invokeWrapperNames = Set(invokeWrapperByLambdaSymbol.values)
+        let invokeWrapperNames = Set(invokeWrapperByLambdaSymbol.values.map(\.name))
 
         // Phase 3: Rewrite call sites.
         module.arena.transformFunctions { function in
@@ -140,21 +156,25 @@ final class LambdaClosureConversionPass: LoweringPass {
                 continue
             }
 
+            let lambdaExprID = lambdaExprID(from: function.name, interner: ctx.interner)
             let captureCount = detectCaptureParamCount(
                 function: function,
+                lambdaExprID: lambdaExprID,
                 module: module
             )
             if captureCount > 0 {
-                let throws_ = detectCanThrow(
+                if detectCanThrow(
                     lambdaName: function.name,
                     lambdaSymbol: function.symbol,
                     module: module
-                )
+                ) {
+                    continue
+                }
+
                 results.append(LambdaCaptureInfo(
                     function: function,
                     captureParamCount: captureCount,
-                    valueParamCount: function.params.count - captureCount,
-                    canThrow: throws_
+                    valueParamCount: function.params.count - captureCount
                 ))
             }
         }
@@ -166,36 +186,34 @@ final class LambdaClosureConversionPass: LoweringPass {
     /// -2_000_000... (from `syntheticLambdaCaptureParamSymbol`).
     private func detectCaptureParamCount(
         function: KIRFunction,
+        lambdaExprID: Int64?,
         module: KIRModule
     ) -> Int {
         var captureCount = 0
         for param in function.params {
-            if param.symbol.rawValue <= -2, isCaptureParamSymbol(param.symbol) {
+            if isCaptureParamSymbol(param.symbol, lambdaExprID: lambdaExprID) {
                 captureCount += 1
             } else {
                 break
             }
         }
 
-        // Validate: at least one call site passes exactly the expected arg count.
-        // If no matching call site exists (dead code, partially optimized lambda),
-        // return 0 so we do not synthesize an unnecessary closure object.
-        if captureCount > 0 {
-            let lambdaName = function.name
-            let totalExpected = function.params.count
-            for decl in module.arena.declarations {
-                guard case let .function(callerFn) = decl,
-                      callerFn.symbol != function.symbol
-                else { continue }
+        guard captureCount > 0 else {
+            return 0
+        }
+
+        // Validate: at least one call site passes the full lambda arity.
+        let lambdaName = function.name
+        for decl in module.arena.declarations {
+                guard case let .function(callerFn) = decl else { continue }
                 for instruction in callerFn.body {
-                    if case let .call(_, callee, arguments, _, _, _, _) = instruction,
-                       callee == lambdaName,
-                       arguments.count == totalExpected
+                    if case let .call(symbol, callee, arguments, _, _, _, _) = instruction,
+                       (symbol == function.symbol || callee == lambdaName),
+                       arguments.count == function.params.count
                     {
                         return captureCount
                     }
                 }
-            }
         }
 
         return 0
@@ -205,12 +223,14 @@ final class LambdaClosureConversionPass: LoweringPass {
     /// LambdaLowerer uses:
     ///   - Value params:   rawValue around -1_000_000 (syntheticLambdaParamSymbol)
     ///   - Capture params: rawValue around -2_000_000 (syntheticLambdaCaptureParamSymbol)
-    /// We use -1_500_000 as the boundary.
-    private func isCaptureParamSymbol(_ symbol: SymbolID) -> Bool {
-        symbol.rawValue < -1_500_000
+    /// We compute the midpoint between their ranges for the lambda exprID.
+    private func isCaptureParamSymbol(_ symbol: SymbolID, lambdaExprID: Int64?) -> Bool {
+        let exprID = lambdaExprID ?? 0
+        let boundary = Int64(-1_500_000) - (exprID * 256)
+        return Int64(symbol.rawValue) < boundary
     }
 
-    /// Returns true if any call site invokes this lambda with `canThrow == true`.
+    /// Returns true if the symbol is invoked by any call site with `canThrow == true`.
     private func detectCanThrow(
         lambdaName: InternedString,
         lambdaSymbol: SymbolID,
@@ -221,8 +241,8 @@ final class LambdaClosureConversionPass: LoweringPass {
                   callerFn.symbol != lambdaSymbol
             else { continue }
             for instruction in callerFn.body {
-                if case let .call(sym, callee, _, _, canThrow, _, _) = instruction,
-                   (callee == lambdaName || sym == lambdaSymbol),
+                if case let .call(symbol, callee, _, _, canThrow, _, _) = instruction,
+                   (symbol == lambdaSymbol || callee == lambdaName),
                    canThrow
                 {
                     return true
@@ -232,22 +252,33 @@ final class LambdaClosureConversionPass: LoweringPass {
         return false
     }
 
+    /// Parses lambda ExprID from names like `kk_lambda_42`.
+    private func lambdaExprID(from lambdaName: InternedString, interner: StringInterner) -> Int64? {
+        let rawName = interner.resolve(lambdaName)
+        let prefix = "kk_lambda_"
+        guard rawName.hasPrefix(prefix) else {
+            return nil
+        }
+
+        return Int64(rawName.dropFirst(prefix.count))
+    }
+
     // MARK: - Phase 2: Synthesize closure object
 
     private func synthesizeClosureObject(
         lambdaInfo: LambdaCaptureInfo,
         module: KIRModule,
         ctx: KIRContext
-    ) -> (invokeWrapperName: InternedString, declarations: [KIRDecl]) {
+    ) -> (invokeWrapperName: InternedString, invokeWrapperSymbol: SymbolID, declarations: [KIRDecl]) {
         let interner = ctx.interner
         let arena = module.arena
         let lambdaSymbolRaw = lambdaInfo.function.symbol.rawValue
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
-            ?? TypeID(rawValue: 0)
-        let anyType = ctx.sema?.types.anyType ?? TypeID(rawValue: 0)
+            ?? TypeID.invalid
+        let anyType = ctx.sema?.types.anyType ?? TypeID.invalid
 
-        // Nominal type for the closure object.  Captures are stored in
-        // object/array slots starting at offset 2 (not as KIR fields).
+        // Nominal marker type for the closure object. The runtime payload is
+        // stored in the array box allocated by `kk_object_new`.
         let nominalSymbol: SymbolID
         if let sema = ctx.sema {
             let nominalName = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
@@ -287,6 +318,7 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         var invokeBody: [KIRInstruction] = [.beginBlock]
         let kk_array_get = interner.intern("kk_array_get_inbounds")
+        var nextTempID = Int32(arena.expressions.count)
 
         let closureObjExpr = arena.appendExpr(.symbolRef(closureObjParamSymbol), type: anyType)
         invokeBody.append(.constValue(result: closureObjExpr, value: .symbolRef(closureObjParamSymbol)))
@@ -298,9 +330,7 @@ final class LambdaClosureConversionPass: LoweringPass {
             invokeBody.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
 
             let captureType = lambdaInfo.captureParams[captureIndex].type
-            // Temp ID from arena.expressions.count: unique within the arena's
-            // monotonic counter.  See comment at callResultExpr for rationale.
-            let loadedExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: captureType)
+            let loadedExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: captureType)
             invokeBody.append(.call(
                 symbol: nil,
                 callee: kk_array_get,
@@ -319,19 +349,13 @@ final class LambdaClosureConversionPass: LoweringPass {
             valueParamExprs.append(paramExpr)
         }
 
-        // NOTE: Temp numbering uses arena.expressions.count. This couples IDs
-        // to global arena state; a per-function temp allocator would be cleaner
-        // but the current approach is safe because each appendExpr returns a
-        // unique KIRExprID within the arena's monotonic counter.
-        let callResultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: returnType)
-        // Propagate canThrow from call-site analysis so the invoke wrapper
-        // preserves throwing semantics of the original lambda call.
+        let callResultExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: returnType)
         invokeBody.append(.call(
             symbol: lambdaInfo.function.symbol,
             callee: lambdaInfo.function.name,
             arguments: loadedCaptureExprs + valueParamExprs,
             result: callResultExpr,
-            canThrow: lambdaInfo.canThrow,
+            canThrow: false,
             thrownResult: nil
         ))
         invokeBody.append(.returnValue(callResultExpr))
@@ -348,7 +372,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         )
         let invokeFuncDecl = KIRDecl.function(invokeFunction)
 
-        return (invokeWrapperName, [nominalDecl, invokeFuncDecl])
+        return (invokeWrapperName, invokeSymbol, [nominalDecl, invokeFuncDecl])
     }
 
     // MARK: - Phase 3: Rewrite call sites
@@ -359,17 +383,18 @@ final class LambdaClosureConversionPass: LoweringPass {
         loweredCallee: InternedString,
         captureInfoBySymbol: [SymbolID: LambdaCaptureInfo],
         captureInfoByName: [InternedString: LambdaCaptureInfo],
-        invokeWrapperByLambdaSymbol: [SymbolID: InternedString],
+        invokeWrapperByLambdaSymbol: [SymbolID: InvokeWrapperInfo],
         module: KIRModule,
         ctx: KIRContext
     ) -> KIRFunction {
         let interner = ctx.interner
         let arena = module.arena
         let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
-            ?? TypeID(rawValue: 0)
-        let anyType = ctx.sema?.types.anyType ?? TypeID(rawValue: 0)
+            ?? TypeID.invalid
+        let anyType = ctx.sema?.types.anyType ?? TypeID.invalid
         let kk_object_new = interner.intern("kk_object_new")
         let kk_array_set = interner.intern("kk_array_set")
+        var nextTempID = Int32(arena.expressions.count)
 
         var updated = function
         var loweredBody: [KIRInstruction] = []
@@ -392,7 +417,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                 }
 
                 let captureInfo: LambdaCaptureInfo?
-                let invokeWrapper: InternedString?
+                let invokeWrapper: InvokeWrapperInfo?
                 if let sym = symbol, let info = captureInfoBySymbol[sym] {
                     captureInfo = info
                     invokeWrapper = invokeWrapperByLambdaSymbol[sym]
@@ -418,9 +443,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
                     loweredBody.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
-                    // Temp ID from arena.expressions.count: unique within the
-                    // arena's monotonic counter.  See Phase 2 comment for rationale.
-                    let closureObjExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+                    let closureObjExpr = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: anyType)
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: kk_object_new,
@@ -435,8 +458,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                         let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)
                         loweredBody.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
 
-                        // Temp ID: see Phase 2 comment for rationale.
-                        let unusedResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: anyType)
+                        let unusedResult = makeTemporaryExpr(arena: arena, nextTempID: &nextTempID, type: anyType)
                         loweredBody.append(.call(
                             symbol: nil,
                             callee: kk_array_set,
@@ -447,11 +469,9 @@ final class LambdaClosureConversionPass: LoweringPass {
                         ))
                     }
 
-                    // Use nil symbol so codegen resolves the invoke wrapper by
-                    // name instead of dispatching to the original lambda via its SymbolID.
                     loweredBody.append(.call(
-                        symbol: nil,
-                        callee: invokeWrapper,
+                        symbol: invokeWrapper.symbol,
+                        callee: invokeWrapper.name,
                         arguments: [closureObjExpr] + valueArgs,
                         result: result,
                         canThrow: canThrow,
@@ -473,6 +493,17 @@ final class LambdaClosureConversionPass: LoweringPass {
     }
 
     // MARK: - Helpers
+
+    private func makeTemporaryExpr(
+        arena: KIRArena,
+        nextTempID: inout Int32,
+        type: TypeID
+    ) -> KIRExprID {
+        // Keep temp IDs stable even if we insert extra helper expressions.
+        let expr = arena.appendExpr(.temporary(nextTempID), type: type)
+        nextTempID += 1
+        return expr
+    }
 
     private func closureObjectClassID(lambdaSymbol: SymbolID) -> Int64 {
         // FNV-1a hash for stable ID.
