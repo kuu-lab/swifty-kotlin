@@ -209,6 +209,72 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_channel_is_closed_token(Int.min), 1, "Int.min is the sentinel")
     }
 
+    /// End-to-end test: `kk_channel_is_closed_token` returns 1 only after close
+    /// *and* buffer drain through the full runtime -> ABI boundary path.
+    func testIsClosedTokenEndToEnd_closeThenDrain() {
+        let ch = kk_channel_create(2)
+
+        // Send two values, then close.
+        _ = kk_channel_send(ch, 100, 0)
+        _ = kk_channel_send(ch, 200, 0)
+        _ = kk_channel_close(ch)
+
+        // Drain buffered values -- these should NOT be the sentinel.
+        let v1 = kk_channel_receive(ch, 0)
+        XCTAssertEqual(kk_channel_is_closed_token(v1), 0,
+                       "Buffered value after close must not be identified as sentinel")
+        XCTAssertEqual(v1, 100)
+
+        let v2 = kk_channel_receive(ch, 0)
+        XCTAssertEqual(kk_channel_is_closed_token(v2), 0,
+                       "Buffered value after close must not be identified as sentinel")
+        XCTAssertEqual(v2, 200)
+
+        // Buffer is now drained -- receive should return sentinel.
+        let v3 = kk_channel_receive(ch, 0)
+        XCTAssertEqual(kk_channel_is_closed_token(v3), 1,
+                       "Receive after close+drain must return sentinel")
+
+        // send on a closed channel should also return sentinel.
+        let v4 = kk_channel_send(ch, 999, 0)
+        XCTAssertEqual(kk_channel_is_closed_token(v4), 1,
+                       "Send on closed channel must return sentinel")
+    }
+
+    // MARK: - Race Condition: Sender Woken by Receiver, Then Close
+
+    /// Verify that a suspended sender reports success when a receiver accepts
+    /// its value, even if close() races concurrently.  Before the delivered-flag
+    /// fix this would incorrectly return kChannelClosedSentinel.
+    func testSenderReportsSuccessWhenReceiverAcceptsThenCloseRaces() {
+        for _ in 0 ..< 20 {
+            let ch = kk_channel_create(0) // rendezvous
+
+            let sendDone = XCTestExpectation(description: "send completes")
+            var sendResult = 0
+
+            // Sender suspends on rendezvous channel.
+            DispatchQueue.global().async {
+                sendResult = kk_channel_send(ch, 77, 0)
+                sendDone.fulfill()
+            }
+            Thread.sleep(forTimeInterval: 0.01)
+
+            // Receiver accepts the value -- sender should see success.
+            let received = kk_channel_receive(ch, 0)
+            XCTAssertEqual(received, 77)
+
+            // Close immediately after receive to create the race window.
+            _ = kk_channel_close(ch)
+
+            wait(for: [sendDone], timeout: 2.0)
+            XCTAssertEqual(sendResult, 77,
+                           "Sender must report success (value) when receiver accepted, even if close() races")
+            XCTAssertEqual(kk_channel_is_closed_token(sendResult), 0,
+                           "Send result must NOT be the closed sentinel when receiver accepted the value")
+        }
+    }
+
     // MARK: - Backpressure with Multiple Senders
 
     func testMultipleSendersBlockAndResumeInOrder() {
