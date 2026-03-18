@@ -446,12 +446,26 @@ final class ControlFlowLowerer {
             instructions.append(.label(noMatchLabel))
             instructions.append(.jump(finallyLabel))
         } else {
-            let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
-            let trueValue = arena.appendExpr(.boolLiteral(true), type: boolType)
-            let sharedUnknownToken = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
-            instructions.append(.constValue(result: trueValue, value: .boolLiteral(true)))
-            instructions.append(.constValue(result: sharedUnknownToken, value: .intLiteral(0)))
+            // Only emit shared boolean/int constants when at least one typed
+            // (non-catch-all) clause needs them, avoiding dead constValue
+            // instructions when all clauses are catch-all.
+            let hasTypedCatch = catchBindings.contains { binding in
+                !isCatchAllType(binding.parameterType, sema: sema, interner: interner)
+            }
+            var falseValue: KIRExprID?
+            var trueValue: KIRExprID?
+            var sharedUnknownToken: KIRExprID?
+            if hasTypedCatch {
+                let fv = arena.appendExpr(.boolLiteral(false), type: boolType)
+                let tv = arena.appendExpr(.boolLiteral(true), type: boolType)
+                let ut = arena.appendExpr(.intLiteral(0), type: intType)
+                instructions.append(.constValue(result: fv, value: .boolLiteral(false)))
+                instructions.append(.constValue(result: tv, value: .boolLiteral(true)))
+                instructions.append(.constValue(result: ut, value: .intLiteral(0)))
+                falseValue = fv
+                trueValue = tv
+                sharedUnknownToken = ut
+            }
             instructions.append(.jump(catchCheckLabels[0]))
 
             for index in catchClauses.indices {
@@ -460,6 +474,10 @@ final class ControlFlowLowerer {
                 instructions.append(.label(catchCheckLabels[index]))
 
                 if !isCatchAllType(binding.parameterType, sema: sema, interner: interner) {
+                    // Safe to force-unwrap: hasTypedCatch guarantees these are set
+                    let fv = falseValue!
+                    let tv = trueValue!
+                    let ut = sharedUnknownToken!
                     let matchResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
                     if isCancellationExceptionType(binding.parameterType, sema: sema, interner: interner) {
                         instructions.append(.call(
@@ -476,9 +494,9 @@ final class ControlFlowLowerer {
                             exceptionSlot: exceptionSlot,
                             exceptionTypeSlot: exceptionTypeSlot,
                             matchResult: matchResult,
-                            unknownTypeToken: sharedUnknownToken,
-                            trueValue: trueValue,
-                            falseValue: falseValue,
+                            unknownTypeToken: ut,
+                            trueValue: tv,
+                            falseValue: fv,
                             boolType: boolType,
                             intType: intType,
                             sema: sema,
@@ -487,7 +505,7 @@ final class ControlFlowLowerer {
                             instructions: &instructions
                         )
                     }
-                    instructions.append(.jumpIfEqual(lhs: matchResult, rhs: falseValue, target: catchMissLabels[index]))
+                    instructions.append(.jumpIfEqual(lhs: matchResult, rhs: fv, target: catchMissLabels[index]))
                 }
                 instructions.append(.jump(catchBodyLabels[index]))
                 instructions.append(.label(catchBodyLabels[index]))
