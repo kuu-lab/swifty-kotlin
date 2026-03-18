@@ -344,8 +344,6 @@
   - 現状: `runtimeFlowEvaluateSource` で全要素を即座に配列に収集している。無限ストリームに対応できない
 - [ ] CORO-003: `currentScope` の管理に TLS (Thread Local Storage) を使用しないようにする
   - 現状: サスペンド・レジュームが別スレッドで行われた場合にスコープが消失する。コルーチンコンテキストに含めるべき
-- [x] REFL-004: 実行時リフレクション用メタデータの生成 (MetadataSerializer の活用)
-  - RuntimeReflectionMetadataEmitter がバイナリメタデータを生成し、LLVM グローバル定数として埋め込む
 - [ ] ENUM-001: Enum エントリの静的初期化と `valueOf` / `values` の KIR 合成
   - 現状: 合成ロジックが未実装。`CallLowerer+EnumStdlib.swift` が参照するシンボルが生成されていない
  - [ ] VAL-001: Value Class のアンボックス化（Unboxing）とマングリングの実装

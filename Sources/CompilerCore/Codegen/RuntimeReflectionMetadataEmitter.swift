@@ -20,7 +20,7 @@ import Foundation
 ///
 /// Layout:
 /// ```
-/// [4 bytes] magic: "KKRM" (0x4B4B524D)
+/// [4 bytes] magic: "KKRM" (0x4D524B4B)
 /// [4 bytes] version: 1 (little-endian u32)
 /// [4 bytes] record_count (little-endian u32)
 /// [4 bytes] string_table_offset (little-endian u32)
@@ -42,7 +42,7 @@ import Foundation
 /// ```
 public struct RuntimeReflectionMetadataEmitter {
     /// Magic bytes: "KKRM"
-    static let magic: UInt32 = 0x4B4B_524D
+    static let magic: UInt32 = 0x4D52_4B4B
 
     /// Format version
     static let version: UInt32 = 1
@@ -135,12 +135,12 @@ public struct RuntimeReflectionMetadataEmitter {
             let idx = indices[i]
             data.append(kindOrdinal(record.kind))
             data.append(encodeFlags(record))
-            appendU16(&data, UInt16(min(record.arity, Int(UInt16.max))))
+            appendU16(&data, saturatingUInt16(record.arity))
             appendU32(&data, idx.fqNameIndex)
             appendU32(&data, idx.simpleNameIndex)
             appendU32(&data, idx.superFqNameIndex)
-            appendU32(&data, record.declaredFieldCount.map { UInt32($0) } ?? sentinel)
-            appendU32(&data, record.declaredInstanceSizeWords.map { UInt32($0) } ?? sentinel)
+            appendU32(&data, record.declaredFieldCount.map(saturatingUInt32) ?? sentinel)
+            appendU32(&data, record.declaredInstanceSizeWords.map(saturatingUInt32) ?? sentinel)
         }
 
         // String table
@@ -162,7 +162,7 @@ public struct RuntimeReflectionMetadataEmitter {
         records: [MetadataRecord],
         bindings: LLVMCAPIBindings,
         module: LLVMCAPIBindings.LLVMModuleRef,
-        context: LLVMCAPIBindings.LLVMContextRef,
+        context _: LLVMCAPIBindings.LLVMContextRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef
     ) {
         // When there are no records we intentionally skip emitting any globals.
@@ -179,7 +179,6 @@ public struct RuntimeReflectionMetadataEmitter {
             type: int64Type,
             name: "kk_reflection_metadata_size"
         ) {
-            bindings.setInternalLinkage(sizeGlobal)
             if let sizeValue = bindings.constInt(int64Type, value: UInt64(byteCount)) {
                 bindings.setInitializer(sizeGlobal, value: sizeValue)
             }
@@ -213,7 +212,6 @@ public struct RuntimeReflectionMetadataEmitter {
             type: int64Type,
             name: "kk_reflection_metadata_words"
         ) {
-            bindings.setInternalLinkage(countGlobal)
             if let countValue = bindings.constInt(int64Type, value: UInt64(wordCount)) {
                 bindings.setInitializer(countGlobal, value: countValue)
             }
@@ -222,7 +220,6 @@ public struct RuntimeReflectionMetadataEmitter {
         for (i, word) in words.enumerated() {
             let name = "kk_reflection_metadata_w\(i)"
             if let wordGlobal = bindings.addGlobal(module: module, type: int64Type, name: name) {
-                bindings.setInternalLinkage(wordGlobal)
                 if let wordValue = bindings.constInt(int64Type, value: word) {
                     bindings.setInitializer(wordGlobal, value: wordValue)
                 }
@@ -240,6 +237,14 @@ public struct RuntimeReflectionMetadataEmitter {
     private static func appendU32(_ data: inout Data, _ value: UInt32) {
         var v = value.littleEndian
         withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }
+    }
+
+    private static func saturatingUInt16(_ value: Int) -> UInt16 {
+        return UInt16(min(max(0, value), Int(UInt16.max)))
+    }
+
+    private static func saturatingUInt32(_ value: Int) -> UInt32 {
+        return UInt32(min(max(0, value), Int(UInt32.max)))
     }
 
     // MARK: - String Table
@@ -307,6 +312,12 @@ public struct RuntimeReflectionMetadataDecoder {
 
         let recordCount = readU32(data, at: &offset)
         let stringTableOffset = readU32(data, at: &offset)
+        guard recordCount <= UInt32(Int.max / recordSize) else { return nil }
+        let recordsSize = Int(recordCount) * recordSize
+        let stringTableOffsetInt = Int(stringTableOffset)
+        guard stringTableOffsetInt <= data.count,
+              stringTableOffsetInt >= 16 + recordsSize
+        else { return nil }
 
         // Decode string table first.
         let strings = decodeStringTable(data, at: Int(stringTableOffset))

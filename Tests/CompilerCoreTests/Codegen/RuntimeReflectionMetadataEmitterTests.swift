@@ -191,7 +191,7 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         let record = MetadataRecord(
             kind: .function,
             mangledName: "_KK",
-            fqName: "test.fn"
+            fqName: "test.fn",
             // No superFQName, fieldCount, instanceSizeWords
         )
         let data = RuntimeReflectionMetadataEmitter.serialize([record])
@@ -221,8 +221,8 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         // Records: 24 bytes
         // String table header: 4 bytes
         // Strings: "test.Foo" (4 + 8 = 12 bytes) + "Foo" (4 + 3 = 7 bytes)
-        let expectedMinimum = 16 + 24 + 4 + 12 + 7
-        XCTAssertEqual(data.count, expectedMinimum)
+        let expectedSize = 16 + 24 + 4 + 12 + 7
+        XCTAssertEqual(data.count, expectedSize)
     }
 
     // MARK: - Decoder Error Cases

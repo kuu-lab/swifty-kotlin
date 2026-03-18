@@ -387,7 +387,8 @@ public final class CodegenPhase: CompilerPhase {
             types: sema.types,
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
-            functionLinkNames: functionLinkNamesBySymbol
+            functionLinkNames: functionLinkNamesBySymbol,
+            includeNonPublic: true
         )
     }
 }
