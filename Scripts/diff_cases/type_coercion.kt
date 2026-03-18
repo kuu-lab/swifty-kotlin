@@ -1,4 +1,5 @@
-// DIFF_LINE_PATTERN: [Ee]\+?[0-9]+$
+// DIFF_LINE_PATTERN: [Ee][+-]?[0-9]+$
+// NOTE: program body mirrors Tests/CompilerCoreTests/GoldenCases/Sema/type_coercion.kt — keep in sync
 fun main() {
     val i: Int = 42
     val l: Long = i.toLong()
