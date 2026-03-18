@@ -941,33 +941,17 @@ extension CallLowerer {
             if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
                 let argExprID = args[0].expr
                 if sema.bindings.isRangeExpr(argExprID) {
-                    let intType = sema.types.intType
-                    let firstExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-                    let lastExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_range_first"),
-                        arguments: [loweredArgIDs[0]],
-                        result: firstExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_range_last"),
-                        arguments: [loweredArgIDs[0]],
-                        result: lastExpr,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(prefix + "_coerceIn"),
-                        arguments: [loweredReceiverID, firstExpr, lastExpr],
+                    emitCoerceInRange(
+                        prefix: prefix,
+                        receiverType: receiverType,
+                        loweredReceiverID: loweredReceiverID,
+                        loweredRangeArgID: loweredArgIDs[0],
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
                     return result
                 }
             }

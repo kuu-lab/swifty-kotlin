@@ -1406,8 +1406,13 @@ extension CallTypeChecker {
                 : lookupReceiverType
             if receiverForCheck == intType || receiverForCheck == longType {
                 let argExpr = args[0].expr
-                _ = driver.inferExpr(argExpr, ctx: ctx, locals: &locals, expectedType: nil)
-                if sema.bindings.isRangeExpr(argExpr) {
+                let argType = driver.inferExpr(argExpr, ctx: ctx, locals: &locals, expectedType: nil)
+                // Verify the range element type matches the receiver type.
+                // Range expressions are typed with their element type (Int or Long),
+                // so e.g. Int.coerceIn(1L..10L) is rejected because the LongRange
+                // argument has element type Long which does not match Int.
+                if sema.bindings.isRangeExpr(argExpr),
+                   argType == receiverForCheck {
                     let finalType = safeCall ? sema.types.makeNullable(receiverForCheck) : receiverForCheck
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
