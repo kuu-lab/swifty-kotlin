@@ -288,10 +288,17 @@ extension DataFlowSemaPhase {
             let paramTypes = Array(repeating: selectorType, count: arity)
 
             // Check if this overload already exists
+            let extLink = arity == 2 ? "kk_comparator_from_multi_selectors" : "kk_comparator_from_multi_selectors3"
             if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
                 return sig.parameterTypes == paramTypes && sig.returnType == comparatorType
             }) {
+                if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                    guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+                    return sig.parameterTypes == paramTypes && sig.returnType == comparatorType
+                }) {
+                    symbols.setExternalLinkName(extLink, for: existing)
+                }
                 continue
             }
 
@@ -304,16 +311,17 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .inlineFunction]
             )
             symbols.setParentSymbol(comparisonsPackageSymbol, for: funcSymbol)
-            let extLink = arity == 2 ? "kk_comparator_from_multi_selectors" : "kk_comparator_from_multi_selectors3"
             symbols.setExternalLinkName(extLink, for: funcSymbol)
 
             var paramSymbols: [SymbolID] = []
             for i in 0..<arity {
                 let paramName = interner.intern("selector\(i + 1)")
+                // Use arity-qualified fqName to avoid collisions across overloads
+                let paramInternalName = interner.intern("selector\(i + 1)_arity\(arity)")
                 let paramSymbol = symbols.define(
                     kind: .valueParameter,
                     name: paramName,
-                    fqName: functionFQName + [paramName],
+                    fqName: functionFQName + [paramInternalName],
                     declSite: nil,
                     visibility: .private,
                     flags: [.synthetic]

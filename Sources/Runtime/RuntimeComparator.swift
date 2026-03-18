@@ -98,6 +98,9 @@ public func kk_comparator_from_multi_selectors_trampoline(
     }
     let elements = listBox.elements
     // Elements are packed as [fn1, closure1, fn2, closure2, ...]
+    guard elements.count % 2 == 0, elements.count >= 4 else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: malformed multi-selector comparator: expected even element count >= 4, got \(elements.count)")
+    }
     let selectorCount = elements.count / 2
     var thrown = 0
     for i in 0..<selectorCount {
