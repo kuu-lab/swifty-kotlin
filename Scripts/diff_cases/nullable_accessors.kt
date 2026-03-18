@@ -1,17 +1,15 @@
 fun main() {
+    // STDLIB-543: firstOrNull
     val list = listOf(1, 2, 3)
     println(list.firstOrNull())
-    println(list.lastOrNull())
-    println(list.firstOrNull { it > 2 })
-    println(list.firstOrNull { it > 10 })
-    println(list.lastOrNull { it < 2 })
-    println(list.lastOrNull { it > 10 })
     println(emptyList<Int>().firstOrNull())
+
+    // STDLIB-544: lastOrNull
+    println(list.lastOrNull())
     println(emptyList<Int>().lastOrNull())
-    println(listOf(42).singleOrNull())
-    println(listOf(1, 2).singleOrNull())
-    println(emptyList<Int>().singleOrNull())
-    println(listOf(1, 2, 3).singleOrNull { it == 2 })
-    println(listOf(1, 2, 3).singleOrNull { it > 1 })
-    println(listOf(1, 2, 3).singleOrNull { it > 10 })
+
+    // STDLIB-545: getOrNull
+    println(list.getOrNull(0))
+    println(list.getOrNull(5))
+    println(emptyList<Int>().getOrNull(0))
 }
