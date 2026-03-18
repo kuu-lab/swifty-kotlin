@@ -3,6 +3,11 @@ import Foundation
 struct InlineExpansion {
     let instructions: [KIRInstruction]
     let returnedExpr: KIRExprID?
+    /// True when the expansion contains non-local returns that exit the caller.
+    let hasNonLocalReturn: Bool
+    /// True when the expansion contains normal return terminators (returnValue/returnUnit)
+    /// that need to be converted to exit-label jumps in the NLR path.
+    let hasNormalReturn: Bool
 }
 
 final class InlineLoweringPass: LoweringPass {
@@ -48,6 +53,83 @@ final class InlineLoweringPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
+    /// Compute the next available label ID by scanning all label references in the body.
+    /// Returns `maxLabelID + 1`, ensuring no collisions with existing labels.
+    /// Labels are allocated dynamically as `maxExistingLabel + 1` (not at a fixed offset).
+    private func nextAvailableLabel(in body: [KIRInstruction]) -> Int32 {
+        var maxLabel: Int32 = -1
+        for instruction in body {
+            switch instruction {
+            case let .label(id):
+                maxLabel = max(maxLabel, id)
+            case let .jump(target):
+                maxLabel = max(maxLabel, target)
+            case let .jumpIfEqual(_, _, target):
+                maxLabel = max(maxLabel, target)
+            case let .jumpIfNotNull(_, target):
+                maxLabel = max(maxLabel, target)
+            default:
+                break
+            }
+        }
+        return maxLabel + 1
+    }
+
+    /// Remap all label IDs (in `.label`, `.jump`, `.jumpIfEqual`, `.jumpIfNotNull`)
+    /// in the given instructions so they start at `baseLabel`, preventing collisions
+    /// with the caller's existing labels.
+    private func remapLabels(
+        in instructions: [KIRInstruction],
+        baseLabel: Int32
+    ) -> (remapped: [KIRInstruction], nextLabel: Int32) {
+        // Collect all label IDs used in the expansion.
+        var labelIDs = Set<Int32>()
+        for inst in instructions {
+            switch inst {
+            case let .label(id):
+                labelIDs.insert(id)
+            case let .jump(target):
+                labelIDs.insert(target)
+            case let .jumpIfEqual(_, _, target):
+                labelIDs.insert(target)
+            case let .jumpIfNotNull(_, target):
+                labelIDs.insert(target)
+            default:
+                break
+            }
+        }
+
+        // If there are no labels, no remapping needed.
+        guard !labelIDs.isEmpty else {
+            return (instructions, baseLabel)
+        }
+
+        // Build a mapping from old label -> new label.
+        var mapping: [Int32: Int32] = [:]
+        var nextLabel = baseLabel
+        for id in labelIDs.sorted() {
+            mapping[id] = nextLabel
+            nextLabel += 1
+        }
+
+        // Apply the mapping.
+        let remapped = instructions.map { inst -> KIRInstruction in
+            switch inst {
+            case let .label(id):
+                return .label(mapping[id] ?? id)
+            case let .jump(target):
+                return .jump(mapping[target] ?? target)
+            case let .jumpIfEqual(lhs, rhs, target):
+                return .jumpIfEqual(lhs: lhs, rhs: rhs, target: mapping[target] ?? target)
+            case let .jumpIfNotNull(value, target):
+                return .jumpIfNotNull(value: value, target: mapping[target] ?? target)
+            default:
+                return inst
+            }
+        }
+        return (remapped, nextLabel)
+    }
+
     private func inlineTransform(
         function: KIRFunction,
         inlineFunctionsBySymbol: [SymbolID: KIRFunction],
@@ -60,6 +142,10 @@ final class InlineLoweringPass: LoweringPass {
         var loweredBody: [KIRInstruction] = []
         loweredBody.reserveCapacity(function.body.count)
         var aliases: [KIRExprID: KIRExprID] = [:]
+
+        // Dynamically allocate labels above any existing label in the caller.
+        // Labels are allocated as maxExistingLabel + 1 (not at a fixed offset).
+        var nextExitLabel = nextAvailableLabel(in: function.body)
 
         for originalInstruction in function.body {
             let instruction = rewriteInstruction(originalInstruction, aliases: aliases)
@@ -95,7 +181,101 @@ final class InlineLoweringPass: LoweringPass {
                 continue
             }
 
-            loweredBody.append(contentsOf: expansion.instructions)
+            // Remap labels in the expansion into the caller's label namespace
+            // to prevent collisions between caller labels and inlined callee labels.
+            let (remappedInstructions, nextLabelAfterRemap) = remapLabels(
+                in: expansion.instructions,
+                baseLabel: nextExitLabel
+            )
+            nextExitLabel = nextLabelAfterRemap
+
+            if expansion.hasNonLocalReturn {
+                // The expansion contains non-local returns from lambdas.
+                // Rewrite each nonLocalReturn into a real return from the caller.
+                // If there is a potential fallthrough path (i.e., the expansion has
+                // any normal return terminator), emit an exit label and jump to it
+                // so normal control flow continues past the expansion site.
+
+                let hasFallthroughPath = expansion.hasNormalReturn
+                let exitLabel: Int32?
+                if hasFallthroughPath {
+                    exitLabel = nextExitLabel
+                    nextExitLabel += 1
+                } else {
+                    exitLabel = nil
+                }
+
+                // Track whether we just emitted a terminator so we can skip
+                // unreachable instructions until the next label.
+                var afterTerminator = false
+
+                for expandedInstruction in remappedInstructions {
+                    // Skip unreachable instructions after a terminator until
+                    // the next label starts a new block.
+                    if afterTerminator {
+                        if case .label = expandedInstruction {
+                            afterTerminator = false
+                            loweredBody.append(expandedInstruction)
+                        }
+                        continue
+                    }
+
+                    switch expandedInstruction {
+                    case let .nonLocalReturn(value):
+                        // Convert to a real return from the caller.
+                        if let value {
+                            loweredBody.append(.returnValue(resolveAlias(of: value, aliases: aliases)))
+                        } else {
+                            loweredBody.append(.returnUnit)
+                        }
+                        afterTerminator = true
+                    case .label:
+                        // A label starts a new block, so we are no longer after a terminator.
+                        loweredBody.append(expandedInstruction)
+                    case .returnValue, .returnUnit:
+                        // The inline body's own return: jump to exit label instead,
+                        // so normal control flow continues in the caller.
+                        if let exitLabel {
+                            loweredBody.append(.jump(exitLabel))
+                        }
+                        afterTerminator = true
+                    case .returnIfEqual:
+                        // returnIfEqual is a conditional normal return from the inline body.
+                        // In the NLR path, convert it to a conditional jump to the exit label
+                        // to avoid prematurely returning from the caller.
+                        if let exitLabel, case let .returnIfEqual(lhs, rhs) = expandedInstruction {
+                            loweredBody.append(.jumpIfEqual(lhs: lhs, rhs: rhs, target: exitLabel))
+                        }
+                        // returnIfEqual is conditional, so it does NOT set afterTerminator.
+                    default:
+                        loweredBody.append(expandedInstruction)
+                    }
+                }
+
+                // Only emit the exit label when there is a fallthrough path
+                // (avoids unreachable labeled blocks when the expansion always
+                // executes nonLocalReturn).
+                if let exitLabel {
+                    loweredBody.append(.label(exitLabel))
+                }
+            } else {
+                // No non-local returns -- strip returnValue/returnUnit from the
+                // expansion (they are only needed for the NLR path exit-label
+                // mechanism) and use the original simple expansion path.
+                // Labels have already been remapped above; nextExitLabel is up to date.
+                let filtered = remappedInstructions.filter { inst in
+                    switch inst {
+                    case .returnValue, .returnUnit:
+                        return false
+                    default:
+                        return true
+                    }
+                }
+                loweredBody.append(contentsOf: filtered)
+            }
+
+            // Alias the call result to the expansion's returned expression (shared
+            // for both non-local-return and normal paths).
             if let result {
                 if let returnedExpr = expansion.returnedExpr {
                     aliases[result] = resolveAlias(of: returnedExpr, aliases: aliases)
@@ -135,6 +315,8 @@ final class InlineLoweringPass: LoweringPass {
         var lowered: [KIRInstruction] = []
         lowered.reserveCapacity(inlineTarget.body.count)
         var returnedExpr: KIRExprID?
+        var hasNonLocalReturn = false
+        var hasNormalReturn = false
 
         for instruction in inlineTarget.body {
             switch instruction {
@@ -160,10 +342,30 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case .returnUnit:
+                hasNormalReturn = true
                 returnedExpr = nil
+                // Preserve in lowered instructions so inlineTransform can
+                // convert it to an exit-label jump in the NLR path.
+                lowered.append(.returnUnit)
 
             case let .returnValue(value):
-                returnedExpr = resolveAlias(of: value, aliases: localExprMap)
+                hasNormalReturn = true
+                let resolved = resolveAlias(of: value, aliases: localExprMap)
+                returnedExpr = resolved
+                // Preserve in lowered instructions so inlineTransform can
+                // convert it to an exit-label jump in the NLR path.
+                lowered.append(.returnValue(resolved))
+
+            case let .nonLocalReturn(value):
+                // Non-local return from a lambda inside this inline function.
+                // Preserve it so the caller's inlineTransform can convert it
+                // to a real return from the enclosing function.
+                hasNonLocalReturn = true
+                if let value {
+                    lowered.append(.nonLocalReturn(resolveAlias(of: value, aliases: localExprMap)))
+                } else {
+                    lowered.append(.nonLocalReturn(nil))
+                }
 
             case let .constValue(result, value):
                 if case let .symbolRef(symbol) = value,
@@ -300,7 +502,12 @@ final class InlineLoweringPass: LoweringPass {
             }
         }
 
-        return InlineExpansion(instructions: lowered, returnedExpr: returnedExpr)
+        return InlineExpansion(
+            instructions: lowered,
+            returnedExpr: returnedExpr,
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn
+        )
     }
 
     private func buildTypeParamTokenValues(
@@ -361,6 +568,9 @@ final class InlineLoweringPass: LoweringPass {
 
         case let .returnValue(value):
             .returnValue(resolveAlias(of: value, aliases: aliases))
+
+        case let .nonLocalReturn(value):
+            .nonLocalReturn(value.map { resolveAlias(of: $0, aliases: aliases) })
 
         case let .returnIfEqual(lhs, rhs):
             .returnIfEqual(

@@ -176,7 +176,7 @@ extension NativeEmitter {
                 return [result]
             case .jump, .label, .jumpIfEqual, .jumpIfNotNull,
                  .storeGlobal, .rethrow, .returnIfEqual, .returnUnit, .returnValue,
-                 .beginBlock, .endBlock, .nop:
+                 .beginBlock, .endBlock, .nop, .nonLocalReturn:
                 return []
             }
         }
@@ -1354,6 +1354,22 @@ extension NativeEmitter {
                 }
                 emitFramePop("ret_val_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: resolveValue(value))
+
+            case let .nonLocalReturn(value):
+                // Non-local returns should have been lowered by InlineLoweringPass.
+                // If one reaches codegen, it indicates a lowering bug. Emit a
+                // trap in debug builds; in release builds fall back to a return
+                // to avoid crashing the compiler, but the output is incorrect.
+                assertionFailure("nonLocalReturn reached codegen -- InlineLoweringPass should have converted it")
+                guard !bindings.hasTerminator(currentBlock) else {
+                    continue
+                }
+                emitFramePop("ret_nonlocal_\(instructionIndex)")
+                if let value {
+                    _ = bindings.buildRet(builder, value: resolveValue(value))
+                } else {
+                    _ = bindings.buildRet(builder, value: zeroValue)
+                }
             }
         }
 
