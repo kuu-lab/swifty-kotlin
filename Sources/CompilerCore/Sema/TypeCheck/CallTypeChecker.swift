@@ -504,8 +504,8 @@ final class CallTypeChecker {
                 elementReturnType = switch calleeNameStr {
                 case "IntArray": sema.types.intType
                 case "LongArray": sema.types.longType
-                case "ShortArray": sema.types.make(.primitive(.ushort, .nonNull))
-                case "ByteArray": sema.types.make(.primitive(.ubyte, .nonNull))
+                case "ShortArray": sema.types.intType
+                case "ByteArray": sema.types.intType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
                 case "FloatArray": sema.types.make(.primitive(.float, .nonNull))
                 case "BooleanArray": sema.types.booleanType
