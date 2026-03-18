@@ -52,3 +52,43 @@ fun arrayOfWithExpectedType() {
     val strings: Array<String> = arrayOf()
     println(strings.size)
 }
+
+fun arrayConstructorExplicitTypeArgWinsOverExpectedType() {
+    val array: Array<out Any> = Array<Int>(3) { it }
+    println(array.size)
+}
+
+fun arrayConstructorExpectedType() {
+    val array: Array<String> = Array(3) { "x" }
+    println(array.size)
+}
+
+fun doubleArrayOfLiteral() {
+    val a = doubleArrayOf(1.0, 2.0, 3.0)
+    println(a.size)
+}
+
+fun floatArrayOfLiteral() {
+    val a = floatArrayOf(0.5f, 1.5f)
+    println(a.size)
+}
+
+fun booleanArrayOfLiteral() {
+    val a = booleanArrayOf(true, false)
+    println(a.size)
+}
+
+fun charArrayOfLiteral() {
+    val a = charArrayOf('a', 'b')
+    println(a.size)
+}
+
+fun shortArrayOfLiteral() {
+    val a = shortArrayOf(1.toShort(), 2.toShort())
+    println(a.size)
+}
+
+fun byteArrayOfLiteral() {
+    val a = byteArrayOf(1.toByte(), 2.toByte())
+    println(a.size)
+}

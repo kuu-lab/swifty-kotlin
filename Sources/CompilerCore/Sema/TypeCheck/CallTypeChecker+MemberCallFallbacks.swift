@@ -1457,10 +1457,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
-        if isArrayLikeType(receiverType, sema: sema, interner: interner) {
-            return true
-        }
-        return false
+        return isArrayLikeType(receiverType, sema: sema, interner: interner)
     }
 
     private func isArrayLikeType(

@@ -504,6 +504,8 @@ final class CallTypeChecker {
                 elementReturnType = switch calleeNameStr {
                 case "IntArray": sema.types.intType
                 case "LongArray": sema.types.longType
+                case "ShortArray": sema.types.make(.primitive(.ushort, .nonNull))
+                case "ByteArray": sema.types.make(.primitive(.ubyte, .nonNull))
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
                 case "FloatArray": sema.types.make(.primitive(.float, .nonNull))
                 case "BooleanArray": sema.types.booleanType
@@ -1464,38 +1466,25 @@ final class CallTypeChecker {
                             elementType: sema.types.anyType
                         )
                     }
-                } else if name == "intArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "IntArray"
-                    )
-                } else if name == "longArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "LongArray"
-                    )
-                } else if name == "doubleArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "DoubleArray"
-                    )
-                } else if name == "floatArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "FloatArray"
-                    )
-                } else if name == "booleanArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "BooleanArray"
-                    )
-                } else if name == "charArrayOf" {
-                    collectionType = makeSyntheticPrimitiveArrayType(
-                        symbols: sema.symbols, types: sema.types, interner: interner,
-                        arrayName: "CharArray"
-                    )
                 } else {
-                    collectionType = sema.types.anyType
+                    let primitiveArrayFactories: [String: String] = [
+                        "intArrayOf": "IntArray",
+                        "longArrayOf": "LongArray",
+                        "shortArrayOf": "ShortArray",
+                        "byteArrayOf": "ByteArray",
+                        "doubleArrayOf": "DoubleArray",
+                        "floatArrayOf": "FloatArray",
+                        "booleanArrayOf": "BooleanArray",
+                        "charArrayOf": "CharArray",
+                    ]
+                    if let primitiveArrayName = primitiveArrayFactories[name] {
+                        collectionType = makeSyntheticPrimitiveArrayType(
+                            symbols: sema.symbols, types: sema.types, interner: interner,
+                            arrayName: primitiveArrayName
+                        )
+                    } else {
+                        collectionType = sema.types.anyType
+                    }
                 }
                 sema.bindings.bindExprType(id, type: collectionType)
                 return collectionType

@@ -5298,6 +5298,8 @@ extension DataFlowSemaPhase {
             "FloatArray",
             "BooleanArray",
             "CharArray",
+            "ByteArray",
+            "ShortArray",
         ]
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
