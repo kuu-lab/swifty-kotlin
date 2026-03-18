@@ -627,8 +627,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             thrownResult: nil
         ))
 
-        // kk_array_set(array, index, entrySymbolRef) for each entry
-        for (ordinal, entry) in entries.enumerated() {
+        // Enum values are represented by their ordinal payloads at runtime, so
+        // populate the array directly with ordinal literals rather than reading
+        // enum globals that may not have been static-initialized yet.
+        for (ordinal, _) in entries.enumerated() {
             let indexExpr = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: intType
             )
@@ -637,7 +639,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             let entryRef = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: entryType
             )
-            body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
+            body.append(.constValue(result: entryRef, value: .intLiteral(Int64(ordinal))))
 
             body.append(.call(
                 symbol: nil,
@@ -723,8 +725,10 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             thrownResult: nil
         ))
 
-        // kk_array_set(array, index, entrySymbolRef) for each entry
-        for (ordinal, entry) in entries.enumerated() {
+        // Enum values are represented by their ordinal payloads at runtime, so
+        // populate the array directly with ordinal literals rather than reading
+        // enum globals that may not have been static-initialized yet.
+        for (ordinal, _) in entries.enumerated() {
             let indexExpr = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: intType
             )
@@ -733,7 +737,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             let entryRef = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: entryType
             )
-            body.append(.constValue(result: entryRef, value: .symbolRef(entry.id)))
+            body.append(.constValue(result: entryRef, value: .intLiteral(Int64(ordinal))))
 
             body.append(.call(
                 symbol: nil,
