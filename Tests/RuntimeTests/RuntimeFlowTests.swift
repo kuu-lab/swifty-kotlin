@@ -134,12 +134,11 @@ func runtime_test_flow_collect_throw_on_first(_: Int, _ value: Int, _ outThrown:
 @_cdecl("runtime_test_flow_emitter_large_source")
 func runtime_test_flow_emitter_large_source(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    let sentinel = kk_flow_stopped()
     for value in 1 ... 10_000 {
         runtimeFlowTestState.recordEmitCall()
         let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
-        if result == kk_flow_stopped() { // out-of-band sentinel
-            break
-        }
+        if result == sentinel { break }
     }
     return 0
 }

@@ -518,6 +518,10 @@ public func kk_kxmini_launch(_ entryPointRaw: Int, _ functionID: Int) -> Int {
 
     KxMiniRuntime.launch {
         // Propagate scope to GCD thread so nested launch/async discover the parent.
+        // Note: This scope propagation was simplified from the CORO-003 task-scope-map
+        // approach. TLS-based propagation is safe here because the blocking semaphore
+        // in runSuspendEntryLoopWithContinuation ensures the coroutine resumes on the
+        // same GCD thread. See RuntimeCoroutineScope.current doc comment for details.
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw,
@@ -1021,9 +1025,9 @@ public func kk_flow_stopped() -> Int {
 /// terminated (e.g. a `.take` counter was exhausted or the collector threw).
 /// This uses a unique heap-allocated object pointer so it cannot collide with
 /// any legitimate emitted `Int` value (including `Int.min`).
-private var runtimeFlowStopSentinel: Int {
-    kk_flow_stopped()
-}
+/// Cached as a static let to avoid repeated lock acquisition and dictionary
+/// insertion on every access.
+private let runtimeFlowStopSentinel: Int = kk_flow_stopped()
 
 @_cdecl("kk_flow_emit")
 public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
