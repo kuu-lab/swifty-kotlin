@@ -201,6 +201,15 @@ public final class NameMangler {
             // wrapper class so that mangled names reflect the unboxed ABI.
             // Nullable value class types are boxed at the ABI level, so we
             // only substitute for non-null value classes.
+            //
+            // NOTE: This can produce identical mangled signatures for
+            // overloads that differ only by value-class wrapper but share
+            // the same underlying type (e.g. `fun f(Meter)` vs
+            // `fun f(Seconds)` both become `f(I)`).  Kotlin/JVM handles
+            // this by forbidding such overloads at the language level.
+            // A Sema diagnostic should reject these; if we ever need to
+            // allow them, the mangling must include a disambiguator
+            // (e.g. the wrapper type name as a suffix).
             if classType.nullability == .nonNull,
                let sym = symbols.symbol(classType.classSymbol),
                sym.flags.contains(.valueType),

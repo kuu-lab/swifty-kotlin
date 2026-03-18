@@ -76,21 +76,22 @@ final class ValueClassUnboxingTests: XCTestCase {
 
         // After unboxing, the constructor call should be replaced with a copy.
         // Check that there are no calls to the Meter constructor in the lowered body.
-        let meterCtorSymbol = sema.symbols.allSymbols().first(where: { symbol in
-            symbol.kind == .constructor && interner.resolve(symbol.name) == "Meter"
-        })?.id
+        let meterCtorSymbol = try XCTUnwrap(
+            sema.symbols.allSymbols().first(where: { symbol in
+                symbol.kind == .constructor && interner.resolve(symbol.name) == "Meter"
+            })?.id,
+            "Meter constructor symbol must exist in the symbol table"
+        )
 
-        if let meterCtorSymbol {
-            let hasCtorCall = createFn.body.contains { instruction in
-                if case let .call(symbol, _, _, _, _, _, _) = instruction,
-                   symbol == meterCtorSymbol
-                {
-                    return true
-                }
-                return false
+        let hasCtorCall = createFn.body.contains { instruction in
+            if case let .call(symbol, _, _, _, _, _, _) = instruction,
+               symbol == meterCtorSymbol
+            {
+                return true
             }
-            XCTAssertFalse(hasCtorCall, "Value class constructor call should be replaced by copy after unboxing")
+            return false
         }
+        XCTAssertFalse(hasCtorCall, "Value class constructor call should be replaced by copy after unboxing")
     }
 
     // MARK: - Validation diagnostics

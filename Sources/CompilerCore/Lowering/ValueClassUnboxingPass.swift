@@ -56,7 +56,7 @@ final class ValueClassUnboxingPass: LoweringPass {
             }
             guard let sym = symbols.symbol(nominal.symbol),
                   sym.flags.contains(.valueType),
-                  symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
+                  let underlyingType = symbols.valueClassUnderlyingType(for: nominal.symbol)
             else {
                 continue
             }
@@ -71,11 +71,17 @@ final class ValueClassUnboxingPass: LoweringPass {
                 if child.kind == .constructor {
                     valueClassCtors.insert(childID)
                 }
+                // Only collect the single primary-constructor-backed property,
+                // not computed properties defined in the class body (e.g.
+                // `val doubled: Int get() = amount * 2`).  We identify it by
+                // matching its propertyType against the recorded underlying
+                // type of the value class.
                 if child.kind == .property || child.kind == .field {
-                    // The getter symbol for the single wrapped property.
-                    // In KIR, property access is emitted as a call to a
-                    // getter function that shares the property symbol.
-                    valueClassPropertyGetters.insert(childID)
+                    if let propType = symbols.propertyType(for: childID),
+                       propType == underlyingType
+                    {
+                        valueClassPropertyGetters.insert(childID)
+                    }
                 }
             }
         }
@@ -90,8 +96,7 @@ final class ValueClassUnboxingPass: LoweringPass {
             let newBody = self.rewriteBody(
                 function.body,
                 valueClassCtors: valueClassCtors,
-                valueClassPropertyGetters: valueClassPropertyGetters,
-                arena: module.arena
+                valueClassPropertyGetters: valueClassPropertyGetters
             )
             updated.replaceBody(newBody)
             return updated
@@ -103,31 +108,35 @@ final class ValueClassUnboxingPass: LoweringPass {
     private func rewriteBody(
         _ body: [KIRInstruction],
         valueClassCtors: Set<SymbolID>,
-        valueClassPropertyGetters: Set<SymbolID>,
-        arena: KIRArena
+        valueClassPropertyGetters: Set<SymbolID>
     ) -> [KIRInstruction] {
         body.map { instruction in
             switch instruction {
             // Rewrite value class constructor calls:
             // call <init>(receiver, arg) result -> copy(arg, result)
+            //
+            // Value classes have exactly one primary constructor parameter, so
+            // we only rewrite when the argument count is exactly 2 (receiver +
+            // value) or exactly 1 (value only, no explicit receiver).  If the
+            // arity does not match, leave the instruction unchanged so we do
+            // not silently mis-compile unexpected calling conventions.
             case let .call(symbol, callee: _, arguments, result, canThrow: _, thrownResult: _, isSuperCall: _):
                 if let symbol, valueClassCtors.contains(symbol),
                    let result
                 {
-                    // The constructor call typically has [receiver, arg].
-                    // The single constructor argument is the underlying value.
-                    if arguments.count >= 2 {
+                    if arguments.count == 2 {
                         // arguments[0] is receiver (the class instance), arguments[1] is the value
                         return .copy(from: arguments[1], to: result)
                     } else if arguments.count == 1 {
                         // arguments[0] is the value (no explicit receiver)
                         return .copy(from: arguments[0], to: result)
                     }
+                    // Unexpected arity -- leave instruction as-is.
                 }
                 return instruction
 
             // Rewrite property getter calls on value class:
-            // call getter(receiver) result -> copy(receiver, result)
+            // virtualCall getter(receiver) result -> copy(receiver, result)
             case let .virtualCall(symbol, callee: _, receiver, arguments: _, result, canThrow: _, thrownResult: _, dispatch: _):
                 if let symbol, valueClassPropertyGetters.contains(symbol),
                    let result
