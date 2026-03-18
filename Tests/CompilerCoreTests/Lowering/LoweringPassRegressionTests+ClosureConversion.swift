@@ -150,6 +150,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
+        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -160,7 +161,8 @@ extension LoweringPassRegressionTests {
                 emit: .kirDump,
                 target: defaultTargetTriple()
             ),
-            interner: interner
+            interner: interner,
+            sema: sema
         )
 
         XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
@@ -374,6 +376,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
+        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -384,7 +387,8 @@ extension LoweringPassRegressionTests {
                 emit: .kirDump,
                 target: defaultTargetTriple()
             ),
-            interner: interner
+            interner: interner,
+            sema: sema
         )
 
         XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))
@@ -554,6 +558,7 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
+        let sema = SemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine())
         let ctx = KIRContext(
             diagnostics: DiagnosticEngine(),
             options: CompilerOptions(
@@ -564,7 +569,8 @@ extension LoweringPassRegressionTests {
                 emit: .kirDump,
                 target: defaultTargetTriple()
             ),
-            interner: interner
+            interner: interner,
+            sema: sema
         )
 
         XCTAssertTrue(pass.shouldRun(module: module, ctx: ctx))

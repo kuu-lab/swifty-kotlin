@@ -45,11 +45,62 @@ final class LambdaClosureConversionPass: LoweringPass {
         let symbol: SymbolID
     }
 
+    /// Pre-computed call-site index to avoid repeated O(#functions * #instructions)
+    /// scans during capture-count validation and throwing detection.
+    private struct CallSiteIndex {
+        /// For each callee (by symbol or name), the observed argument counts.
+        var arityBySymbol: [SymbolID: Set<Int>] = [:]
+        var arityByName: [InternedString: Set<Int>] = [:]
+        /// For each callee (by symbol or name), whether any call site has canThrow == true.
+        var throwingBySymbol: Set<SymbolID> = []
+        var throwingByName: Set<InternedString> = []
+
+        static func build(from module: KIRModule) -> CallSiteIndex {
+            var index = CallSiteIndex()
+            for decl in module.arena.declarations {
+                guard case let .function(fn) = decl else { continue }
+                for instruction in fn.body {
+                    if case let .call(symbol, callee, arguments, _, canThrow, _, _) = instruction {
+                        let arity = arguments.count
+                        if let symbol {
+                            index.arityBySymbol[symbol, default: []].insert(arity)
+                            if canThrow {
+                                index.throwingBySymbol.insert(symbol)
+                            }
+                        }
+                        index.arityByName[callee, default: []].insert(arity)
+                        if canThrow {
+                            index.throwingByName.insert(callee)
+                        }
+                    }
+                }
+            }
+            return index
+        }
+
+        func hasCallSiteWithArity(symbol: SymbolID, name: InternedString, arity: Int) -> Bool {
+            if let arities = arityBySymbol[symbol], arities.contains(arity) {
+                return true
+            }
+            if let arities = arityByName[name], arities.contains(arity) {
+                return true
+            }
+            return false
+        }
+
+        func isCalledWithCanThrow(symbol: SymbolID, name: InternedString) -> Bool {
+            return throwingBySymbol.contains(symbol) || throwingByName.contains(name)
+        }
+    }
+
     // MARK: - shouldRun
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let markerCallee = ctx.interner.intern("<lambda>")
         let lambdaPrefix = "kk_lambda_"
+
+        // Build call-site index once for shouldRun checks.
+        let callSiteIndex = CallSiteIndex.build(from: module)
 
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
@@ -65,12 +116,11 @@ final class LambdaClosureConversionPass: LoweringPass {
                detectCaptureParamCount(
                    function: function,
                    lambdaExprID: lambdaExprID(from: function.name, interner: ctx.interner),
-                   module: module
+                   callSiteIndex: callSiteIndex
                ) > 0,
-               !detectCanThrow(
-                   lambdaName: function.name,
-                   lambdaSymbol: function.symbol,
-                   module: module
+               !callSiteIndex.isCalledWithCanThrow(
+                   symbol: function.symbol,
+                   name: function.name
                )
             {
                 return true
@@ -86,39 +136,69 @@ final class LambdaClosureConversionPass: LoweringPass {
         let markerCallee = interner.intern("<lambda>")
         let loweredCallee = interner.intern("kk_lambda_invoke")
 
-        // Phase 1: Identify lambda functions with captures.
-        let lambdaInfos = identifyLambdasWithCaptures(module: module, ctx: ctx)
+        // Closure object synthesis (Phases 1+2) requires valid sema to derive
+        // TypeIDs for synthesized instructions.  Without sema we still rewrite
+        // <lambda> markers (Phase 3) but skip closure object creation to avoid
+        // emitting malformed KIR with TypeID.invalid.
+        let sema = ctx.sema
 
         var captureInfoBySymbol: [SymbolID: LambdaCaptureInfo] = [:]
         var captureInfoByName: [InternedString: LambdaCaptureInfo] = [:]
-        for info in lambdaInfos {
-            captureInfoBySymbol[info.function.symbol] = info
-            captureInfoByName[info.function.name] = info
-        }
-
-        // Phase 2: For each lambda with captures, synthesize a closure object
-        // and invoke wrapper.
         var invokeWrapperByLambdaSymbol: [SymbolID: InvokeWrapperInfo] = [:]
+        var invokeWrapperNames: Set<InternedString> = []
+        var intType: TypeID = TypeID.invalid
+        var anyType: TypeID = TypeID.invalid
 
-        for info in lambdaInfos {
-            let (invokeWrapperName, invokeWrapperSymbol, newDecls) = synthesizeClosureObject(
-                lambdaInfo: info,
+        if let sema {
+            // Build call-site index once for all analysis (capture-count
+            // validation and canThrow detection).
+            let callSiteIndex = CallSiteIndex.build(from: module)
+
+            // Phase 1: Identify lambda functions with captures.
+            let lambdaInfos = identifyLambdasWithCaptures(
                 module: module,
-                ctx: ctx
+                ctx: ctx,
+                callSiteIndex: callSiteIndex
             )
-            invokeWrapperByLambdaSymbol[info.function.symbol] = InvokeWrapperInfo(
-                name: invokeWrapperName,
-                symbol: invokeWrapperSymbol
-            )
-            for decl in newDecls {
-                _ = module.arena.appendDecl(decl)
+
+            for info in lambdaInfos {
+                captureInfoBySymbol[info.function.symbol] = info
+                captureInfoByName[info.function.name] = info
             }
+
+            // Phase 2: For each lambda with captures, synthesize a closure object
+            // and invoke wrapper.
+            for info in lambdaInfos {
+                let (invokeWrapperName, invokeWrapperSymbol, newDecls) = synthesizeClosureObject(
+                    lambdaInfo: info,
+                    module: module,
+                    ctx: ctx,
+                    sema: sema
+                )
+                invokeWrapperByLambdaSymbol[info.function.symbol] = InvokeWrapperInfo(
+                    name: invokeWrapperName,
+                    symbol: invokeWrapperSymbol
+                )
+                for decl in newDecls {
+                    _ = module.arena.appendDecl(decl)
+                }
+
+                // Register both the invoke wrapper and its internal lambda target
+                // as non-throwing callees so ABILoweringPass can consult
+                // module.nonThrowingClosureCallees instead of relying on
+                // string-prefix conventions.
+                module.registerNonThrowingClosureCallee(invokeWrapperName)
+                module.registerNonThrowingClosureCallee(info.function.name)
+            }
+
+            invokeWrapperNames = Set(invokeWrapperByLambdaSymbol.values.map(\.name))
+            intType = sema.types.make(.primitive(.int, .nonNull))
+            anyType = sema.types.anyType
         }
 
-        // Collect invoke wrapper names so we skip rewriting their internal calls.
-        let invokeWrapperNames = Set(invokeWrapperByLambdaSymbol.values.map(\.name))
-
-        // Phase 3: Rewrite call sites.
+        // Phase 3: Rewrite call sites (marker rewriting works without sema;
+        // closure-object rewriting only triggers when captureInfoBySymbol is
+        // populated, which requires sema above).
         module.arena.transformFunctions { function in
             // Skip invoke wrappers: they already load captures from
             // the closure object and forward to the original lambda.
@@ -133,7 +213,9 @@ final class LambdaClosureConversionPass: LoweringPass {
                 captureInfoByName: captureInfoByName,
                 invokeWrapperByLambdaSymbol: invokeWrapperByLambdaSymbol,
                 module: module,
-                ctx: ctx
+                ctx: ctx,
+                intType: intType,
+                anyType: anyType
             )
         }
 
@@ -144,7 +226,8 @@ final class LambdaClosureConversionPass: LoweringPass {
 
     private func identifyLambdasWithCaptures(
         module: KIRModule,
-        ctx: KIRContext
+        ctx: KIRContext,
+        callSiteIndex: CallSiteIndex
     ) -> [LambdaCaptureInfo] {
         let lambdaPrefix = "kk_lambda_"
         var results: [LambdaCaptureInfo] = []
@@ -160,13 +243,12 @@ final class LambdaClosureConversionPass: LoweringPass {
             let captureCount = detectCaptureParamCount(
                 function: function,
                 lambdaExprID: lambdaExprID,
-                module: module
+                callSiteIndex: callSiteIndex
             )
             if captureCount > 0 {
-                if detectCanThrow(
-                    lambdaName: function.name,
-                    lambdaSymbol: function.symbol,
-                    module: module
+                if callSiteIndex.isCalledWithCanThrow(
+                    symbol: function.symbol,
+                    name: function.name
                 ) {
                     continue
                 }
@@ -187,7 +269,7 @@ final class LambdaClosureConversionPass: LoweringPass {
     private func detectCaptureParamCount(
         function: KIRFunction,
         lambdaExprID: Int64?,
-        module: KIRModule
+        callSiteIndex: CallSiteIndex
     ) -> Int {
         var captureCount = 0
         for param in function.params {
@@ -213,17 +295,15 @@ final class LambdaClosureConversionPass: LoweringPass {
         }
 
         // Validate: at least one call site passes the full lambda arity.
-        let lambdaName = function.name
-        for decl in module.arena.declarations {
-                guard case let .function(callerFn) = decl else { continue }
-                for instruction in callerFn.body {
-                    if case let .call(symbol, callee, arguments, _, _, _, _) = instruction,
-                       (symbol == function.symbol || callee == lambdaName),
-                       arguments.count == function.params.count
-                    {
-                        return captureCount
-                    }
-                }
+        // Uses the pre-computed call-site index instead of scanning all
+        // functions/instructions, reducing complexity from O(#lambdas * #instructions)
+        // to O(1) per lambda.
+        if callSiteIndex.hasCallSiteWithArity(
+            symbol: function.symbol,
+            name: function.name,
+            arity: function.params.count
+        ) {
+            return captureCount
         }
 
         return 0
@@ -238,28 +318,6 @@ final class LambdaClosureConversionPass: LoweringPass {
         let exprID = lambdaExprID ?? 0
         let boundary = Int64(-1_500_000) - (exprID * 256)
         return Int64(symbol.rawValue) < boundary
-    }
-
-    /// Returns true if the symbol is invoked by any call site with `canThrow == true`.
-    private func detectCanThrow(
-        lambdaName: InternedString,
-        lambdaSymbol: SymbolID,
-        module: KIRModule
-    ) -> Bool {
-        for decl in module.arena.declarations {
-            guard case let .function(callerFn) = decl,
-                  callerFn.symbol != lambdaSymbol
-            else { continue }
-            for instruction in callerFn.body {
-                if case let .call(symbol, callee, _, _, canThrow, _, _) = instruction,
-                   (symbol == lambdaSymbol || callee == lambdaName),
-                   canThrow
-                {
-                    return true
-                }
-            }
-        }
-        return false
     }
 
     /// Parses lambda ExprID from names like `kk_lambda_42`.
@@ -278,48 +336,38 @@ final class LambdaClosureConversionPass: LoweringPass {
     private func synthesizeClosureObject(
         lambdaInfo: LambdaCaptureInfo,
         module: KIRModule,
-        ctx: KIRContext
+        ctx: KIRContext,
+        sema: SemaModule
     ) -> (invokeWrapperName: InternedString, invokeWrapperSymbol: SymbolID, declarations: [KIRDecl]) {
         let interner = ctx.interner
         let arena = module.arena
         let lambdaSymbolRaw = lambdaInfo.function.symbol.rawValue
-        let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
-            ?? TypeID.invalid
-        let anyType = ctx.sema?.types.anyType ?? TypeID.invalid
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        let anyType = sema.types.anyType
 
         // Nominal marker type for the closure object. The runtime payload is
         // stored in the array box allocated by `kk_object_new`.
-        let nominalSymbol: SymbolID
-        if let sema = ctx.sema {
-            let nominalName = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
-            nominalSymbol = sema.symbols.define(
-                kind: .class,
-                name: nominalName,
-                fqName: [nominalName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        } else {
-            nominalSymbol = SymbolID(rawValue: -(10_000_000 + lambdaSymbolRaw))
-        }
+        let nominalName = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
+        let nominalSymbol = sema.symbols.define(
+            kind: .class,
+            name: nominalName,
+            fqName: [nominalName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
         let nominalDecl = KIRDecl.nominalType(KIRNominalType(symbol: nominalSymbol))
 
         // Invoke wrapper function.
         let invokeWrapperName = interner.intern("kk_closure_invoke_\(lambdaSymbolRaw)")
-        let invokeSymbol: SymbolID
-        if let sema = ctx.sema {
-            invokeSymbol = sema.symbols.define(
-                kind: .function,
-                name: invokeWrapperName,
-                fqName: [invokeWrapperName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        } else {
-            invokeSymbol = SymbolID(rawValue: -(20_000_000 + lambdaSymbolRaw))
-        }
+        let invokeSymbol = sema.symbols.define(
+            kind: .function,
+            name: invokeWrapperName,
+            fqName: [invokeWrapperName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
 
         let closureObjParamSymbol = SymbolID(rawValue: -(30_000_000 + lambdaSymbolRaw))
         let closureObjParam = KIRParameter(symbol: closureObjParamSymbol, type: anyType)
@@ -328,7 +376,10 @@ final class LambdaClosureConversionPass: LoweringPass {
 
         var invokeBody: [KIRInstruction] = [.beginBlock]
         let kk_array_get = interner.intern("kk_array_get_inbounds")
-        var nextTempID = Int32(arena.expressions.count)
+        // Compute next temp ID from the arena's current expression count.
+        // This is safe here because synthesizeClosureObject is called
+        // sequentially and the arena grows monotonically.
+        var nextTempID = Int32(clamping: arena.expressions.count)
 
         let closureObjExpr = arena.appendExpr(.symbolRef(closureObjParamSymbol), type: anyType)
         invokeBody.append(.constValue(result: closureObjExpr, value: .symbolRef(closureObjParamSymbol)))
@@ -395,16 +446,18 @@ final class LambdaClosureConversionPass: LoweringPass {
         captureInfoByName: [InternedString: LambdaCaptureInfo],
         invokeWrapperByLambdaSymbol: [SymbolID: InvokeWrapperInfo],
         module: KIRModule,
-        ctx: KIRContext
+        ctx: KIRContext,
+        intType: TypeID,
+        anyType: TypeID
     ) -> KIRFunction {
         let interner = ctx.interner
         let arena = module.arena
-        let intType = ctx.sema?.types.make(.primitive(.int, .nonNull))
-            ?? TypeID.invalid
-        let anyType = ctx.sema?.types.anyType ?? TypeID.invalid
         let kk_object_new = interner.intern("kk_object_new")
         let kk_array_set = interner.intern("kk_array_set")
-        var nextTempID = Int32(arena.expressions.count)
+        // Derive next temp ID from the function's maximum existing temporary ID
+        // to keep numbering function-local and stable, avoiding sensitivity to
+        // unrelated global expression allocations.
+        var nextTempID = Self.maxTempID(in: function) + 1
 
         var updated = function
         var loweredBody: [KIRInstruction] = []
@@ -513,6 +566,42 @@ final class LambdaClosureConversionPass: LoweringPass {
         let expr = arena.appendExpr(.temporary(nextTempID), type: type)
         nextTempID += 1
         return expr
+    }
+
+    /// Compute the maximum temporary expression ID used within a function's body,
+    /// scanning result expressions of all instructions.  Returns 0 if no
+    /// temporaries exist, so the first synthesized temp will be 1.
+    private static func maxTempID(in function: KIRFunction) -> Int32 {
+        var maxID: Int32 = 0
+        for instruction in function.body {
+            let exprIDs: [KIRExprID?]
+            switch instruction {
+            case let .call(_, _, _, result, _, _, _):
+                exprIDs = [result]
+            case let .virtualCall(_, _, _, _, result, _, _, _):
+                exprIDs = [result]
+            case let .binary(_, _, _, result):
+                exprIDs = [result]
+            case let .unary(_, _, result):
+                exprIDs = [result]
+            case let .constValue(result, _):
+                exprIDs = [result]
+            case let .copy(_, to):
+                exprIDs = [to]
+            case let .nullAssert(_, result):
+                exprIDs = [result]
+            case let .loadGlobal(result, _):
+                exprIDs = [result]
+            default:
+                exprIDs = []
+            }
+            for case let id? in exprIDs {
+                if id.rawValue > maxID {
+                    maxID = id.rawValue
+                }
+            }
+        }
+        return maxID
     }
 
     private func closureObjectClassID(lambdaSymbol: SymbolID) -> Int64 {

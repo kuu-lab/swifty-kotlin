@@ -65,9 +65,8 @@ final class ABILoweringPass: LoweringPass {
             while idx < function.body.count {
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
-                    let vcIsClosureInvoke = ctx.interner.resolve(vcCallee)
-                        .hasPrefix("kk_closure_invoke_")
-                    let vcCanThrow = !vcIsClosureInvoke
+                    let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)
+                    let vcCanThrow = !vcIsClosureRelated
                         && !nonThrowingCallees.contains(vcCallee)
                     var vcSignature: FunctionSignature?
                     if let symbols, let vcSymbol {
@@ -199,14 +198,13 @@ final class ABILoweringPass: LoweringPass {
                     guard let s = callSymbol else { return false }
                     return SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(s)
                 }()
-                // Closure invoke wrappers (kk_closure_invoke_*) are synthesized
-                // by LambdaClosureConversionPass only for non-throwing lambdas
-                // (detectCanThrow filters throwing ones).  Their names are dynamic
-                // so they cannot be in the static nonThrowingCallees set.
-                let isClosureInvokeWrapper = ctx.interner.resolve(callee)
-                    .hasPrefix("kk_closure_invoke_")
+                // Closure-related callees (kk_closure_invoke_* wrappers and their
+                // internal kk_lambda_* targets) are registered as non-throwing by
+                // LambdaClosureConversionPass via module.nonThrowingClosureCallees.
+                // This avoids brittle string-prefix coupling between passes.
+                let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(callee)
                 let canThrow = !isSyntheticAccessor
-                    && !isClosureInvokeWrapper
+                    && !isClosureRelatedCallee
                     && !nonThrowingCallees.contains(callee)
 
                 var signature: FunctionSignature?
