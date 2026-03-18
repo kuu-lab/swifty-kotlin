@@ -41,6 +41,7 @@ extension CollectionLiteralLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             listExprIDs: &listExprIDs, setExprIDs: &setExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
+            arrayExprIDs: arrayExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -108,6 +109,7 @@ extension CollectionLiteralLoweringPass {
         setExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
+        arrayExprIDs: Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
         // asSequence() → kk_list_asSequence only when receiver is a tracked list.
@@ -549,6 +551,7 @@ extension CollectionLiteralLoweringPass {
                 || setExprIDs.contains(argID.rawValue)
                 || mapExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
+                || arrayExprIDs.contains(argID.rawValue)
             let effectiveArg: KIRExprID
             if isArgCollection {
                 effectiveArg = argID
@@ -587,6 +590,7 @@ extension CollectionLiteralLoweringPass {
                 || setExprIDs.contains(argID.rawValue)
                 || mapExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
+                || arrayExprIDs.contains(argID.rawValue)
             guard !isArgCollection else {
                 // Fall through: collection-removal not supported
                 return false
