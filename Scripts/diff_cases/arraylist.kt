@@ -1,3 +1,4 @@
+// DIFF_LINE_PATTERN: ^(true|false)$
 fun main() {
     val list = ArrayList<Int>()
     list.add(1)
