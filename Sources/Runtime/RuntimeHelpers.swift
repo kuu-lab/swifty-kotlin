@@ -114,20 +114,21 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 
 // MARK: - UTF-16 Substring Helper (Kotlin-compatible indexing)
 
-/// Extracts a substring from `source` using UTF-16 code unit indices, matching Kotlin's
-/// `CharSequence.subSequence(startIndex, endIndex)` semantics.
+/// Extracts a substring from `source` using UTF-16 code unit indices,
+/// approximating Kotlin's `CharSequence.subSequence(startIndex, endIndex)` semantics.
 ///
 /// Kotlin `StringBuilder.appendRange` and `CharSequence` use UTF-16 code unit indexing.
 /// Swift `String.Index` is based on `Character` (extended grapheme clusters) by default,
 /// which differs for non-BMP characters (emoji, surrogate pairs). This helper bridges the
 /// gap by operating on the `.utf16` view directly.
 ///
-/// **Unicode fidelity note**: Swift `String` cannot faithfully represent unpaired UTF-16
-/// surrogates. When `startIndex` or `endIndex` splits a surrogate pair (e.g. slicing in the
-/// middle of a non-BMP character), `String(decoding:as:)` replaces ill-formed subsequences
-/// with U+FFFD (REPLACEMENT CHARACTER). This diverges from JVM Kotlin where unpaired
-/// surrogates can be preserved as `Char` values. Callers/tests should not assume full
-/// fidelity for these edge cases.
+/// **Limitation:** Swift `String` cannot represent unpaired UTF-16 surrogates. When
+/// `startIndex` or `endIndex` splits a surrogate pair (e.g., slicing in the middle of
+/// an emoji), `String(decoding:as:)` replaces the ill-formed code unit with U+FFFD
+/// (replacement character). This diverges from JVM Kotlin, where unpaired surrogates
+/// are preserved as `Char` values. For well-formed UTF-16 input (the common case),
+/// behavior is identical. Callers/tests should not assume full fidelity for these
+/// edge cases.
 ///
 /// - Parameters:
 ///   - source: The Swift string to slice.
@@ -142,8 +143,6 @@ func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> 
     }
     let start = utf16.index(utf16.startIndex, offsetBy: startIndex)
     let end = utf16.index(utf16.startIndex, offsetBy: endIndex)
-    // Use decoding initializer to handle unpaired surrogates with U+FFFD
-    // replacement instead of silently returning an empty string.
     return String(decoding: utf16[start..<end], as: UTF16.self)
 }
 
