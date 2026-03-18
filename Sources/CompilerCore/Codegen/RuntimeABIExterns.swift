@@ -876,6 +876,12 @@ public enum RuntimeABIExterns {
         returnType: "void"
     )
 
+    public static let kk_print_noarg = ExternDecl(
+        name: "kk_print_noarg",
+        parameterTypes: [],
+        returnType: "void"
+    )
+
     public static let kk_println_newline = ExternDecl(
         name: "kk_println_newline",
         parameterTypes: [],
@@ -2174,6 +2180,7 @@ public enum RuntimeABIExterns {
             kk_string_orEmpty,
             // Print / Println
             kk_print_any,
+            kk_print_noarg,
             kk_println_any,
             kk_println_bool,
             kk_println_newline,
