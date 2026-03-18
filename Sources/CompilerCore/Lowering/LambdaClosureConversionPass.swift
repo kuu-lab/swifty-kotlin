@@ -202,6 +202,16 @@ final class LambdaClosureConversionPass: LoweringPass {
             return 0
         }
 
+        // Skip lambdas that consist of ONLY capture parameters with zero value
+        // parameters.  These are scope-function lambdas (apply, run) where the
+        // receiver `this` is the sole capture and the block takes no explicit
+        // arguments.  Wrapping these in a closure object breaks receiver-based
+        // member resolution because the loaded capture loses its concrete type.
+        let valueParamCount = function.params.count - captureCount
+        if valueParamCount == 0 {
+            return 0
+        }
+
         // Validate: at least one call site passes the full lambda arity.
         let lambdaName = function.name
         for decl in module.arena.declarations {
