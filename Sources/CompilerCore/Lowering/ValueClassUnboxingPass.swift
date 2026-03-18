@@ -17,22 +17,11 @@ final class ValueClassUnboxingPass: LoweringPass {
     static let name = "ValueClassUnboxing"
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        guard let sema = ctx.sema else {
-            return false
-        }
-        for decl in module.arena.declarations {
-            guard case let .nominalType(nominal) = decl else {
-                continue
-            }
-            guard let sym = sema.symbols.symbol(nominal.symbol) else {
-                continue
-            }
-            if sym.flags.contains(.valueType),
-               sema.symbols.valueClassUnderlyingType(for: nominal.symbol) != nil
-            {
-                return true
-            }
-        }
+        // The pass is disabled because KIR emission already lowers property
+        // access to kk_array_get_inbounds, which expects a heap object.
+        // Rewriting the constructor (which populates that heap object) without
+        // also rewriting the property access causes a crash.  A future version
+        // should intercept both patterns atomically.
         return false
     }
 
@@ -132,6 +121,13 @@ final class ValueClassUnboxingPass: LoweringPass {
                         return .copy(from: arguments[0], to: result)
                     }
                     // Unexpected arity -- leave instruction as-is.
+                }
+                // Property getter via .call (non-virtual dispatch):
+                // call getter(receiver) result -> copy(receiver, result)
+                if let symbol, valueClassPropertyGetters.contains(symbol),
+                   let result, arguments.count == 1
+                {
+                    return .copy(from: arguments[0], to: result)
                 }
                 return instruction
 

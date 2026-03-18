@@ -23,6 +23,7 @@ public final class LoweringPhase: CompilerPhase {
         CollectionLiteralLoweringPass(),
         FlowLoweringPass(),
 
+        ValueClassUnboxingPass(), // Must run before PropertyLowering (rewrites value class ctor/getter at KIR level)
         PropertyLoweringPass(),
         StdlibDelegateLoweringPass(),
         JvmStaticLoweringPass(),
@@ -32,7 +33,6 @@ public final class LoweringPhase: CompilerPhase {
         LambdaClosureConversionPass(),
         InlineLoweringPass(),
         CoroutineLoweringPass(),
-        ValueClassUnboxingPass(),
         ABILoweringPass(),
     ]
 
