@@ -1190,6 +1190,116 @@ public func kk_sequence_reduce(
     return acc
 }
 
+// MARK: - Sequence scan / runningFold / runningReduce (STDLIB-558, STDLIB-559, STDLIB-560)
+
+@_cdecl("kk_sequence_scan")
+public func kk_sequence_scan(
+    _ seqRaw: Int,
+    _ initial: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var acc = maybeUnbox(initial)
+    var results: [Int] = [acc]
+    var traversalState: SequenceTraversalState?
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        let st = SequenceTraversalState()
+        traversalState = st
+        runtimeTraverseSequenceWithState(seq, state: st, outThrown: outThrown) { elem in
+            var thrown = 0
+            let nextAcc = lambda(closureRaw, acc, elem, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return false
+            }
+            acc = maybeUnbox(nextAcc)
+            results.append(acc)
+            return true
+        }
+    } else {
+        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            var thrown = 0
+            let nextAcc = lambda(closureRaw, acc, elem, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return 0
+            }
+            acc = maybeUnbox(nextAcc)
+            results.append(acc)
+        }
+    }
+    if let outThrown, outThrown.pointee != 0 { return 0 }
+    if let traversalState, traversalState.limitReached {
+        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
+        return 0
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: results))
+}
+
+@_cdecl("kk_sequence_runningFold")
+public func kk_sequence_runningFold(
+    _ seqRaw: Int,
+    _ initial: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    return kk_sequence_scan(seqRaw, initial, fnPtr, closureRaw, outThrown)
+}
+
+@_cdecl("kk_sequence_runningReduce")
+public func kk_sequence_runningReduce(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var hasAccumulator = false
+    var acc = 0
+    var results: [Int] = []
+    let visit: (Int) -> Bool = { elem in
+        if !hasAccumulator {
+            hasAccumulator = true
+            acc = elem
+            results.append(acc)
+            return true
+        }
+        var thrown = 0
+        let nextAcc = lambda(closureRaw, acc, elem, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return false
+        }
+        acc = maybeUnbox(nextAcc)
+        results.append(acc)
+        return true
+    }
+
+    var traversalState: SequenceTraversalState?
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        let st = SequenceTraversalState()
+        traversalState = st
+        runtimeTraverseSequenceWithState(seq, state: st, outThrown: outThrown, yield: visit)
+    } else {
+        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            if !visit(elem) { break }
+        }
+    }
+
+    if let outThrown, outThrown.pointee != 0 { return 0 }
+    if let traversalState, traversalState.limitReached {
+        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
+        return 0
+    }
+    if !hasAccumulator {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: results))
+}
+
 // MARK: - Sequence Terminal Operations: joinToString/sumOf/associate/associateBy (STDLIB-275)
 
 @_cdecl("kk_sequence_joinToString")

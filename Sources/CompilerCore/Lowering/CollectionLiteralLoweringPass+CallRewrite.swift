@@ -2372,7 +2372,7 @@ extension CollectionLiteralLoweringPass {
                     }
                     // fold: args = [receiver, initial, lambda, closureRaw?]
                     // Runtime expects (listRaw, initial, fnPtr, closureRaw, outThrown)
-                    if callee == lookup.foldName, arguments.count == 3 || arguments.count == 4 {
+                    if callee == lookup.foldName, (3 ... 4).contains(arguments.count) {
                         let receiverID = arguments[0]
                         let initialID = arguments[1]
                         let lambdaID = arguments[2]
@@ -2403,7 +2403,7 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
                     // reduce: args = [receiver, lambda, closureRaw?]
-                    if callee == lookup.reduceName, arguments.count == 2 || arguments.count == 3 {
+                    if callee == lookup.reduceName, (2 ... 3).contains(arguments.count) {
                         let receiverID = arguments[0]
                         let lambdaID = arguments[1]
                         if listExprIDs.contains(receiverID.rawValue) {
@@ -2470,7 +2470,8 @@ extension CollectionLiteralLoweringPass {
                     // emitHOFCall is a private method on the VirtualCallRewrite extension and not
                     // visible from this file-scope rewrite path.  Kept inline to avoid coupling
                     // the two rewrite paths; extracting a shared helper is a future cleanup.
-                    if (callee == lookup.scanName || callee == lookup.runningFoldName), arguments.count == 3 || arguments.count == 4 {
+                    if (callee == lookup.scanName || callee == lookup.runningFoldName),
+                       (3 ... 4).contains(arguments.count) {
                         let receiverID = arguments[0]
                         let initialID = arguments[1]
                         let lambdaID = arguments[2]
@@ -2503,8 +2504,9 @@ extension CollectionLiteralLoweringPass {
                             continue
                         }
                     }
-                    // runningReduce / scanReduce: args = [receiver, lambda, closureRaw?]
-                    if (callee == lookup.runningReduceName || callee == lookup.scanReduceName), (arguments.count == 2 || arguments.count == 3) {
+                    // runningReduce: args = [receiver, lambda, closureRaw?]
+                    if callee == lookup.runningReduceName,
+                       (2 ... 3).contains(arguments.count) {
                         let receiverID = arguments[0]
                         let lambdaID = arguments[1]
                         if listExprIDs.contains(receiverID.rawValue) {
@@ -2523,6 +2525,74 @@ extension CollectionLiteralLoweringPass {
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: kkName,
+                                arguments: [receiverID, lambdaID, closureRawID],
+                                result: hofResult,
+                                canThrow: canThrow,
+                                thrownResult: thrownResult
+                            ))
+                            if let result {
+                                loweredBody.append(.copy(from: hofResult, to: result))
+                            }
+                            listExprIDs.insert(hofResult.rawValue)
+                            if let result { listExprIDs.insert(result.rawValue) }
+                            continue
+                        }
+                    }
+
+                    // scan / runningFold on sequence → kk_sequence_scan / kk_sequence_runningFold (STDLIB-558, 560)
+                    if (callee == lookup.scanName || callee == lookup.runningFoldName), (3 ... 4).contains(arguments.count) {
+                        let receiverID = arguments[0]
+                        let initialID = arguments[1]
+                        let lambdaID = arguments[2]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            let closureRawID: KIRExprID
+                            if arguments.count == 4 {
+                                closureRawID = arguments[3]
+                            } else {
+                                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                                closureRawID = zeroExpr
+                            }
+                            let kkName = callee == lookup.scanName
+                                ? lookup.kkSequenceScanName : lookup.kkSequenceRunningFoldName
+                            let hofResult = module.arena.appendExpr(
+                                .temporary(Int32(module.arena.expressions.count)), type: nil
+                            )
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: kkName,
+                                arguments: [receiverID, initialID, lambdaID, closureRawID],
+                                result: hofResult,
+                                canThrow: canThrow,
+                                thrownResult: thrownResult
+                            ))
+                            if let result {
+                                loweredBody.append(.copy(from: hofResult, to: result))
+                            }
+                            listExprIDs.insert(hofResult.rawValue)
+                            if let result { listExprIDs.insert(result.rawValue) }
+                            continue
+                        }
+                    }
+                    // runningReduce on sequence → kk_sequence_runningReduce (STDLIB-559)
+                    if callee == lookup.runningReduceName, (2 ... 3).contains(arguments.count) {
+                        let receiverID = arguments[0]
+                        let lambdaID = arguments[1]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            let closureRawID: KIRExprID
+                            if arguments.count == 3 {
+                                closureRawID = arguments[2]
+                            } else {
+                                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                                closureRawID = zeroExpr
+                            }
+                            let hofResult = module.arena.appendExpr(
+                                .temporary(Int32(module.arena.expressions.count)), type: nil
+                            )
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSequenceRunningReduceName,
                                 arguments: [receiverID, lambdaID, closureRawID],
                                 result: hofResult,
                                 canThrow: canThrow,
