@@ -3,6 +3,51 @@ import Foundation
 import XCTest
 
 final class TailrecLoweringTests: XCTestCase {
+    // MARK: - Test Helpers
+
+    /// Create a `KIRContext` with the given module name and a shared interner.
+    /// Avoids repeating `CompilerOptions` / `DiagnosticEngine` / temp-path
+    /// boilerplate across every test.
+    private func makeKIRContext(
+        moduleName: String,
+        interner: StringInterner
+    ) -> KIRContext {
+        KIRContext(
+            diagnostics: DiagnosticEngine(),
+            options: CompilerOptions(
+                moduleName: moduleName,
+                inputs: [],
+                outputPath: FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path,
+                emit: .kirDump,
+                target: defaultTargetTriple()
+            ),
+            interner: interner
+        )
+    }
+
+    /// Build a single-function `KIRModule`, run `TailrecLoweringPass`, and
+    /// return the lowered function.
+    @discardableResult
+    private func runTailrecPass(
+        function: KIRFunction,
+        arena: KIRArena,
+        moduleName: String,
+        interner: StringInterner
+    ) throws -> KIRFunction {
+        let fnID = arena.appendDecl(.function(function))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
+            arena: arena
+        )
+        let ctx = makeKIRContext(moduleName: moduleName, interner: interner)
+        try TailrecLoweringPass().run(module: module, ctx: ctx)
+        guard case let .function(lowered)? = module.arena.decl(fnID) else {
+            throw XCTSkip("expected lowered function")
+        }
+        return lowered
+    }
+
     // MARK: - Unit Tests (KIR level)
 
     /// Verify that a tailrec function's self-recursive call + returnValue
@@ -56,31 +101,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecTest", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
@@ -165,31 +189,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecBranchExprs", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecBranchExprs",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         let reusedLateBranchExpr = lowered.body.contains { instruction in
             guard case let .copy(_, to) = instruction else {
@@ -240,19 +243,7 @@ final class TailrecLoweringTests: XCTestCase {
             files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
             arena: arena
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "NonTailrecTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
+        let ctx = makeKIRContext(moduleName: "NonTailrecTest", interner: interner)
 
         // shouldRun should return false.
         XCTAssertFalse(TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
@@ -319,31 +310,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecDefaultStub", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecDefaultStub",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         // The $default stub call should be PRESERVED (not optimized)
         // because the non-zero mask means some params use defaults and
@@ -423,31 +393,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecDefaultZeroMask", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecDefaultZeroMask",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         // The $default stub call should be eliminated (mask=0 is safe).
         let hasDefaultStubCall = lowered.body.contains { instruction in
@@ -500,8 +449,8 @@ final class TailrecLoweringTests: XCTestCase {
         let subResult = arena.appendExpr(.temporary(0))
         // Sentinel value for the defaulted second parameter
         let sentinelExpr = arena.appendExpr(.intLiteral(0))
-        // Use a .temporary expression for the mask — NOT an inline .intLiteral
-        // — so the fast path in extractDefaultMask misses and the slow path
+        // Use a .temporary expression for the mask -- NOT an inline .intLiteral
+        // -- so the fast path in extractDefaultMask misses and the slow path
         // (backward scan for preceding constValue) is exercised.
         let maskTemp = arena.appendExpr(.temporary(99))
         let callResult = arena.appendExpr(.temporary(1))
@@ -520,7 +469,7 @@ final class TailrecLoweringTests: XCTestCase {
                 // recursive case: countdown$default(n - 1, 0_sentinel, mask_temp)
                 .binary(op: .subtract, lhs: nExpr, rhs: oneExpr, result: subResult),
                 .constValue(result: sentinelExpr, value: .intLiteral(0)),
-                // The mask is defined via constValue into a temporary — this
+                // The mask is defined via constValue into a temporary -- this
                 // exercises the slow-path backward scan in extractDefaultMask.
                 .constValue(result: maskTemp, value: .intLiteral(2)),
                 .call(
@@ -542,31 +491,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecSlowPathMask", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecSlowPathMask",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         // The $default stub call should be PRESERVED because the mask is
         // non-zero (slow-path resolved mask=2).
@@ -608,7 +536,7 @@ final class TailrecLoweringTests: XCTestCase {
         let oneExpr = arena.appendExpr(.intLiteral(1))
         let subResult = arena.appendExpr(.temporary(0))
         let mulResult = arena.appendExpr(.temporary(1))
-        // Use a .temporary expression for the mask (value 0) — exercises
+        // Use a .temporary expression for the mask (value 0) -- exercises
         // the slow-path backward scan in extractDefaultMask.
         let maskTemp = arena.appendExpr(.temporary(99))
         let callResult = arena.appendExpr(.temporary(2))
@@ -648,31 +576,10 @@ final class TailrecLoweringTests: XCTestCase {
             isTailrec: true
         )
 
-        let fnID = arena.appendDecl(.function(tailrecFunction))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])],
-            arena: arena
+        let lowered = try runTailrecPass(
+            function: tailrecFunction, arena: arena,
+            moduleName: "TailrecSlowPathZeroMask", interner: interner
         )
-
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "TailrecSlowPathZeroMask",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-
-        try TailrecLoweringPass().run(module: module, ctx: ctx)
-
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            XCTFail("expected lowered function")
-            return
-        }
 
         // The $default stub call should be eliminated (mask=0 via slow path).
         let hasDefaultStubCall = lowered.body.contains { instruction in

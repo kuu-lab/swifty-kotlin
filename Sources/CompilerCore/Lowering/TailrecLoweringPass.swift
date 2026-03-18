@@ -63,6 +63,40 @@ final class TailrecLoweringPass: LoweringPass {
         module.recordLowering(Self.name)
     }
 
+    /// Check whether a `$default` stub call can be safely optimized into
+    /// a tailrec loop.  Returns `true` if the call is NOT a `$default`
+    /// stub, or if it IS a `$default` stub whose mask is statically
+    /// resolvable and equal to 0 (all arguments explicitly provided).
+    ///
+    /// Returns `false` (skip optimization) when:
+    ///  - the mask could not be resolved statically (nil), or
+    ///  - the mask is non-zero (some params use defaults).
+    /// A non-zero mask means the `$default` stub would evaluate default
+    /// expressions to fill in missing arguments.  At this lowering stage
+    /// we don't have access to those default expressions, so keeping the
+    /// parameter's value from the previous iteration would silently
+    /// miscompile.
+    private func canOptimizeDefaultStubCall(
+        symbol: SymbolID?,
+        functionIdentity: TailrecFunctionIdentity,
+        arguments: [KIRExprID],
+        body: [KIRInstruction],
+        callIndex: Int,
+        arena: KIRArena
+    ) -> (canOptimize: Bool, defaultMask: Int64?) {
+        let isDefault = isDefaultStubCall(symbol: symbol, functionIdentity: functionIdentity)
+        guard isDefault else {
+            return (canOptimize: true, defaultMask: nil)
+        }
+        let mask = extractDefaultMask(
+            arguments: arguments, body: body, callIndex: callIndex, arena: arena
+        )
+        guard let mask, mask == 0 else {
+            return (canOptimize: false, defaultMask: mask)
+        }
+        return (canOptimize: true, defaultMask: mask)
+    }
+
     /// Rewrite a tailrec function body:
     /// 1. Insert a loop-head label at the start of the body (index 0).
     /// 2. Replace `call(self, args) + returnValue(result)` with
@@ -87,6 +121,17 @@ final class TailrecLoweringPass: LoweringPass {
         }
         result.append(.label(loopLabel))
 
+        // Pre-compute receiver offset once per function instead of per
+        // call site.  The receiver is a function-level property, so this
+        // avoids repeated SyntheticSymbolScheme lookups when a function
+        // contains multiple tail-call rewrites.
+        let receiverOffset: Int = {
+            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(
+                for: functionIdentity.symbol
+            )
+            return (!params.isEmpty && params[0].symbol == receiverSymbol) ? 1 : 0
+        }()
+
         var instructionIndex = loopInsertIndex
         var emittedTailJump = false
         while instructionIndex < body.count {
@@ -101,42 +146,28 @@ final class TailrecLoweringPass: LoweringPass {
                 continue
             }
 
-            // --- Value-returning tail call: call(self, args) → result, then returnValue(result) ---
+            // --- Value-returning tail call: call(self, args) -> result, then returnValue(result) ---
             if case let .call(symbol, _, arguments, callResult?, _, _, _) = instruction,
                isSelfRecursiveCall(symbol: symbol, functionIdentity: functionIdentity),
                instructionIndex + 1 < body.count,
                isReturnOfResult(body[instructionIndex + 1], callResult: callResult)
             {
-                let isDefault = isDefaultStubCall(symbol: symbol, functionIdentity: functionIdentity)
-                let defaultMask = isDefault
-                    ? extractDefaultMask(arguments: arguments, body: body, callIndex: instructionIndex, arena: arena)
-                    : nil
-                // If this is a $default stub call, check whether we can
-                // safely optimize it.  We skip tailrec when:
-                //  - the mask could not be resolved statically (nil), or
-                //  - the mask is non-zero (some params use defaults).
-                // A non-zero mask means the $default stub would evaluate
-                // default expressions to fill in missing arguments.  At
-                // this lowering stage we don't have access to those
-                // default expressions, so keeping the parameter's value
-                // from the previous iteration would silently miscompile
-                // (the parameter retains a stale value instead of being
-                // reset to its default).  The only safe non-zero-mask
-                // optimisation would require inlining the default
-                // expressions, which is not yet implemented.
-                if isDefault {
-                    guard let mask = defaultMask, mask == 0 else {
-                        result.append(instruction)
-                        instructionIndex += 1
-                        continue
-                    }
+                let check = canOptimizeDefaultStubCall(
+                    symbol: symbol, functionIdentity: functionIdentity,
+                    arguments: arguments, body: body,
+                    callIndex: instructionIndex, arena: arena
+                )
+                guard check.canOptimize else {
+                    result.append(instruction)
+                    instructionIndex += 1
+                    continue
                 }
                 emitParameterReassignment(
                     arguments: arguments,
                     params: params,
                     canonicalParamExprs: canonicalParamExprs,
-                    defaultMask: defaultMask,
-                    functionSymbol: functionIdentity.symbol,
+                    defaultMask: check.defaultMask,
+                    receiverOffset: receiverOffset,
                     arena: arena,
                     result: &result
                 )
@@ -152,23 +183,22 @@ final class TailrecLoweringPass: LoweringPass {
                instructionIndex + 1 < body.count,
                isReturnUnitInstruction(body[instructionIndex + 1])
             {
-                let isDefault = isDefaultStubCall(symbol: symbol, functionIdentity: functionIdentity)
-                let defaultMask = isDefault
-                    ? extractDefaultMask(arguments: arguments, body: body, callIndex: instructionIndex, arena: arena)
-                    : nil
-                if isDefault {
-                    guard let mask = defaultMask, mask == 0 else {
-                        result.append(instruction)
-                        instructionIndex += 1
-                        continue
-                    }
+                let check = canOptimizeDefaultStubCall(
+                    symbol: symbol, functionIdentity: functionIdentity,
+                    arguments: arguments, body: body,
+                    callIndex: instructionIndex, arena: arena
+                )
+                guard check.canOptimize else {
+                    result.append(instruction)
+                    instructionIndex += 1
+                    continue
                 }
                 emitParameterReassignment(
                     arguments: arguments,
                     params: params,
                     canonicalParamExprs: canonicalParamExprs,
-                    defaultMask: defaultMask,
-                    functionSymbol: functionIdentity.symbol,
+                    defaultMask: check.defaultMask,
+                    receiverOffset: receiverOffset,
                     arena: arena,
                     result: &result
                 )
@@ -300,15 +330,16 @@ final class TailrecLoweringPass: LoweringPass {
     /// (excluding the receiver).  When the function has a receiver
     /// parameter (detected via `SyntheticSymbolScheme`), the receiver
     /// occupies index 0 in both `params` and `arguments` but is not
-    /// counted in the mask.  We compute a `receiverOffset` (0 or 1) and
-    /// subtract it when testing mask bits so that bit 0 maps to the first
-    /// value parameter, bit 1 to the second, etc.
+    /// counted in the mask.  `receiverOffset` (0 or 1) is pre-computed
+    /// once per function in `rewriteTailCalls` and passed in here so
+    /// that we avoid repeated `SyntheticSymbolScheme` lookups when a
+    /// function has multiple tail-call sites.
     private func emitParameterReassignment(
         arguments: [KIRExprID],
         params: [KIRParameter],
         canonicalParamExprs: [SymbolID: KIRExprID],
         defaultMask: Int64? = nil,
-        functionSymbol: SymbolID,
+        receiverOffset: Int,
         arena: KIRArena,
         result: inout [KIRInstruction]
     ) {
@@ -316,18 +347,6 @@ final class TailrecLoweringPass: LoweringPass {
         // carry trailing reified-type tokens and a mask that must not
         // participate in parameter reassignment.
         let effectiveCount = min(arguments.count, params.count)
-
-        // Compute receiver offset only when we actually have a default
-        // mask — for non-$default calls the mask is nil and the offset
-        // is irrelevant, so we avoid the SyntheticSymbolScheme lookup
-        // on the non-$default hot path.
-        let receiverOffset: Int
-        if defaultMask != nil {
-            let receiverSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: functionSymbol)
-            receiverOffset = (!params.isEmpty && params[0].symbol == receiverSymbol) ? 1 : 0
-        } else {
-            receiverOffset = 0
-        }
 
         // First, copy arguments into fresh temporaries to avoid
         // overwriting a parameter that is used in a later argument expression.
