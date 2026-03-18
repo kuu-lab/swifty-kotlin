@@ -10,9 +10,13 @@ import Foundation
 ///
 /// ## Binary Format
 ///
-/// The metadata is emitted as a flat byte buffer stored in a global constant
-/// named `kk_reflection_metadata`. A companion global `kk_reflection_metadata_size`
-/// holds the byte count.
+/// The serialized metadata blob is emitted as per-word i64 globals because the
+/// current LLVM bindings do not expose `LLVMConstArray` for i8 arrays.
+///
+/// Globals emitted:
+/// - `kk_reflection_metadata_size` (i64): total byte count of the serialized blob
+/// - `kk_reflection_metadata_words` (i64): number of i64 words
+/// - `kk_reflection_metadata_w{N}` (i64): each word of the blob (little-endian packed)
 ///
 /// Layout:
 /// ```
@@ -150,11 +154,10 @@ public struct RuntimeReflectionMetadataEmitter {
     /// Emits the serialized metadata as LLVM global constants using the
     /// provided bindings.
     ///
-    /// Creates two globals:
-    /// - `kk_reflection_metadata`: byte array containing the serialized metadata
+    /// Creates the following globals:
     /// - `kk_reflection_metadata_size`: i64 holding the byte count
-    ///
-    /// Both are marked as internal linkage constants.
+    /// - `kk_reflection_metadata_words`: i64 holding the number of i64 words
+    /// - `kk_reflection_metadata_w{N}`: one i64 per word of the blob
     static func emitGlobals(
         records: [MetadataRecord],
         bindings: LLVMCAPIBindings,
@@ -162,6 +165,9 @@ public struct RuntimeReflectionMetadataEmitter {
         context: LLVMCAPIBindings.LLVMContextRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef
     ) {
+        // When there are no records we intentionally skip emitting any globals.
+        // The runtime loader checks for the existence of kk_reflection_metadata_size
+        // and treats a missing symbol as "no metadata available".
         guard !records.isEmpty else { return }
 
         let data = serialize(records)
@@ -225,12 +231,12 @@ public struct RuntimeReflectionMetadataEmitter {
 
     private static func appendU16(_ data: inout Data, _ value: UInt16) {
         var v = value.littleEndian
-        data.append(contentsOf: withUnsafeBytes(of: &v) { Array($0) })
+        withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }
     }
 
     private static func appendU32(_ data: inout Data, _ value: UInt32) {
         var v = value.littleEndian
-        data.append(contentsOf: withUnsafeBytes(of: &v) { Array($0) })
+        withUnsafeBytes(of: &v) { data.append(contentsOf: $0) }
     }
 
     // MARK: - String Table
@@ -256,14 +262,13 @@ public struct RuntimeReflectionMetadataEmitter {
         func appendTo(_ data: inout Data) {
             // Entry count
             var count = UInt32(strings.count).littleEndian
-            data.append(contentsOf: withUnsafeBytes(of: &count) { Array($0) })
+            withUnsafeBytes(of: &count) { data.append(contentsOf: $0) }
 
             // Each entry: length + UTF-8 bytes
             for string in strings {
-                let utf8 = Array(string.utf8)
-                var length = UInt32(utf8.count).littleEndian
-                data.append(contentsOf: withUnsafeBytes(of: &length) { Array($0) })
-                data.append(contentsOf: utf8)
+                var length = UInt32(string.utf8.count).littleEndian
+                withUnsafeBytes(of: &length) { data.append(contentsOf: $0) }
+                data.append(contentsOf: string.utf8)
             }
         }
     }
@@ -318,11 +323,21 @@ public struct RuntimeReflectionMetadataDecoder {
             let fieldCountRaw = readU32(data, at: &offset)
             let instanceSizeRaw = readU32(data, at: &offset)
 
-            let fqName = Int(fqNameIdx) < strings.count ? strings[Int(fqNameIdx)] : ""
-            let simpleName = Int(simpleNameIdx) < strings.count ? strings[Int(simpleNameIdx)] : ""
-            let superFqName: String? = superFqNameIdx == RuntimeReflectionMetadataEmitter.sentinel
-                ? nil
-                : (Int(superFqNameIdx) < strings.count ? strings[Int(superFqNameIdx)] : nil)
+            guard Int(fqNameIdx) < strings.count, Int(simpleNameIdx) < strings.count else {
+                // Invalid string table index — metadata blob is corrupted.
+                return nil
+            }
+            let fqName = strings[Int(fqNameIdx)]
+            let simpleName = strings[Int(simpleNameIdx)]
+            let superFqName: String?
+            if superFqNameIdx == RuntimeReflectionMetadataEmitter.sentinel {
+                superFqName = nil
+            } else {
+                guard Int(superFqNameIdx) < strings.count else {
+                    return nil
+                }
+                superFqName = strings[Int(superFqNameIdx)]
+            }
             let fieldCount: UInt32? = fieldCountRaw == RuntimeReflectionMetadataEmitter.sentinel ? nil : fieldCountRaw
             let instanceSize: UInt32? = instanceSizeRaw == RuntimeReflectionMetadataEmitter.sentinel ? nil : instanceSizeRaw
 
