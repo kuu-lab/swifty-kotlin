@@ -90,7 +90,7 @@ public func kk_precondition_assert_lazy(
 public func kk_error(_ messageRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let message = runtimePreconditionMessage(from: messageRaw)
-    outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalStateException: \(message)")
+    outThrown?.pointee = runtimeAllocateThrowable(message: message)
     return 0
 }
 
