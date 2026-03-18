@@ -60,17 +60,26 @@ public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
         return rangeRaw
     }
     let nextStep = range.step < 0 ? -stepValue : stepValue
-    // Align 'last' to the step like Kotlin's IntProgression:
+    // Align 'last' to the step like Kotlin's getProgressionLastElement:
     // last is the final value in the progression that stays within the range.
+    // Guard empty ranges first — Kotlin returns 'last' unchanged for empty
+    // progressions (positive step: first > last; negative step: first < last).
+    // Use wrapping arithmetic (&-/&+) to avoid trapping on extreme Int ranges.
     let alignedLast: Int
     if nextStep > 0 {
-        let diff = range.last - range.first
+        guard range.first <= range.last else {
+            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+        }
+        let diff = range.last &- range.first
         let remainder = diff % nextStep
-        alignedLast = range.last - remainder
+        alignedLast = range.last &- remainder
     } else {
-        let diff = range.first - range.last
+        guard range.first >= range.last else {
+            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+        }
+        let diff = range.first &- range.last
         let remainder = diff % (-nextStep)
-        alignedLast = range.last + remainder
+        alignedLast = range.last &+ remainder
     }
     return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: alignedLast, step: nextStep))
 }
