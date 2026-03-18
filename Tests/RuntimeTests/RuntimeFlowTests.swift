@@ -76,12 +76,11 @@ private let runtimeFlowTestState = RuntimeFlowTestState()
 @_cdecl("runtime_test_flow_emitter_values_1_2_3_4")
 func runtime_test_flow_emitter_values_1_2_3_4(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
+    let sentinel = kk_flow_stopped()
     for value in 1 ... 4 {
         runtimeFlowTestState.recordEmitCall()
         let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
-        if result == Int.min { // runtimeFlowStopSentinel
-            break
-        }
+        if result == sentinel { break }
     }
     return 0
 }
@@ -138,7 +137,7 @@ func runtime_test_flow_emitter_large_source(_ outThrown: UnsafeMutablePointer<In
     for value in 1 ... 10_000 {
         runtimeFlowTestState.recordEmitCall()
         let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
-        if result == Int.min { // runtimeFlowStopSentinel
+        if result == kk_flow_stopped() { // out-of-band sentinel
             break
         }
     }

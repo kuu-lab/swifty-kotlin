@@ -1004,10 +1004,26 @@ public func kk_flow_create(_ emitterFnPtr: Int, _: Int) -> Int {
     runtimeRegisterFlowHandle(RuntimeFlowHandle(emitterFnPtr: emitterFnPtr))
 }
 
+/// Return the flow-stop sentinel pointer. This is a unique object pointer that
+/// cannot collide with any legitimate `Int` value (unlike the previous `Int.min`
+/// approach). Emitters should compare the return value of `kk_flow_emit` against
+/// `kk_flow_stopped()` to detect pipeline termination.
+@_cdecl("kk_flow_stopped")
+public func kk_flow_stopped() -> Int {
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passUnretained(runtimeStorage.flowStopSentinelBox).toOpaque())
+    runtimeStorage.withLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 /// Sentinel value returned by `kk_flow_emit` to signal that the pipeline has
 /// terminated (e.g. a `.take` counter was exhausted or the collector threw).
-/// Emitters should check for this value and stop emitting when they see it.
-private let runtimeFlowStopSentinel: Int = Int.min
+/// This uses a unique heap-allocated object pointer so it cannot collide with
+/// any legitimate emitted `Int` value (including `Int.min`).
+private var runtimeFlowStopSentinel: Int {
+    kk_flow_stopped()
+}
 
 @_cdecl("kk_flow_emit")
 public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
