@@ -77,7 +77,11 @@ private let runtimeFlowTestState = RuntimeFlowTestState()
 func runtime_test_flow_emitter_values_1_2_3_4(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     for value in 1 ... 4 {
-        _ = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
+        runtimeFlowTestState.recordEmitCall()
+        let result = kk_flow_emit(0, value, RuntimeFlowTag.emit.rawValue)
+        if result == Int.min { // runtimeFlowStopSentinel
+            break
+        }
     }
     return 0
 }
@@ -163,11 +167,16 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let chainedTake = kk_flow_emit(firstTake, 2, RuntimeFlowTag.take.rawValue)
 
         _ = kk_flow_collect(chainedTake, collectorPtr, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2], "Both take steps should be applied in a chain.")
+        let snapshot1 = runtimeFlowTestState.snapshot()
+        XCTAssertEqual(snapshot1.values, [1, 2], "Both take steps should be applied in a chain.")
+        // Emitter should stop after take(2) terminates: 2 delivered + 1 that sees sentinel = 3.
+        XCTAssertLessThanOrEqual(snapshot1.emitCalls, 3, "Emitter should stop early after chained take exhaustion.")
 
         runtimeFlowTestState.reset()
         _ = kk_flow_collect(chainedTake, collectorPtr, 0)
-        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2], "take counters should reset on each collect.")
+        let snapshot2 = runtimeFlowTestState.snapshot()
+        XCTAssertEqual(snapshot2.values, [1, 2], "take counters should reset on each collect.")
+        XCTAssertLessThanOrEqual(snapshot2.emitCalls, 3, "Emitter should stop early on re-collect too.")
     }
 
     func testMapThrowTerminatesFlowAndSkipsSubsequentEmits() {
@@ -183,6 +192,9 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(snapshot.values, [1], "Values after a thrown map step must not reach collector.")
         XCTAssertEqual(snapshot.mapCalls, 2, "Map should run for values 1 and 2, then terminate.")
         XCTAssertEqual(snapshot.collectorCalls, 1)
+        // Emitter should stop early: value 1 ok, value 2 throws -> terminated.
+        // Value 3 emitted -> sees stop sentinel and breaks. So emitCalls <= 3.
+        XCTAssertLessThanOrEqual(snapshot.emitCalls, 3, "Emitter should stop early after map throw terminates pipeline.")
     }
 
     func testFilterMapTakePipelinePreservesOrderAndStopsAfterTake() {
@@ -205,6 +217,10 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(snapshot.filterCalls, 2, "Filter runs lazily per element; stops after take(1) is satisfied.")
         XCTAssertEqual(snapshot.mapCalls, 1, "Map runs only for the single element that passed filter before take exhausted.")
         XCTAssertEqual(snapshot.collectorCalls, 1)
+        // Verify the *source emitter* stops early rather than iterating all 4 elements.
+        // Element 1 emitted -> filtered out. Element 2 emitted -> passes filter, map, take(1) delivers and terminates.
+        // Element 3 emitted -> sees stop sentinel, emitter breaks. So emitCalls <= 3.
+        XCTAssertLessThanOrEqual(snapshot.emitCalls, 3, "Emitter should stop early once take(1) terminates the pipeline.")
     }
 
     func testCollectorThrowTerminatesFlowAfterFirstCollectedValue() {
@@ -217,6 +233,9 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
         let snapshot = runtimeFlowTestState.snapshot()
         XCTAssertEqual(snapshot.values, [1], "Collector throw should stop subsequent emissions.")
         XCTAssertEqual(snapshot.collectorCalls, 1)
+        // Emitter should stop early: value 1 delivered -> collector throws -> terminated.
+        // Value 2 emitted -> sees stop sentinel and breaks. So emitCalls <= 2.
+        XCTAssertLessThanOrEqual(snapshot.emitCalls, 2, "Emitter should stop early after collector throw terminates pipeline.")
     }
 
     func testTakeFollowedByRejectAllFilterTerminatesOverLargeSource() {
