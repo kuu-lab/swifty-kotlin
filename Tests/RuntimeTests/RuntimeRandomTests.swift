@@ -4,10 +4,16 @@ import XCTest
 final class RuntimeRandomTests: IsolatedRuntimeXCTestCase {
     // MARK: - nextLong
 
-    func testNextLongReturnsValue() {
-        // Just verify it doesn't crash and returns some Int value.
-        let result = kk_random_nextLong(0)
-        XCTAssertTrue(result >= Int.min && result <= Int.max)
+    func testNextLongReturnsValueIn64BitRange() {
+        // Verify nextLong handles 64-bit ranges by calling the bounded variant
+        // with bounds above Int32.max to prove it isn't silently truncating.
+        var thrown: Int = 0
+        let lowerBound = Int(Int32.max) + 1   // 2_147_483_648
+        let upperBound = Int(Int32.max) + 100  // 2_147_483_747
+        let result = kk_random_nextLong_range(0, lowerBound, upperBound, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertTrue(result >= lowerBound && result < upperBound,
+                       "nextLong range should produce a value in [\(lowerBound), \(upperBound)), got \(result)")
     }
 
     // MARK: - nextLong(until)
@@ -54,17 +60,10 @@ final class RuntimeRandomTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - nextFloat
 
-    func testNextFloatReturnsBoxedFloatInUnitRange() {
-        let boxed = kk_random_nextFloat(0)
-        // The result is a boxed float — unbox it to get float bits.
-        let unboxed = kk_unbox_float(boxed)
-        let f = floatFromBits(unboxed)
+    func testNextFloatReturnsRawBitsInUnitRange() {
+        let bits = kk_random_nextFloat(0)
+        // The result is raw Float bits (no boxing), consistent with math functions.
+        let f = Float(bitPattern: UInt32(truncatingIfNeeded: bits))
         XCTAssertTrue(f >= 0.0 && f < 1.0, "nextFloat should return a value in [0, 1), got \(f)")
-    }
-
-    // MARK: - Helpers
-
-    private func floatFromBits(_ raw: Int) -> Float {
-        Float(bitPattern: UInt32(truncatingIfNeeded: raw))
     }
 }

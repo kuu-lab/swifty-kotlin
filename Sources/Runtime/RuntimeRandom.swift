@@ -60,14 +60,12 @@ public func kk_random_nextLong_range(_: Int, _ from: Int, _ until: Int, _ outThr
 
 @_cdecl("kk_random_nextFloat")
 public func kk_random_nextFloat(_: Int) -> Int {
-    let f = Float.random(in: 0 ..< 1)
-    return kk_box_float(kk_float_to_bits(f))
+    kk_float_to_bits(Float.random(in: 0 ..< 1))
 }
 
 @_cdecl("kk_random_nextDouble")
 public func kk_random_nextDouble(_: Int) -> Int {
-    let d = Double.random(in: 0 ..< 1)
-    return kk_box_double(kk_double_to_bits(d))
+    kk_double_to_bits(Double.random(in: 0 ..< 1))
 }
 
 @_cdecl("kk_random_nextBoolean")
