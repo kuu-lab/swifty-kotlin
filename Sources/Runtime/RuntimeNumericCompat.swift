@@ -393,16 +393,36 @@ public func kk_math_floor_float(_ value: Int) -> Int {
 // MARK: - STDLIB-510~511: roundToInt / roundToLong extensions
 
 // Kotlin's roundToInt/roundToLong use Math.round() semantics: ties round
-// towards positive infinity, i.e. floor(x + 0.5).
+// towards positive infinity. For Float, we use a bit-manipulation algorithm
+// matching Java 7+ Math.round(float) to avoid precision loss from floorf(x + 0.5)
+// near half-integer boundaries (JDK-6430675). For Double, floor(x + 0.5) is
+// correct as it matches Kotlin/JVM behavior.
+
+/// Bit-manipulation rounding for Float matching Java 7+ Math.round(float).
+/// Avoids the precision loss of `floorf(raw + 0.5)` for values just below
+/// half-integer boundaries (e.g. Float(bitPattern: 0x3EFFFFFF) ~ 0.49999997).
+private func roundFloatJava7(_ raw: Float) -> Int64 {
+    let bits = raw.bitPattern
+    let biasedExp = Int((bits >> 23) & 0xFF)
+    let shift = 149 - biasedExp  // (23 - 1 + 127) - biasedExp
+    if (shift & ~31) == 0 {  // 0 <= shift <= 31
+        var r = Int32(bitPattern: (bits & 0x7F_FFFF) | 0x80_0000)
+        if Int32(bitPattern: bits) < 0 { r = -r }
+        return Int64((r >> shift) &+ 1) >> 1
+    } else {
+        // Exponent too small (magnitude < 0.5 → 0) or too large (already integral)
+        return Int64(raw)
+    }
+}
 
 @_cdecl("kk_float_roundToInt")
 public func kk_float_roundToInt(_ value: Int) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN { return 0 }
-    let f = floorf(raw + 0.5)
-    if f >= Float(Int32.max) { return Int(Int32.max) }
-    if f <= Float(Int32.min) { return Int(Int32.min) }
-    return Int(Int32(f))
+    let r = roundFloatJava7(raw)
+    if r >= Int64(Int32.max) { return Int(Int32.max) }
+    if r <= Int64(Int32.min) { return Int(Int32.min) }
+    return Int(Int32(r))
 }
 
 @_cdecl("kk_double_roundToInt")
@@ -419,10 +439,10 @@ public func kk_double_roundToInt(_ value: Int) -> Int {
 public func kk_float_roundToLong(_ value: Int) -> Int {
     let raw = kk_bits_to_float(value)
     if raw.isNaN { return 0 }
-    let f = floorf(raw + 0.5)
-    if f >= Float(Int64.max) { return Int(Int64.max) }
-    if f <= Float(Int64.min) { return Int(Int64.min) }
-    return Int(Int64(f))
+    let r = roundFloatJava7(raw)
+    if r >= Int64.max { return Int(Int64.max) }
+    if r <= Int64.min { return Int(Int64.min) }
+    return Int(r)
 }
 
 @_cdecl("kk_double_roundToLong")
