@@ -876,20 +876,24 @@ public func kk_string_toByteArray(_ strRaw: Int) -> Int {
 }
 
 // STDLIB-573: String.encodeToByteArray()
+// Delegates to kk_string_toByteArray to avoid behavioral drift (single source of truth).
 @_cdecl("kk_string_encodeToByteArray")
 public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeListRaw(source.utf8.map(Int.init))
+    kk_string_toByteArray(strRaw)
 }
 
 // STDLIB-574: ByteArray.decodeToString()
 @_cdecl("kk_bytearray_decodeToString")
 public func kk_bytearray_decodeToString(_ arrRaw: Int) -> Int {
     guard let list = runtimeListBox(from: arrRaw) else {
-        return runtimeMakeStringRaw("")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bytearray_decodeToString received invalid list handle \(arrRaw)")
     }
-    let bytes = list.elements.map { UInt8(clamping: $0) }
-    let decoded = String(bytes: bytes, encoding: .utf8) ?? ""
+    // Use truncating conversion to match Kotlin's signed-byte semantics:
+    // negative values (e.g. -1) become their unsigned equivalent (255).
+    let bytes = list.elements.map { UInt8(truncatingIfNeeded: $0) }
+    // Use String(decoding:as:) for UTF-8 replacement decoding: malformed
+    // sequences produce U+FFFD instead of returning nil/empty.
+    let decoded = String(decoding: bytes, as: UTF8.self)
     return runtimeMakeStringRaw(decoded)
 }
 
