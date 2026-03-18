@@ -2,6 +2,39 @@
 import Foundation
 
 extension CollectionLiteralLoweringPass {
+
+    /// Returns true when the resolved symbol's FQN matches one of the known
+    /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
+    /// we conservatively allow the rewrite – the name check already passed and
+    /// unresolved symbols are common for synthetic stubs that have no KIR-level
+    /// symbol entry.
+    private func isStdlibCollectionFactory(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        guard let sym = symbol,
+              let resolved = ctx.sema?.symbols.symbol(sym)
+        else {
+            // No symbol info available – fall through to name-only rewrite
+            // (backwards compatible with pre-symbol resolution passes).
+            return true
+        }
+        let fqName = resolved.fqName
+        // Match against known stdlib collection factory FQNs
+        return fqName == lookup.emptyListFQName
+            || fqName == lookup.listOfFQName
+            || fqName == lookup.mutableListOfFQName
+            || fqName == lookup.listOfNotNullFQName
+            || fqName == lookup.emptySetFQName
+            || fqName == lookup.setOfFQName
+            || fqName == lookup.mutableSetOfFQName
+            || fqName == lookup.emptyMapFQName
+            || fqName == lookup.mapOfFQName
+            || fqName == lookup.mutableMapOfFQName
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func rewriteCalls(module: KIRModule, ctx: KIRContext) throws {
         let lookup = CollectionLiteralLookupTables(interner: ctx.interner)
@@ -54,7 +87,11 @@ extension CollectionLiteralLoweringPass {
                 switch instruction {
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _):
                     // --- Rewrite listOf/mutableListOf/emptyList → kk_list_of / kk_emptyList ---
-                    if lookup.listFactoryNames.contains(callee) {
+                    // Only rewrite calls whose symbol resolves to a known
+                    // kotlin.collections.* factory to avoid accidentally
+                    // lowering user-defined functions with the same name.
+                    if lookup.listFactoryNames.contains(callee),
+                       isStdlibCollectionFactory(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
                         let count = arguments.count
                         if count == 0 && callee != lookup.mutableListOfName {
                             // emptyList() / listOf() → kk_emptyList()
@@ -208,7 +245,8 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // --- Rewrite setOf/mutableSetOf/emptySet → kk_set_of / kk_emptySet ---
-                    if lookup.setFactoryNames.contains(callee) {
+                    if lookup.setFactoryNames.contains(callee),
+                       isStdlibCollectionFactory(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
                         let count = arguments.count
                         if count == 0 && callee != lookup.mutableSetOfName {
                             // emptySet() / setOf() → kk_emptySet()
@@ -276,7 +314,8 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // --- Rewrite mapOf/mutableMapOf/emptyMap → kk_map_of / kk_emptyMap ---
-                    if lookup.mapFactoryNames.contains(callee) {
+                    if lookup.mapFactoryNames.contains(callee),
+                       isStdlibCollectionFactory(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
                         let count = arguments.count
                         if count == 0 && callee != lookup.mutableMapOfName {
                             // emptyMap() / mapOf() → kk_emptyMap()
