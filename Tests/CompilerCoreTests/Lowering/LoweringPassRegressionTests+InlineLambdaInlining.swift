@@ -494,4 +494,314 @@ extension LoweringPassRegressionTests {
             "Lambda add operation should be inlined, got: \(callees)"
         )
     }
+
+    /// Verify that a lambda body with multiple return instructions (control-flow
+    /// branches) is correctly inlined using a merge label, preserving both
+    /// branches and producing a single merged result.
+    func testInlineLoweringInlinesControlFlowLambdaWithMergeLabel() throws {
+        let tc = InlineLambdaTestContext()
+
+        let mainSymbol = tc.defineFunction(name: "main")
+        let (inlineSymbol, inlineValueParam, inlineBlockParam) =
+            tc.defineInlineFunction(name: "applyBlock")
+        let (lambdaSymbol, lambdaParamSymbol) =
+            tc.defineLambda(name: "$lambda_cf", paramName: "x")
+
+        // Lambda with control flow: { x ->
+        //   if (x == 0) return 100  // branch A
+        //   else return x + 1       // branch B
+        // }
+        // This produces two returnValue instructions, triggering the merge-label path.
+        let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
+        let lambdaZeroExpr = tc.arena.appendExpr(.intLiteral(0), type: tc.intType)
+        let lambdaHundredExpr = tc.arena.appendExpr(.intLiteral(100), type: tc.intType)
+        let lambdaOneExpr = tc.arena.appendExpr(.intLiteral(1), type: tc.intType)
+        let lambdaSumExpr = tc.arena.appendExpr(.temporary(500), type: tc.intType)
+
+        let elseLabel: Int32 = 1
+        let lambdaFunction = KIRFunction(
+            symbol: lambdaSymbol,
+            name: tc.interner.intern("$lambda_cf"),
+            params: [KIRParameter(symbol: lambdaParamSymbol, type: tc.intType)],
+            returnType: tc.intType,
+            body: [
+                .beginBlock,
+                .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
+                .constValue(result: lambdaZeroExpr, value: .intLiteral(0)),
+                // if (x == 0) jump to else
+                .jumpIfEqual(lhs: lambdaArgExpr, rhs: lambdaZeroExpr, target: elseLabel),
+                // branch A: return x + 1
+                .constValue(result: lambdaOneExpr, value: .intLiteral(1)),
+                .call(
+                    symbol: nil,
+                    callee: tc.interner.intern("kk_op_add"),
+                    arguments: [lambdaArgExpr, lambdaOneExpr],
+                    result: lambdaSumExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(lambdaSumExpr),
+                // branch B: return 100
+                .label(elseLabel),
+                .constValue(result: lambdaHundredExpr, value: .intLiteral(100)),
+                .returnValue(lambdaHundredExpr),
+                .endBlock,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        // Inline function: inline fun applyBlock(x: Int, block: (Int) -> Int): Int = block(x)
+        let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
+        let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
+        let inlineCallResult = tc.arena.appendExpr(.temporary(600), type: tc.intType)
+
+        let inlineFunction = KIRFunction(
+            symbol: inlineSymbol,
+            name: tc.interner.intern("applyBlock"),
+            params: [
+                KIRParameter(symbol: inlineValueParam, type: tc.intType),
+                KIRParameter(symbol: inlineBlockParam, type: tc.funcType),
+            ],
+            returnType: tc.intType,
+            body: [
+                .constValue(result: inlineXExpr, value: .symbolRef(inlineValueParam)),
+                .constValue(result: inlineBlockExpr, value: .symbolRef(inlineBlockParam)),
+                .call(
+                    symbol: inlineBlockParam,
+                    callee: tc.interner.intern("$lambda_cf"),
+                    arguments: [inlineXExpr],
+                    result: inlineCallResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(inlineCallResult),
+            ],
+            isSuspend: false,
+            isInline: true
+        )
+
+        // Caller: fun main(): Int = applyBlock(0) { ... }
+        let callerArgExpr = tc.arena.appendExpr(.intLiteral(0), type: tc.intType)
+        let callerLambdaRef = tc.arena.appendExpr(.symbolRef(lambdaSymbol), type: tc.funcType)
+        let callerResult = tc.arena.appendExpr(.temporary(700), type: tc.intType)
+
+        let mainFunction = KIRFunction(
+            symbol: mainSymbol,
+            name: tc.interner.intern("main"),
+            params: [],
+            returnType: tc.intType,
+            body: [
+                .constValue(result: callerArgExpr, value: .intLiteral(0)),
+                .constValue(result: callerLambdaRef, value: .symbolRef(lambdaSymbol)),
+                .call(
+                    symbol: inlineSymbol,
+                    callee: tc.interner.intern("applyBlock"),
+                    arguments: [callerArgExpr, callerLambdaRef],
+                    result: callerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(callerResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let (callees, loweredMain) = try tc.lowerAndExtractCallees(
+            mainFunction: mainFunction,
+            otherDecls: [inlineFunction, lambdaFunction],
+            moduleName: "InlineControlFlowLambda"
+        )
+
+        // Both the inline function and the lambda should be fully inlined.
+        XCTAssertFalse(
+            callees.contains("applyBlock"),
+            "applyBlock should have been inlined, got callees: \(callees)"
+        )
+        XCTAssertFalse(
+            callees.contains("$lambda_cf"),
+            "Lambda should have been inlined, got callees: \(callees)"
+        )
+
+        // The add operation from branch A should be present.
+        XCTAssertTrue(
+            callees.contains("kk_op_add"),
+            "Branch A (kk_op_add) should be preserved, got callees: \(callees)"
+        )
+
+        // The lowered body should contain both branches. Verify that:
+        // 1. At least one label exists (the merge label and/or the branch label)
+        let labels = loweredMain.body.compactMap { inst -> Int32? in
+            if case let .label(id) = inst { return id }
+            return nil
+        }
+        XCTAssertGreaterThanOrEqual(
+            labels.count, 2,
+            "Should have at least 2 labels (branch + merge), got \(labels.count)"
+        )
+
+        // 2. Jump instructions exist for branch convergence (the merge-label
+        //    path emits jumps from each return site to the exit label).
+        let jumps = loweredMain.body.filter {
+            if case .jump = $0 { return true }
+            return false
+        }
+        XCTAssertGreaterThanOrEqual(
+            jumps.count, 1,
+            "Merge-label path should emit jump instructions to converge branches"
+        )
+
+        // 3. The body must NOT be truncated after the first return. Both branches
+        //    contribute instructions. The const value for 100 (branch B) must be
+        //    present alongside the kk_op_add call (branch A).
+        let constValues = loweredMain.body.compactMap { inst -> KIRExprKind? in
+            if case let .constValue(_, value) = inst { return value }
+            return nil
+        }
+        let hasHundred = constValues.contains { kind in
+            if case .intLiteral(100) = kind { return true }
+            return false
+        }
+        XCTAssertTrue(
+            hasHundred,
+            "Branch B (return 100) should be preserved in the lowered body"
+        )
+
+        // 4. Exactly one returnValue in the final lowered body (everything merged)
+        let returnValues = loweredMain.body.compactMap { inst -> KIRExprID? in
+            if case let .returnValue(expr) = inst { return expr }
+            return nil
+        }
+        XCTAssertEqual(
+            returnValues.count, 1,
+            "Lowered body should have exactly one returnValue after merge, got \(returnValues.count)"
+        )
+    }
+
+    /// Verify that lambda arguments materialized through an intermediate
+    /// `constValue` instruction (rather than a direct `.symbolRef` expression)
+    /// are still resolved and inlined.
+    func testInlineLoweringResolvesLambdaThroughConstValueAlias() throws {
+        let tc = InlineLambdaTestContext()
+
+        let mainSymbol = tc.defineFunction(name: "main")
+        let (inlineSymbol, inlineValueParam, inlineBlockParam) =
+            tc.defineInlineFunction(name: "applyBlock")
+        let (lambdaSymbol, lambdaParamSymbol) =
+            tc.defineLambda(name: "$lambda_alias", paramName: "it")
+
+        // Lambda function: { it -> it + 20 }
+        let lambdaArgExpr = tc.arena.appendExpr(.symbolRef(lambdaParamSymbol), type: tc.intType)
+        let lambdaTwentyExpr = tc.arena.appendExpr(.intLiteral(20), type: tc.intType)
+        let lambdaSumExpr = tc.arena.appendExpr(.temporary(800), type: tc.intType)
+
+        let lambdaFunction = KIRFunction(
+            symbol: lambdaSymbol,
+            name: tc.interner.intern("$lambda_alias"),
+            params: [KIRParameter(symbol: lambdaParamSymbol, type: tc.intType)],
+            returnType: tc.intType,
+            body: [
+                .beginBlock,
+                .constValue(result: lambdaArgExpr, value: .symbolRef(lambdaParamSymbol)),
+                .constValue(result: lambdaTwentyExpr, value: .intLiteral(20)),
+                .call(
+                    symbol: nil,
+                    callee: tc.interner.intern("kk_op_add"),
+                    arguments: [lambdaArgExpr, lambdaTwentyExpr],
+                    result: lambdaSumExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(lambdaSumExpr),
+                .endBlock,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        // Inline function: inline fun applyBlock(x: Int, block: (Int) -> Int): Int = block(x)
+        let inlineXExpr = tc.arena.appendExpr(.symbolRef(inlineValueParam), type: tc.intType)
+        let inlineBlockExpr = tc.arena.appendExpr(.symbolRef(inlineBlockParam), type: tc.funcType)
+        let inlineCallResult = tc.arena.appendExpr(.temporary(900), type: tc.intType)
+
+        let inlineFunction = KIRFunction(
+            symbol: inlineSymbol,
+            name: tc.interner.intern("applyBlock"),
+            params: [
+                KIRParameter(symbol: inlineValueParam, type: tc.intType),
+                KIRParameter(symbol: inlineBlockParam, type: tc.funcType),
+            ],
+            returnType: tc.intType,
+            body: [
+                .constValue(result: inlineXExpr, value: .symbolRef(inlineValueParam)),
+                .constValue(result: inlineBlockExpr, value: .symbolRef(inlineBlockParam)),
+                .call(
+                    symbol: inlineBlockParam,
+                    callee: tc.interner.intern("$lambda_alias"),
+                    arguments: [inlineXExpr],
+                    result: inlineCallResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(inlineCallResult),
+            ],
+            isSuspend: false,
+            isInline: true
+        )
+
+        // Caller: materializes the lambda ref via a `constValue` instruction
+        // assigning to a temporary, rather than the expression itself being
+        // `.symbolRef`.
+        let callerArgExpr = tc.arena.appendExpr(.intLiteral(3), type: tc.intType)
+        // The lambda ref expression is a `.temporary`, NOT `.symbolRef`.
+        let callerLambdaRef = tc.arena.appendExpr(.temporary(999), type: tc.funcType)
+        let callerResult = tc.arena.appendExpr(.temporary(1000), type: tc.intType)
+
+        let mainFunction = KIRFunction(
+            symbol: mainSymbol,
+            name: tc.interner.intern("main"),
+            params: [],
+            returnType: tc.intType,
+            body: [
+                .constValue(result: callerArgExpr, value: .intLiteral(3)),
+                // The lambda reference is assigned through a constValue instruction
+                .constValue(result: callerLambdaRef, value: .symbolRef(lambdaSymbol)),
+                .call(
+                    symbol: inlineSymbol,
+                    callee: tc.interner.intern("applyBlock"),
+                    arguments: [callerArgExpr, callerLambdaRef],
+                    result: callerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(callerResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let (callees, _) = try tc.lowerAndExtractCallees(
+            mainFunction: mainFunction,
+            otherDecls: [inlineFunction, lambdaFunction],
+            moduleName: "InlineLambdaAlias"
+        )
+
+        // The inline function should be expanded.
+        XCTAssertFalse(
+            callees.contains("applyBlock"),
+            "applyBlock should have been inlined, got callees: \(callees)"
+        )
+
+        // The lambda should also be resolved through the constValue alias
+        // and fully inlined.
+        XCTAssertFalse(
+            callees.contains("$lambda_alias"),
+            "Lambda should have been resolved through constValue and inlined, got callees: \(callees)"
+        )
+        XCTAssertTrue(
+            callees.contains("kk_op_add"),
+            "Lambda body should be inlined with kk_op_add, got callees: \(callees)"
+        )
+    }
 }

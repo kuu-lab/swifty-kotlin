@@ -201,7 +201,8 @@ final class InlineLoweringPass: LoweringPass {
                 arguments: arguments,
                 allFunctionsBySymbol: allFunctionsBySymbol,
                 module: module,
-                ctx: ctx
+                ctx: ctx,
+                callerBody: function.body
             )
             guard let expansion else {
                 loweredBody.append(instruction)
@@ -325,7 +326,8 @@ final class InlineLoweringPass: LoweringPass {
         arguments: [KIRExprID],
         allFunctionsBySymbol: [SymbolID: KIRFunction],
         module: KIRModule,
-        ctx: KIRContext
+        ctx: KIRContext,
+        callerBody: [KIRInstruction]
     ) -> InlineExpansion? {
         guard arguments.count == inlineTarget.params.count else {
             return nil
@@ -455,7 +457,8 @@ final class InlineLoweringPass: LoweringPass {
                    let lambdaFunction = resolveLambdaFunction(
                        argExpr: argExpr,
                        arena: module.arena,
-                       allFunctionsBySymbol: allFunctionsBySymbol
+                       allFunctionsBySymbol: allFunctionsBySymbol,
+                       callerBody: callerBody
                    ),
                    let lambdaExpansion = expandLambdaBody(
                        lambdaFunction: lambdaFunction,
@@ -596,16 +599,35 @@ final class InlineLoweringPass: LoweringPass {
     // MARK: - Lambda Inlining
 
     /// Resolve the lambda function for an argument expression. The argument
-    /// expression should be a `symbolRef` pointing to a lambda KIR function.
+    /// expression may be a direct `symbolRef` pointing to a lambda KIR function,
+    /// or it may be a temporary that was defined via a `constValue` instruction
+    /// carrying a `symbolRef` payload. Both patterns are resolved here so that
+    /// lambda inlining works regardless of how the call argument was materialized.
     private func resolveLambdaFunction(
         argExpr: KIRExprID,
         arena: KIRArena,
-        allFunctionsBySymbol: [SymbolID: KIRFunction]
+        allFunctionsBySymbol: [SymbolID: KIRFunction],
+        callerBody: [KIRInstruction]
     ) -> KIRFunction? {
-        guard case let .symbolRef(lambdaSymbol)? = arena.expr(argExpr) else {
-            return nil
+        // Direct symbolRef on the expression itself (most common path).
+        if case let .symbolRef(lambdaSymbol)? = arena.expr(argExpr) {
+            if let fn = allFunctionsBySymbol[lambdaSymbol] {
+                return fn
+            }
         }
-        return allFunctionsBySymbol[lambdaSymbol]
+        // Fall back: scan the caller body for a constValue that defines this
+        // expression with a symbolRef value. This handles cases where the
+        // argument is a temporary assigned via `.constValue(result: argExpr,
+        // value: .symbolRef(symbol))`.
+        for instruction in callerBody {
+            if case let .constValue(result, .symbolRef(symbol)) = instruction,
+               result == argExpr,
+               let fn = allFunctionsBySymbol[symbol]
+            {
+                return fn
+            }
+        }
+        return nil
     }
 
     /// Expand a lambda function body inline, substituting parameters with the
