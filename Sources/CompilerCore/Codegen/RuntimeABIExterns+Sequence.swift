@@ -377,14 +377,14 @@ public extension RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    // STDLIB-556: foldIndexed
+    // STDLIB-557: foldIndexed
     static let kk_sequence_foldIndexed = ExternDecl(
         name: "kk_sequence_foldIndexed",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
         returnType: "intptr_t"
     )
 
-    // STDLIB-557: reduceIndexed
+    // STDLIB-556: reduceIndexed
     static let kk_sequence_reduceIndexed = ExternDecl(
         name: "kk_sequence_reduceIndexed",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],

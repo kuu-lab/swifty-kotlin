@@ -38,7 +38,8 @@ extension CollectionLiteralLoweringPass {
 
         if rewriteSequenceVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
-            result: result, module: module, lookup: lookup,
+            result: result, origCanThrow: origCanThrow,
+            origThrownResult: origThrownResult, module: module, lookup: lookup,
             listExprIDs: &listExprIDs, setExprIDs: &setExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
             loweredBody: &loweredBody
         ) { return true }
@@ -99,6 +100,8 @@ extension CollectionLiteralLoweringPass {
         receiver: KIRExprID,
         arguments: [KIRExprID],
         result: KIRExprID?,
+        origCanThrow: Bool,
+        origThrownResult: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
@@ -497,23 +500,20 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        // foldIndexed on sequence → kk_sequence_foldIndexed (STDLIB-556)
+        // foldIndexed on sequence → kk_sequence_foldIndexed (STDLIB-557)
         // Args: initial, lambda (2 from Kotlin: initial + operation)
         if callee == lookup.foldIndexedName, arguments.count == 2,
            sequenceExprIDs.contains(receiver.rawValue)
         {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let thrownResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
-            )
             let hofResult = emitHOFCall(
                 kkName: lookup.kkSequenceFoldIndexedName,
                 receiver: receiver,
                 arguments: [arguments[0]] + [arguments[1]] + [zeroExpr],
                 result: result,
-                origCanThrow: true,
-                origThrownResult: thrownResult,
+                origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult,
                 module: module,
                 loweredBody: &loweredBody
             )
@@ -521,23 +521,20 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        // reduceIndexed on sequence → kk_sequence_reduceIndexed (STDLIB-557)
+        // reduceIndexed on sequence → kk_sequence_reduceIndexed (STDLIB-556)
         // Args: lambda (1 from Kotlin: operation)
         if callee == lookup.reduceIndexedName, arguments.count == 1,
            sequenceExprIDs.contains(receiver.rawValue)
         {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let thrownResult = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: nil
-            )
             let hofResult = emitHOFCall(
                 kkName: lookup.kkSequenceReduceIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result,
-                origCanThrow: true,
-                origThrownResult: thrownResult,
+                origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult,
                 module: module,
                 loweredBody: &loweredBody
             )
