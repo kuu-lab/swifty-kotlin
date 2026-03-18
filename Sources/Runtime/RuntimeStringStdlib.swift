@@ -894,23 +894,37 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetRaw: Int) -> I
         return runtimeMakeListRaw(source.unicodeScalars.map { scalar in
             Int(scalar.value <= 0x7F ? scalar.value : 0x3F /* '?' */)
         })
-    case "UTF16", "UTF16BE":
+    case "UTF16":
+        let utf16Count = source.utf16.count
         var bytes: [Int] = []
+        bytes.reserveCapacity(2 + 2 * utf16Count) // BOM + data
+        bytes.append(0xFE) // BOM high byte
+        bytes.append(0xFF) // BOM low byte
+        for unit in source.utf16 {
+            bytes.append(Int((unit >> 8) & 0xFF))
+            bytes.append(Int(unit & 0xFF))
+        }
+        return runtimeMakeListRaw(bytes)
+    case "UTF16BE":
+        let utf16Count = source.utf16.count
+        var bytes: [Int] = []
+        bytes.reserveCapacity(2 * utf16Count)
         for unit in source.utf16 {
             bytes.append(Int((unit >> 8) & 0xFF))
             bytes.append(Int(unit & 0xFF))
         }
         return runtimeMakeListRaw(bytes)
     case "UTF16LE":
+        let utf16Count = source.utf16.count
         var bytes: [Int] = []
+        bytes.reserveCapacity(2 * utf16Count)
         for unit in source.utf16 {
             bytes.append(Int(unit & 0xFF))
             bytes.append(Int((unit >> 8) & 0xFF))
         }
         return runtimeMakeListRaw(bytes)
     default:
-        // Unsupported charset — fall back to UTF-8
-        return runtimeMakeListRaw(source.utf8.map(Int.init))
+        fatalError("Unsupported charset: \(charsetName)")
     }
 }
 
