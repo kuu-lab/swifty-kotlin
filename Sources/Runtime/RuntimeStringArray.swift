@@ -376,8 +376,8 @@ public func kk_type_token_qualified_name(_ typeToken: Int, _ nameHint: Int) -> I
 @_cdecl("kk_kclass_create")
 public func kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
     // Build a stable cache key from the two Int-sized values.
-    let cacheKey = (UInt64(UInt32(truncatingIfNeeded: typeToken)) << 32)
-                 | UInt64(UInt32(truncatingIfNeeded: nameHint))
+    // Use a mixing hash to avoid truncating 64-bit values to 32-bit.
+    let cacheKey = (UInt64(bitPattern: Int64(typeToken)) &* 0x9E37_79B9_7F4A_7C15) ^ UInt64(bitPattern: Int64(nameHint))
     return runtimeStorage.withLock { state in
         if let cached = state.kClassBoxCache[cacheKey] {
             return cached

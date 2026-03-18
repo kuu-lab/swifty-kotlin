@@ -278,4 +278,5 @@ func resetRuntimeLocked(state: inout RuntimeStorageState) {
     state.frameMaps.removeAll(keepingCapacity: false)
     state.activeFrames.removeAll(keepingCapacity: false)
     state.coroutineRoots.removeAll(keepingCapacity: false)
+    state.kClassBoxCache.removeAll(keepingCapacity: false)
 }
