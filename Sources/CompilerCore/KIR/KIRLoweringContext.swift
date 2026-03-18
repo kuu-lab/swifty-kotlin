@@ -189,8 +189,9 @@ final class KIRLoweringContext {
         finallyBlockStack.map(\.exprID)
     }
 
-    /// Returns enclosing finally block expression IDs that should be inlined
-    /// for a `break` or `continue` targeting the loop at `targetLoopDepth`.
+    /// Returns enclosing finally block expression IDs (with their original
+    /// indices into `finallyBlockStack`) that should be inlined for a `break`
+    /// or `continue` targeting the loop at `targetLoopDepth`.
     ///
     /// A finally block should be inlined only when the break/continue exits
     /// its enclosing try scope.  A finally entry with `loopDepth > targetLoopDepth`
@@ -201,10 +202,16 @@ final class KIRLoweringContext {
     /// Entries with `loopDepth <= targetLoopDepth` mean the try encloses the
     /// target loop, so break/continue stays within the try scope and the
     /// finally block should NOT be inlined.
-    func enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: Int) -> [ExprID] {
+    ///
+    /// The returned `stackIndex` is the position of each entry in the full
+    /// `finallyBlockStack`.  Callers must use this index (not the array
+    /// position in the returned list) when trimming the stack via
+    /// `withFinallyStackDepth` to avoid over-trimming outer entries.
+    func enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: Int) -> [(exprID: ExprID, stackIndex: Int)] {
         finallyBlockStack
-            .filter { $0.loopDepth > targetLoopDepth }
-            .map(\.exprID)
+            .enumerated()
+            .filter { $0.element.loopDepth > targetLoopDepth }
+            .map { (exprID: $0.element.exprID, stackIndex: $0.offset) }
     }
 
     /// Returns the loop-control-stack depth for the loop targeted by a `break`.

@@ -39,8 +39,11 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let blocks = driver.ctx.enclosingFinallyBlocks()
+        // For `return`, all enclosing finally blocks are inlined.  The blocks
+        // array corresponds 1:1 to finallyBlockStack, so stackIndex == array index.
+        let indexedBlocks = blocks.enumerated().map { (exprID: $0.element, stackIndex: $0.offset) }
         inlineFinallyBlocks(
-            blocks,
+            indexedBlocks,
             ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
@@ -63,9 +66,9 @@ extension ExprLowerer {
         instructions: inout [KIRInstruction]
     ) {
         let targetDepth = driver.ctx.breakTargetLoopDepth(for: label)
-        let blocks = driver.ctx.enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: targetDepth)
+        let indexedBlocks = driver.ctx.enclosingFinallyBlocksForBreakOrContinue(targetLoopDepth: targetDepth)
         inlineFinallyBlocks(
-            blocks,
+            indexedBlocks.map { (exprID: $0.exprID, stackIndex: $0.stackIndex) },
             ast: ast, sema: sema, arena: arena, interner: interner,
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
@@ -73,8 +76,18 @@ extension ExprLowerer {
     }
 
     /// Core finally-inlining logic shared by return and break/continue paths.
+    ///
+    /// Each entry in `blocks` contains a `stackIndex` — the original position
+    /// of the finally block in `finallyBlockStack`.  This is used with
+    /// `withFinallyStackDepth` to trim the stack to the correct depth so that
+    /// re-entrant lowering (e.g., a `return` inside an inlined finally) only
+    /// sees the outer finally blocks that precede it in the original stack.
+    ///
+    /// For `return`, the indices are 0..<count (the full stack).  For
+    /// `break`/`continue`, only a filtered subset is passed, and the indices
+    /// are the *original* positions — not sequential starting from 0.
     private func inlineFinallyBlocks(
-        _ blocks: [ExprID],
+        _ blocks: [(exprID: ExprID, stackIndex: Int)],
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -85,14 +98,14 @@ extension ExprLowerer {
         guard !blocks.isEmpty else { return }
 
         // Process innermost-first (reversed) so that the stack is trimmed
-        // correctly: for each finally block at index i, we temporarily set the
-        // stack depth to i so that re-entrant lowering only sees outer blocks.
-        // Uses withFinallyStackDepth to avoid full-array copy-on-write.
+        // correctly: for each finally block, we temporarily set the stack
+        // depth to its original stack index so that re-entrant lowering only
+        // sees outer blocks.
         for i in stride(from: blocks.count - 1, through: 0, by: -1) {
-            let finallyExprID = blocks[i]
-            driver.ctx.withFinallyStackDepth(i) {
+            let entry = blocks[i]
+            driver.ctx.withFinallyStackDepth(entry.stackIndex) {
                 _ = lowerExpr(
-                    finallyExprID,
+                    entry.exprID,
                     ast: ast,
                     sema: sema,
                     arena: arena,
