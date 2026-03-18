@@ -660,13 +660,13 @@ final class LambdaLowerer {
         )
 
         // REFL-003: Emit KFunction / KProperty type identity tag.
-        // The tagging call annotates the callable value with reflection
-        // metadata (name, arity, KFunction vs KProperty).  We emit the
-        // call as a side-effect but return the original callableExpr so
-        // that downstream callable-value-call lowering continues to
-        // resolve the correct target symbol and capture arguments.
+        // The tagging call wraps the callable value with reflection
+        // metadata (name, arity, KFunction vs KProperty).  We register
+        // the tagged expression with the same callable-value metadata so
+        // that downstream callable-value-call lowering resolves the
+        // correct target symbol and capture arguments.
         if let refKind = sema.bindings.callableRefKind(for: exprID) {
-            _ = emitCallableRefTypeTag(
+            let taggedExpr = emitCallableRefTypeTag(
                 callableExpr: callableExpr,
                 callableType: callableType,
                 refKind: refKind,
@@ -676,6 +676,13 @@ final class LambdaLowerer {
                 interner: interner,
                 instructions: &instructions
             )
+            driver.ctx.registerCallableValue(
+                taggedExpr,
+                symbol: callableSymbol,
+                callee: callableName,
+                captureArguments: captureArguments
+            )
+            return taggedExpr
         }
 
         return callableExpr
@@ -685,7 +692,9 @@ final class LambdaLowerer {
 
     /// Emits a runtime tagging call that annotates a callable reference value
     /// with KFunction or KProperty type identity. Returns a new KIR expression
-    /// representing the tagged value.
+    /// representing the tagged value.  The caller must use the returned
+    /// expression (and register it for callable-value resolution) so that the
+    /// tagged value propagates through the program.
     func emitCallableRefTypeTag(
         callableExpr: KIRExprID,
         callableType: TypeID,

@@ -138,10 +138,12 @@ final class CallableRefTypeIdentityTests: XCTestCase {
                 guard case let .function(function) = decl else { return [] }
                 return extractCallees(from: function.body, interner: ctx.interner)
             }
-            // Property refs that resolve directly may not go through
-            // lowerCallableRefExpr; the tag is only emitted when the binding
-            // says propertyRef. Verify it does not accidentally tag as
-            // kfunction.
+            // Verify the property ref is tagged with the KProperty tag.
+            XCTAssertTrue(
+                allCallees.contains("kk_callable_ref_tag_kproperty"),
+                "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
+            )
+            // Verify it does not accidentally tag as kfunction.
             XCTAssertFalse(
                 allCallees.contains("kk_callable_ref_tag_kfunction"),
                 "Property callable ref should NOT be tagged as KFunction."
