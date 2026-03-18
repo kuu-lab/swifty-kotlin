@@ -462,35 +462,45 @@ extension DataFlowSemaPhase {
         // Patch Pair<A,B>.toList() -> List<Any?>
         let pairFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Pair")]
         let pairToListFQName = pairFQName + [interner.intern("toList")]
-        if let pairToListSymbol = symbols.lookup(fqName: pairToListFQName),
-           let existingSig = symbols.functionSignature(for: pairToListSymbol) {
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: existingSig.receiverType,
-                    parameterTypes: existingSig.parameterTypes,
-                    returnType: listOfNullableAny,
-                    typeParameterSymbols: existingSig.typeParameterSymbols,
-                    classTypeParameterCount: existingSig.classTypeParameterCount
-                ),
-                for: pairToListSymbol
-            )
+        if let pairToListSymbol = symbols.lookup(fqName: pairToListFQName) {
+            if let existingSig = symbols.functionSignature(for: pairToListSymbol) {
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: existingSig.receiverType,
+                        parameterTypes: existingSig.parameterTypes,
+                        returnType: listOfNullableAny,
+                        typeParameterSymbols: existingSig.typeParameterSymbols,
+                        classTypeParameterCount: existingSig.classTypeParameterCount
+                    ),
+                    for: pairToListSymbol
+                )
+            } else {
+                assertionFailure("Pair.toList() symbol found but has no function signature; return type not patched")
+            }
+        } else {
+            assertionFailure("Pair.toList() symbol not found in symbol table; return type not patched")
         }
 
         // Patch Triple<A,B,C>.toList() -> List<Any?>
         let tripleFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Triple")]
         let tripleToListFQName = tripleFQName + [interner.intern("toList")]
-        if let tripleToListSymbol = symbols.lookup(fqName: tripleToListFQName),
-           let existingSig = symbols.functionSignature(for: tripleToListSymbol) {
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: existingSig.receiverType,
-                    parameterTypes: existingSig.parameterTypes,
-                    returnType: listOfNullableAny,
-                    typeParameterSymbols: existingSig.typeParameterSymbols,
-                    classTypeParameterCount: existingSig.classTypeParameterCount
-                ),
-                for: tripleToListSymbol
-            )
+        if let tripleToListSymbol = symbols.lookup(fqName: tripleToListFQName) {
+            if let existingSig = symbols.functionSignature(for: tripleToListSymbol) {
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: existingSig.receiverType,
+                        parameterTypes: existingSig.parameterTypes,
+                        returnType: listOfNullableAny,
+                        typeParameterSymbols: existingSig.typeParameterSymbols,
+                        classTypeParameterCount: existingSig.classTypeParameterCount
+                    ),
+                    for: tripleToListSymbol
+                )
+            } else {
+                assertionFailure("Triple.toList() symbol found but has no function signature; return type not patched")
+            }
+        } else {
+            assertionFailure("Triple.toList() symbol not found in symbol table; return type not patched")
         }
     }
 
@@ -1497,7 +1507,8 @@ extension DataFlowSemaPhase {
         func registerMember(
             name: String,
             parameterTypes: [TypeID],
-            externalLinkName: String
+            externalLinkName: String,
+            returnTypeOverride: TypeID? = nil
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
@@ -1516,7 +1527,7 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     parameterTypes: parameterTypes,
-                    returnType: listReturnType,
+                    returnType: returnTypeOverride ?? listReturnType,
                     typeParameterSymbols: [listTypeParamSymbol],
                     classTypeParameterCount: 1
                 ),
@@ -1541,38 +1552,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        func registerNestedListMember(
-            name: String,
-            parameterTypes: [TypeID],
-            externalLinkName: String
-        ) {
-            let memberName = interner.intern(name)
-            let memberFQName = listFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: listOfListReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        registerNestedListMember(name: "chunked", parameterTypes: [types.intType], externalLinkName: "kk_list_chunked")
-        registerNestedListMember(name: "windowed", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_windowed")
+        registerMember(name: "chunked", parameterTypes: [types.intType], externalLinkName: "kk_list_chunked", returnTypeOverride: listOfListReturnType)
+        registerMember(name: "windowed", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_windowed", returnTypeOverride: listOfListReturnType)
         registerMember(name: "sortedDescending", parameterTypes: [], externalLinkName: "kk_list_sortedDescending")
         registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
 
