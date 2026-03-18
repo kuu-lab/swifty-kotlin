@@ -15,12 +15,11 @@ struct FrameMapDescriptorC {
     let rootOffsets: UnsafePointer<Int32>?
 }
 
-/// Collision-safe cache key for `kk_kclass_create`.
-/// Stores both `typeToken` and `nameHint` so that dictionary equality
-/// checks never return a wrong cached box after a hash collision.
+/// Cache key for `kk_kclass_create`.
+/// `typeToken` uniquely identifies a `KClass<T>` at runtime, so caching by it
+/// alone ensures stable hits across repeated evaluations.
 struct KClassCacheKey: Hashable {
     let typeToken: Int
-    let nameHint: Int
 }
 
 struct RuntimeStorageState {
@@ -275,6 +274,11 @@ func appendObjectChildrenLocked(of object: HeapObjectRecord, into worklist: inou
 func resetRuntimeLocked(state: inout RuntimeStorageState) {
     for (_, object) in state.heapObjects {
         object.pointer.deallocate()
+    }
+    for (_, kclassRaw) in state.kClassBoxCache {
+        if let ptr = UnsafeMutableRawPointer(bitPattern: kclassRaw) {
+            Unmanaged<RuntimeKClassBox>.fromOpaque(ptr).release()
+        }
     }
     state.heapObjects.removeAll(keepingCapacity: false)
     state.objectPointers.removeAll(keepingCapacity: false)
