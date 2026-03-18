@@ -176,7 +176,11 @@ extension CallLowerer {
         //     with a live runtime handle.
         // For minus: only handle the single-element case (non-collection RHS).
         //   Collection-removal (Sequence.minus(Iterable)) is not yet supported
-        //   at the ABI level and falls through to the generic operator path.
+        //   at the ABI level; return the LHS unchanged to avoid falling through
+        //   to the generic arithmetic path (kk_op_sub).
+        // TODO: Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
+        // deduplicate logic across CallLowerer+Operators, CallRewrite, and
+        // VirtualCallRewrite (see PR #460 review).
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {
             if op == .add {
                 let effectiveRHS: KIRExprID
@@ -213,17 +217,25 @@ extension CallLowerer {
                 )
                 return result
             }
-            if op == .subtract, !sema.bindings.isCollectionExpr(rhs) {
-                instructions.append(
-                    .call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_minus"),
-                        arguments: [lhsID, rhsID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
+            if op == .subtract {
+                if !sema.bindings.isCollectionExpr(rhs) {
+                    // Single-element removal: emit kk_sequence_minus.
+                    instructions.append(
+                        .call(
+                            symbol: nil,
+                            callee: interner.intern("kk_sequence_minus"),
+                            arguments: [lhsID, rhsID],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil
+                        )
                     )
-                )
+                    return result
+                }
+                // Collection-removal is not yet supported at the ABI level.
+                // Return the LHS unchanged rather than falling through to
+                // the generic arithmetic path which would miscompile.
+                instructions.append(.copy(from: lhsID, to: result))
                 return result
             }
         }

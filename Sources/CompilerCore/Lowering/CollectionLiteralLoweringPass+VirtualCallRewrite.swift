@@ -545,11 +545,14 @@ extension CollectionLiteralLoweringPass {
         // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
         // Wrap single-element arguments in a one-element sequence so the
         // runtime ABI always receives a collection handle.
+        // TODO: Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
+        // deduplicate logic across VirtualCallRewrite, CallRewrite, and
+        // CallLowerer+Operators (see PR #460 review).
         if callee == lookup.plusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
             let argID = arguments[0]
+            // Only sequence/list/array are supported by kk_sequence_plus
+            // at the ABI level (not Set/Map).
             let isArgCollection = listExprIDs.contains(argID.rawValue)
-                || setExprIDs.contains(argID.rawValue)
-                || mapExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
                 || arrayExprIDs.contains(argID.rawValue)
             let effectiveArg: KIRExprID
@@ -586,9 +589,9 @@ extension CollectionLiteralLoweringPass {
         // Collection-removal is not yet supported at the ABI level.
         if callee == lookup.minusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
             let argID = arguments[0]
+            // Only sequence/list/array are supported by the ABI (not
+            // Set/Map) -- consistent with plus path.
             let isArgCollection = listExprIDs.contains(argID.rawValue)
-                || setExprIDs.contains(argID.rawValue)
-                || mapExprIDs.contains(argID.rawValue)
                 || sequenceExprIDs.contains(argID.rawValue)
                 || arrayExprIDs.contains(argID.rawValue)
             guard !isArgCollection else {

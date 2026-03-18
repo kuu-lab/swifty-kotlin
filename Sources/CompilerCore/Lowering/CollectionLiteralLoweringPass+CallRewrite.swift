@@ -1343,9 +1343,9 @@ extension CollectionLiteralLoweringPass {
                         let receiverID = arguments[0]
                         if sequenceExprIDs.contains(receiverID.rawValue) {
                             let argID = arguments[1]
+                            // Only sequence/list/array are supported by
+                            // kk_sequence_plus at the ABI level (not Set/Map).
                             let isArgCollection = listExprIDs.contains(argID.rawValue)
-                                || setExprIDs.contains(argID.rawValue)
-                                || mapExprIDs.contains(argID.rawValue)
                                 || sequenceExprIDs.contains(argID.rawValue)
                                 || arrayExprIDs.contains(argID.rawValue)
                             let effectiveArg: KIRExprID
@@ -1386,9 +1386,9 @@ extension CollectionLiteralLoweringPass {
                         let receiverID = arguments[0]
                         if sequenceExprIDs.contains(receiverID.rawValue) {
                             let argID = arguments[1]
+                            // Only sequence/list/array are supported by the
+                            // ABI (not Set/Map) -- consistent with plus path.
                             let isArgCollection = listExprIDs.contains(argID.rawValue)
-                                || setExprIDs.contains(argID.rawValue)
-                                || mapExprIDs.contains(argID.rawValue)
                                 || sequenceExprIDs.contains(argID.rawValue)
                                 || arrayExprIDs.contains(argID.rawValue)
                             guard !isArgCollection else {

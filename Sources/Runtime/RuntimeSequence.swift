@@ -1872,7 +1872,7 @@ public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     } else if let array = runtimeArrayBox(from: seqRaw) {
         lhsElements = array.elements
     } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid LHS sequence handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid LHS collection handle")
     }
     let rhsElements: [Int]
     if let seq = runtimeSequenceBox(from: otherRaw) {
@@ -1908,9 +1908,16 @@ public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
     } else if let array = runtimeArrayBox(from: seqRaw) {
         elements = array.elements
     } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_minus received invalid sequence handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_minus received invalid LHS collection handle")
     }
     var result = elements
+    // NOTE: runtimeValuesEqual compares primitives (Int, String, Bool, etc.)
+    // by value but falls back to pointer identity for collection types
+    // (List, Set, Map).  This means `minus` cannot remove collection
+    // elements by structural equality (e.g., two distinct `listOf(1)`
+    // instances).  This is a known limitation; fixing it requires adding
+    // recursive structural comparison to runtimeValuesEqual, which is
+    // tracked separately.
     if let index = result.firstIndex(where: { runtimeValuesEqual($0, element) }) {
         result.remove(at: index)
     }

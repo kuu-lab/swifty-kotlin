@@ -405,6 +405,25 @@ final class RuntimeSequenceTests: XCTestCase {
         XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 4])
     }
 
+    // MARK: - Plus with kk_sequence_of_single as RHS
+
+    func testPlusWithSingleElementWrappedViaOfSingle() {
+        // Verifies the ABI pattern the compiler emits for `seq + element`:
+        // the element is wrapped via kk_sequence_of_single before being
+        // passed to kk_sequence_plus.
+        let seq = makeSequence([1, 2, 3])
+        let wrappedElement = kk_sequence_of_single(42)
+        let combined = kk_sequence_plus(seq, wrappedElement)
+        XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 42])
+    }
+
+    func testPlusWithSingleElementWrappedViaOfSingleEmptyLHS() {
+        let seq = makeSequence([])
+        let wrappedElement = kk_sequence_of_single(99)
+        let combined = kk_sequence_plus(seq, wrappedElement)
+        XCTAssertEqual(sequenceElements(combined), [99])
+    }
+
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {
