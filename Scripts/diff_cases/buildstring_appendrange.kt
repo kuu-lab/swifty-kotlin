@@ -6,8 +6,8 @@ fun main() {
     }
     println(s)
 
-    // UTF-16 indexing: CJK characters are single UTF-16 code units (BMP),
-    // but multi-byte in UTF-8 -- verifies correct index model.
+    // UTF-16 indexing: ASCII strings verify start/end range slicing.
+    // (Add separate cases with CJK/surrogate pairs to validate non-BMP indexing.)
     val u = buildString {
         appendRange("ABCDE", 1, 4)
         append("|")

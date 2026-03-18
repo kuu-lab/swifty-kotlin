@@ -148,6 +148,10 @@ extension DataFlowSemaPhase {
         )
 
         // appendRange(CharSequence, Int, Int): StringBuilder (STDLIB-580)
+        // NOTE: Kotlin's signature uses CharSequence, but this compiler does not
+        // model CharSequence as a separate type. We use String here, which covers
+        // the common case. If CharSequence is added to the type system in the
+        // future, this parameter type should be updated accordingly.
         registerStringBuilderMemberFunction(
             named: "appendRange",
             externalLinkName: "kk_string_builder_appendRange_obj",

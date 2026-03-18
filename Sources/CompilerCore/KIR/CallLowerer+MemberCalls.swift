@@ -2119,8 +2119,9 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                let sbNames = KnownCompilerNames(interner: interner)
-                let runtimeCallee: String? = if calleeName == sbNames.appendRange {
+                // Use direct intern comparison instead of constructing a full
+                // KnownCompilerNames instance in this hot path.
+                let runtimeCallee: String? = if calleeName == interner.intern("appendRange") {
                     "kk_string_builder_appendRange_obj"
                 } else {
                     nil

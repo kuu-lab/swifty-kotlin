@@ -122,6 +122,13 @@ func tryCast<T: AnyObject>(_ ptr: UnsafeMutableRawPointer, to _: T.Type) -> T? {
 /// which differs for non-BMP characters (emoji, surrogate pairs). This helper bridges the
 /// gap by operating on the `.utf16` view directly.
 ///
+/// **Unicode fidelity note**: Swift `String` cannot faithfully represent unpaired UTF-16
+/// surrogates. When `startIndex` or `endIndex` splits a surrogate pair (e.g. slicing in the
+/// middle of a non-BMP character), `String(decoding:as:)` replaces ill-formed subsequences
+/// with U+FFFD (REPLACEMENT CHARACTER). This diverges from JVM Kotlin where unpaired
+/// surrogates can be preserved as `Char` values. Callers/tests should not assume full
+/// fidelity for these edge cases.
+///
 /// - Parameters:
 ///   - source: The Swift string to slice.
 ///   - startIndex: Start offset in UTF-16 code units (inclusive).
@@ -131,7 +138,7 @@ func runtimeUTF16Substring(_ source: String, startIndex: Int, endIndex: Int) -> 
     let utf16 = source.utf16
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
-        fatalError("IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(length)")
+        fatalError("StringIndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(length)")
     }
     let start = utf16.index(utf16.startIndex, offsetBy: startIndex)
     let end = utf16.index(utf16.startIndex, offsetBy: endIndex)

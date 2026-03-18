@@ -234,11 +234,10 @@ public func kk_string_builder_append_line_noarg() -> Int {
 
 @_cdecl("kk_string_builder_append_range")
 public func kk_string_builder_append_range(_ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: csqRaw),
-          let string = extractString(from: pointer)
-    else {
-        return 0
-    }
+    // Use runtimeElementToString for consistency with the object-backed
+    // kk_string_builder_appendRange_obj, which also accepts arbitrary
+    // runtime values (not only RuntimeStringBox).
+    let string = runtimeElementToString(csqRaw)
     // Use shared UTF-16 helper to match Kotlin CharSequence indexing semantics.
     runtimeBuilderState.appendString(runtimeUTF16Substring(string, startIndex: startIndex, endIndex: endIndex))
     return 0
