@@ -2,7 +2,10 @@ import Foundation
 
 // MARK: - Sequence Functions (STDLIB-003)
 
-private func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
+/// Resolve a raw integer handle to a registered runtime object of the given type.
+/// Returns nil if the handle is zero/null, not a registered object pointer, or
+/// points to an object of a different type.
+private func resolveRuntimeHandle<T: AnyObject>(_ rawValue: Int, as _: T.Type) -> T? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
     }
@@ -12,20 +15,15 @@ private func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
     guard isObjectPointer else {
         return nil
     }
-    return tryCast(ptr, to: RuntimeSequenceBox.self)
+    return tryCast(ptr, to: T.self)
+}
+
+private func runtimeSequenceBox(from rawValue: Int) -> RuntimeSequenceBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeSequenceBox.self)
 }
 
 private func runtimeSequenceBuilderBox(from rawValue: Int) -> RuntimeSequenceBuilderBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeSequenceBuilderBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeSequenceBuilderBox.self)
 }
 
 private func runtimeSequenceSourceElements(from rawValue: Int) -> [Int]? {
@@ -1660,16 +1658,7 @@ public func kk_sequence_builder_build(_ fnPtr: Int) -> Int {
 // MARK: - Iterator Builder (iterator { yield(x) }) (STDLIB-331/564)
 
 private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
-        return nil
-    }
-    let isObjectPointer = runtimeStorage.withLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer else {
-        return nil
-    }
-    return tryCast(ptr, to: RuntimeIteratorBuilderBox.self)
+    resolveRuntimeHandle(rawValue, as: RuntimeIteratorBuilderBox.self)
 }
 
 @_cdecl("kk_iterator_builder_build")
@@ -1707,14 +1696,14 @@ public func kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
 @_cdecl("kk_iterator_builder_hasNext")
 public func kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
     // Support both RuntimeIteratorBuilderBox and RuntimeListIteratorBox
-    // for backwards compatibility.
+    // for backwards compatibility with older lowering paths.
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
         return iter.index < iter.elements.count ? 1 : 0
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
         return iter.index < iter.elements.count ? 1 : 0
     }
-    return 0
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_hasNext received invalid iterator handle")
 }
 
 @_cdecl("kk_iterator_builder_next")
@@ -1727,13 +1716,14 @@ public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
         iter.index += 1
         return value
     }
+    // Backwards compatibility: older lowering paths may pass a RuntimeListIteratorBox.
     if let iter = runtimeListIteratorBox(from: iterRaw) {
         guard iter.index < iter.elements.count else {
-            return 0
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
         }
         let value = iter.elements[iter.index]
         iter.index += 1
         return value
     }
-    return 0
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_next received invalid iterator handle")
 }

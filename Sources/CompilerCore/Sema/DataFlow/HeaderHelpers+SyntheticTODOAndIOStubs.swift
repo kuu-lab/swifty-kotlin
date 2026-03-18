@@ -932,14 +932,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinSequencesPkg = ensureSyntheticPackageHierarchy(
-            fqName: [interner.intern("kotlin"), interner.intern("sequences")],
-            symbols: symbols
-        )
-
         // Reuse the SequenceScope class registered by sequence {} builder.
         let scopeName = interner.intern("SequenceScope")
-        let scopeFQName = kotlinSequencesPkg + [scopeName]
+        let scopeFQName = packageFQName + [scopeName]
         let scopeSymbol: SymbolID
         if let existing = symbols.lookup(fqName: scopeFQName) {
             scopeSymbol = existing
@@ -952,14 +947,14 @@ extension DataFlowSemaPhase {
                 visibility: .public,
                 flags: [.synthetic]
             )
-            if let packageSymbol = symbols.lookup(fqName: kotlinSequencesPkg) {
+            if let packageSymbol = symbols.lookup(fqName: packageFQName) {
                 symbols.setParentSymbol(packageSymbol, for: sym)
             }
             scopeSymbol = sym
         }
 
         let functionName = interner.intern("iterator")
-        let functionFQName = kotlinSequencesPkg + [functionName]
+        let functionFQName = packageFQName + [functionName]
         guard symbols.lookup(fqName: functionFQName) == nil else {
             return
         }
@@ -972,7 +967,7 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: [.synthetic]
         )
-        if let packageSymbol = symbols.lookup(fqName: kotlinSequencesPkg) {
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         }
         symbols.setExternalLinkName("kk_iterator_builder_build", for: functionSymbol)

@@ -136,6 +136,21 @@ final class RuntimeSequenceTests: XCTestCase {
         XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 0)
     }
 
+    // Backwards-compatibility: older lowering paths may pass a RuntimeListIteratorBox
+    // to kk_iterator_builder_hasNext / kk_iterator_builder_next.
+    func testIteratorBuilderBackwardsCompatWithListIterator() {
+        let listHandle = makeList([10, 20, 30])
+        let iterHandle = kk_list_iterator(listHandle)
+
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
+        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 10)
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
+        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 20)
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 1)
+        XCTAssertEqual(kk_iterator_builder_next(iterHandle), 30)
+        XCTAssertEqual(kk_iterator_builder_hasNext(iterHandle), 0)
+    }
+
     private func makeArray(_ elements: [Int]) -> Int {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0
