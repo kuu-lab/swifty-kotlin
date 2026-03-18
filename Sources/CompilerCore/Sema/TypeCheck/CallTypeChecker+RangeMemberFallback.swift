@@ -33,6 +33,16 @@ extension CallTypeChecker {
         let receiverType = sema.bindings.exprType(for: receiverID)
         let isLongRange = receiverType == sema.types.longType
         // STDLIB-523: UIntRange / ULongRange support
+        // Note on lowering: UIntRange/ULongRange do not require separate lowering
+        // passes or runtime helpers. All numeric ranges (Int, Long, UInt, ULong)
+        // share the same RuntimeRangeBox representation (first/last/step stored as
+        // Int, i.e. 64-bit). The existing kk_range_* runtime functions handle
+        // unsigned values correctly because:
+        //   - Kotlin unsigned values fit in the non-negative half of Swift Int
+        //   - rangeTo/rangeUntil always produce non-negative step (+1)
+        //   - Signed comparisons (<=, >=) are correct for non-negative values
+        //   - Wrapping arithmetic (&+=) works identically for both representations
+        // Only CharRange needs separate helpers (kk_char_range_*) due to box/unbox.
         let isUIntRange = receiverType == sema.types.uintType
         let isULongRange = receiverType == sema.types.ulongType
 
