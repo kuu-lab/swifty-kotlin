@@ -1884,12 +1884,16 @@ public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     } else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_plus received invalid RHS collection handle (the compiler must wrap single elements via kk_sequence_of_single)")
     }
-    // Build a fresh array with the exact final capacity to avoid
-    // copy-on-write reallocation when lhsElements shares storage.
-    var combined: [Int] = []
-    combined.reserveCapacity(lhsElements.count + rhsElements.count)
-    combined.append(contentsOf: lhsElements)
-    combined.append(contentsOf: rhsElements)
+    // Single-allocation concatenation: create an array with the exact
+    // final capacity up front so there are no intermediate reallocations
+    // or copy-on-write copies.
+    let totalCount = lhsElements.count + rhsElements.count
+    let combined = Array<Int>(unsafeUninitializedCapacity: totalCount) { buffer, initializedCount in
+        var idx = 0
+        for e in lhsElements { buffer[idx] = e; idx += 1 }
+        for e in rhsElements { buffer[idx] = e; idx += 1 }
+        initializedCount = idx
+    }
     let newSeq = RuntimeSequenceBox(steps: [.source(elements: combined)])
     return registerRuntimeObject(newSeq)
 }
