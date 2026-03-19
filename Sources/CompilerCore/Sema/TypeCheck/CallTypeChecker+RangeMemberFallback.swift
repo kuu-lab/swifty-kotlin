@@ -49,7 +49,7 @@ extension CallTypeChecker {
         // would require unsigned comparison helpers in the runtime.
         // Only CharRange needs separate helpers (kk_char_range_*) due to box/unbox.
         let isUIntRange = receiverType == sema.types.uintType
-        let isULongRange = receiverType == sema.types.ulongType
+        let isULongRange = sema.bindings.isULongRangeExpr(receiverID) || receiverType == sema.types.ulongType
 
         // Provide contextual function type for range HOF lambda inference.
         if let expectation = rangeMemberLambdaExpectation(
@@ -84,6 +84,10 @@ extension CallTypeChecker {
             if sema.bindings.isCharRangeExpr(receiverID) {
                 sema.bindings.markCharRangeExpr(id)
             }
+            // Propagate ULong range marker through reversed() (STDLIB-524)
+            if sema.bindings.isULongRangeExpr(receiverID) {
+                sema.bindings.markULongRangeExpr(id)
+            }
         }
 
         let resultType = rangeMemberResultType(memberName: memberName, sema: sema, isCharRange: isCharRange, isLongRange: isLongRange, isUIntRange: isUIntRange, isULongRange: isULongRange)
@@ -92,6 +96,7 @@ extension CallTypeChecker {
         return finalType
     }
 
+    /// Returns the element type for a range expression based on its range-kind markers.
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
         let rangeMembers: Set = [
             "first", "last", "count", "contains",

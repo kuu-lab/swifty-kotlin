@@ -2391,6 +2391,14 @@ public enum RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_ulong_range_toList",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_range_forEach",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),

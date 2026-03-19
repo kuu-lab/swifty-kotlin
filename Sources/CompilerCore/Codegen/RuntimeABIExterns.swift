@@ -1853,6 +1853,12 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_ulong_range_toList = ExternDecl(
+        name: "kk_ulong_range_toList",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_range_forEach = ExternDecl(
         name: "kk_range_forEach",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
@@ -2656,6 +2662,7 @@ public enum RuntimeABIExterns {
             kk_range_isEmpty,
             kk_range_sum,
             kk_range_toList,
+            kk_ulong_range_toList,
             kk_range_forEach,
             kk_range_map,
             kk_range_reversed,

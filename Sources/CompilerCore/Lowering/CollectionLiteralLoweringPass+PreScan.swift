@@ -68,6 +68,7 @@ extension CollectionLiteralLoweringPass {
         sequenceExprIDs: inout Set<Int32>,
         rangeExprIDs: inout Set<Int32>,
         charRangeExprIDs: inout Set<Int32>,
+        ulongRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>,
         fileExprIDs: inout Set<Int32>
     ) {
@@ -88,8 +89,15 @@ extension CollectionLiteralLoweringPass {
             stringExprIDs: &stringExprIDs
         )
 
-        // First pass: collect char-valued expression IDs to detect char range arguments (STDLIB-290)
+        // First pass: collect char-valued and ulong-valued expression IDs to detect
+        // char range and ULong range arguments (STDLIB-290, STDLIB-524)
+        // NOTE: ULong detection is currently limited to literal expressions and copy
+        // propagation. Ranges whose endpoints come from variables, parameters, or
+        // computed ULong expressions will fall back to the signed kk_range_toList path.
+        // This is acceptable for the MVP; a future pass can use sema type markers to
+        // cover all ULong-producing expressions.
         var charValuedExprIDs: Set<Int32> = []
+        var ulongValuedExprIDs: Set<Int32> = []
         for instruction in function.body {
             switch instruction {
             case let .call(_, callee, _, result, _, _, _):
@@ -98,9 +106,14 @@ extension CollectionLiteralLoweringPass {
                 }
             case let .constValue(result, .charLiteral):
                 charValuedExprIDs.insert(result.rawValue)
+            case let .constValue(result, .ulongLiteral):
+                ulongValuedExprIDs.insert(result.rawValue)
             case let .copy(from, to):
                 if charValuedExprIDs.contains(from.rawValue) {
                     charValuedExprIDs.insert(to.rawValue)
+                }
+                if ulongValuedExprIDs.contains(from.rawValue) {
+                    ulongValuedExprIDs.insert(to.rawValue)
                 }
             default:
                 break
@@ -119,6 +132,8 @@ extension CollectionLiteralLoweringPass {
                     rangeExprIDs: &rangeExprIDs,
                     charRangeExprIDs: &charRangeExprIDs,
                     charValuedExprIDs: charValuedExprIDs,
+                    ulongRangeExprIDs: &ulongRangeExprIDs,
+                    ulongValuedExprIDs: ulongValuedExprIDs,
                     stringExprIDs: &stringExprIDs,
                     fileExprIDs: &fileExprIDs
                 )
@@ -130,6 +145,7 @@ extension CollectionLiteralLoweringPass {
                     sequenceExprIDs: &sequenceExprIDs,
                     rangeExprIDs: &rangeExprIDs,
                     charRangeExprIDs: &charRangeExprIDs,
+                    ulongRangeExprIDs: &ulongRangeExprIDs,
                     stringExprIDs: &stringExprIDs
                 )
             case let .copy(from, to):
@@ -140,6 +156,7 @@ extension CollectionLiteralLoweringPass {
                     arrayExprIDs: &arrayExprIDs, sequenceExprIDs: &sequenceExprIDs,
                     rangeExprIDs: &rangeExprIDs,
                     charRangeExprIDs: &charRangeExprIDs,
+                    ulongRangeExprIDs: &ulongRangeExprIDs,
                     stringExprIDs: &stringExprIDs,
                     fileExprIDs: &fileExprIDs
                 )
@@ -164,6 +181,8 @@ extension CollectionLiteralLoweringPass {
         rangeExprIDs: inout Set<Int32>,
         charRangeExprIDs: inout Set<Int32>,
         charValuedExprIDs: Set<Int32>,
+        ulongRangeExprIDs: inout Set<Int32>,
+        ulongValuedExprIDs: Set<Int32>,
         stringExprIDs: inout Set<Int32>,
         fileExprIDs: inout Set<Int32>
     ) {
@@ -182,11 +201,21 @@ extension CollectionLiteralLoweringPass {
             if arguments.contains(where: { charValuedExprIDs.contains($0.rawValue) }) {
                 charRangeExprIDs.insert(result.rawValue)
             }
+            // Detect ULongRange: if any argument is a ULong-valued expression (STDLIB-524)
+            if arguments.contains(where: { ulongValuedExprIDs.contains($0.rawValue) }) {
+                ulongRangeExprIDs.insert(result.rawValue)
+            }
             // step on a char range propagates char range
             if callee == lookup.kkOpStepName, !arguments.isEmpty,
                charRangeExprIDs.contains(arguments[0].rawValue)
             {
                 charRangeExprIDs.insert(result.rawValue)
+            }
+            // step on a ULong range propagates ULong range (STDLIB-524)
+            if callee == lookup.kkOpStepName, !arguments.isEmpty,
+               ulongRangeExprIDs.contains(arguments[0].rawValue)
+            {
+                ulongRangeExprIDs.insert(result.rawValue)
             }
         }
         // Classify sequence factory calls (STDLIB-097, STDLIB-317)
@@ -339,6 +368,7 @@ extension CollectionLiteralLoweringPass {
         sequenceExprIDs: inout Set<Int32>,
         rangeExprIDs: inout Set<Int32>,
         charRangeExprIDs: inout Set<Int32>,
+        ulongRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>
     ) {
         if callee == lookup.asSequenceName
@@ -407,6 +437,10 @@ extension CollectionLiteralLoweringPass {
                     if charRangeExprIDs.contains(receiverRaw) {
                         charRangeExprIDs.insert(result.rawValue)
                     }
+                    // Propagate ULong range through reversed() (STDLIB-524)
+                    if ulongRangeExprIDs.contains(receiverRaw) {
+                        ulongRangeExprIDs.insert(result.rawValue)
+                    }
                 }
             } else if callee == lookup.toListName || callee == lookup.mapName {
                 if let result { listExprIDs.insert(result.rawValue) }
@@ -431,6 +465,7 @@ extension CollectionLiteralLoweringPass {
         sequenceExprIDs: inout Set<Int32>,
         rangeExprIDs: inout Set<Int32>,
         charRangeExprIDs: inout Set<Int32>,
+        ulongRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>,
         fileExprIDs: inout Set<Int32>
     ) {
@@ -454,6 +489,9 @@ extension CollectionLiteralLoweringPass {
         }
         if charRangeExprIDs.contains(from.rawValue) {
             charRangeExprIDs.insert(to.rawValue)
+        }
+        if ulongRangeExprIDs.contains(from.rawValue) {
+            ulongRangeExprIDs.insert(to.rawValue)
         }
         if stringExprIDs.contains(from.rawValue) {
             stringExprIDs.insert(to.rawValue)

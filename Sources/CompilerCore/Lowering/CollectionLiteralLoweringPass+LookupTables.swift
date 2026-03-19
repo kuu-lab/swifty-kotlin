@@ -303,6 +303,9 @@ struct CollectionLiteralLookupTables {
     let kkCharRangeToListName: InternedString
     let kkCharRangeForEachName: InternedString
 
+    // ULongRange (STDLIB-524)
+    let kkULongRangeToListName: InternedString
+
     // Member names
     let sizeName: InternedString
     let getName: InternedString
@@ -810,6 +813,9 @@ struct CollectionLiteralLookupTables {
         kkBoxCharName = interner.intern("kk_box_char")
         kkCharRangeToListName = interner.intern("kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
+
+        // ULongRange (STDLIB-524)
+        kkULongRangeToListName = interner.intern("kk_ulong_range_toList")
 
         sizeName = interner.intern("size")
         getName = interner.intern("get")
