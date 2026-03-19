@@ -507,6 +507,10 @@ extension CallTypeChecker {
             interner.intern("joinToString"),
             interner.intern("plus"),
             interner.intern("minus"),
+            interner.intern("maxByOrNull"),
+            interner.intern("minByOrNull"),
+            interner.intern("maxOfOrNull"),
+            interner.intern("minOfOrNull"),
         ]
         let setOnlyMembers: Set = [
             interner.intern("intersect"),
@@ -538,10 +542,6 @@ extension CallTypeChecker {
             interner.intern("mapKeys"),
             knownNames.getValue,
             knownNames.getOrDefault,
-            interner.intern("plus"),
-            interner.intern("minus"),
-            interner.intern("maxByOrNull"),
-            interner.intern("minByOrNull"),
         ]
         if listOnlyMembers.contains(memberName) {
             return isListReceiver
@@ -825,6 +825,8 @@ extension CallTypeChecker {
             || memberName == interner.intern("minOrNull")
             || memberName == interner.intern("maxByOrNull")
             || memberName == interner.intern("minByOrNull")
+            || memberName == interner.intern("maxOfOrNull")
+            || memberName == interner.intern("minOfOrNull")
             || memberName == interner.intern("firstOrNull")
             || memberName == interner.intern("lastOrNull")
         {
