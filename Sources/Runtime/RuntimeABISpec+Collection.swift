@@ -1444,8 +1444,6 @@ public extension RuntimeABISpec {
         return before.map { hofSpec($0) }
             + [filterNotNullSpec, foldSpec]
             + genericAfter.map { hofSpec($0) }
-            + [scanSpec, runningFoldSpec]
-            + ["kk_list_runningReduce", "kk_list_reduceOrNull", "kk_list_scanReduce"].map { hofSpec($0) }
             + [reduceOrNullSpec, scanSpec, runningFoldSpec, runningReduceSpec, scanReduceSpec]
             + [
                 associateBySpec, associateWithSpec, associateSpec,

@@ -3027,7 +3027,6 @@ extension CallLowerer {
             interner.intern("kk_list_scan"),
             interner.intern("kk_list_runningFold"),
             interner.intern("kk_list_runningReduce"),
-            interner.intern("kk_list_reduceOrNull"),
             interner.intern("kk_list_scanReduce"),
             interner.intern("kk_sequence_sortedBy"),
             interner.intern("kk_sequence_sumOf"),
