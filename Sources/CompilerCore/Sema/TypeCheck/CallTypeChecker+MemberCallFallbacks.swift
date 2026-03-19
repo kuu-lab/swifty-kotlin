@@ -780,6 +780,12 @@ extension CallTypeChecker {
             return sema.types.makeNullable(receiverElementType)
         }
 
+        if memberName == interner.intern("maxOfOrNull")
+            || memberName == interner.intern("minOfOrNull")
+        {
+            return sema.types.nullableAnyType
+        }
+
         if (memberName == interner.intern("toList") || memberName == interner.intern("subList")),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
