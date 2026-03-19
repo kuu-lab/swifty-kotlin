@@ -3604,6 +3604,9 @@ extension DataFlowSemaPhase {
             visibility: .private,
             flags: []
         )
+        types.setNominalTypeParameterSymbols([keyParamSymbol, valueParamSymbol], for: mapSymbol)
+        types.setNominalTypeParameterVariances([.out, .out], for: mapSymbol)
+
         let keyType = types.make(.typeParam(TypeParamType(symbol: keyParamSymbol, nullability: .nonNull)))
         let valueType = types.make(.typeParam(TypeParamType(symbol: valueParamSymbol, nullability: .nonNull)))
         let receiverType = types.make(.classType(ClassType(
@@ -4299,6 +4302,10 @@ extension DataFlowSemaPhase {
         )
         let keyType = types.make(.typeParam(TypeParamType(symbol: mutableKeyParamSymbol, nullability: .nonNull)))
         let valueType = types.make(.typeParam(TypeParamType(symbol: mutableValueParamSymbol, nullability: .nonNull)))
+        types.setNominalTypeParameterSymbols([mutableKeyParamSymbol, mutableValueParamSymbol], for: mutableMapSymbol)
+        types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableMapSymbol)
+        symbols.setSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableMapSymbol,
             args: [.invariant(keyType), .invariant(valueType)],
