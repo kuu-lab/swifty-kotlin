@@ -860,72 +860,62 @@ symbol s858 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthet
 symbol s859 kind=function fq=kotlin.ranges.coerceIn vis=public flags=synthetic sig=recv=Float params=[Float,Float] ret=Float suspend=0 defaults=[0,0] vararg=[0,0]
 symbol s860 kind=function fq=kotlin.ranges.coerceAtLeast vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
 symbol s861 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
-symbol s862 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Float params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s863 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Double params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s864 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Float params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s865 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Double params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s866 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s867 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s868 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s869 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s870 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s871 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s872 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s873 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s874 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s875 kind=class fq=kotlin.Enum vis=public flags=synthetic
-symbol s876 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
-symbol s877 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
-symbol s878 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
-symbol s879 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
-symbol s880 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
-symbol s881 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
-symbol s882 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#881> suspend=0 defaults=[] vararg=[]
-symbol s883 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
-symbol s884 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
-symbol s885 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#883 suspend=0 defaults=[0] vararg=[0]
-symbol s886 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
-symbol s887 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#886 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s888 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
-symbol s889 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
-symbol s890 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
-symbol s891 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
-symbol s892 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#889 params=[(T#889) -> T#890] ret=T#890 suspend=0 defaults=[0] vararg=[0]
-symbol s893 kind=function fq=golden.sema.catchIllegalArgument vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s894 kind=function fq=golden.sema.catchIllegalState vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s895 kind=function fq=golden.sema.catchIndexOutOfBounds vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s896 kind=function fq=golden.sema.catchUnsupportedOperation vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s897 kind=function fq=golden.sema.catchNoSuchElement vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s898 kind=function fq=golden.sema.catchArithmetic vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s899 kind=function fq=golden.sema.catchClassCast vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s900 kind=function fq=golden.sema.throwableProperties vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s901 kind=local fq=__try_7_catch_0.e vis=internal flags=_ type=Class#561
-symbol s902 kind=local fq=__try_15_catch_0.e vis=internal flags=_ type=Class#562
-symbol s903 kind=local fq=__try_23_catch_0.e vis=internal flags=_ type=Class#563
-symbol s904 kind=local fq=__try_31_catch_0.e vis=internal flags=_ type=Class#564
-symbol s905 kind=local fq=__try_39_catch_0.e vis=internal flags=_ type=Class#565
-symbol s906 kind=local fq=__try_47_catch_0.e vis=internal flags=_ type=Class#566
-symbol s907 kind=local fq=__try_55_catch_0.e vis=internal flags=_ type=Class#567
-symbol s908 kind=local fq=__try_74_catch_0.e vis=internal flags=_ type=Class#554
-symbol s909 kind=local fq=__local_63.msg vis=private flags=_
-symbol s910 kind=local fq=__local_66.cause vis=private flags=_
-symbol s911 kind=local fq=__local_69.trace vis=private flags=_
+symbol s862 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s863 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s864 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s865 kind=class fq=kotlin.Enum vis=public flags=synthetic
+symbol s866 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
+symbol s867 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
+symbol s868 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
+symbol s869 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
+symbol s870 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
+symbol s871 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
+symbol s872 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#871> suspend=0 defaults=[] vararg=[]
+symbol s873 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
+symbol s874 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
+symbol s875 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#873 suspend=0 defaults=[0] vararg=[0]
+symbol s876 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
+symbol s877 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#876 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s878 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
+symbol s879 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
+symbol s880 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
+symbol s881 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
+symbol s882 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#879 params=[(T#879) -> T#880] ret=T#880 suspend=0 defaults=[0] vararg=[0]
+symbol s883 kind=function fq=golden.sema.catchIllegalArgument vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s884 kind=function fq=golden.sema.catchIllegalState vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s885 kind=function fq=golden.sema.catchIndexOutOfBounds vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s886 kind=function fq=golden.sema.catchUnsupportedOperation vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s887 kind=function fq=golden.sema.catchNoSuchElement vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s888 kind=function fq=golden.sema.catchArithmetic vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s889 kind=function fq=golden.sema.catchClassCast vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s890 kind=function fq=golden.sema.throwableProperties vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s891 kind=local fq=__try_7_catch_0.e vis=internal flags=_ type=Class#561
+symbol s892 kind=local fq=__try_15_catch_0.e vis=internal flags=_ type=Class#562
+symbol s893 kind=local fq=__try_23_catch_0.e vis=internal flags=_ type=Class#563
+symbol s894 kind=local fq=__try_31_catch_0.e vis=internal flags=_ type=Class#564
+symbol s895 kind=local fq=__try_39_catch_0.e vis=internal flags=_ type=Class#565
+symbol s896 kind=local fq=__try_47_catch_0.e vis=internal flags=_ type=Class#566
+symbol s897 kind=local fq=__try_55_catch_0.e vis=internal flags=_ type=Class#567
+symbol s898 kind=local fq=__try_74_catch_0.e vis=internal flags=_ type=Class#554
+symbol s899 kind=local fq=__local_63.msg vis=private flags=_
+symbol s900 kind=local fq=__local_66.cause vis=private flags=_
+symbol s901 kind=local fq=__local_69.trace vis=private flags=_
 file f0 package=golden.sema
-  decl d0 fun catchIllegalArgument suspend=0 inline=0 sym=s893
-  decl d1 fun catchIllegalState suspend=0 inline=0 sym=s894
-  decl d2 fun catchIndexOutOfBounds suspend=0 inline=0 sym=s895
-  decl d3 fun catchUnsupportedOperation suspend=0 inline=0 sym=s896
-  decl d4 fun catchNoSuchElement suspend=0 inline=0 sym=s897
-  decl d5 fun catchArithmetic suspend=0 inline=0 sym=s898
-  decl d6 fun catchClassCast suspend=0 inline=0 sym=s899
-  decl d7 fun throwableProperties suspend=0 inline=0 sym=s900
+  decl d0 fun catchIllegalArgument suspend=0 inline=0 sym=s883
+  decl d1 fun catchIllegalState suspend=0 inline=0 sym=s884
+  decl d2 fun catchIndexOutOfBounds suspend=0 inline=0 sym=s885
+  decl d3 fun catchUnsupportedOperation suspend=0 inline=0 sym=s886
+  decl d4 fun catchNoSuchElement suspend=0 inline=0 sym=s887
+  decl d5 fun catchArithmetic suspend=0 inline=0 sym=s888
+  decl d6 fun catchClassCast suspend=0 inline=0 sym=s889
+  decl d7 fun throwableProperties suspend=0 inline=0 sym=s890
 expr e0 name(IllegalArgumentException) type=_
 expr e1 string(bad) type=String
 expr e2 call callee=e0 args=[_:e1] type=Class#561 call=s583 map=[0->0] targs=[]
 expr e3 throw value=e2 type=Nothing
 expr e4 blockExpr stmts=[] trailing=e3 type=Nothing
 expr e5 string(caught) type=String
-expr e6 blockExpr stmts=[] trailing=e5 type=String ref=s901
+expr e6 blockExpr stmts=[] trailing=e5 type=String ref=s891
 expr e7 try body=e4 catches=[e6] finally=_ type=String
 expr e8 name(IllegalStateException) type=_
 expr e9 string(bad state) type=String
@@ -933,7 +923,7 @@ expr e10 call callee=e8 args=[_:e9] type=Class#562 call=s586 map=[0->0] targs=[]
 expr e11 throw value=e10 type=Nothing
 expr e12 blockExpr stmts=[] trailing=e11 type=Nothing
 expr e13 string(caught) type=String
-expr e14 blockExpr stmts=[] trailing=e13 type=String ref=s902
+expr e14 blockExpr stmts=[] trailing=e13 type=String ref=s892
 expr e15 try body=e12 catches=[e14] finally=_ type=String
 expr e16 name(IndexOutOfBoundsException) type=_
 expr e17 string(index 5) type=String
@@ -941,7 +931,7 @@ expr e18 call callee=e16 args=[_:e17] type=Class#563 call=s589 map=[0->0] targs=
 expr e19 throw value=e18 type=Nothing
 expr e20 blockExpr stmts=[] trailing=e19 type=Nothing
 expr e21 string(caught) type=String
-expr e22 blockExpr stmts=[] trailing=e21 type=String ref=s903
+expr e22 blockExpr stmts=[] trailing=e21 type=String ref=s893
 expr e23 try body=e20 catches=[e22] finally=_ type=String
 expr e24 name(UnsupportedOperationException) type=_
 expr e25 string(not supported) type=String
@@ -949,7 +939,7 @@ expr e26 call callee=e24 args=[_:e25] type=Class#564 call=s592 map=[0->0] targs=
 expr e27 throw value=e26 type=Nothing
 expr e28 blockExpr stmts=[] trailing=e27 type=Nothing
 expr e29 string(caught) type=String
-expr e30 blockExpr stmts=[] trailing=e29 type=String ref=s904
+expr e30 blockExpr stmts=[] trailing=e29 type=String ref=s894
 expr e31 try body=e28 catches=[e30] finally=_ type=String
 expr e32 name(NoSuchElementException) type=_
 expr e33 string(empty) type=String
@@ -957,7 +947,7 @@ expr e34 call callee=e32 args=[_:e33] type=Class#565 call=s595 map=[0->0] targs=
 expr e35 throw value=e34 type=Nothing
 expr e36 blockExpr stmts=[] trailing=e35 type=Nothing
 expr e37 string(caught) type=String
-expr e38 blockExpr stmts=[] trailing=e37 type=String ref=s905
+expr e38 blockExpr stmts=[] trailing=e37 type=String ref=s895
 expr e39 try body=e36 catches=[e38] finally=_ type=String
 expr e40 name(ArithmeticException) type=_
 expr e41 string(div by zero) type=String
@@ -965,7 +955,7 @@ expr e42 call callee=e40 args=[_:e41] type=Class#566 call=s598 map=[0->0] targs=
 expr e43 throw value=e42 type=Nothing
 expr e44 blockExpr stmts=[] trailing=e43 type=Nothing
 expr e45 string(caught) type=String
-expr e46 blockExpr stmts=[] trailing=e45 type=String ref=s906
+expr e46 blockExpr stmts=[] trailing=e45 type=String ref=s896
 expr e47 try body=e44 catches=[e46] finally=_ type=String
 expr e48 name(ClassCastException) type=_
 expr e49 string(bad cast) type=String
@@ -973,25 +963,25 @@ expr e50 call callee=e48 args=[_:e49] type=Class#567 call=s601 map=[0->0] targs=
 expr e51 throw value=e50 type=Nothing
 expr e52 blockExpr stmts=[] trailing=e51 type=Nothing
 expr e53 string(caught) type=String
-expr e54 blockExpr stmts=[] trailing=e53 type=String ref=s907
+expr e54 blockExpr stmts=[] trailing=e53 type=String ref=s897
 expr e55 try body=e52 catches=[e54] finally=_ type=String
 expr e56 name(RuntimeException) type=_
 expr e57 string(test) type=String
 expr e58 call callee=e56 args=[_:e57] type=Class#556 call=s570 map=[0->0] targs=[]
 expr e59 throw value=e58 type=Nothing
 expr e60 blockExpr stmts=[] trailing=e59 type=Nothing
-expr e61 name(e) type=Class#554 ref=s908
+expr e61 name(e) type=Class#554 ref=s898
 expr e62 memberCall recv=e61 callee=message args=[] type=String? ref=s603
-expr e63 localDecl msg mutable=0 type=t8 init=e62 type=Unit ref=s909
-expr e64 name(e) type=Class#554 ref=s908
+expr e63 localDecl msg mutable=0 type=t8 init=e62 type=Unit ref=s899
+expr e64 name(e) type=Class#554 ref=s898
 expr e65 memberCall recv=e64 callee=cause args=[] type=Class#554? ref=s604
-expr e66 localDecl cause mutable=0 type=t9 init=e65 type=Unit ref=s910
-expr e67 name(e) type=Class#554 ref=s908
+expr e66 localDecl cause mutable=0 type=t9 init=e65 type=Unit ref=s900
+expr e67 name(e) type=Class#554 ref=s898
 expr e68 memberCall recv=e67 callee=stackTraceToString args=[] type=String call=s605 map=[] targs=[]
-expr e69 localDecl trace mutable=0 type=t10 init=e68 type=Unit ref=s911
-expr e70 name(msg) type=String? ref=s909
+expr e69 localDecl trace mutable=0 type=t10 init=e68 type=Unit ref=s901
+expr e70 name(msg) type=String? ref=s899
 expr e71 string(null) type=String
 expr e72 binary(elvis) lhs=e70 rhs=e71 type=String
-expr e73 blockExpr stmts=[e63,e66,e69] trailing=e72 type=String ref=s908
+expr e73 blockExpr stmts=[e63,e66,e69] trailing=e72 type=String ref=s898
 expr e74 try body=e60 catches=[e73] finally=_ type=String
 expr e75 return value=e74 type=Nothing

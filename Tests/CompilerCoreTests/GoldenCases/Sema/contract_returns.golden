@@ -860,61 +860,51 @@ symbol s858 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthet
 symbol s859 kind=function fq=kotlin.ranges.coerceIn vis=public flags=synthetic sig=recv=Float params=[Float,Float] ret=Float suspend=0 defaults=[0,0] vararg=[0,0]
 symbol s860 kind=function fq=kotlin.ranges.coerceAtLeast vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
 symbol s861 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
-symbol s862 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Float params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s863 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Double params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s864 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Float params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s865 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Double params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s866 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s867 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s868 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s869 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s870 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s871 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s872 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s873 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s874 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s875 kind=class fq=kotlin.Enum vis=public flags=synthetic
-symbol s876 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
-symbol s877 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
-symbol s878 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
-symbol s879 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
-symbol s880 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
-symbol s881 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
-symbol s882 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#881> suspend=0 defaults=[] vararg=[]
-symbol s883 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
-symbol s884 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
-symbol s885 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#883 suspend=0 defaults=[0] vararg=[0]
-symbol s886 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
-symbol s887 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#886 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s888 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
-symbol s889 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
-symbol s890 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
-symbol s891 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
-symbol s892 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#889 params=[(T#889) -> T#890] ret=T#890 suspend=0 defaults=[0] vararg=[0]
-symbol s893 kind=function fq=requireNonNull vis=public flags=_ sig=recv=_ params=[Any?] ret=Any suspend=0 defaults=[0] vararg=[0]
-symbol s894 kind=valueParameter fq=requireNonNull.$893.value vis=private flags=_
-symbol s895 kind=function fq=bareReturns vis=public flags=_ sig=recv=_ params=[Int] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s896 kind=valueParameter fq=bareReturns.$895.x vis=private flags=_
-symbol s897 kind=function fq=returnsTrue vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s898 kind=valueParameter fq=returnsTrue.$897.condition vis=private flags=_
-symbol s899 kind=function fq=returnsFalse vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s900 kind=valueParameter fq=returnsFalse.$899.condition vis=private flags=_
-symbol s901 kind=function fq=multiEffect vis=public flags=_ sig=recv=_ params=[Any?,Boolean] ret=Boolean suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s902 kind=valueParameter fq=multiEffect.$901.value vis=private flags=_
-symbol s903 kind=valueParameter fq=multiEffect.$901.condition vis=private flags=_
-symbol s904 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s905 kind=local fq=__local_100.x vis=private flags=_
-symbol s906 kind=local fq=__local_114.flag vis=private flags=_
-symbol s907 kind=local fq=__local_121.flag2 vis=private flags=_
-symbol s908 kind=local fq=__local_126.y vis=private flags=_
-symbol s909 kind=local fq=__local_131.result vis=private flags=_
+symbol s862 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s863 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s864 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s865 kind=class fq=kotlin.Enum vis=public flags=synthetic
+symbol s866 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
+symbol s867 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
+symbol s868 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
+symbol s869 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
+symbol s870 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
+symbol s871 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
+symbol s872 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#871> suspend=0 defaults=[] vararg=[]
+symbol s873 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
+symbol s874 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
+symbol s875 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#873 suspend=0 defaults=[0] vararg=[0]
+symbol s876 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
+symbol s877 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#876 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s878 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
+symbol s879 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
+symbol s880 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
+symbol s881 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
+symbol s882 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#879 params=[(T#879) -> T#880] ret=T#880 suspend=0 defaults=[0] vararg=[0]
+symbol s883 kind=function fq=requireNonNull vis=public flags=_ sig=recv=_ params=[Any?] ret=Any suspend=0 defaults=[0] vararg=[0]
+symbol s884 kind=valueParameter fq=requireNonNull.$883.value vis=private flags=_
+symbol s885 kind=function fq=bareReturns vis=public flags=_ sig=recv=_ params=[Int] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s886 kind=valueParameter fq=bareReturns.$885.x vis=private flags=_
+symbol s887 kind=function fq=returnsTrue vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s888 kind=valueParameter fq=returnsTrue.$887.condition vis=private flags=_
+symbol s889 kind=function fq=returnsFalse vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s890 kind=valueParameter fq=returnsFalse.$889.condition vis=private flags=_
+symbol s891 kind=function fq=multiEffect vis=public flags=_ sig=recv=_ params=[Any?,Boolean] ret=Boolean suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s892 kind=valueParameter fq=multiEffect.$891.value vis=private flags=_
+symbol s893 kind=valueParameter fq=multiEffect.$891.condition vis=private flags=_
+symbol s894 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s895 kind=local fq=__local_100.x vis=private flags=_
+symbol s896 kind=local fq=__local_114.flag vis=private flags=_
+symbol s897 kind=local fq=__local_121.flag2 vis=private flags=_
+symbol s898 kind=local fq=__local_126.y vis=private flags=_
+symbol s899 kind=local fq=__local_131.result vis=private flags=_
 file f0 package=_
-  decl d0 fun requireNonNull suspend=0 inline=0 sym=s893
-  decl d1 fun bareReturns suspend=0 inline=0 sym=s895
-  decl d2 fun returnsTrue suspend=0 inline=0 sym=s897
-  decl d3 fun returnsFalse suspend=0 inline=0 sym=s899
-  decl d4 fun multiEffect suspend=0 inline=0 sym=s901
-  decl d5 fun main suspend=0 inline=0 sym=s904
+  decl d0 fun requireNonNull suspend=0 inline=0 sym=s883
+  decl d1 fun bareReturns suspend=0 inline=0 sym=s885
+  decl d2 fun returnsTrue suspend=0 inline=0 sym=s887
+  decl d3 fun returnsFalse suspend=0 inline=0 sym=s889
+  decl d4 fun multiEffect suspend=0 inline=0 sym=s891
+  decl d5 fun main suspend=0 inline=0 sym=s894
 expr e0 name(contract) type=_
 expr e1 name(returns) type=_
 expr e2 call callee=e1 args=[] type=_
@@ -924,20 +914,20 @@ expr e5 binary(notEqual) lhs=e3 rhs=e4 type=_
 expr e6 memberCall recv=e2 callee=implies args=[_:e5] type=_
 expr e7 name(returns) type=_
 expr e8 call callee=e7 args=[] type=Class#642 ref=s644
-expr e9 name(value) type=Any? ref=s894
+expr e9 name(value) type=Any? ref=s884
 expr e10 name(null) type=Nothing?
 expr e11 binary(notEqual) lhs=e9 rhs=e10 type=Boolean
 expr e12 memberCall recv=e8 callee=implies args=[_:e11] type=Unit call=s646 map=[0->0] targs=[]
 expr e13 lambda params=[] body=e12 type=Class#641.() -> Unit
 expr e14 call callee=e0 args=[_:e13] type=Unit
-expr e15 name(value) type=Any? ref=s894
+expr e15 name(value) type=Any? ref=s884
 expr e16 name(null) type=Nothing?
 expr e17 binary(equal) lhs=e15 rhs=e16 type=Boolean
 expr e18 name(IllegalArgumentException) type=_
 expr e19 call callee=e18 args=[] type=Class#561 call=s582 map=[] targs=[]
 expr e20 throw value=e19 type=Nothing
 expr e21 if cond=e17 then=e20 else=_ type=Unit
-expr e22 name(value) type=Any? ref=s894
+expr e22 name(value) type=Any? ref=s884
 expr e23 return value=e22 type=Nothing
 expr e24 name(contract) type=_
 expr e25 name(returns) type=_
@@ -946,7 +936,7 @@ expr e27 name(returns) type=_
 expr e28 call callee=e27 args=[] type=Class#642 ref=s644
 expr e29 lambda params=[] body=e28 type=Class#641.() -> Unit
 expr e30 call callee=e24 args=[_:e29] type=Unit
-expr e31 name(x) type=Int ref=s896
+expr e31 name(x) type=Int ref=s886
 expr e32 int(0) type=Int
 expr e33 binary(lessThan) lhs=e31 rhs=e32 type=Boolean
 expr e34 name(IllegalArgumentException) type=_
@@ -962,7 +952,7 @@ expr e43 bool(true) type=Boolean
 expr e44 call callee=e42 args=[_:e43] type=Class#642 ref=s644
 expr e45 lambda params=[] body=e44 type=Class#641.() -> Unit
 expr e46 call callee=e38 args=[_:e45] type=Unit
-expr e47 name(condition) type=Boolean ref=s898
+expr e47 name(condition) type=Boolean ref=s888
 expr e48 unary(not) operand=e47 type=Boolean
 expr e49 name(IllegalArgumentException) type=_
 expr e50 call callee=e49 args=[] type=Class#561 call=s582 map=[] targs=[]
@@ -979,7 +969,7 @@ expr e60 bool(false) type=Boolean
 expr e61 call callee=e59 args=[_:e60] type=Class#642 ref=s644
 expr e62 lambda params=[] body=e61 type=Class#641.() -> Unit
 expr e63 call callee=e55 args=[_:e62] type=Unit
-expr e64 name(condition) type=Boolean ref=s900
+expr e64 name(condition) type=Boolean ref=s890
 expr e65 name(IllegalArgumentException) type=_
 expr e66 call callee=e65 args=[] type=Class#561 call=s582 map=[] targs=[]
 expr e67 throw value=e66 type=Nothing
@@ -989,7 +979,7 @@ expr e70 return value=e69 type=Nothing
 expr e71 name(contract) type=_
 expr e72 name(returns) type=_
 expr e73 call callee=e72 args=[] type=Class#642 ref=s644
-expr e74 name(value) type=Any? ref=s902
+expr e74 name(value) type=Any? ref=s892
 expr e75 name(null) type=Nothing?
 expr e76 binary(notEqual) lhs=e74 rhs=e75 type=Boolean
 expr e77 memberCall recv=e73 callee=implies args=[_:e76] type=Unit call=s646 map=[0->0] targs=[]
@@ -999,14 +989,14 @@ expr e80 call callee=e78 args=[_:e79] type=Class#642 ref=s644
 expr e81 blockExpr stmts=[e77] trailing=e80 type=Class#642
 expr e82 lambda params=[] body=e81 type=Class#641.() -> Unit
 expr e83 call callee=e71 args=[_:e82] type=Unit
-expr e84 name(value) type=Any? ref=s902
+expr e84 name(value) type=Any? ref=s892
 expr e85 name(null) type=Nothing?
 expr e86 binary(equal) lhs=e84 rhs=e85 type=Boolean
 expr e87 name(IllegalArgumentException) type=_
 expr e88 call callee=e87 args=[] type=Class#561 call=s582 map=[] targs=[]
 expr e89 throw value=e88 type=Nothing
 expr e90 if cond=e86 then=e89 else=_ type=Unit
-expr e91 name(condition) type=Boolean ref=s903
+expr e91 name(condition) type=Boolean ref=s893
 expr e92 unary(not) operand=e91 type=Boolean
 expr e93 name(IllegalArgumentException) type=_
 expr e94 call callee=e93 args=[] type=Class#561 call=s582 map=[] targs=[]
@@ -1015,38 +1005,38 @@ expr e96 if cond=e92 then=e95 else=_ type=Unit
 expr e97 bool(true) type=Boolean
 expr e98 return value=e97 type=Nothing
 expr e99 string(hello) type=String
-expr e100 localDecl x mutable=0 type=t10 init=e99 type=Unit ref=s905
+expr e100 localDecl x mutable=0 type=t10 init=e99 type=Unit ref=s895
 expr e101 name(requireNonNull) type=_
-expr e102 name(x) type=String? ref=s905
-expr e103 call callee=e101 args=[_:e102] type=Any call=s893 map=[0->0] targs=[]
+expr e102 name(x) type=String? ref=s895
+expr e103 call callee=e101 args=[_:e102] type=Any call=s883 map=[0->0] targs=[]
 expr e104 name(println) type=_
-expr e105 name(x) type=String ref=s905
+expr e105 name(x) type=String ref=s895
 expr e106 memberCall recv=e105 callee=length args=[] type=Int
 expr e107 call callee=e104 args=[_:e106] type=Unit call=s740 map=[0->0] targs=[]
 expr e108 name(bareReturns) type=_
 expr e109 int(42) type=Int
-expr e110 call callee=e108 args=[_:e109] type=Unit call=s895 map=[0->0] targs=[]
+expr e110 call callee=e108 args=[_:e109] type=Unit call=s885 map=[0->0] targs=[]
 expr e111 name(returnsTrue) type=_
 expr e112 bool(true) type=Boolean
-expr e113 call callee=e111 args=[_:e112] type=Boolean call=s897 map=[0->0] targs=[]
-expr e114 localDecl flag mutable=0 type=_ init=e113 type=Unit ref=s906
+expr e113 call callee=e111 args=[_:e112] type=Boolean call=s887 map=[0->0] targs=[]
+expr e114 localDecl flag mutable=0 type=_ init=e113 type=Unit ref=s896
 expr e115 name(println) type=_
-expr e116 name(flag) type=Boolean ref=s906
+expr e116 name(flag) type=Boolean ref=s896
 expr e117 call callee=e115 args=[_:e116] type=Unit call=s740 map=[0->0] targs=[]
 expr e118 name(returnsFalse) type=_
 expr e119 bool(false) type=Boolean
-expr e120 call callee=e118 args=[_:e119] type=Boolean call=s899 map=[0->0] targs=[]
-expr e121 localDecl flag2 mutable=0 type=_ init=e120 type=Unit ref=s907
+expr e120 call callee=e118 args=[_:e119] type=Boolean call=s889 map=[0->0] targs=[]
+expr e121 localDecl flag2 mutable=0 type=_ init=e120 type=Unit ref=s897
 expr e122 name(println) type=_
-expr e123 name(flag2) type=Boolean ref=s907
+expr e123 name(flag2) type=Boolean ref=s897
 expr e124 call callee=e122 args=[_:e123] type=Unit call=s740 map=[0->0] targs=[]
 expr e125 string(world) type=String
-expr e126 localDecl y mutable=0 type=t11 init=e125 type=Unit ref=s908
+expr e126 localDecl y mutable=0 type=t11 init=e125 type=Unit ref=s898
 expr e127 name(multiEffect) type=_
-expr e128 name(y) type=String? ref=s908
+expr e128 name(y) type=String? ref=s898
 expr e129 bool(true) type=Boolean
-expr e130 call callee=e127 args=[_:e128,_:e129] type=Boolean call=s901 map=[0->0,1->1] targs=[]
-expr e131 localDecl result mutable=0 type=_ init=e130 type=Unit ref=s909
+expr e130 call callee=e127 args=[_:e128,_:e129] type=Boolean call=s891 map=[0->0,1->1] targs=[]
+expr e131 localDecl result mutable=0 type=_ init=e130 type=Unit ref=s899
 expr e132 name(println) type=_
-expr e133 name(result) type=Boolean ref=s909
+expr e133 name(result) type=Boolean ref=s899
 expr e134 call callee=e132 args=[_:e133] type=Unit call=s740 map=[0->0] targs=[]

@@ -860,67 +860,57 @@ symbol s858 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthet
 symbol s859 kind=function fq=kotlin.ranges.coerceIn vis=public flags=synthetic sig=recv=Float params=[Float,Float] ret=Float suspend=0 defaults=[0,0] vararg=[0,0]
 symbol s860 kind=function fq=kotlin.ranges.coerceAtLeast vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
 symbol s861 kind=function fq=kotlin.ranges.coerceAtMost vis=public flags=synthetic sig=recv=Float params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
-symbol s862 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Float params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s863 kind=function fq=kotlin.math.roundToInt vis=public flags=synthetic sig=recv=Double params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s864 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Float params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s865 kind=function fq=kotlin.math.roundToLong vis=public flags=synthetic sig=recv=Double params=[] ret=Long suspend=0 defaults=[] vararg=[]
-symbol s866 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s867 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s868 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Double params=[] ret=Double suspend=0 defaults=[] vararg=[]
-symbol s869 kind=function fq=kotlin.math.ulp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s870 kind=function fq=kotlin.math.nextUp vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s871 kind=function fq=kotlin.math.nextDown vis=public flags=synthetic sig=recv=Float params=[] ret=Float suspend=0 defaults=[] vararg=[]
-symbol s872 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s873 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s874 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s875 kind=class fq=kotlin.Enum vis=public flags=synthetic
-symbol s876 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
-symbol s877 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
-symbol s878 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
-symbol s879 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
-symbol s880 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
-symbol s881 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
-symbol s882 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#881> suspend=0 defaults=[] vararg=[]
-symbol s883 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
-symbol s884 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
-symbol s885 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#883 suspend=0 defaults=[0] vararg=[0]
-symbol s886 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
-symbol s887 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#886 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s888 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
-symbol s889 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
-symbol s890 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
-symbol s891 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
-symbol s892 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#889 params=[(T#889) -> T#890] ret=T#890 suspend=0 defaults=[0] vararg=[0]
-symbol s893 kind=class fq=golden.sema.Animal vis=public flags=openType
-symbol s894 kind=constructor fq=golden.sema.Animal.<init> vis=public flags=_ sig=recv=Class#893 params=[] ret=Class#893 suspend=0 defaults=[] vararg=[]
-symbol s895 kind=class fq=golden.sema.Dog vis=public flags=_
-symbol s896 kind=constructor fq=golden.sema.Dog.<init> vis=public flags=_ sig=recv=Class#895 params=[] ret=Class#895 suspend=0 defaults=[] vararg=[]
-symbol s897 kind=function fq=golden.sema.accept vis=public flags=_ sig=recv=_ params=[T#898] ret=T#898 suspend=0 defaults=[0] vararg=[0] bounds=[Class#893]
-symbol s898 kind=typeParameter fq=golden.sema.accept.$897.T vis=private flags=_
-symbol s899 kind=valueParameter fq=golden.sema.accept.$897.x vis=private flags=_
-symbol s900 kind=function fq=golden.sema.callValid vis=public flags=_ sig=recv=_ params=[] ret=Class#893 suspend=0 defaults=[] vararg=[]
-symbol s901 kind=function fq=golden.sema.unbounded vis=public flags=_ sig=recv=_ params=[T#902] ret=T#902 suspend=0 defaults=[0] vararg=[0]
-symbol s902 kind=typeParameter fq=golden.sema.unbounded.$901.T vis=private flags=_
-symbol s903 kind=valueParameter fq=golden.sema.unbounded.$901.x vis=private flags=_
-symbol s904 kind=function fq=golden.sema.callUnbounded vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s905 kind=function fq=golden.sema.acceptWhere vis=public flags=_ sig=recv=_ params=[T#906] ret=T#906 suspend=0 defaults=[0] vararg=[0] bounds=[Class#893]
-symbol s906 kind=typeParameter fq=golden.sema.acceptWhere.$905.T vis=private flags=_
-symbol s907 kind=valueParameter fq=golden.sema.acceptWhere.$905.x vis=private flags=_
+symbol s862 kind=function fq=kotlin.countOneBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s863 kind=function fq=kotlin.countLeadingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s864 kind=function fq=kotlin.countTrailingZeroBits vis=public flags=synthetic sig=recv=Int params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s865 kind=class fq=kotlin.Enum vis=public flags=synthetic
+symbol s866 kind=typeParameter fq=kotlin.Enum.T vis=private flags=_
+symbol s867 kind=property fq=kotlin.Enum.name vis=public flags=synthetic type=String
+symbol s868 kind=property fq=kotlin.Enum.ordinal vis=public flags=synthetic type=Int
+symbol s869 kind=typeParameter fq=kotlin.collections.EnumEntries.T vis=private flags=_
+symbol s870 kind=interface fq=kotlin.collections.EnumEntries vis=public flags=synthetic
+symbol s871 kind=typeParameter fq=kotlin.enumValues.T vis=private flags=reifiedTypeParameter
+symbol s872 kind=function fq=kotlin.enumValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#59<out T#871> suspend=0 defaults=[] vararg=[]
+symbol s873 kind=typeParameter fq=kotlin.enumValueOf.T vis=private flags=reifiedTypeParameter
+symbol s874 kind=valueParameter fq=kotlin.enumValueOf.name vis=private flags=synthetic
+symbol s875 kind=function fq=kotlin.enumValueOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[String] ret=T#873 suspend=0 defaults=[0] vararg=[0]
+symbol s876 kind=interface fq=kotlin.io.Closeable vis=public flags=synthetic
+symbol s877 kind=function fq=kotlin.io.Closeable.close vis=public flags=synthetic sig=recv=Class#876 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s878 kind=typeAlias fq=kotlin.AutoCloseable vis=public flags=synthetic
+symbol s879 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
+symbol s880 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
+symbol s881 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
+symbol s882 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#879 params=[(T#879) -> T#880] ret=T#880 suspend=0 defaults=[0] vararg=[0]
+symbol s883 kind=class fq=golden.sema.Animal vis=public flags=openType
+symbol s884 kind=constructor fq=golden.sema.Animal.<init> vis=public flags=_ sig=recv=Class#883 params=[] ret=Class#883 suspend=0 defaults=[] vararg=[]
+symbol s885 kind=class fq=golden.sema.Dog vis=public flags=_
+symbol s886 kind=constructor fq=golden.sema.Dog.<init> vis=public flags=_ sig=recv=Class#885 params=[] ret=Class#885 suspend=0 defaults=[] vararg=[]
+symbol s887 kind=function fq=golden.sema.accept vis=public flags=_ sig=recv=_ params=[T#888] ret=T#888 suspend=0 defaults=[0] vararg=[0] bounds=[Class#883]
+symbol s888 kind=typeParameter fq=golden.sema.accept.$887.T vis=private flags=_
+symbol s889 kind=valueParameter fq=golden.sema.accept.$887.x vis=private flags=_
+symbol s890 kind=function fq=golden.sema.callValid vis=public flags=_ sig=recv=_ params=[] ret=Class#883 suspend=0 defaults=[] vararg=[]
+symbol s891 kind=function fq=golden.sema.unbounded vis=public flags=_ sig=recv=_ params=[T#892] ret=T#892 suspend=0 defaults=[0] vararg=[0]
+symbol s892 kind=typeParameter fq=golden.sema.unbounded.$891.T vis=private flags=_
+symbol s893 kind=valueParameter fq=golden.sema.unbounded.$891.x vis=private flags=_
+symbol s894 kind=function fq=golden.sema.callUnbounded vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s895 kind=function fq=golden.sema.acceptWhere vis=public flags=_ sig=recv=_ params=[T#896] ret=T#896 suspend=0 defaults=[0] vararg=[0] bounds=[Class#883]
+symbol s896 kind=typeParameter fq=golden.sema.acceptWhere.$895.T vis=private flags=_
+symbol s897 kind=valueParameter fq=golden.sema.acceptWhere.$895.x vis=private flags=_
 file f0 package=golden.sema
-  decl d0 class Animal sym=s893
-  decl d1 class Dog sym=s895
-  decl d2 fun accept suspend=0 inline=0 sym=s897
-  decl d3 fun callValid suspend=0 inline=0 sym=s900
-  decl d4 fun unbounded suspend=0 inline=0 sym=s901
-  decl d5 fun callUnbounded suspend=0 inline=0 sym=s904
-  decl d6 fun acceptWhere suspend=0 inline=0 sym=s905
-expr e0 name(x) type=T#898 ref=s899
+  decl d0 class Animal sym=s883
+  decl d1 class Dog sym=s885
+  decl d2 fun accept suspend=0 inline=0 sym=s887
+  decl d3 fun callValid suspend=0 inline=0 sym=s890
+  decl d4 fun unbounded suspend=0 inline=0 sym=s891
+  decl d5 fun callUnbounded suspend=0 inline=0 sym=s894
+  decl d6 fun acceptWhere suspend=0 inline=0 sym=s895
+expr e0 name(x) type=T#888 ref=s889
 expr e1 name(accept) type=_
 expr e2 name(Dog) type=_
-expr e3 call callee=e2 args=[] type=Class#895 call=s896 map=[] targs=[]
-expr e4 call callee=e1 args=[_:e3] type=Class#895 call=s897 map=[0->0] targs=[Class#895]
-expr e5 name(x) type=T#902 ref=s903
+expr e3 call callee=e2 args=[] type=Class#885 call=s886 map=[] targs=[]
+expr e4 call callee=e1 args=[_:e3] type=Class#885 call=s887 map=[0->0] targs=[Class#885]
+expr e5 name(x) type=T#892 ref=s893
 expr e6 name(unbounded) type=_
 expr e7 int(42) type=Int
-expr e8 call callee=e6 args=[_:e7] type=Int call=s901 map=[0->0] targs=[Int]
-expr e9 name(x) type=T#906 ref=s907
+expr e8 call callee=e6 args=[_:e7] type=Int call=s891 map=[0->0] targs=[Int]
+expr e9 name(x) type=T#896 ref=s897
