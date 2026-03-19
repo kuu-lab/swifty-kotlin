@@ -862,12 +862,6 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    public static let kk_string_asIterable = ExternDecl(
-        name: "kk_string_asIterable",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
     public static let kk_char_isDigit = ExternDecl(
         name: "kk_char_isDigit",
         parameterTypes: ["intptr_t"],

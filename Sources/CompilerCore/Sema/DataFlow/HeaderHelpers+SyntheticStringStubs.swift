@@ -1291,16 +1291,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // TODO: When a true lazy Iterable<Char> runtime view is implemented,
-        // change this stub back to Iterable<Char> (using makeIterableType).
-        // For now the runtime eagerly materializes a List<Char> via kk_string_toList,
-        // so the stub must return List<Char> to keep type and runtime in sync.
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
             externalLinkName: "kk_string_asIterable",
             receiverType: stringType,
             parameters: [],
-            returnType: listCharType,
+            returnType: iterableCharType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1485,39 +1481,46 @@ extension DataFlowSemaPhase {
         makeListType(symbols: symbols, types: types, interner: interner, elementType: types.stringType)
     }
 
-    private func makeIterableType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterable"),
-        ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            // Fall back to Any rather than List<Char> to avoid granting
-            // list-only members (e.g. get()) to the iterable result type.
-            // This is consistent with CallTypeChecker.makeSyntheticIterableType.
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     private func makeNominalType(
         symbols: SymbolTable,
         types: TypeSystem,
         fqName: [InternedString]
     ) -> TypeID {
-        guard let symbol = symbols.lookup(fqName: fqName) else {
-            assertionFailure("Symbol not found for fqName \(fqName) — stdlib headers may not have been loaded before registering string stubs")
+        if let symbol = symbols.lookup(fqName: fqName) {
+            return types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        guard let name = fqName.last else {
             return types.anyType
         }
+
+        var packagePath: [InternedString] = []
+        for packageName in fqName.dropLast() {
+            packagePath.append(packageName)
+            if symbols.lookup(fqName: packagePath) == nil {
+                _ = symbols.define(
+                    kind: .package,
+                    name: packageName,
+                    fqName: packagePath,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+        }
+
+        let symbol = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
         return types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [],
@@ -1530,11 +1533,20 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> SymbolID {
-        let collectionsPkg = ensurePackage(
-            path: ["kotlin", "collections"],
-            symbols: symbols,
-            interner: interner
-        )
+        let collectionsPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        if symbols.lookup(fqName: collectionsPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("collections"),
+                fqName: collectionsPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
         let listName = interner.intern("List")
         let listFQName = collectionsPkg + [listName]
         if let existing = symbols.lookup(fqName: listFQName) {
@@ -1558,10 +1570,6 @@ extension DataFlowSemaPhase {
             visibility: .private,
             flags: []
         )
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
         return interfaceSymbol

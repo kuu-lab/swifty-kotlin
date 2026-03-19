@@ -1947,6 +1947,11 @@ extension DataFlowSemaPhase {
         let nullableElementType = types.makeNullable(listTypeParamType)
         if types.comparableInterfaceSymbol == nil {
             registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
+            registerSyntheticComparableStub(
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
         }
         let comparableElementBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
             [types.make(.classType(ClassType(
