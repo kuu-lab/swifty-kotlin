@@ -1523,7 +1523,8 @@ extension DataFlowSemaPhase {
                 memberName: memberName,
                 memberFQName: memberFQName,
                 parameterTypes: parameterTypes,
-                externalLinkName: externalLinkName
+                externalLinkName: externalLinkName,
+                returnTypeOverride: returnTypeOverride
             )
         }
 

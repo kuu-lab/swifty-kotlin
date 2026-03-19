@@ -519,8 +519,6 @@ extension CallTypeChecker {
             interner.intern("mapKeys"),
             knownNames.getValue,
             knownNames.getOrDefault,
-            interner.intern("maxByOrNull"),
-            interner.intern("minByOrNull"),
             interner.intern("plus"),
             interner.intern("minus"),
         ]
@@ -621,7 +619,7 @@ extension CallTypeChecker {
         case interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"):
             return isSetReceiver && argCount == 1
         case interner.intern("maxByOrNull"), interner.intern("minByOrNull"):
-            return isMapReceiver && argCount == 1
+            return argCount == 1
         case interner.intern("containsKey"), interner.intern("mapValues"), interner.intern("mapKeys"):
             return isMapReceiver && argCount == 1
         case knownNames.getValue:
@@ -921,8 +919,6 @@ extension CallTypeChecker {
             mapKeys,
             knownNames.getOrDefault,
             knownNames.getOrElse,
-            interner.intern("maxByOrNull"),
-            interner.intern("minByOrNull"),
         ]
         if mapOnlyMembers.contains(memberName) {
             guard isMapReceiver, argCount == 1 else {
