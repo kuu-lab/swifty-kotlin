@@ -178,6 +178,7 @@ public extension RuntimeABIExterns {
         kk_string_builder_append,
         kk_string_builder_append_line,
         kk_string_builder_append_line_noarg,
+        kk_string_builder_append_range,
         kk_string_builder_insert,
         kk_string_builder_delete,
         kk_string_builder_length,
@@ -1394,6 +1395,12 @@ public extension RuntimeABIExterns {
     static let kk_string_builder_delete = ExternDecl(
         name: "kk_string_builder_delete",
         parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_string_builder_append_range = ExternDecl(
+        name: "kk_string_builder_append_range",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 

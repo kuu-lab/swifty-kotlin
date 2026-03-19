@@ -568,6 +568,8 @@ extension CollectionLiteralLoweringPass {
                             rewrittenCallee = lookup.kkStringBuilderDeleteName
                         } else if builderCallee == lookup.buildStringName, callee == lookup.lengthName, arguments.count == 0 {
                             rewrittenCallee = lookup.kkStringBuilderLengthName
+                        } else if builderCallee == lookup.buildStringName, callee == lookup.appendRangeName, arguments.count == 3 {
+                            rewrittenCallee = lookup.kkStringBuilderAppendRangeName
                         } else if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
                             rewrittenCallee = lookup.kkBuilderListAddName
                         } else if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {

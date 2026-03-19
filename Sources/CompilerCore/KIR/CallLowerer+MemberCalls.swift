@@ -2140,6 +2140,25 @@ extension CallLowerer {
             }
         }
 
+        // StringBuilder 3-arg member calls (STDLIB-580)
+        // Use interner.resolve for a single string comparison instead of
+        // constructing the full KnownCompilerNames struct.
+        if args.count == 3, interner.resolve(calleeName) == "appendRange" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_builder_appendRange_obj"),
+                    arguments: [loweredReceiverID] + normalizedArgIDs,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
         if (1...3).contains(args.count), calleeName == interner.intern("windowed") {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
