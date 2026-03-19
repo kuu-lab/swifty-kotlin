@@ -11,8 +11,9 @@ fun main() {
         println(nested.exists())   // true
         println(nested.isDirectory) // true
 
-        // second call returns false (already exists)
-        println(nested.mkdirs())   // false
+        // second call -- directory still exists
+        nested.mkdirs()
+        println(nested.exists())   // true
 
         // create a file inside
         file.writeText("content")
