@@ -593,7 +593,12 @@ final class InlineLoweringPass: LoweringPass {
             }
         }
 
-        return InlineExpansion(instructions: lowered, returnedExpr: returnedExpr)
+        return InlineExpansion(
+            instructions: lowered,
+            returnedExpr: returnedExpr,
+            hasNonLocalReturn: hasNonLocalReturn,
+            hasNormalReturn: hasNormalReturn
+        )
     }
 
     // MARK: - Lambda Inlining
@@ -891,6 +896,15 @@ final class InlineLoweringPass: LoweringPass {
                         result: loweredResult
                     )
                 )
+
+            case let .nonLocalReturn(value):
+                // Non-local return from a nested lambda. Preserve it so the
+                // caller's inlineTransform can convert it to a real return.
+                if let value {
+                    lowered.append(.nonLocalReturn(resolveAlias(of: value, aliases: localExprMap)))
+                } else {
+                    lowered.append(.nonLocalReturn(nil))
+                }
             }
         }
 
@@ -902,8 +916,8 @@ final class InlineLoweringPass: LoweringPass {
         return InlineExpansion(
             instructions: lowered,
             returnedExpr: returnedExpr,
-            hasNonLocalReturn: hasNonLocalReturn,
-            hasNormalReturn: hasNormalReturn
+            hasNonLocalReturn: false,
+            hasNormalReturn: false
         )
     }
 
