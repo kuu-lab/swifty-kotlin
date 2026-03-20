@@ -2252,7 +2252,15 @@ extension CallTypeChecker {
                         let candidates = sema.symbols.lookupAll(fqName: decodeToStringFQName)
                         if let chosen = candidates.first(where: { candidate in
                             guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                            return sig.parameterTypes.count == args.count
+                            if sig.parameterTypes.count != args.count { return false }
+                            // For the 1-arg overload, verify the parameter is Charset type
+                            if args.count == 1, let paramType = sig.parameterTypes.first {
+                                let charsetFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charset")]
+                                guard let charsetSym = sema.symbols.lookup(fqName: charsetFQName),
+                                      case .classType(let ct) = sema.types.kind(of: paramType),
+                                      ct.classSymbol == charsetSym else { return false }
+                            }
+                            return true
                         }) {
                             _ = bindCallAndResolveReturnType(
                                 id,
@@ -2266,9 +2274,14 @@ extension CallTypeChecker {
                                 sema: sema
                             )
                         }
-                        // Infer charset argument if present
+                        // Infer charset argument if present, passing Charset expected type
                         if args.count == 1 {
-                            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                            let charsetFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charset")]
+                            let charsetExpectedType: TypeID? = {
+                                guard let sym = sema.symbols.lookup(fqName: charsetFQName) else { return nil }
+                                return sema.symbols.propertyType(for: sym)
+                            }()
+                            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: charsetExpectedType)
                         }
                         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                         sema.bindings.bindExprType(id, type: finalType)

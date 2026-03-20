@@ -2660,6 +2660,7 @@ extension CallLowerer {
                 .intLiteral(Int64(charsetID)),
                 type: resultType
             )
+            instructions.append(.constValue(result: result, value: .intLiteral(Int64(charsetID))))
             return result
         }
         let propType = sema.bindings.exprTypes[exprID]
