@@ -475,6 +475,9 @@ extension CallTypeChecker {
             interner.intern("associateBy"),
             interner.intern("associateWith"),
             interner.intern("associate"),
+            interner.intern("associateByTo"),
+            interner.intern("associateWithTo"),
+            interner.intern("groupByTo"),
             interner.intern("zip"),
             interner.intern("unzip"),
             interner.intern("withIndex"),
@@ -578,7 +581,7 @@ extension CallTypeChecker {
     ) -> Bool {
         let collectionReturningMembers: Set = [
             interner.intern("asSequence"), interner.intern("map"), interner.intern("filter"), interner.intern("mapNotNull"), interner.intern("filterNotNull"),
-            interner.intern("flatMap"), interner.intern("sortedBy"), interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("associateBy"), interner.intern("associateWith"),
+            interner.intern("flatMap"), interner.intern("sortedBy"), interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"),
             interner.intern("associate"), interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"), interner.intern("mapIndexed"),
             interner.intern("sortedDescending"), interner.intern("sortedByDescending"), interner.intern("sortedWith"),
@@ -642,6 +645,8 @@ extension CallTypeChecker {
              interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
              interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"):
             return argCount == 1
+        case interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"):
+            return argCount == 2
         case interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"):
             return isSetReceiver && argCount == 1
         case interner.intern("containsKey"), interner.intern("mapValues"), interner.intern("mapKeys"):
@@ -976,6 +981,17 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 0, expectedType: expectedType)
+        }
+
+        // *To functions: destination + lambda (2 args), lambda is at index 1
+        if (memberName == interner.intern("associateByTo") || memberName == interner.intern("associateWithTo") || memberName == interner.intern("groupByTo")), argCount == 2 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
         }
 
         if memberName == interner.intern("forEachIndexed") || memberName == interner.intern("mapIndexed") || memberName == interner.intern("onEachIndexed"), argCount == 1 {
