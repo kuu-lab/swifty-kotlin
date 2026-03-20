@@ -79,6 +79,12 @@ private func seededBox(from raw: Int) -> SeededRandomBox? {
     guard raw != 0, let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
         return nil
     }
+    let isObjectPointer = runtimeStorage.withLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
     return Unmanaged<SeededRandomBox>.fromOpaque(ptr).takeUnretainedValue()
 }
 
