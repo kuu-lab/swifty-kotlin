@@ -58,7 +58,91 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
         }
 
+        // Rewrite symbolRef references to synthetic enum entries (e.g.
+        // RegexOption.DOT_MATCHES_ALL) into boxed ordinal int literals.
+        // User-defined enum entries are backed by global variables, but
+        // synthetic entries have no globals — so we inline the ordinal.
+        rewriteSyntheticEnumEntryRefs(module: module, sema: sema, interner: ctx.interner)
+
         module.recordLowering(Self.name)
+    }
+
+    /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
+    /// is a synthetic field owned by a synthetic enum class with
+    /// `constValue(result: r, value: .intLiteral(ordinal))` followed by a
+    /// `call kk_box_int` so the value is a boxed enum ordinal.
+    private func rewriteSyntheticEnumEntryRefs(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        // Build a lookup: syntheticEnumEntrySymbol -> ordinal
+        var syntheticEntryOrdinal: [SymbolID: Int] = [:]
+        for sym in sema.symbols.allSymbols() {
+            guard sym.kind == .field,
+                  sym.flags.contains(.synthetic),
+                  sym.fqName.count >= 2
+            else {
+                continue
+            }
+            let parentFQ = Array(sym.fqName.dropLast())
+            guard let parentSymbol = sema.symbols.lookup(fqName: parentFQ),
+                  let parentInfo = sema.symbols.symbol(parentSymbol),
+                  parentInfo.kind == .enumClass,
+                  parentInfo.flags.contains(.synthetic)
+            else {
+                continue
+            }
+            // Ordinal = index among all field children of the parent enum.
+            let siblings = sema.symbols.children(ofFQName: parentFQ)
+                .filter { id in
+                    guard let s = sema.symbols.symbol(id) else { return false }
+                    return s.kind == .field
+                }
+                .sorted(by: { $0.rawValue < $1.rawValue })
+            if let ordinal = siblings.firstIndex(of: sym.id) {
+                syntheticEntryOrdinal[sym.id] = ordinal
+            }
+        }
+        guard !syntheticEntryOrdinal.isEmpty else { return }
+
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
+        let boxIntName = interner.intern("kk_box_int")
+        module.arena.transformFunctions { function in
+            var newBody: [KIRInstruction] = []
+            var changed = false
+            for instruction in function.body {
+                guard case let .constValue(result, .symbolRef(sym)) = instruction,
+                      let ordinal = syntheticEntryOrdinal[sym]
+                else {
+                    newBody.append(instruction)
+                    continue
+                }
+                changed = true
+                // Emit the ordinal as an int literal.
+                let ordinalExpr = module.arena.appendExpr(
+                    .intLiteral(Int64(ordinal)),
+                    type: intType
+                )
+                newBody.append(.constValue(result: ordinalExpr, value: .intLiteral(Int64(ordinal))))
+                // Box the ordinal via kk_box_int.
+                newBody.append(.call(
+                    symbol: nil,
+                    callee: boxIntName,
+                    arguments: [ordinalExpr],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+            if changed {
+                var updated = function
+                updated.replaceBody(newBody)
+                return updated
+            }
+            return function
+        }
     }
 
     private func synthesizeEnumHelpers(
