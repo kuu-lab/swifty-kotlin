@@ -287,8 +287,8 @@
   - 現状: `return` / `break` / `continue` 前の enclosing `finally` インラインは実装済み（`ExprLowerer+ControlFlowAndBlocks.swift` の `TODO(CODE-001)` は例外ルーティング）
 - [ ] CORO-004: サスペンドを `DispatchSemaphore` 待ちではない継続モデルにする
   - 現状: `waitForResumeSignal` 等（`RuntimeCoroutine.swift`）
-- [ ] CORO-003: スコープを TLS / `threadDictionary` 依存から減らす
-  - 現状: Task-local registry 等で改善あり。Flow collect 等に `threadDictionary` 残存（`RuntimeCoroutine.swift`）
+- [x] CORO-003: スコープを TLS / `threadDictionary` 依存から減らす
+  - 完了: 全 `threadDictionary` 使用を `pthread_key_t` ベースの軽量 TLS に移行（タスクキー / Flow collect スタック / ディスパッチャー）
 - [ ] REFL-004: 実行時 `KClass` から読めるバイナリメタデータ（`MetadataSerializer` 等の活用）
   - 現状: リンク用メタデータはあるが実行時参照は限定
 - [ ] ENUM-001: Enum **静的初期化順・エッジ**と `entries` / 合成の Kotlin 完全一致
