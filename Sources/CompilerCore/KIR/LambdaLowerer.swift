@@ -593,9 +593,94 @@ final class LambdaLowerer {
             sema: sema
         )
 
+        // REFL-003: When a callable ref is used as a collection HOF argument
+        // (e.g. `list.map(::double)`), we must generate a wrapper thunk with the
+        // HOF ABI: (closureRaw, value, outThrown) -> result.  The target function
+        // itself uses a plain ABI (value) -> result, so we cannot pass its
+        // pointer directly to the runtime HOF implementation.
+        let needsHOFWrapper = sema.bindings.isCollectionHOFLambdaExpr(exprID)
+
         let callableSymbol: SymbolID
         let callableName: InternedString
-        if let targetSymbol {
+        if let targetSymbol, needsHOFWrapper {
+            // Generate a HOF-ABI wrapper that delegates to the target function.
+            callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+            callableName = syntheticLambdaName(for: exprID, interner: interner)
+
+            let targetName = callableTargetName(for: targetSymbol, sema: sema, interner: interner)
+            let functionType = boundType.flatMap { typeID -> FunctionType? in
+                guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
+                return ft
+            }
+            let valueParamTypes = functionType?.params ?? []
+            let returnType = functionType?.returnType ?? sema.types.anyType
+
+            // Build wrapper params: (closureRaw, value0, ..., valueN)
+            let closureParam = KIRParameter(
+                symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
+                type: sema.types.intType
+            )
+            let valueParams: [KIRParameter] = valueParamTypes.enumerated().map { index, type in
+                KIRParameter(
+                    symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                    type: type
+                )
+            }
+            let wrapperParams = [closureParam] + valueParams
+
+            // Build wrapper body: call the target function with the value params,
+            // then return its result.
+            var body: [KIRInstruction] = [.beginBlock]
+            var callArgExprs: [KIRExprID] = []
+            // If the callable ref has a bound receiver, pass capture args first.
+            for captureArg in captureArguments {
+                let captureRef = arena.appendExpr(
+                    .symbolRef(closureParam.symbol),
+                    type: closureParam.type
+                )
+                body.append(.constValue(result: captureRef, value: .symbolRef(closureParam.symbol)))
+                callArgExprs.append(captureRef)
+            }
+            for valueParam in valueParams {
+                let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
+                body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
+                callArgExprs.append(paramExpr)
+            }
+            let callResult = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: returnType
+            )
+            body.append(.call(
+                symbol: targetSymbol,
+                callee: targetName,
+                arguments: callArgExprs,
+                result: callResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            switch sema.types.kind(of: returnType) {
+            case .unit, .nothing(.nonNull), .nothing(.nullable):
+                body.append(.returnUnit)
+            default:
+                body.append(.returnValue(callResult))
+            }
+            body.append(.endBlock)
+
+            let wrapperDecl = arena.appendDecl(
+                .function(
+                    KIRFunction(
+                        symbol: callableSymbol,
+                        name: callableName,
+                        params: wrapperParams,
+                        returnType: returnType,
+                        body: body,
+                        isSuspend: functionType?.isSuspend ?? false,
+                        isInline: false
+                    )
+                )
+            )
+            driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
+        } else if let targetSymbol {
             callableSymbol = targetSymbol
             callableName = callableTargetName(for: targetSymbol, sema: sema, interner: interner)
         } else {
