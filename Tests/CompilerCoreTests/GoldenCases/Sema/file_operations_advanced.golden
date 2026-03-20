@@ -35,7 +35,7 @@ decl[0] function #955 main params=0 suspend=false inline=false
   const r32=unit
   const r33=stringLiteral(CompilerCore.InternedString(rawValue: 21))
   call kk_collection_toList symbol=toList args=[r30] ret=r34 thrown=true thrownResult=_
-  call kk_list_size symbol=_ args=[] ret=r35 thrown=false thrownResult=_
+  call kk_list_size symbol=_ args=[r34] ret=r35 thrown=false thrownResult=_
   const r36=intLiteral(1)
   call kk_any_to_string symbol=_ args=[r35, r36] ret=r37 thrown=false thrownResult=_
   call kk_string_concat symbol=_ args=[r33, r37] ret=r38 thrown=false thrownResult=_
@@ -45,7 +45,7 @@ decl[0] function #955 main params=0 suspend=false inline=false
   const r42=unit
   const r43=stringLiteral(CompilerCore.InternedString(rawValue: 23))
   call kk_collection_toList symbol=toList args=[r40] ret=r44 thrown=true thrownResult=_
-  call kk_list_size symbol=_ args=[] ret=r45 thrown=false thrownResult=_
+  call kk_list_size symbol=_ args=[r44] ret=r45 thrown=false thrownResult=_
   const r46=intLiteral(1)
   call kk_any_to_string symbol=_ args=[r45, r46] ret=r47 thrown=false thrownResult=_
   call kk_string_concat symbol=_ args=[r43, r47] ret=r48 thrown=false thrownResult=_
