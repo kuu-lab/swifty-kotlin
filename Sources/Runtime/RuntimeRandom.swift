@@ -178,6 +178,18 @@ public func kk_random_nextFloat(_ receiver: Int) -> Int {
     return kk_float_to_bits(Float.random(in: 0 ..< 1))
 }
 
+@_cdecl("kk_random_nextFloat_until")
+public func kk_random_nextFloat_until(_ randomRaw: Int, _ untilBits: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    _ = randomRaw
+    outThrown?.pointee = 0
+    let until = Float(bitPattern: UInt32(truncatingIfNeeded: untilBits))
+    guard until > 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: Random range is empty: until must be positive, but was \(until).")
+        return 0
+    }
+    return kk_float_to_bits(Float.random(in: 0 ..< until))
+}
+
 @_cdecl("kk_random_nextDouble")
 public func kk_random_nextDouble(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
