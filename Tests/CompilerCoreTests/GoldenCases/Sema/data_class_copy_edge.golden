@@ -1,4 +1,4 @@
-symbol s0 kind=package fq=golden.sema vis=public flags=_
+symbol s0 kind=package fq=_root_ vis=public flags=_
 symbol s1 kind=package fq=kotlin vis=public flags=synthetic
 symbol s2 kind=package fq=kotlin.properties vis=public flags=synthetic
 symbol s3 kind=interface fq=kotlin.properties.Lazy vis=public flags=synthetic
@@ -953,16 +953,85 @@ symbol s951 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
 symbol s952 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
 symbol s953 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
 symbol s954 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#951 params=[(T#951) -> T#952] ret=T#952 suspend=0 defaults=[0] vararg=[0]
-symbol s955 kind=class fq=golden.sema.Widget vis=public flags=_
-symbol s956 kind=constructor fq=golden.sema.Widget.<init> vis=public flags=_ sig=recv=Class#955 params=[] ret=Class#955 suspend=0 defaults=[] vararg=[]
-symbol s957 kind=property fq=golden.sema.Widget.computed vis=public flags=_ type=String
-symbol s958 kind=property fq=golden.sema.Widget.backed vis=public flags=mutable type=Int
-symbol s959 kind=backingField fq=golden.sema.Widget.$backing_backed vis=private flags=mutable type=Int
-file f0 package=golden.sema
-  decl d2 class Widget sym=s955
-expr e0 string(hello) type=String
-expr e1 name(field) type=_
-expr e2 name(value) type=Int ref=s-40958
-expr e3 localAssign field value=e2 type=Unit ref=s959
-expr e4 name(field) type=Int ref=s959
-expr e5 int(0) type=Int
+symbol s955 kind=class fq=Point vis=public flags=dataType
+symbol s956 kind=constructor fq=Point.<init> vis=public flags=_ sig=recv=Class#955 params=[Int,Int] ret=Class#955 suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s957 kind=valueParameter fq=Point.<init>.$956.x vis=private flags=_
+symbol s958 kind=valueParameter fq=Point.<init>.$956.y vis=private flags=_
+symbol s959 kind=function fq=Point.component1 vis=public flags=synthetic|operatorFunction sig=recv=Class#955 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s960 kind=function fq=Point.component2 vis=public flags=synthetic|operatorFunction sig=recv=Class#955 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s961 kind=function fq=Point.copy vis=public flags=synthetic sig=recv=Class#955 params=[Int,Int] ret=Class#955 suspend=0 defaults=[1,1] vararg=[0,0]
+symbol s962 kind=valueParameter fq=Point.copy.$961.x vis=private flags=_
+symbol s963 kind=valueParameter fq=Point.copy.$961.y vis=private flags=_
+symbol s964 kind=function fq=Point.hashCode vis=public flags=synthetic sig=recv=Class#955 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s965 kind=property fq=Point.x vis=public flags=_ type=Int
+symbol s966 kind=property fq=Point.y vis=public flags=_ type=Int
+symbol s967 kind=function fq=Point.toString vis=public flags=synthetic sig=recv=Class#955 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s968 kind=function fq=Point.equals vis=public flags=synthetic sig=recv=Class#955 params=[Any?] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s969 kind=valueParameter fq=Point.equals.other vis=private flags=synthetic
+symbol s970 kind=class fq=Name vis=public flags=dataType
+symbol s971 kind=constructor fq=Name.<init> vis=public flags=_ sig=recv=Class#970 params=[String] ret=Class#970 suspend=0 defaults=[0] vararg=[0]
+symbol s972 kind=valueParameter fq=Name.<init>.$971.value vis=private flags=_
+symbol s973 kind=function fq=Name.component1 vis=public flags=synthetic|operatorFunction sig=recv=Class#970 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s974 kind=function fq=Name.copy vis=public flags=synthetic sig=recv=Class#970 params=[String] ret=Class#970 suspend=0 defaults=[1] vararg=[0]
+symbol s975 kind=valueParameter fq=Name.copy.$974.value vis=private flags=_
+symbol s976 kind=function fq=Name.hashCode vis=public flags=synthetic sig=recv=Class#970 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s977 kind=property fq=Name.value vis=public flags=_ type=String
+symbol s978 kind=function fq=Name.toString vis=public flags=synthetic sig=recv=Class#970 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s979 kind=function fq=Name.equals vis=public flags=synthetic sig=recv=Class#970 params=[Any?] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s980 kind=valueParameter fq=Name.equals.other vis=private flags=synthetic
+symbol s981 kind=function fq=testCopyBasic vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s982 kind=function fq=testCopyWithOverride vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s983 kind=function fq=testCopySingleProperty vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s984 kind=local fq=__local_4.p vis=private flags=_
+symbol s985 kind=local fq=__local_7.p2 vis=private flags=_
+symbol s986 kind=local fq=__local_20.p vis=private flags=_
+symbol s987 kind=local fq=__local_24.p3 vis=private flags=_
+symbol s988 kind=local fq=__local_32.n vis=private flags=_
+symbol s989 kind=local fq=__local_36.n2 vis=private flags=_
+file f0 package=_
+  decl d2 class Point sym=s955
+  decl d4 class Name sym=s970
+  decl d5 fun testCopyBasic suspend=0 inline=0 sym=s981
+  decl d6 fun testCopyWithOverride suspend=0 inline=0 sym=s982
+  decl d7 fun testCopySingleProperty suspend=0 inline=0 sym=s983
+expr e0 name(Point) type=_
+expr e1 int(1) type=Int
+expr e2 int(2) type=Int
+expr e3 call callee=e0 args=[_:e1,_:e2] type=Class#955 call=s956 map=[0->0,1->1] targs=[]
+expr e4 localDecl p mutable=0 type=_ init=e3 type=Unit ref=s984
+expr e5 name(p) type=Class#955 ref=s984
+expr e6 memberCall recv=e5 callee=copy args=[] type=Class#955 call=s961 map=[] targs=[]
+expr e7 localDecl p2 mutable=0 type=_ init=e6 type=Unit ref=s985
+expr e8 name(println) type=_
+expr e9 name(p2) type=Class#955 ref=s985
+expr e10 memberCall recv=e9 callee=x args=[] type=Int ref=s965
+expr e11 call callee=e8 args=[_:e10] type=Unit call=s804 map=[0->0] targs=[]
+expr e12 name(println) type=_
+expr e13 name(p2) type=Class#955 ref=s985
+expr e14 memberCall recv=e13 callee=y args=[] type=Int ref=s966
+expr e15 call callee=e12 args=[_:e14] type=Unit call=s804 map=[0->0] targs=[]
+expr e16 name(Point) type=_
+expr e17 int(1) type=Int
+expr e18 int(2) type=Int
+expr e19 call callee=e16 args=[_:e17,_:e18] type=Class#955 call=s956 map=[0->0,1->1] targs=[]
+expr e20 localDecl p mutable=0 type=_ init=e19 type=Unit ref=s986
+expr e21 name(p) type=Class#955 ref=s986
+expr e22 int(10) type=Int
+expr e23 memberCall recv=e21 callee=copy args=[x:e22] type=Class#955 call=s961 map=[0->0] targs=[]
+expr e24 localDecl p3 mutable=0 type=_ init=e23 type=Unit ref=s987
+expr e25 name(println) type=_
+expr e26 name(p3) type=Class#955 ref=s987
+expr e27 memberCall recv=e26 callee=x args=[] type=Int ref=s965
+expr e28 call callee=e25 args=[_:e27] type=Unit call=s804 map=[0->0] targs=[]
+expr e29 name(Name) type=_
+expr e30 string(hello) type=String
+expr e31 call callee=e29 args=[_:e30] type=Class#970 call=s971 map=[0->0] targs=[]
+expr e32 localDecl n mutable=0 type=_ init=e31 type=Unit ref=s988
+expr e33 name(n) type=Class#970 ref=s988
+expr e34 string(world) type=String
+expr e35 memberCall recv=e33 callee=copy args=[value:e34] type=Class#970 call=s974 map=[0->0] targs=[]
+expr e36 localDecl n2 mutable=0 type=_ init=e35 type=Unit ref=s989
+expr e37 name(println) type=_
+expr e38 name(n2) type=Class#970 ref=s989
+expr e39 memberCall recv=e38 callee=value args=[] type=String ref=s977
+expr e40 call callee=e37 args=[_:e39] type=Unit call=s804 map=[0->0] targs=[]
