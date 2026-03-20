@@ -2715,6 +2715,41 @@ extension CallTypeChecker {
                     }
                 }
             }
+            // STDLIB-581: String.toByteArray(charset: Charset)
+            if args.count == 1 {
+                let receiverTypeForCheck = safeCall
+                    ? sema.types.makeNonNullable(lookupReceiverType)
+                    : lookupReceiverType
+                if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+                   interner.resolve(calleeName) == "toByteArray"
+                {
+                    if let boundType = tryBindSyntheticStringMemberFallback(
+                        id,
+                        calleeName: calleeName,
+                        receiverType: receiverTypeForCheck,
+                        args: args,
+                        argTypes: argTypes,
+                        range: range,
+                        ctx: ctx,
+                        expectedType: expectedType,
+                        explicitTypeArgs: explicitTypeArgs,
+                        safeCall: safeCall
+                    ) {
+                        sema.bindings.markCollectionExpr(id)
+                        return boundType
+                    }
+                    let resultType = makeSyntheticListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: sema.types.intType
+                    )
+                    sema.bindings.markCollectionExpr(id)
+                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
             // String stdlib: 2-arg removeSurrounding(prefix, suffix) (STDLIB-185)
             if args.count == 2 {
                 let receiverTypeForCheck = safeCall
@@ -4236,13 +4271,6 @@ extension CallTypeChecker {
         case ("Double", "NaN"): return (types.doubleType, .doubleLiteral(Double.nan))
         case ("Double", "POSITIVE_INFINITY"): return (types.doubleType, .doubleLiteral(Double.infinity))
         case ("Double", "NEGATIVE_INFINITY"): return (types.doubleType, .doubleLiteral(-Double.infinity))
-        // Charsets (STDLIB-573): Charsets.UTF_8, etc. resolve to integer IDs
-        case ("Charsets", "UTF_8"): return (types.intType, .intLiteral(0))
-        case ("Charsets", "UTF_16"): return (types.intType, .intLiteral(1))
-        case ("Charsets", "UTF_16BE"): return (types.intType, .intLiteral(2))
-        case ("Charsets", "UTF_16LE"): return (types.intType, .intLiteral(3))
-        case ("Charsets", "US_ASCII"): return (types.intType, .intLiteral(4))
-        case ("Charsets", "ISO_8859_1"): return (types.intType, .intLiteral(5))
         default: return nil
         }
     }
