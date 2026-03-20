@@ -1837,6 +1837,10 @@ extension CollectionLiteralLoweringPass {
                             if let result {
                                 rangeExprIDs.insert(result.rawValue)
                                 rangeExprIDs.insert(transformResult.rawValue)
+                                if ulongRangeExprIDs.contains(receiverID.rawValue) {
+                                    ulongRangeExprIDs.insert(transformResult.rawValue)
+                                    ulongRangeExprIDs.insert(result.rawValue)
+                                }
                                 loweredBody.append(.copy(from: transformResult, to: result))
                             }
                             continue
