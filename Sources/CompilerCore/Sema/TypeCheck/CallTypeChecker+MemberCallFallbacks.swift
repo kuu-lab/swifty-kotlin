@@ -218,7 +218,7 @@ extension CallTypeChecker {
                 isSuspend: false,
                 nullability: .nonNull
             )))
-            if let lambdaExpr = ctx.ast.arena.expr(args[0].expr), case .lambdaLiteral = lambdaExpr {
+            if let lambdaExpr = ctx.ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
@@ -319,7 +319,7 @@ extension CallTypeChecker {
             args.indices.contains(expectation.argumentIndex)
         {
             let lambdaArgExpr = args[expectation.argumentIndex].expr
-            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), case .lambdaLiteral = lambdaExpr {
+            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
             }
             _ = driver.inferExpr(
@@ -1392,7 +1392,7 @@ extension CallTypeChecker {
             args.indices.contains(expectation.argumentIndex)
         {
             let lambdaArgExpr = args[expectation.argumentIndex].expr
-            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), case .lambdaLiteral = lambdaExpr {
+            if let lambdaExpr = ctx.ast.arena.expr(lambdaArgExpr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.markCollectionHOFLambdaExpr(lambdaArgExpr)
             }
             _ = driver.inferExpr(
