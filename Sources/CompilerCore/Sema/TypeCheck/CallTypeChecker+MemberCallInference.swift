@@ -2233,6 +2233,49 @@ extension CallTypeChecker {
                     }
                 }
             }
+            // STDLIB-574: ByteArray.decodeToString() / ByteArray.decodeToString(charset)
+            do {
+                let receiverTypeForCheck = safeCall
+                    ? sema.types.makeNonNullable(lookupReceiverType)
+                    : lookupReceiverType
+                let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
+                if let baSymbol = sema.symbols.lookup(fqName: byteArrayFQName),
+                   case .classType(let ct) = sema.types.kind(of: receiverTypeForCheck),
+                   ct.classSymbol == baSymbol
+                {
+                    let calleeStr = interner.resolve(calleeName)
+                    if calleeStr == "decodeToString" && (args.count == 0 || args.count == 1) {
+                        let resultType = sema.types.stringType
+                        // Try to bind to the synthetic extension function symbol
+                        let kotlinTextPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("text")]
+                        let decodeToStringFQName = kotlinTextPkg + [interner.intern("decodeToString")]
+                        let candidates = sema.symbols.lookupAll(fqName: decodeToStringFQName)
+                        if let chosen = candidates.first(where: { candidate in
+                            guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+                            return sig.parameterTypes.count == args.count
+                        }) {
+                            _ = bindCallAndResolveReturnType(
+                                id,
+                                chosen: chosen,
+                                resolved: ResolvedCall(
+                                    chosenCallee: chosen,
+                                    substitutedTypeArguments: [:],
+                                    parameterMapping: [:],
+                                    diagnostic: nil
+                                ),
+                                sema: sema
+                            )
+                        }
+                        // Infer charset argument if present
+                        if args.count == 1 {
+                            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                        }
+                        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
+                }
+            }
             // String stdlib: nullable-receiver 0-arg methods (NULL-002)
             // isNullOrEmpty/isNullOrBlank accept String? receiver directly (no safe-call needed).
             if args.isEmpty {
