@@ -1016,7 +1016,7 @@ extension CallTypeChecker {
             ]) {
                 listType = sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
-                    args: [.out(sema.types.anyType)],
+                    args: [.invariant(sema.types.anyType)],
                     nullability: .nonNull
                 )))
             } else {
