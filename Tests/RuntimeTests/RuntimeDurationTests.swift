@@ -15,9 +15,14 @@ private let sleep50msThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> 
     return 0
 }
 
-/// A closure thunk that returns its closureRaw value as the result.
-private let returnClosureRawThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, _ in
-    closureRaw
+/// Global to capture closureRaw value passed to the thunk.
+/// Access is single-threaded in tests; disable concurrency-safety check.
+nonisolated(unsafe) private var capturedClosureRaw: Int = 0
+
+/// A closure thunk that captures its closureRaw value into a global for verification.
+private let captureClosureRawThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, _ in
+    capturedClosureRaw = closureRaw
+    return 0
 }
 
 /// A closure thunk that simulates a thrown exception by writing to outThrown.
@@ -414,13 +419,15 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     // MARK: - kk_measureTime: closureRaw passthrough
 
     func testMeasureTimePassesClosureRawToThunk() {
-        // The returnClosureRawThunk returns its closureRaw argument.
-        // kk_measureTime ignores the closure return value, but we can verify
-        // the thunk was called by checking the duration is valid.
-        let fnPtr = unsafeBitCast(returnClosureRawThunk, to: Int.self)
+        // The captureClosureRawThunk stores its closureRaw argument into a global.
+        // We verify kk_measureTime forwards the closureRaw value correctly.
+        capturedClosureRaw = 0
+        let fnPtr = unsafeBitCast(captureClosureRawThunk, to: Int.self)
         var thrown: Int = 0
-        let result = kk_measureTime(fnPtr, 42, &thrown)
+        let sentinel = 42
+        let result = kk_measureTime(fnPtr, sentinel, &thrown)
         XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(capturedClosureRaw, sentinel, "closureRaw should be forwarded to the thunk")
         // The duration should still be valid (non-zero handle)
         XCTAssertNotEqual(result, 0)
         let ns = kk_duration_inWholeNanoseconds(result)
@@ -469,12 +476,15 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(thrown, 0)
 
         let strHandle = kk_duration_toString(result)
-        let str = stringFromHandle(strHandle)
-        XCTAssertNotNil(str)
-        // The string should end with a time unit suffix
+        guard let str = stringFromHandle(strHandle) else {
+            XCTFail("toString returned nil for a valid duration handle")
+            return
+        }
+        // The string should end with a time unit suffix.
+        // Check longest suffixes first to avoid "s" matching "ns"/"us"/"ms".
         let validSuffixes = ["ns", "us", "ms", "s"]
-        let hasValidSuffix = validSuffixes.contains { str!.hasSuffix($0) }
-        XCTAssertTrue(hasValidSuffix, "toString should end with a time unit suffix, got: \(str!)")
+        let hasValidSuffix = validSuffixes.contains { str.hasSuffix($0) }
+        XCTAssertTrue(hasValidSuffix, "toString should end with a time unit suffix, got: \(str)")
     }
 
     // MARK: - kk_measureTime: consecutive calls
