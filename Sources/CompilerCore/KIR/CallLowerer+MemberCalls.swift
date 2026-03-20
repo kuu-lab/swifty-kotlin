@@ -95,7 +95,7 @@ extension CallLowerer {
         "sort", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
         "copyOf", "copyOfRange", "fill",
-        "firstOrNull", "lastOrNull",
+        "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
         "intersect", "union", "subtract",
         "toHashSet",
@@ -1580,8 +1580,10 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull" : "kk_string_lastOrNull"
+                if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
+                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull"
+                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull"
+                        : "kk_string_singleOrNull"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
@@ -3331,6 +3333,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_firstOrNull")
             case "lastOrNull":
                 return interner.intern("kk_list_lastOrNull")
+            case "singleOrNull":
+                return interner.intern("kk_list_singleOrNull")
             case "indexOf":
                 return interner.intern("kk_list_indexOf")
             case "lastIndexOf":
@@ -3432,6 +3436,8 @@ extension CallLowerer {
             return interner.intern("kk_list_firstOrNull")
         case "lastOrNull":
             return interner.intern("kk_list_lastOrNull")
+        case "singleOrNull":
+            return interner.intern("kk_list_singleOrNull")
         case "getOrNull":
             return interner.intern("kk_list_getOrNull")
         case "elementAtOrNull":
