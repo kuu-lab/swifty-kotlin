@@ -72,6 +72,9 @@ public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
     guard stepValue > 0, let range = runtimeRangeBox(from: rangeRaw) else {
         return rangeRaw
     }
+    if range.step == 0 {
+        return rangeRaw
+    }
     let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
     // Align 'last' to the step like Kotlin's getProgressionLastElement:
     // last is the final value in the progression that stays within the range.

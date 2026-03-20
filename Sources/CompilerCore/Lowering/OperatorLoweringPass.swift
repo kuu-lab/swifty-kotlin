@@ -44,6 +44,7 @@ final class OperatorLoweringPass: LoweringPass {
             rangeCallees: [
                 ctx.interner.intern("kk_op_rangeTo"),
                 ctx.interner.intern("kk_op_rangeUntil"),
+                ctx.interner.intern("kk_op_ulong_rangeUntil"),
                 ctx.interner.intern("kk_op_downTo"),
                 ctx.interner.intern("kk_op_step"),
                 ctx.interner.intern("kk_range_reversed"),
