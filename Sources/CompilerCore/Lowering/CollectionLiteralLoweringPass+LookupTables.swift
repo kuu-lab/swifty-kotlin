@@ -63,6 +63,7 @@ struct CollectionLiteralLookupTables {
     let kkStringWindowedName: InternedString
     let kkStringAsSequenceName: InternedString
     let kkStringAsIterableName: InternedString
+    let kkStringWindowedPartialName: InternedString
     let kkStringIteratorName: InternedString
     let kkStringIteratorHasNextName: InternedString
     let kkStringIteratorNextName: InternedString
@@ -136,7 +137,9 @@ struct CollectionLiteralLookupTables {
     let kkListIndexOfFirstName: InternedString
     let kkListIndexOfLastName: InternedString
     let kkListChunkedName: InternedString
+    let kkListChunkedTransformName: InternedString
     let kkListWindowedName: InternedString
+    let kkListWindowedPartialName: InternedString
     let kkListSortedDescendingName: InternedString
     let kkListSortedByDescendingName: InternedString
     let kkListSortedWithName: InternedString
@@ -216,6 +219,11 @@ struct CollectionLiteralLookupTables {
     let kkSequenceFlattenName: InternedString
     let kkSequenceFoldIndexedName: InternedString
     let kkSequenceReduceIndexedName: InternedString
+
+    // STDLIB-561/562: Sequence plus/minus
+    let kkSequencePlusName: InternedString
+    let kkSequenceMinusName: InternedString
+    let kkSequenceOfSingleName: InternedString
 
     let kkMapOfName: InternedString
     let kkMapSizeName: InternedString
@@ -375,6 +383,10 @@ struct CollectionLiteralLookupTables {
     let copyOfRangeName: InternedString
     let fillName: InternedString
 
+    // Sequence plus/minus member names (STDLIB-561/562)
+    let plusMemberName: InternedString
+    let minusMemberName: InternedString
+
     // Sequence member names (STDLIB-003)
     let asSequenceName: InternedString
     let toListName: InternedString
@@ -444,11 +456,13 @@ struct CollectionLiteralLookupTables {
     let insertName: InternedString
     let deleteName: InternedString
     let lengthName: InternedString
+    let appendRangeName: InternedString
     let kkStringBuilderAppendLineName: InternedString
     let kkStringBuilderAppendLineNoargName: InternedString
     let kkStringBuilderInsertName: InternedString
     let kkStringBuilderDeleteName: InternedString
     let kkStringBuilderLengthName: InternedString
+    let kkStringBuilderAppendRangeName: InternedString
 
     // File I/O names (STDLIB-565)
     let fileConstructorName: InternedString
@@ -547,6 +561,7 @@ struct CollectionLiteralLookupTables {
         kkStringWindowedName = interner.intern("kk_string_windowed")
         kkStringAsSequenceName = interner.intern("kk_string_asSequence")
         kkStringAsIterableName = interner.intern("kk_string_asIterable")
+        kkStringWindowedPartialName = interner.intern("kk_string_windowed_partial")
         kkStringIteratorName = interner.intern("kk_string_iterator")
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
@@ -618,7 +633,9 @@ struct CollectionLiteralLookupTables {
         kkListIndexOfFirstName = interner.intern("kk_list_indexOfFirst")
         kkListIndexOfLastName = interner.intern("kk_list_indexOfLast")
         kkListChunkedName = interner.intern("kk_list_chunked")
+        kkListChunkedTransformName = interner.intern("kk_list_chunked_transform")
         kkListWindowedName = interner.intern("kk_list_windowed")
+        kkListWindowedPartialName = interner.intern("kk_list_windowed_partial")
         kkListSortedDescendingName = interner.intern("kk_list_sortedDescending")
         kkListSortedByDescendingName = interner.intern("kk_list_sortedByDescending")
         kkListSortedWithName = interner.intern("kk_list_sortedWith")
@@ -694,6 +711,10 @@ struct CollectionLiteralLookupTables {
         kkSequenceFlattenName = interner.intern("kk_sequence_flatten")
         kkSequenceFoldIndexedName = interner.intern("kk_sequence_foldIndexed")
         kkSequenceReduceIndexedName = interner.intern("kk_sequence_reduceIndexed")
+
+        kkSequencePlusName = interner.intern("kk_sequence_plus")
+        kkSequenceMinusName = interner.intern("kk_sequence_minus")
+        kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
 
         kkMapOfName = interner.intern("kk_map_of")
         kkMapSizeName = interner.intern("kk_map_size")
@@ -846,6 +867,9 @@ struct CollectionLiteralLookupTables {
         copyOfRangeName = interner.intern("copyOfRange")
         fillName = interner.intern("fill")
 
+        plusMemberName = interner.intern("plus")
+        minusMemberName = interner.intern("minus")
+
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
         toSetName = interner.intern("toSet")
@@ -908,11 +932,13 @@ struct CollectionLiteralLookupTables {
         insertName = interner.intern("insert")
         deleteName = interner.intern("delete")
         lengthName = interner.intern("length")
+        appendRangeName = interner.intern("appendRange")
         kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
         kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
         kkStringBuilderInsertName = interner.intern("kk_string_builder_insert")
         kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")
         kkStringBuilderLengthName = interner.intern("kk_string_builder_length")
+        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range")
 
         // File I/O names (STDLIB-565)
         fileConstructorName = interner.intern("File")
