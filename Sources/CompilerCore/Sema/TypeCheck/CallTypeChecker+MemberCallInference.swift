@@ -2415,6 +2415,13 @@ extension CallTypeChecker {
                         sema.types.intType
                     case "get":
                         sema.types.make(.primitive(.char, .nonNull))
+                    case "encodeToByteArray", "toByteArray":
+                        makeSyntheticListType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: sema.types.intType
+                        )
                     default:
                         nil
                     }
@@ -2432,6 +2439,12 @@ extension CallTypeChecker {
                             safeCall: safeCall
                         ) {
                             return boundType
+                        }
+                        switch calleeStr {
+                        case "encodeToByteArray", "toByteArray":
+                            sema.bindings.markCollectionExpr(id)
+                        default:
+                            break
                         }
                         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                         sema.bindings.bindExprType(id, type: finalType)
@@ -3750,6 +3763,13 @@ extension CallTypeChecker {
         case ("Double", "NaN"): return (types.doubleType, .doubleLiteral(Double.nan))
         case ("Double", "POSITIVE_INFINITY"): return (types.doubleType, .doubleLiteral(Double.infinity))
         case ("Double", "NEGATIVE_INFINITY"): return (types.doubleType, .doubleLiteral(-Double.infinity))
+        // Charsets (STDLIB-573): Charsets.UTF_8, etc. resolve to integer IDs
+        case ("Charsets", "UTF_8"): return (types.intType, .intLiteral(0))
+        case ("Charsets", "UTF_16"): return (types.intType, .intLiteral(1))
+        case ("Charsets", "UTF_16BE"): return (types.intType, .intLiteral(2))
+        case ("Charsets", "UTF_16LE"): return (types.intType, .intLiteral(3))
+        case ("Charsets", "US_ASCII"): return (types.intType, .intLiteral(4))
+        case ("Charsets", "ISO_8859_1"): return (types.intType, .intLiteral(5))
         default: return nil
         }
     }

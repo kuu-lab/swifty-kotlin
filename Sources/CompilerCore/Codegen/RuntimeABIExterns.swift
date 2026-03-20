@@ -820,6 +820,13 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    /// STDLIB-573: String.encodeToByteArray(charset)
+    public static let kk_string_encodeToByteArray_charset = ExternDecl(
+        name: "kk_string_encodeToByteArray_charset",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
     /// STDLIB-574: ByteArray.decodeToString
     public static let kk_bytearray_decodeToString = ExternDecl(
         name: "kk_bytearray_decodeToString",
@@ -2225,6 +2232,7 @@ public enum RuntimeABIExterns {
             kk_string_trimEnd,
             kk_string_toByteArray,
             kk_string_encodeToByteArray,
+            kk_string_encodeToByteArray_charset,
             kk_bytearray_decodeToString,
             kk_char_isDigit,
             kk_char_isLetter,
