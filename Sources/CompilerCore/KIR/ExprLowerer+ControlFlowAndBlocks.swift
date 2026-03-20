@@ -18,18 +18,12 @@ extension ExprLowerer {
     /// itself contains return/break/continue, because lowering that nested
     /// control-flow will only see *outer* finally blocks on the stack.
     ///
-    /// **Known limitation – exception routing**: Inlined finally
-    /// instructions are currently appended into the same instruction buffer
-    /// that `appendThrowAwareInstructions` later wraps.  If the inlined
-    /// finally throws, the exception may be routed to the *same* try-catch
-    /// dispatch label instead of propagating outward.
-    ///
-    /// TODO(CODE-001): Fix exception routing for inlined finally blocks.
-    /// The correct approach is to lower inlined finally blocks into a
-    /// separate instruction list and splice them *after* the throw-aware
-    /// wrapping, or to extend `appendThrowAwareInstructions` to accept an
-    /// alternate thrown target for inlined-finally instructions so they
-    /// propagate to the *outer* exception handler.
+    /// **Exception routing (CODE-001)**: Each inlined finally block is
+    /// lowered into a separate instruction buffer and wrapped with
+    /// `appendThrowAwareInstructions` using its own rethrow label.  If
+    /// the inlined finally body throws, the exception propagates outward
+    /// via `.rethrow` rather than being caught by the enclosing try-catch
+    /// dispatch, matching Kotlin semantics.
     private func inlineAllEnclosingFinallyBlocks(
         ast: ASTModule,
         sema: SemaModule,
@@ -97,12 +91,23 @@ extension ExprLowerer {
     ) {
         guard !blocks.isEmpty else { return }
 
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+
         // Process innermost-first (reversed) so that the stack is trimmed
         // correctly: for each finally block, we temporarily set the stack
         // depth to its original stack index so that re-entrant lowering only
         // sees outer blocks.
+        //
+        // CODE-001 fix: Each inlined finally block is lowered into a separate
+        // instruction buffer, then wrapped with appendThrowAwareInstructions
+        // that routes exceptions to a *rethrow* label instead of the
+        // enclosing try-catch dispatch.  This matches Kotlin semantics where
+        // an exception thrown from a finally block propagates outward (to the
+        // next outer exception handler) rather than being caught by the
+        // try-catch that owns the finally.
         for i in stride(from: blocks.count - 1, through: 0, by: -1) {
             let entry = blocks[i]
+            var finallyInstructions: [KIRInstruction] = []
             driver.ctx.withFinallyStackDepth(entry.stackIndex) {
                 _ = lowerExpr(
                     entry.exprID,
@@ -111,8 +116,67 @@ extension ExprLowerer {
                     arena: arena,
                     interner: interner,
                     propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &finallyInstructions
+                )
+            }
+
+            // Check whether the finally body contains any call / virtualCall
+            // instructions that could throw.  If it does, wrap with throw-aware
+            // routing; otherwise append directly to avoid unnecessary labels
+            // and exception-slot overhead.
+            let hasThrowableCall = finallyInstructions.contains { instr in
+                switch instr {
+                case .call(_, _, _, _, _, _, _),
+                     .virtualCall(_, _, _, _, _, _, _, _),
+                     .rethrow:
+                    return true
+                default:
+                    return false
+                }
+            }
+
+            if hasThrowableCall {
+                // Allocate per-inlined-finally exception slots so that any
+                // throw inside the finally body is captured and rethrown
+                // outward rather than routed to the enclosing try's catch.
+                let exSlot = arena.appendExpr(
+                    .temporary(Int32(arena.expressions.count)),
+                    type: sema.types.nullableAnyType
+                )
+                let exTypeSlot = arena.appendExpr(
+                    .temporary(Int32(arena.expressions.count)),
+                    type: intType
+                )
+                let nullValue = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+                let zeroValue = arena.appendExpr(.intLiteral(0), type: intType)
+                instructions.append(.constValue(result: nullValue, value: .null))
+                instructions.append(.constValue(result: zeroValue, value: .intLiteral(0)))
+                instructions.append(.copy(from: nullValue, to: exSlot))
+                instructions.append(.copy(from: zeroValue, to: exTypeSlot))
+
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                let afterRethrowLabel = driver.ctx.makeLoopLabel()
+
+                driver.controlFlowLowerer.appendThrowAwareInstructions(
+                    finallyInstructions,
+                    exceptionSlot: exSlot,
+                    exceptionTypeSlot: exTypeSlot,
+                    thrownTarget: rethrowLabel,
+                    sema: sema,
+                    interner: interner,
+                    arena: arena,
                     instructions: &instructions
                 )
+                instructions.append(.jump(afterRethrowLabel))
+
+                // Rethrow block: propagates the exception outward.
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: exSlot))
+
+                instructions.append(.label(afterRethrowLabel))
+            } else {
+                // No throwable calls — append the finally body directly.
+                instructions.append(contentsOf: finallyInstructions)
             }
         }
     }
