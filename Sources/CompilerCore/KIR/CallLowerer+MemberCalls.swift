@@ -3151,7 +3151,8 @@ extension CallLowerer {
             return
         }
         var callArguments = finalArguments
-        if loweredCallee == interner.intern("kk_system_currentTimeMillis") {
+        if loweredCallee == interner.intern("kk_system_currentTimeMillis")
+            || loweredCallee == interner.intern("kk_system_nanoTime") {
             callArguments = []
         }
         let throwingCallees = Self.throwingMemberCalleeNames(interner: interner)
