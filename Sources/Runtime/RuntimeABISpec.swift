@@ -1305,7 +1305,7 @@ public enum RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "status", type: .intptr),
             ],
-            returnType: .intptr,
+            returnType: .noreturn,
             section: "System"
         ),
         RuntimeABIFunctionSpec(

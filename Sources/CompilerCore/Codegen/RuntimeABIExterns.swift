@@ -1009,7 +1009,7 @@ public enum RuntimeABIExterns {
     public static let kk_system_exitProcess = ExternDecl(
         name: "kk_system_exitProcess",
         parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
+        returnType: "_Noreturn void"
     )
 
     public static let kk_system_currentTimeMillis = ExternDecl(
