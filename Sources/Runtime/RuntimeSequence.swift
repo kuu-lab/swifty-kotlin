@@ -2031,7 +2031,10 @@ public func kk_iterator_builder_build(_ fnPtr: Int) -> Int {
         builder.producerGate.wait()
         var thrown = 0
         _ = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: builderHandle, outThrown: &thrown)
-        // Producer finished: mark done and wake the consumer.
+        // Producer finished (or threw): mark done and wake the consumer.
+        if thrown != 0 {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
+        }
         builder.state = .done
         builder.consumerGate.signal()
     }
