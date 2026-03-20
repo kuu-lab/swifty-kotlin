@@ -1,4 +1,4 @@
-symbol s0 kind=package fq=golden.sema vis=public flags=_
+symbol s0 kind=package fq=_root_ vis=public flags=_
 symbol s1 kind=package fq=kotlin vis=public flags=synthetic
 symbol s2 kind=package fq=kotlin.properties vis=public flags=synthetic
 symbol s3 kind=interface fq=kotlin.properties.Lazy vis=public flags=synthetic
@@ -953,16 +953,79 @@ symbol s951 kind=typeParameter fq=kotlin.io.use.T vis=private flags=_
 symbol s952 kind=typeParameter fq=kotlin.io.use.R vis=private flags=_
 symbol s953 kind=valueParameter fq=kotlin.io.use.block vis=private flags=synthetic
 symbol s954 kind=function fq=kotlin.io.use vis=public flags=inlineFunction|synthetic sig=recv=T#951 params=[(T#951) -> T#952] ret=T#952 suspend=0 defaults=[0] vararg=[0]
-symbol s955 kind=class fq=golden.sema.Widget vis=public flags=_
-symbol s956 kind=constructor fq=golden.sema.Widget.<init> vis=public flags=_ sig=recv=Class#955 params=[] ret=Class#955 suspend=0 defaults=[] vararg=[]
-symbol s957 kind=property fq=golden.sema.Widget.computed vis=public flags=_ type=String
-symbol s958 kind=property fq=golden.sema.Widget.backed vis=public flags=mutable type=Int
-symbol s959 kind=backingField fq=golden.sema.Widget.$backing_backed vis=private flags=mutable type=Int
-file f0 package=golden.sema
-  decl d2 class Widget sym=s955
-expr e0 string(hello) type=String
-expr e1 name(field) type=_
-expr e2 name(value) type=Int ref=s-40958
-expr e3 localAssign field value=e2 type=Unit ref=s959
-expr e4 name(field) type=Int ref=s959
-expr e5 int(0) type=Int
+symbol s955 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s956 kind=local fq=__local_2.lhm vis=private flags=_
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s955
+expr e0 name(LinkedHashMap) type=Any ref=s261
+expr e1 call callee=e0 args=[] type=Class#179<String, Int>
+expr e2 localDecl lhm mutable=0 type=t2 init=e1 type=Unit ref=s956
+expr e3 name(lhm) type=Class#179<String, Int> ref=s956
+expr e4 string(z) type=String
+expr e5 indexedAccess receiver=e3 indices=[e4] type=_
+expr e6 int(26) type=Int
+expr e7 indexedAssign receiver=e3 indices=[e4] value=e6 type=Unit call=s182 map=[0->0,1->1] targs=[String,Int]
+expr e8 name(lhm) type=Class#179<String, Int> ref=s956
+expr e9 string(a) type=String
+expr e10 indexedAccess receiver=e8 indices=[e9] type=_
+expr e11 int(1) type=Int
+expr e12 indexedAssign receiver=e8 indices=[e9] value=e11 type=Unit call=s182 map=[0->0,1->1] targs=[String,Int]
+expr e13 name(lhm) type=Class#179<String, Int> ref=s956
+expr e14 string(m) type=String
+expr e15 indexedAccess receiver=e13 indices=[e14] type=_
+expr e16 int(13) type=Int
+expr e17 indexedAssign receiver=e13 indices=[e14] value=e16 type=Unit call=s182 map=[0->0,1->1] targs=[String,Int]
+expr e18 name(println) type=_
+expr e19 name(lhm) type=Class#179<String, Int> ref=s956
+expr e20 call callee=e18 args=[_:e19] type=Unit call=s804 map=[0->0] targs=[]
+expr e21 name(println) type=_
+expr e22 name(lhm) type=Class#179<String, Int> ref=s956
+expr e23 memberCall recv=e22 callee=keys args=[] type=Class#148<out String> call=s194 map=[] targs=[String,Int]
+expr e24 memberCall recv=e23 callee=toList args=[] type=Class#65<out String> call=s178 map=[] targs=[String]
+expr e25 call callee=e21 args=[_:e24] type=Unit call=s804 map=[0->0] targs=[]
+expr e26 name(println) type=_
+expr e27 name(lhm) type=Class#179<String, Int> ref=s956
+expr e28 memberCall recv=e27 callee=values args=[] type=Class#60<out Int> call=s196 map=[] targs=[String,Int]
+expr e29 memberCall recv=e28 callee=toList args=[] type=Class#65<out Int> call=s178 map=[] targs=[Int]
+expr e30 call callee=e26 args=[_:e29] type=Unit call=s804 map=[0->0] targs=[]
+expr e31 name(println) type=_
+expr e32 name(lhm) type=Class#179<String, Int> ref=s956
+expr e33 memberCall recv=e32 callee=entries args=[] type=Class#148<out Class#189<out String, out Int>> call=s195 map=[] targs=[String,Int]
+expr e34 name(it) type=_
+expr e35 memberCall recv=e34 callee=key args=[] type=_
+expr e36 name(it) type=_
+expr e37 memberCall recv=e36 callee=value args=[] type=_
+expr e38 stringTemplate[expr(e35),lit(=),expr(e37)] type=_
+expr e39 name(it) type=Class#189<out String, out Int> ref=s-1011264
+expr e40 memberCall recv=e39 callee=key args=[] type=String call=s192 map=[] targs=[String,Int]
+expr e41 name(it) type=Class#189<out String, out Int> ref=s-1011264
+expr e42 memberCall recv=e41 callee=value args=[] type=Int call=s193 map=[] targs=[String,Int]
+expr e43 stringTemplate[expr(e40),lit(=),expr(e42)] type=String
+expr e44 lambda params=[] body=e43 type=(Class#189<out String, out Int>) -> Any
+expr e45 memberCall recv=e33 callee=map args=[_:e44] type=Class#65<String>
+expr e46 call callee=e31 args=[_:e45] type=Unit call=s804 map=[0->0] targs=[]
+expr e47 name(lhm) type=Class#179<String, Int> ref=s956
+expr e48 string(z) type=String
+expr e49 indexedAccess receiver=e47 indices=[e48] type=_
+expr e50 int(99) type=Int
+expr e51 indexedAssign receiver=e47 indices=[e48] value=e50 type=Unit call=s182 map=[0->0,1->1] targs=[String,Int]
+expr e52 name(println) type=_
+expr e53 name(lhm) type=Class#179<String, Int> ref=s956
+expr e54 call callee=e52 args=[_:e53] type=Unit call=s804 map=[0->0] targs=[]
+expr e55 name(lhm) type=Class#179<String, Int> ref=s956
+expr e56 string(a) type=String
+expr e57 memberCall recv=e55 callee=remove args=[_:e56] type=Int? call=s184 map=[0->0] targs=[String,Int]
+expr e58 name(println) type=_
+expr e59 name(lhm) type=Class#179<String, Int> ref=s956
+expr e60 memberCall recv=e59 callee=size args=[] type=Int
+expr e61 call callee=e58 args=[_:e60] type=Unit call=s804 map=[0->0] targs=[]
+expr e62 name(println) type=_
+expr e63 name(lhm) type=Class#179<String, Int> ref=s956
+expr e64 string(m) type=String
+expr e65 memberCall recv=e63 callee=containsKey args=[_:e64] type=Boolean call=s166 map=[0->0] targs=[String,Int]
+expr e66 call callee=e62 args=[_:e65] type=Unit call=s804 map=[0->0] targs=[]
+expr e67 name(println) type=_
+expr e68 name(lhm) type=Class#179<String, Int> ref=s956
+expr e69 int(99) type=Int
+expr e70 memberCall recv=e68 callee=containsValue args=[_:e69] type=Boolean call=s167 map=[0->0] targs=[String,Int]
+expr e71 call callee=e67 args=[_:e70] type=Unit call=s804 map=[0->0] targs=[]
