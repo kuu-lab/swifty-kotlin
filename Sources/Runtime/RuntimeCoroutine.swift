@@ -1,6 +1,42 @@
 import Dispatch
 import Foundation
 
+// MARK: - Lightweight pthread-based Thread-Local Storage (CORO-003)
+//
+// These helpers replace `Thread.current.threadDictionary` lookups with direct
+// `pthread_key_t` thread-locals.  Each key stores an `Unmanaged` pointer to a
+// Swift class instance.  A destructor callback releases the object when the
+// thread exits, so there are no leaks.
+
+/// Create a `pthread_key_t` with a destructor that releases the stored object.
+private func makePthreadKey() -> pthread_key_t {
+    var key = pthread_key_t()
+    pthread_key_create(&key) { (ptr: UnsafeMutableRawPointer) in
+        Unmanaged<AnyObject>.fromOpaque(ptr).release()
+    }
+    return key
+}
+
+/// Read the object stored under `key` for the current thread.
+private func pthreadGetValue<T: AnyObject>(_ key: pthread_key_t) -> T? {
+    guard let raw = pthread_getspecific(key) else { return nil }
+    return Unmanaged<T>.fromOpaque(raw).takeUnretainedValue()
+}
+
+/// Store `value` under `key` for the current thread, releasing any previous value.
+private func pthreadSetValue<T: AnyObject>(_ key: pthread_key_t, _ value: T?) {
+    // Release previous value if present.
+    if let prev = pthread_getspecific(key) {
+        Unmanaged<AnyObject>.fromOpaque(prev).release()
+    }
+    if let value {
+        let raw = Unmanaged.passRetained(value).toOpaque()
+        pthread_setspecific(key, raw)
+    } else {
+        pthread_setspecific(key, nil)
+    }
+}
+
 final class RuntimeContinuationState {
     var functionID: Int64
     var label: Int64
@@ -352,12 +388,15 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
 /// CORO-003: Per-thread task key used to index into the task-scope map.
 ///
 /// Each thread participating in a suspend-entry loop gets a unique sentinel
-/// object stored in its thread dictionary.  This is *not* the scope itself --
+/// object stored in a pthread thread-local.  This is *not* the scope itself --
 /// it is only a key that lets `RuntimeCoroutineScope.current` find which scope
 /// is active on this thread.  The actual scope lives in the continuation
 /// context and is propagated to child coroutines explicitly.
+///
+/// Migrated from `Thread.current.threadDictionary` to `pthread_key_t` for
+/// lighter-weight access (single pointer lookup vs dictionary hash).
 enum RuntimeCoroutineScopeTaskKey {
-    private static let tlsKey = "kk_coro_task_key"
+    private static let pthreadKey: pthread_key_t = makePthreadKey()
 
     /// A lightweight sentinel whose only purpose is to provide a stable
     /// `ObjectIdentifier` for the lifetime of a suspend-entry loop invocation.
@@ -365,11 +404,11 @@ enum RuntimeCoroutineScopeTaskKey {
 
     /// Get-or-create a task key for the current thread.
     static var currentTaskKey: ObjectIdentifier {
-        if let existing = Thread.current.threadDictionary[tlsKey] as? Token {
+        if let existing: Token = pthreadGetValue(pthreadKey) {
             return ObjectIdentifier(existing)
         }
         let token = Token()
-        Thread.current.threadDictionary[tlsKey] = token
+        pthreadSetValue(pthreadKey, token)
         return ObjectIdentifier(token)
     }
 
@@ -377,13 +416,13 @@ enum RuntimeCoroutineScopeTaskKey {
     /// Called at the top of each suspend-entry loop invocation.
     static func installFreshKey() -> ObjectIdentifier {
         let token = Token()
-        Thread.current.threadDictionary[tlsKey] = token
+        pthreadSetValue(pthreadKey, token)
         return ObjectIdentifier(token)
     }
 
     /// Remove the task key for this thread.
     static func removeKey() {
-        Thread.current.threadDictionary.removeObject(forKey: tlsKey)
+        pthreadSetValue(pthreadKey, nil as Token?)
     }
 }
 
@@ -667,7 +706,14 @@ public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
 
 // MARK: - Flow Runtime (STDLIB-088: Cold/Lazy Stream Semantics)
 
-private let runtimeFlowCollectStackKey = "kk_flow_collect_stack"
+/// CORO-003: pthread key for the flow collect stack (replaces threadDictionary).
+private let runtimeFlowCollectStackPthreadKey: pthread_key_t = makePthreadKey()
+
+/// Wrapper class so the flow collect stack can be stored as a single AnyObject
+/// in the pthread thread-local slot.
+private final class RuntimeFlowCollectStackBox {
+    var stack: [RuntimeFlowCollectContext] = []
+}
 
 /// Runtime flow op tags must be aligned with the lowering/codegen enums in
 /// `CoroutineLoweringPass+Flow.swift` and `FlowLoweringPass.swift`.
@@ -736,27 +782,33 @@ private func runtimeFlowHandle(from rawValue: Int) -> RuntimeFlowHandle? {
 }
 
 
+private func runtimeFlowCollectStackBox() -> RuntimeFlowCollectStackBox {
+    if let existing: RuntimeFlowCollectStackBox = pthreadGetValue(runtimeFlowCollectStackPthreadKey) {
+        return existing
+    }
+    let box = RuntimeFlowCollectStackBox()
+    pthreadSetValue(runtimeFlowCollectStackPthreadKey, box)
+    return box
+}
+
 private func runtimeFlowCollectStack() -> [RuntimeFlowCollectContext] {
-    Thread.current.threadDictionary[runtimeFlowCollectStackKey] as? [RuntimeFlowCollectContext] ?? []
+    runtimeFlowCollectStackBox().stack
 }
 
 private func runtimeFlowPushCollectContext(_ context: RuntimeFlowCollectContext) {
-    var stack = runtimeFlowCollectStack()
-    stack.append(context)
-    Thread.current.threadDictionary[runtimeFlowCollectStackKey] = stack
+    runtimeFlowCollectStackBox().stack.append(context)
 }
 
 private func runtimeFlowPopCollectContext() {
-    var stack = runtimeFlowCollectStack()
-    guard !stack.isEmpty else {
+    let box = runtimeFlowCollectStackBox()
+    guard !box.stack.isEmpty else {
         return
     }
-    _ = stack.popLast()
-    Thread.current.threadDictionary[runtimeFlowCollectStackKey] = stack
+    _ = box.stack.popLast()
 }
 
 private func runtimeFlowCurrentCollectContext() -> RuntimeFlowCollectContext? {
-    runtimeFlowCollectStack().last
+    runtimeFlowCollectStackBox().stack.last
 }
 
 private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
@@ -1378,13 +1430,13 @@ final class RuntimeDispatcher: @unchecked Sendable {
     let queue: DispatchQueue
     let tag: Int
 
-    /// Thread-local key for the currently active dispatcher.
-    private static let currentDispatcherKey = "kk_dispatcher_current"
+    /// CORO-003: pthread key for the currently active dispatcher (replaces threadDictionary).
+    private static let currentDispatcherPthreadKey: pthread_key_t = makePthreadKey()
 
     /// The dispatcher active on the current thread, if any.
     static var current: RuntimeDispatcher? {
-        get { Thread.current.threadDictionary[currentDispatcherKey] as? RuntimeDispatcher }
-        set { Thread.current.threadDictionary[currentDispatcherKey] = newValue }
+        get { pthreadGetValue(currentDispatcherPthreadKey) }
+        set { pthreadSetValue(currentDispatcherPthreadKey, newValue) }
     }
 
     init(queue: DispatchQueue, tag: Int) {
