@@ -1311,6 +1311,37 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-317: String.asSequence / asIterable ---
+
+        let sequenceCharType = makeSequenceType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: charType
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "asSequence",
+            externalLinkName: "kk_string_asSequence",
+            receiverType: stringType,
+            parameters: [],
+            returnType: sequenceCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "asIterable",
+            externalLinkName: "kk_string_asIterable",
+            receiverType: stringType,
+            parameters: [],
+            returnType: iterableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func ensureKotlinTextPackage(
@@ -1337,19 +1368,150 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         elementType: TypeID
     ) -> TypeID {
-        let listFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]
-        guard let listSymbol = symbols.lookup(fqName: listFQName) else {
-            return types.anyType
-        }
+        let listSymbol = ensureListSymbol(symbols: symbols, types: types, interner: interner)
         return types.make(.classType(ClassType(
             classSymbol: listSymbol,
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+    }
+
+    private func makeSequenceType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        let sequenceSymbol = ensureSequenceSymbol(
+            symbols: symbols, types: types, interner: interner
+        )
+        return types.make(.classType(ClassType(
+            classSymbol: sequenceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    private func ensureSequenceSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID {
+        let sequenceName = interner.intern("Sequence")
+        let sequenceFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            sequenceName,
+        ]
+        if let existing = symbols.lookup(fqName: sequenceFQName) {
+            return existing
+        }
+        // Ensure the kotlin.sequences package exists
+        let sequencesPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+        ]
+        if symbols.lookup(fqName: sequencesPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("sequences"),
+                fqName: sequencesPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let sym = symbols.define(
+            kind: .interface,
+            name: sequenceName,
+            fqName: sequenceFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // Register type parameter T for Sequence<T>
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = sequenceFQName + [typeParamName]
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
+        types.setNominalTypeParameterVariances([.out], for: sym)
+        return sym
+    }
+
+    private func makeIterableType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        elementType: TypeID
+    ) -> TypeID {
+        let iterableSymbol = ensureIterableSymbol(
+            symbols: symbols, types: types, interner: interner
+        )
+        return types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    private func ensureIterableSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID {
+        let iterableName = interner.intern("Iterable")
+        let iterableFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            iterableName,
+        ]
+        if let existing = symbols.lookup(fqName: iterableFQName) {
+            return existing
+        }
+        // Ensure the kotlin.collections package exists
+        let collectionsPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        if symbols.lookup(fqName: collectionsPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("collections"),
+                fqName: collectionsPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let sym = symbols.define(
+            kind: .interface,
+            name: iterableName,
+            fqName: iterableFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        // Register type parameter T for Iterable<T>
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = iterableFQName + [typeParamName]
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
+        types.setNominalTypeParameterVariances([.out], for: sym)
+        return sym
     }
 
     private func makeListOfStringType(
@@ -1360,43 +1522,98 @@ extension DataFlowSemaPhase {
         makeListType(symbols: symbols, types: types, interner: interner, elementType: types.stringType)
     }
 
-    private func makeIterableType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterable"),
-        ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            // Fall back to Any rather than List<Char> to avoid granting
-            // list-only members (e.g. get()) to the iterable result type.
-            // This is consistent with CallTypeChecker.makeSyntheticIterableType.
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     private func makeNominalType(
         symbols: SymbolTable,
         types: TypeSystem,
         fqName: [InternedString]
     ) -> TypeID {
-        guard let symbol = symbols.lookup(fqName: fqName) else {
+        if let symbol = symbols.lookup(fqName: fqName) {
+            return types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        guard let name = fqName.last else {
             return types.anyType
         }
+
+        var packagePath: [InternedString] = []
+        for packageName in fqName.dropLast() {
+            packagePath.append(packageName)
+            if symbols.lookup(fqName: packagePath) == nil {
+                _ = symbols.define(
+                    kind: .package,
+                    name: packageName,
+                    fqName: packagePath,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+        }
+
+        let symbol = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
         return types.make(.classType(ClassType(
             classSymbol: symbol,
             args: [],
             nullability: .nonNull
         )))
+    }
+
+    private func ensureListSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID {
+        let collectionsPkg: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        if symbols.lookup(fqName: collectionsPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("collections"),
+                fqName: collectionsPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let listName = interner.intern("List")
+        let listFQName = collectionsPkg + [listName]
+        if let existing = symbols.lookup(fqName: listFQName) {
+            return existing
+        }
+        let interfaceSymbol = symbols.define(
+            kind: .interface,
+            name: listName,
+            fqName: listFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        let typeParamName = interner.intern("E")
+        let typeParamFQName = listFQName + [typeParamName]
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
+        types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
+        return interfaceSymbol
     }
 
     private func registerSyntheticStringExtensionFunction(

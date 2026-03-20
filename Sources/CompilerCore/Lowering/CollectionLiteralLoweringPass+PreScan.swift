@@ -189,9 +189,10 @@ extension CollectionLiteralLoweringPass {
                 charRangeExprIDs.insert(result.rawValue)
             }
         }
-        // Classify sequence factory calls (STDLIB-097)
+        // Classify sequence factory calls (STDLIB-097, STDLIB-317)
         if let result,
            callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
+            || callee == lookup.kkStringAsSequenceName
         {
             sequenceExprIDs.insert(result.rawValue)
         }
@@ -235,6 +236,7 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.kkStringSplitName
             || callee == lookup.kkStringChunkedName
             || callee == lookup.kkStringWindowedName
+            || callee == lookup.kkStringAsIterableName
         {
             listExprIDs.insert(result.rawValue)
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
@@ -263,6 +265,7 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.asSequenceName
             || callee == lookup.kkListAsSequenceName
             || callee == lookup.kkArrayAsSequenceName
+            || callee == lookup.kkStringAsSequenceName
         {
             sequenceExprIDs.insert(result.rawValue)
         } else if callee == lookup.toListName, sequenceExprIDs.contains(src) {
@@ -338,13 +341,16 @@ extension CollectionLiteralLoweringPass {
         charRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>
     ) {
-        if callee == lookup.asSequenceName {
+        if callee == lookup.asSequenceName
+            || callee == lookup.kkStringAsSequenceName
+        {
             if let result { sequenceExprIDs.insert(result.rawValue) }
             return
         }
         if callee == lookup.kkStringSplitName
             || callee == lookup.kkStringChunkedName
             || callee == lookup.kkStringWindowedName
+            || callee == lookup.kkStringAsIterableName
         {
             if let result { listExprIDs.insert(result.rawValue) }
             return

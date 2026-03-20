@@ -200,6 +200,13 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_asSequence")
+public func kk_string_asSequence(_ strRaw: Int) -> Int {
+    // Lazy: store only the string handle; characters are yielded on demand
+    let seq = RuntimeSequenceBox(steps: [.stringSource(strRaw: strRaw)])
+    return registerRuntimeObject(seq)
+}
+
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
 
 @_cdecl("kk_string_iterator")
@@ -1416,7 +1423,9 @@ private func runtimeStringFromRaw(_ raw: Int) -> String? {
 /// Fail-fast variant that panics on invalid string handles instead of returning nil.
 /// Use this instead of `runtimeStringFromRaw(...) ?? ""` to distinguish
 /// invalid handles from legitimately empty strings.
-private func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
+/// Internal so that other runtime files (e.g. RuntimeSequence.swift) can share
+/// this helper without duplicating the safety check and panic message.
+func runtimeStringFromRawOrPanic(_ raw: Int, caller: StaticString) -> String {
     if let s = runtimeStringFromRaw(raw) {
         return s
     }

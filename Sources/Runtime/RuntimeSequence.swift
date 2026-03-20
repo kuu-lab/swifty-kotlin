@@ -259,7 +259,7 @@ private func runtimeSequenceTransformElement(
             outThrown: outThrown,
             yield: yield
         )
-    case .source, .builder, .generator:
+    case .source, .stringSource, .builder, .generator:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -281,7 +281,7 @@ private func runtimeTraverseSequenceWithState(
 ) {
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .builder, .generator:
+        case .source, .stringSource, .builder, .generator:
             false
         default:
             true
@@ -303,6 +303,19 @@ private func runtimeTraverseSequenceWithState(
         case let .source(sourceElements), let .builder(sourceElements):
             for element in sourceElements {
                 emit(element)
+                if state.stop { return }
+            }
+            return
+        case let .stringSource(strRaw):
+            // Lazy: iterate string characters on demand without pre-materializing.
+            // NOTE: Kotlin Char is a UTF-16 code unit (16-bit). Iterating unicodeScalars
+            // produces values > 0xFFFF for supplementary characters (e.g. emoji),
+            // which do not fit in a Kotlin Char. We iterate utf16 code units instead to
+            // match Kotlin's Char semantics correctly. Supplementary characters are split
+            // into two surrogate code units, which is the expected Kotlin behaviour.
+            let str = runtimeStringFromRawOrPanic(strRaw, caller: "kk_string_asSequence")
+            for codeUnit in str.utf16 {
+                emit(kk_box_char(Int(codeUnit)))
                 if state.stop { return }
             }
             return
@@ -336,6 +349,7 @@ private func runtimeTraverseSequenceWithState(
     }
 }
 
+
 /// Convenience wrapper that creates its own `SequenceTraversalState`.
 private func runtimeTraverseSequence(
     _ seq: RuntimeSequenceBox,
@@ -347,11 +361,16 @@ private func runtimeTraverseSequence(
 }
 
 /// Extracts source elements from a sequence step, if applicable.
+/// `.stringSource` is NOT extracted here — it is handled lazily in evaluateSequence
+/// and runtimeTraverseSequence to avoid eager materialization.
 private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     switch step {
-    case let .source(sourceElements): sourceElements
-    case let .builder(builderElements): builderElements
-    default: nil
+    case let .source(sourceElements):
+        return sourceElements
+    case let .builder(builderElements):
+        return builderElements
+    default:
+        return nil
     }
 }
 
@@ -451,6 +470,15 @@ private func evaluateSequence(_ seq: RuntimeSequenceBox) -> [Int] {
             elements = source
             break
         }
+        if case let .stringSource(strRaw) = step {
+            // Materialize string characters at terminal evaluation only.
+            // Use utf16 code units (not unicodeScalars) so that supplementary characters
+            // (emoji, etc. with scalar value > 0xFFFF) are represented as surrogate pairs,
+            // matching Kotlin's UTF-16 Char semantics.
+            let str = runtimeStringFromRawOrPanic(strRaw, caller: "kk_string_asSequence")
+            elements = str.utf16.map { kk_box_char(Int($0)) }
+            break
+        }
         if case let .generator(seed, fnPtr, closureRaw) = step {
             var current = seed
             var generated: [Int] = [current]
@@ -471,7 +499,7 @@ private func evaluateSequence(_ seq: RuntimeSequenceBox) -> [Int] {
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .builder, .generator:
+        case .source, .stringSource, .builder, .generator:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
