@@ -472,10 +472,9 @@ public func kk_math_hypot_float(_ x: Int, _ y: Int) -> Int {
 // MARK: - STDLIB-510~511: roundToInt / roundToLong extensions
 
 // Kotlin's roundToInt/roundToLong use Math.round() semantics: ties round
-// towards positive infinity. For Float, we use a bit-manipulation algorithm
-// matching Java 7+ Math.round(float) to avoid precision loss from floorf(x + 0.5)
-// near half-integer boundaries (JDK-6430675). For Double, floor(x + 0.5) is
-// correct as it matches Kotlin/JVM behavior.
+// towards positive infinity. For Float and Double, we use bit-manipulation
+// algorithms matching Java 7+ Math.round(...) to avoid precision loss from
+// floor(x + 0.5) near half-integer boundaries (JDK-6430675).
 
 /// Bit-manipulation rounding for Float matching Java 7+ Math.round(float).
 /// Avoids the precision loss of `floorf(raw + 0.5)` for values just below
@@ -496,6 +495,24 @@ private func roundFloatJava7(_ raw: Float) -> Int64 {
     }
 }
 
+/// Bit-manipulation rounding for Double matching Java 7+ Math.round(double).
+/// Avoids the precision loss of `floor(raw + 0.5)` for values just below
+/// half-integer boundaries (e.g. 0.49999999999999994).
+private func roundDoubleJava7(_ raw: Double) -> Int64 {
+    let bits = raw.bitPattern
+    let biasedExp = Int((bits >> 52) & 0x7FF)
+    let shift = 1074 - biasedExp  // (52 - 1 + 1023) - biasedExp
+    if (shift & ~63) == 0 {  // 0 <= shift <= 63
+        var r = Int64(bitPattern: (bits & 0xF_FFFF_FFFF_FFFF) | 0x10_0000_0000_0000)
+        if Int64(bitPattern: bits) < 0 { r = -r }
+        return ((r >> shift) &+ 1) >> 1
+    } else {
+        if raw >= Double(Int64.max) { return Int64.max }
+        if raw <= Double(Int64.min) { return Int64.min }
+        return Int64(raw)
+    }
+}
+
 @_cdecl("kk_float_roundToInt")
 public func kk_float_roundToInt(_ value: Int) -> Int {
     let raw = kk_bits_to_float(value)
@@ -510,10 +527,10 @@ public func kk_float_roundToInt(_ value: Int) -> Int {
 public func kk_double_roundToInt(_ value: Int) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN { return 0 }
-    let d = floor(raw + 0.5)
-    if d >= Double(Int32.max) { return Int(Int32.max) }
-    if d <= Double(Int32.min) { return Int(Int32.min) }
-    return Int(Int32(d))
+    let r = roundDoubleJava7(raw)
+    if r >= Int64(Int32.max) { return Int(Int32.max) }
+    if r <= Int64(Int32.min) { return Int(Int32.min) }
+    return Int(Int32(r))
 }
 
 @_cdecl("kk_float_roundToLong")
@@ -530,10 +547,10 @@ public func kk_float_roundToLong(_ value: Int) -> Int {
 public func kk_double_roundToLong(_ value: Int) -> Int {
     let raw = kk_bits_to_double(value)
     if raw.isNaN { return 0 }
-    let d = floor(raw + 0.5)
-    if d >= Double(Int64.max) { return Int(Int64.max) }
-    if d <= Double(Int64.min) { return Int(Int64.min) }
-    return Int(Int64(d))
+    let r = roundDoubleJava7(raw)
+    if r >= Int64.max { return Int(Int64.max) }
+    if r <= Int64.min { return Int(Int64.min) }
+    return Int(r)
 }
 
 // MARK: - STDLIB-512~513: ulp / nextUp / nextDown extensions
