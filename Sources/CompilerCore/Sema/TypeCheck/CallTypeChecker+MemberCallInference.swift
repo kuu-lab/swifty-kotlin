@@ -2720,8 +2720,13 @@ extension CallTypeChecker {
                 let receiverTypeForCheck = safeCall
                     ? sema.types.makeNonNullable(lookupReceiverType)
                     : lookupReceiverType
+                let arg0Type = sema.types.makeNonNullable(argTypes[0])
+                // Only match when the argument is NOT a String or Int to avoid
+                // shadowing other toByteArray overloads (e.g. toByteArray(Int)).
                 if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-                   interner.resolve(calleeName) == "toByteArray"
+                   interner.resolve(calleeName) == "toByteArray",
+                   !sema.types.isSubtype(arg0Type, sema.types.stringType),
+                   !sema.types.isSubtype(arg0Type, sema.types.intType)
                 {
                     if let boundType = tryBindSyntheticStringMemberFallback(
                         id,

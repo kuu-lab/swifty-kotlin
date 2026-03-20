@@ -1021,14 +1021,16 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
     case .utf8:
         bytes = source.utf8.map(Int.init)
     case .iso8859_1:
-        // ISO-8859-1: each Unicode scalar <= 0xFF maps 1:1; others replaced with '?'
-        bytes = source.unicodeScalars.map { scalar in
-            scalar.value <= 0xFF ? Int(scalar.value) : Int(UInt8(ascii: "?"))
+        // ISO-8859-1: each UTF-16 code unit <= 0xFF maps 1:1; others replaced with '?'
+        // Using utf16 (not unicodeScalars) to match Kotlin/JVM semantics where
+        // non-BMP characters produce two surrogate code units, each replaced.
+        bytes = source.utf16.map { unit in
+            unit <= 0xFF ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .usASCII:
-        // US-ASCII: each Unicode scalar <= 0x7F maps 1:1; others replaced with '?'
-        bytes = source.unicodeScalars.map { scalar in
-            scalar.value <= 0x7F ? Int(scalar.value) : Int(UInt8(ascii: "?"))
+        // US-ASCII: each UTF-16 code unit <= 0x7F maps 1:1; others replaced with '?'
+        bytes = source.utf16.map { unit in
+            unit <= 0x7F ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .utf16:
         // UTF-16 with BOM (big-endian BOM then big-endian data, matching Kotlin/JVM)
