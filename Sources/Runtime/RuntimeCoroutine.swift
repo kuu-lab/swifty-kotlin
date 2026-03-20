@@ -2349,7 +2349,6 @@ func runSuspendEntryLoopWithContinuation(entryPointRaw: Int, continuation: Int) 
         // CORO-004: Install a continuation closure instead of blocking.
         // When signalResume() fires, this closure will be dispatched on a
         // GCD global queue, re-entering the loop without blocking any thread.
-        state.resetResumeState()
         state.installResumeContinuation {
             // CORO-003: After suspend/resume we are on a (possibly different)
             // GCD thread.  Re-install the task key so the scope map lookup
@@ -2358,6 +2357,11 @@ func runSuspendEntryLoopWithContinuation(entryPointRaw: Int, continuation: Int) 
             let freshKey = RuntimeCoroutineScopeTaskKey.installFreshKey()
             taskKeyBox.key = freshKey
             RuntimeCoroutineScope.installScope(state.scope, forTask: freshKey)
+            // Reset stale resume state from the previous cycle before
+            // re-entering the loop.  Must happen here (not before
+            // installResumeContinuation) to avoid clearing a pending
+            // signal meant for the current suspend point.
+            state.resetResumeState()
             loopBodyBox.body?()
         }
         // The current thread is released here — no blocking.
