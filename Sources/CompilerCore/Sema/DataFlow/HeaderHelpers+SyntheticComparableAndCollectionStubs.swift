@@ -3155,6 +3155,92 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
+
+        // zipWithNext(): List<Pair<T, T>>
+        let zipWithNextName = interner.intern("zipWithNext")
+        let zipWithNextFQName = listFQName + [zipWithNextName]
+        if symbols.lookup(fqName: zipWithNextFQName) == nil {
+            let pairType: TypeID
+            if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")])
+                ?? symbols.lookupByShortName(interner.intern("Pair")).first
+            {
+                pairType = types.make(.classType(ClassType(
+                    classSymbol: pairSymbol,
+                    args: [.out(listTypeParamType), .out(listTypeParamType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                pairType = types.anyType
+            }
+            let zipWithNextResultType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(pairType)],
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: zipWithNextName,
+                fqName: zipWithNextFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_zipWithNext", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [],
+                    returnType: zipWithNextResultType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+
+            // zipWithNext(transform: (T, T) -> R): List<R>
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: zipWithNextFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformFnType = types.make(.functionType(FunctionType(
+                params: [listTypeParamType, listTypeParamType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let transformResultType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(rType)],
+                nullability: .nonNull
+            )))
+            let transformMemberSymbol = symbols.define(
+                kind: .function,
+                name: zipWithNextName,
+                fqName: zipWithNextFQName + [interner.intern("transform")],
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: transformMemberSymbol)
+            symbols.setExternalLinkName("kk_list_zipWithNextTransform", for: transformMemberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [transformFnType],
+                    returnType: transformResultType,
+                    typeParameterSymbols: [listTypeParamSymbol, rSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: transformMemberSymbol
+            )
+        }
     }
 
     private func registerListConversionMembers(
