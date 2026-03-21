@@ -812,7 +812,7 @@ extension CollectionLiteralLoweringPass {
                             // Track walk()/listFiles()/readLines() results as lists
                             // so chained operations (forEach, sortedBy, etc.) are rewritten correctly
                             if let result,
-                               callee == lookup.walkName || callee == lookup.listFilesName || callee == lookup.readLinesName
+                               callee == lookup.walkName || callee == lookup.listFilesName || callee == lookup.readLinesName || callee == lookup.readBytesName
                             {
                                 listExprIDs.insert(result.rawValue)
                             }

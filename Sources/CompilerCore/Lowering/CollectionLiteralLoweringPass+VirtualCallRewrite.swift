@@ -199,8 +199,8 @@ extension CollectionLiteralLoweringPass {
             thrownResult: origThrownResult
         ))
 
-        // Track results that produce lists (readLines returns List<String>)
-        if callee == lookup.readLinesName, let result {
+        // Track results that produce lists (readLines/readBytes return List)
+        if (callee == lookup.readLinesName || callee == lookup.readBytesName), let result {
             listExprIDs.insert(result.rawValue)
         }
 
