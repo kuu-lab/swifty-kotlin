@@ -2015,13 +2015,21 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCallee {
+                    let canThrow = runtimeCallee == "kk_list_partition"
+                        || runtimeCallee == "kk_list_zipWithNextTransform"
+                    let thrownResult = canThrow
+                        ? arena.appendExpr(
+                            .temporary(Int32(arena.expressions.count)),
+                            type: sema.types.nullableAnyType
+                        )
+                        : nil
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: canThrow,
+                        thrownResult: thrownResult
                     ))
                     return result
                 }
