@@ -1159,12 +1159,27 @@ extension CallTypeChecker {
                 let keyType = inferredLambdaReturnType(
                     argExpr: args[0].expr, ast: ast, sema: sema
                 )
+                // Two-lambda variant: groupBy(keySelector, valueTransform)
+                var valueElementType = collectionElementType
+                if args.count >= 2 {
+                    let valueLambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType],
+                        returnType: sema.types.anyType
+                    )))
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), case .lambdaLiteral = lambdaExpr {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                    }
+                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: valueLambdaExpectedType)
+                    valueElementType = inferredLambdaReturnType(
+                        argExpr: args[1].expr, ast: ast, sema: sema
+                    )
+                }
                 if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner),
                    let mapSymbol = lookupStdlibSymbol("Map", symbols: sema.symbols, interner: interner)
                 {
                     let listType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.invariant(valueElementType)],
                         nullability: .nonNull
                     )))
                     resultType = sema.types.make(.classType(ClassType(
@@ -2730,6 +2745,40 @@ extension CallTypeChecker {
                     let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
+                }
+            }
+            // String stdlib: 2-arg commonPrefixWith/commonSuffixWith(other, ignoreCase) (STDLIB-575/576)
+            if args.count == 2 {
+                let receiverTypeForCheck = safeCall
+                    ? sema.types.makeNonNullable(lookupReceiverType)
+                    : lookupReceiverType
+                let arg0Type = sema.types.makeNonNullable(argTypes[0])
+                let arg1Type = sema.types.makeNonNullable(argTypes[1])
+                let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+                if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+                   sema.types.isSubtype(arg0Type, sema.types.stringType),
+                   sema.types.isSubtype(arg1Type, boolType)
+                {
+                    let calleeStr = interner.resolve(calleeName)
+                    if calleeStr == "commonPrefixWith" || calleeStr == "commonSuffixWith" {
+                        if let boundType = tryBindSyntheticStringMemberFallback(
+                            id,
+                            calleeName: calleeName,
+                            receiverType: receiverTypeForCheck,
+                            args: args,
+                            argTypes: argTypes,
+                            range: range,
+                            ctx: ctx,
+                            expectedType: expectedType,
+                            explicitTypeArgs: explicitTypeArgs,
+                            safeCall: safeCall
+                        ) {
+                            return boundType
+                        }
+                        let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
                 }
             }
             if args.count == 1 {
