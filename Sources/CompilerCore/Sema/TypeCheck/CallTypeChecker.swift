@@ -465,6 +465,43 @@ final class CallTypeChecker {
             return durationType
         }
 
+        // --- Stdlib kotlin.time.measureTimedValue { ... } (STDLIB-660) ---
+        if let calleeName,
+           calleeName == interner.intern("measureTimedValue"),
+           args.count == 1,
+           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
+           isSyntheticStdlibSymbol(calleeName, fqComponents: ["kotlin", "time", "measureTimedValue"], ctx: ctx)
+        {
+            // Infer the block argument with an expected function type () -> T
+            // so non-callable arguments are caught during type checking.
+            let blockType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: blockType
+            )
+
+            // Look up the TimedValue class to build the return type.
+            let timedValueFQName = [interner.intern("kotlin"), interner.intern("time"), interner.intern("TimedValue")]
+            let timedValueType: TypeID
+            if let timedValueSymbol = sema.symbols.lookup(fqName: timedValueFQName) {
+                timedValueType = sema.types.make(.classType(ClassType(
+                    classSymbol: timedValueSymbol, args: [], nullability: .nonNull
+                )))
+            } else {
+                timedValueType = sema.types.anyType
+            }
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .measureTimedValue)
+            sema.bindings.bindExprType(id, type: timedValueType)
+            return timedValueType
+        }
+
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
