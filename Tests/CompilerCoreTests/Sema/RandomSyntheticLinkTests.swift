@@ -38,6 +38,7 @@ final class RandomSyntheticLinkTests: XCTestCase {
 
         let links = externalLinks(for: "nextFloat", sema: sema, interner: interner)
         XCTAssertTrue(links.contains("kk_random_nextFloat"), "nextFloat() stub missing")
+        XCTAssertTrue(links.contains("kk_random_nextFloat_until"), "nextFloat(until) stub missing")
     }
 
     func testExistingRandomStubsStillPresent() throws {

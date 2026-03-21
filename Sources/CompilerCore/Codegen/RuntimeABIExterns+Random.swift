@@ -10,6 +10,7 @@ public extension RuntimeABIExterns {
         kk_random_nextLong_until,
         kk_random_nextLong_range,
         kk_random_nextFloat,
+        kk_random_nextFloat_until,
         kk_random_nextDouble,
         kk_random_nextBoolean,
     ]
@@ -59,6 +60,12 @@ public extension RuntimeABIExterns {
     static let kk_random_nextFloat = ExternDecl(
         name: "kk_random_nextFloat",
         parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_random_nextFloat_until = ExternDecl(
+        name: "kk_random_nextFloat_until",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t * _Nullable"],
         returnType: "intptr_t"
     )
 
