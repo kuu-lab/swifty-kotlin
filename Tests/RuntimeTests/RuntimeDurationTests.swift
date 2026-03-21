@@ -189,6 +189,24 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_duration_inWholeHours(handle), -5)
     }
 
+    // MARK: - Saturation on overflow
+
+    func testFromSecondsLargeValueSaturates() {
+        // Int64.max / 1_000_000_000 = 9_223_372_036, so 9_223_372_037 will overflow.
+        let handle = kk_duration_from_seconds(9_223_372_037)
+        let ns = kk_duration_inWholeNanoseconds(handle)
+        // The result must be saturated to Int64.max.
+        XCTAssertEqual(ns, Int(Int64.max))
+    }
+
+    func testFromMillisecondsLargeNegativeValueSaturates() {
+        // Int64.min / 1_000_000 = -9_223_372_036_854, so -9_223_372_036_855 will overflow.
+        let handle = kk_duration_from_milliseconds(-9_223_372_036_855)
+        let ns = kk_duration_inWholeNanoseconds(handle)
+        // The result must be saturated to Int64.min.
+        XCTAssertEqual(ns, Int(Int64.min))
+    }
+
     // MARK: - inWholeMicroseconds
 
     func testInWholeMicrosecondsFromSeconds() {
@@ -216,24 +234,6 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // 999 ns < 1 us -> inWholeMicroseconds should return 0
         let handle = kk_duration_from_nanoseconds(999)
         XCTAssertEqual(kk_duration_inWholeMicroseconds(handle), 0)
-    }
-
-    // MARK: - Saturation on overflow
-
-    func testFromSecondsLargeValueSaturates() {
-        // Int64.max / 1_000_000_000 = 9_223_372_036, so 9_223_372_037 will overflow.
-        let handle = kk_duration_from_seconds(9_223_372_037)
-        let ns = kk_duration_inWholeNanoseconds(handle)
-        // The result must be saturated to Int64.max.
-        XCTAssertEqual(ns, Int(Int64.max))
-    }
-
-    func testFromMillisecondsLargeNegativeValueSaturates() {
-        // Int64.min / 1_000_000 = -9_223_372_036_854, so -9_223_372_036_855 will overflow.
-        let handle = kk_duration_from_milliseconds(-9_223_372_036_855)
-        let ns = kk_duration_inWholeNanoseconds(handle)
-        // The result must be saturated to Int64.min.
-        XCTAssertEqual(ns, Int(Int64.min))
     }
 
     // MARK: - inWholeMilliseconds truncation
