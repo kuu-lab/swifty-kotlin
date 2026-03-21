@@ -907,6 +907,42 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    /// STDLIB-581: String.toByteArray(charset: Charset)
+    public static let kk_string_toByteArray_charset = ExternDecl(
+        name: "kk_string_toByteArray_charset",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    /// STDLIB-581: Charsets.* charset tag factories
+    public static let kk_charset_utf_8 = ExternDecl(
+        name: "kk_charset_utf_8", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_iso_8859_1 = ExternDecl(
+        name: "kk_charset_iso_8859_1", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_us_ascii = ExternDecl(
+        name: "kk_charset_us_ascii", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_16 = ExternDecl(
+        name: "kk_charset_utf_16", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_16be = ExternDecl(
+        name: "kk_charset_utf_16be", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_16le = ExternDecl(
+        name: "kk_charset_utf_16le", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_32 = ExternDecl(
+        name: "kk_charset_utf_32", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_32be = ExternDecl(
+        name: "kk_charset_utf_32be", parameterTypes: [], returnType: "intptr_t"
+    )
+    public static let kk_charset_utf_32le = ExternDecl(
+        name: "kk_charset_utf_32le", parameterTypes: [], returnType: "intptr_t"
+    )
+
     /// STDLIB-573: String.encodeToByteArray
     public static let kk_string_encodeToByteArray = ExternDecl(
         name: "kk_string_encodeToByteArray",
@@ -2459,6 +2495,16 @@ public enum RuntimeABIExterns {
             kk_string_trimStart,
             kk_string_trimEnd,
             kk_string_toByteArray,
+            kk_string_toByteArray_charset,
+            kk_charset_utf_8,
+            kk_charset_iso_8859_1,
+            kk_charset_us_ascii,
+            kk_charset_utf_16,
+            kk_charset_utf_16be,
+            kk_charset_utf_16le,
+            kk_charset_utf_32,
+            kk_charset_utf_32be,
+            kk_charset_utf_32le,
             kk_string_encodeToByteArray,
             kk_string_encodeToByteArray_range,
             kk_string_encodeToByteArray_charset,
