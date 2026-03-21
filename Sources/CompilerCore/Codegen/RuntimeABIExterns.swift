@@ -866,6 +866,12 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_string_windowed_default = ExternDecl(
+        name: "kk_string_windowed_default",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_string_windowed = ExternDecl(
         name: "kk_string_windowed",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
@@ -2399,6 +2405,7 @@ public enum RuntimeABIExterns {
             kk_string_substringBeforeLast,
             kk_string_substringAfterLast,
             kk_string_chunked,
+            kk_string_windowed_default,
             kk_string_windowed,
             kk_string_windowed_partial,
             kk_string_commonPrefixWith,

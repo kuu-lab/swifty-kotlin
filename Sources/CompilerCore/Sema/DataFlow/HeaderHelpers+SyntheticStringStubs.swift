@@ -1252,6 +1252,19 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
+            externalLinkName: "kk_string_windowed_default",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "windowed",
             externalLinkName: "kk_string_windowed",
             receiverType: stringType,
             parameters: [

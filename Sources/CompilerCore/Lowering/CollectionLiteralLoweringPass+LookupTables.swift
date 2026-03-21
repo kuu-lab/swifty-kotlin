@@ -141,6 +141,7 @@ struct CollectionLiteralLookupTables {
     let kkListIndexOfLastName: InternedString
     let kkListChunkedName: InternedString
     let kkListChunkedTransformName: InternedString
+    let kkListWindowedDefaultName: InternedString
     let kkListWindowedName: InternedString
     let kkListWindowedPartialName: InternedString
     let kkListSortedDescendingName: InternedString
@@ -656,6 +657,7 @@ struct CollectionLiteralLookupTables {
         kkListIndexOfLastName = interner.intern("kk_list_indexOfLast")
         kkListChunkedName = interner.intern("kk_list_chunked")
         kkListChunkedTransformName = interner.intern("kk_list_chunked_transform")
+        kkListWindowedDefaultName = interner.intern("kk_list_windowed_default")
         kkListWindowedName = interner.intern("kk_list_windowed")
         kkListWindowedPartialName = interner.intern("kk_list_windowed_partial")
         kkListSortedDescendingName = interner.intern("kk_list_sortedDescending")
