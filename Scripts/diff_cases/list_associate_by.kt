@@ -1,35 +1,20 @@
 fun main() {
-    // Basic associateBy with key selector
-    val words = listOf("apple", "banana", "cherry", "avocado")
-    println(words.associateBy { it.first() })
+    // associateWith on list of strings (key = element, value = transform)
+    val words = listOf("apple", "banana", "cherry")
+    println(words.associateWith { it.length })
 
-    // associateBy with key selector and value transform
-    println(words.associateBy({ it.first() }, { it.length }))
-
-    // associateBy with integers
+    // associateWith on list of integers
     val numbers = listOf(1, 2, 3, 4, 5)
-    println(numbers.associateBy { it % 3 })
+    println(numbers.associateWith { it * it })
 
-    // associateBy with value transform on integers
-    println(numbers.associateBy({ it % 3 }, { it * 10 }))
-
-    // Duplicate keys: last value wins
-    val items = listOf("a1", "b2", "a3", "b4", "c5")
-    println(items.associateBy { it[0] })
-
-    // Empty list
-    val empty = emptyList<String>()
-    println(empty.associateBy { it.length })
-
-    // Single element
+    // associateWith on single element
     val single = listOf("hello")
-    println(single.associateBy { it.length })
+    println(single.associateWith { it.length })
 
-    // associateBy with string key and value transform
-    val people = listOf("Alice", "Bob", "Charlie")
-    println(people.associateBy({ it.length }, { it.uppercase() }))
+    // associateWith with string values
+    val nums = listOf(1, 2, 3)
+    println(nums.associateWith { "val_$it" })
 
-    // associateBy preserving last duplicate
-    val dupes = listOf(1, 2, 3, 4, 5, 6)
-    println(dupes.associateBy { it % 2 })
+    // Chaining: filter then associateWith
+    println(numbers.filter { it > 2 }.associateWith { it * 3 })
 }
