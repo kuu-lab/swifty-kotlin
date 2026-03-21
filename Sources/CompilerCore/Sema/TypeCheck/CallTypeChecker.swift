@@ -1013,7 +1013,9 @@ final class CallTypeChecker {
             coroutineLauncherExpectedLambdaType = nil
         }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
-                                                        calleeName == knownNames.withContext,
+                                                        (calleeName == knownNames.withContext
+                                                            || calleeName == knownNames.withTimeout
+                                                            || calleeName == knownNames.withTimeoutOrNull),
                                                         args.count >= 2,
                                                         let secondArgExpr = ast.arena.expr(args[1].expr),
                                                         case .lambdaLiteral = secondArgExpr

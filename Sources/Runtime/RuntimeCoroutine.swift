@@ -2268,6 +2268,89 @@ public func kk_coroutine_scope_run_with_cont(_ entryPointRaw: Int, _ continuatio
     return result
 }
 
+// MARK: - Coroutine yield()
+
+/// Cooperatively yields the current coroutine, allowing other coroutines to run.
+/// This is the lowering target for `kotlinx.coroutines.yield()`.
+@_cdecl("kk_coroutine_yield")
+public func kk_coroutine_yield() -> Int {
+    // Yield the current thread briefly so other coroutines get a chance to run.
+    Thread.sleep(forTimeInterval: 0)
+    return 0 // Unit
+}
+
+// MARK: - withTimeout / withTimeoutOrNull
+
+/// Runs the given block with a timeout. If the block does not complete within
+/// `timeoutMillis`, a CancellationException is thrown (represented as a trap
+/// in this runtime).
+/// Used as the lowering target for `withTimeout(timeMillis) { }`.
+@_cdecl("kk_with_timeout")
+public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    // Run the block inside a coroutine scope with a deadline.
+    let scopeHandle = kk_coroutine_scope_new()
+    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
+        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
+    ).takeUnretainedValue()
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = scope
+    }
+
+    var result: Int = 0
+    var completed = false
+    let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
+
+    let workItem = DispatchWorkItem {
+        result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw, continuation: continuation
+        )
+        completed = true
+    }
+    DispatchQueue.global().async(execute: workItem)
+    let waitResult = workItem.wait(timeout: deadline)
+    if waitResult == .timedOut {
+        workItem.cancel()
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        fatalError("KSwiftK panic: withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+    }
+    _ = kk_coroutine_scope_wait(scopeHandle)
+    return result
+}
+
+/// Runs the given block with a timeout. If the block does not complete within
+/// `timeoutMillis`, returns null (0) instead of throwing.
+/// Used as the lowering target for `withTimeoutOrNull(timeMillis) { }`.
+@_cdecl("kk_with_timeout_or_null")
+public func kk_with_timeout_or_null(_ timeoutMillis: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    let scopeHandle = kk_coroutine_scope_new()
+    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(
+        UnsafeMutableRawPointer(bitPattern: scopeHandle)!
+    ).takeUnretainedValue()
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = scope
+    }
+
+    var result: Int = 0
+    let deadline = DispatchTime.now() + .milliseconds(timeoutMillis)
+
+    let workItem = DispatchWorkItem {
+        result = runSuspendEntryLoopWithContinuation(
+            entryPointRaw: entryPointRaw, continuation: continuation
+        )
+    }
+    DispatchQueue.global().async(execute: workItem)
+    let waitResult = workItem.wait(timeout: deadline)
+    if waitResult == .timedOut {
+        workItem.cancel()
+        scope.cancel()
+        _ = kk_coroutine_scope_wait(scopeHandle)
+        return 0 // null
+    }
+    _ = kk_coroutine_scope_wait(scopeHandle)
+    return result
+}
+
 // MARK: - Child Cancel/Join Helpers (P5-89)
 
 /// Cancel a child handle (RuntimeJobHandle or RuntimeAsyncTask).
