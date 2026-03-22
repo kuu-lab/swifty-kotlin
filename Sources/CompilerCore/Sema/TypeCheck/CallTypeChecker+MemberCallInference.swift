@@ -705,7 +705,10 @@ extension CallTypeChecker {
             "sumOf", "maxOrNull", "minOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
-            "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile", "distinctBy", "zipWithNext",
+            "maxOf", "minOf",
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
+            "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile", "distinctBy",
             "sort", "sortBy", "sortByDescending",
         ]
         let flowHOFNames: Set = ["map", "filter", "collect"]
@@ -1367,61 +1370,6 @@ extension CallTypeChecker {
                     resultType = sema.types.anyType
                 }
 
-            case "zipWithNext":
-                if args.isEmpty {
-                    guard explicitTypeArgs.isEmpty else {
-                        sema.bindings.bindExprType(id, type: sema.types.anyType)
-                        return sema.types.anyType
-                    }
-                    // zipWithNext(): List<Pair<T, T>>
-                    if let pairSymbol = sema.symbols.lookupByShortName(interner.intern("Pair")).first,
-                       let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
-                    {
-                        let pairType = sema.types.make(.classType(ClassType(
-                            classSymbol: pairSymbol,
-                            args: [.invariant(collectionElementType), .invariant(collectionElementType)],
-                            nullability: .nonNull
-                        )))
-                        resultType = sema.types.make(.classType(ClassType(
-                            classSymbol: listSymbol,
-                            args: [.invariant(pairType)],
-                            nullability: .nonNull
-                        )))
-                    } else {
-                        resultType = sema.types.anyType
-                    }
-                } else {
-                    // zipWithNext(transform: (T, T) -> R): List<R>
-                    guard args.count == 1 else {
-                        sema.bindings.bindExprType(id, type: sema.types.anyType)
-                        return sema.types.anyType
-                    }
-                    guard explicitTypeArgs.count <= 1 else {
-                        sema.bindings.bindExprType(id, type: sema.types.anyType)
-                        return sema.types.anyType
-                    }
-                    let lambdaReturnType = explicitTypeArgs.first ?? sema.types.anyType
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType, collectionElementType],
-                        returnType: lambdaReturnType
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    let bodyType = explicitTypeArgs.first
-                        ?? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
-                    if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
-                        resultType = sema.types.make(.classType(ClassType(
-                            classSymbol: listSymbol,
-                            args: [.invariant(bodyType)],
-                            nullability: .nonNull
-                        )))
-                    } else {
-                        resultType = sema.types.anyType
-                    }
-                }
-
             case "indexOfFirst", "indexOfLast":
                 guard args.count == 1 else {
                     sema.bindings.bindExprType(id, type: sema.types.intType)
@@ -1639,6 +1587,186 @@ extension CallTypeChecker {
                     }
                  }
                  resultType = sema.types.makeNullable(selectorType)
+
+            case "maxOf", "minOf":
+                guard args.count == 1 else {
+                    let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                let maxOfLambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: maxOfLambdaExpectedType)
+                let maxOfSelectorType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
+                    sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
+                } else if let lambdaExprType = sema.bindings.exprType(for: args[0].expr),
+                          case let .functionType(fnType) = sema.types.kind(of: lambdaExprType)
+                {
+                    sema.types.makeNonNullable(fnType.returnType)
+                } else {
+                    sema.types.anyType
+                }
+                let maxOfSelectorKind = sema.types.kind(of: maxOfSelectorType)
+                if case .typeParam = maxOfSelectorKind {} else {
+                    do {
+                        let primitiveComparableTypes: Set<TypeID> = [
+                            sema.types.intType,
+                            sema.types.longType,
+                            sema.types.floatType,
+                            sema.types.doubleType,
+                            sema.types.charType,
+                            sema.types.stringType,
+                            sema.types.make(.primitive(.uint, .nonNull)),
+                            sema.types.make(.primitive(.ulong, .nonNull)),
+                        ]
+                        let isPrimitiveComparable = primitiveComparableTypes.contains(maxOfSelectorType)
+                        let isNominalComparable: Bool
+                        if let comparableSymbol = sema.types.comparableInterfaceSymbol {
+                            let comparableSelectorType = sema.types.make(.classType(ClassType(
+                                classSymbol: comparableSymbol,
+                                args: [.invariant(maxOfSelectorType)],
+                                nullability: .nonNull
+                            )))
+                            isNominalComparable = sema.types.isSubtype(maxOfSelectorType, comparableSelectorType)
+                        } else {
+                            isNominalComparable = false
+                        }
+                        if maxOfSelectorType != sema.types.anyType && !isPrimitiveComparable && !isNominalComparable {
+                            ctx.semaCtx.diagnostics.error(
+                                "KSWIFTK-SEMA-BOUND",
+                                "Type argument does not satisfy upper bound constraint.",
+                                range: ast.arena.exprRange(id)
+                            )
+                            let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                            sema.bindings.bindExprType(id, type: failedType)
+                            return failedType
+                        }
+                    }
+                }
+                resultType = maxOfSelectorType
+
+            case "maxWith", "minWith":
+                guard args.count == 1 else {
+                    let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                let maxWithComparatorExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType, collectionElementType],
+                    returnType: sema.types.intType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: maxWithComparatorExpectedType)
+                resultType = collectionElementType
+
+            case "maxWithOrNull", "minWithOrNull":
+                guard args.count == 1 else {
+                    let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                let maxWithOrNullComparatorExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType, collectionElementType],
+                    returnType: sema.types.intType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: maxWithOrNullComparatorExpectedType)
+                resultType = sema.types.makeNullable(collectionElementType)
+
+            case "maxOfWith", "minOfWith":
+                guard args.count == 2 else {
+                    let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                // First arg is comparator, second is selector
+                // Infer selector first to get R, then check comparator
+                let maxOfWithSelectorExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+                if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                }
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: maxOfWithSelectorExpectedType)
+                let maxOfWithSelectorType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[1].expr) {
+                    sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
+                } else if let lambdaExprType = sema.bindings.exprType(for: args[1].expr),
+                          case let .functionType(fnType) = sema.types.kind(of: lambdaExprType)
+                {
+                    sema.types.makeNonNullable(fnType.returnType)
+                } else {
+                    sema.types.anyType
+                }
+                resultType = maxOfWithSelectorType
+
+            case "maxOfWithOrNull", "minOfWithOrNull":
+                guard args.count == 2 else {
+                    let failedType = safeCall ? sema.types.makeNullable(sema.types.errorType) : sema.types.errorType
+                    ctx.semaCtx.diagnostics.error(
+                        "KSWIFTK-SEMA-0024",
+                        "No viable overload found for call.",
+                        range: ast.arena.exprRange(id)
+                    )
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                let maxOfWithOrNullSelectorExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.anyType)
+                if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                }
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: maxOfWithOrNullSelectorExpectedType)
+                let maxOfWithOrNullSelectorType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[1].expr) {
+                    sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
+                } else if let lambdaExprType = sema.bindings.exprType(for: args[1].expr),
+                          case let .functionType(fnType) = sema.types.kind(of: lambdaExprType)
+                {
+                    sema.types.makeNonNullable(fnType.returnType)
+                } else {
+                    sema.types.anyType
+                }
+                resultType = sema.types.makeNullable(maxOfWithOrNullSelectorType)
+
              case "binarySearch":
                 // STDLIB-547: binarySearch(comparison: (T) -> Int) overload
                 guard args.count == 1 else {
@@ -2770,46 +2898,6 @@ extension CallTypeChecker {
                     }
                 }
             }
-            // STDLIB-581: String.toByteArray(charset: Charset)
-            if args.count == 1 {
-                let receiverTypeForCheck = safeCall
-                    ? sema.types.makeNonNullable(lookupReceiverType)
-                    : lookupReceiverType
-                let arg0Type = sema.types.makeNonNullable(argTypes[0])
-                // Only match when the argument is NOT a String or Int to avoid
-                // shadowing other toByteArray overloads (e.g. toByteArray(Int)).
-                if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-                   interner.resolve(calleeName) == "toByteArray",
-                   !sema.types.isSubtype(arg0Type, sema.types.stringType),
-                   !sema.types.isSubtype(arg0Type, sema.types.intType)
-                {
-                    if let boundType = tryBindSyntheticStringMemberFallback(
-                        id,
-                        calleeName: calleeName,
-                        receiverType: receiverTypeForCheck,
-                        args: args,
-                        argTypes: argTypes,
-                        range: range,
-                        ctx: ctx,
-                        expectedType: expectedType,
-                        explicitTypeArgs: explicitTypeArgs,
-                        safeCall: safeCall
-                    ) {
-                        sema.bindings.markCollectionExpr(id)
-                        return boundType
-                    }
-                    let resultType = makeSyntheticListType(
-                        symbols: sema.symbols,
-                        types: sema.types,
-                        interner: interner,
-                        elementType: sema.types.intType
-                    )
-                    sema.bindings.markCollectionExpr(id)
-                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
-            }
             // String stdlib: 2-arg removeSurrounding(prefix, suffix) (STDLIB-185)
             if args.count == 2 {
                 let receiverTypeForCheck = safeCall
@@ -2907,6 +2995,7 @@ extension CallTypeChecker {
                         ) {
                             return boundType
                         }
+                        sema.bindings.markCollectionExpr(id)
                         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                         sema.bindings.bindExprType(id, type: finalType)
                         return finalType
@@ -3196,12 +3285,6 @@ extension CallTypeChecker {
                     ) {
                         return boundType
                     }
-                    switch calleeStr {
-                    case "map":
-                        sema.bindings.markCollectionExpr(id)
-                    default:
-                        break
-                    }
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -3454,18 +3537,6 @@ extension CallTypeChecker {
                 return fallbackType
             }
             if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryFileMemberFallback(
                 id,
                 calleeName: calleeName,
                 isClassNameReceiver: isClassNameReceiver,
@@ -3732,18 +3803,6 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let fallbackType = tryFileMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
             if let fallbackType = tryArrayMemberFallback(
                 id,
                 calleeName: calleeName,
@@ -3836,18 +3895,6 @@ extension CallTypeChecker {
                 return fallbackType
             }
             if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryFileMemberFallback(
                 id,
                 calleeName: calleeName,
                 isClassNameReceiver: isClassNameReceiver,
@@ -4372,6 +4419,13 @@ extension CallTypeChecker {
         case ("Double", "NaN"): return (types.doubleType, .doubleLiteral(Double.nan))
         case ("Double", "POSITIVE_INFINITY"): return (types.doubleType, .doubleLiteral(Double.infinity))
         case ("Double", "NEGATIVE_INFINITY"): return (types.doubleType, .doubleLiteral(-Double.infinity))
+        // Charsets (STDLIB-573): Charsets.UTF_8, etc. resolve to integer IDs
+        case ("Charsets", "UTF_8"): return (types.intType, .intLiteral(0))
+        case ("Charsets", "UTF_16"): return (types.intType, .intLiteral(1))
+        case ("Charsets", "UTF_16BE"): return (types.intType, .intLiteral(2))
+        case ("Charsets", "UTF_16LE"): return (types.intType, .intLiteral(3))
+        case ("Charsets", "US_ASCII"): return (types.intType, .intLiteral(4))
+        case ("Charsets", "ISO_8859_1"): return (types.intType, .intLiteral(5))
         default: return nil
         }
     }

@@ -1123,11 +1123,19 @@ extension CollectionLiteralLoweringPass {
             || callee == lookup.sortedByDescendingName || callee == lookup.sortedWithName
             || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
             || callee == lookup.maxOfOrNullName || callee == lookup.minOfOrNullName
+            || callee == lookup.maxOfName || callee == lookup.minOfName
+            || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
+            || callee == lookup.minWithName || callee == lookup.minWithOrNullName
+            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
             || callee == lookup.distinctByName
         else {
             return false
         }
-        guard arguments.count == 1 || (callee == lookup.sortedWithName && arguments.count == 2),
+        let allowsTwoArgs = callee == lookup.sortedWithName
+            || callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName
+        guard arguments.count == 1 || (allowsTwoArgs && arguments.count == 2),
               listExprIDs.contains(receiver.rawValue)
         else { return false }
 
@@ -1144,6 +1152,16 @@ extension CollectionLiteralLoweringPass {
         case lookup.minByOrNullName: lookup.kkListMinByOrNullName
         case lookup.maxOfOrNullName: lookup.kkListMaxOfOrNullName
         case lookup.minOfOrNullName: lookup.kkListMinOfOrNullName
+        case lookup.maxOfName: lookup.kkListMaxOfName
+        case lookup.minOfName: lookup.kkListMinOfName
+        case lookup.maxWithName: lookup.kkListMaxWithName
+        case lookup.maxWithOrNullName: lookup.kkListMaxWithOrNullName
+        case lookup.minWithName: lookup.kkListMinWithName
+        case lookup.minWithOrNullName: lookup.kkListMinWithOrNullName
+        case lookup.maxOfWithName: lookup.kkListMaxOfWithName
+        case lookup.maxOfWithOrNullName: lookup.kkListMaxOfWithOrNullName
+        case lookup.minOfWithName: lookup.kkListMinOfWithName
+        case lookup.minOfWithOrNullName: lookup.kkListMinOfWithOrNullName
         case lookup.distinctByName: lookup.kkListDistinctByName
         default: callee
         }
