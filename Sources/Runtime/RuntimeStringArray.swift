@@ -666,10 +666,10 @@ public func kk_kclass_isInstance(_ kclassRaw: Int, _ valueRaw: Int) -> Int {
 @_cdecl("kk_kclass_members")
 public func kk_kclass_members(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return 0
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     // TODO(REFL-005): Build RuntimeKCallableBox values from emitted metadata.
-    return 0
+    return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 /// Returns the constructors of this KClass as a runtime list of KFunction boxes.
@@ -678,10 +678,10 @@ public func kk_kclass_members(_ kclassRaw: Int) -> Int {
 @_cdecl("kk_kclass_constructors")
 public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     guard runtimeKClassBox(from: kclassRaw) != nil else {
-        return 0
+        return registerRuntimeObject(RuntimeListBox(elements: []))
     }
     // TODO(REFL-005): Build RuntimeKFunctionBox values from emitted metadata.
-    return 0
+    return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 // MARK: - REFL-005: KType and typeOf<T>()

@@ -1119,16 +1119,6 @@ final class CallLowerer {
 
             let tokenExpr = makeTypeTokenExpr(for: type)
             let nameHintExpr = makeNameHintExpr(for: type)
-            let classifierExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_kclass_create"),
-                arguments: [tokenExpr, nameHintExpr],
-                result: classifierExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-
             let typeArguments: [TypeArg] = switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
             case let .classType(classType):
                 classType.args
