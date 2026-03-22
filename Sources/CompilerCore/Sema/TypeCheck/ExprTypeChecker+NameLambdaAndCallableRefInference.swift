@@ -208,14 +208,6 @@ extension ExprTypeChecker {
                 return memberType
             }
             if candidates.isEmpty, memberType == sema.types.errorType {
-                // If there were DslMarker-blocked candidates, emit a specific diagnostic.
-                if !dslBlockedIDs.isEmpty {
-                    ctx.semaCtx.diagnostics.error(
-                        "KSWIFTK-SEMA-DSLMARKER",
-                        "'@DslMarker' implicit access to '\(interner.resolve(name))' from outer receiver is restricted. Use explicit receiver.",
-                        range: nameRange
-                    )
-                }
                 return sema.types.errorType
             }
         }
