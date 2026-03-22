@@ -2228,7 +2228,6 @@ final class CallTypeChecker {
                 scope: ctx.scope
             )
             driver.exprChecker.applyFlowStateToLocals(branch.trueState, locals: &locals, sema: sema)
-            return
         }
 
         // Existing: contract { returns() implies (param != null) } — narrow the
