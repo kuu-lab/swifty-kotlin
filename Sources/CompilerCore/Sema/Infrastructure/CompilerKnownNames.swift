@@ -126,6 +126,8 @@ struct KnownCompilerNames {
     let run: InternedString
     let runCatching: InternedString
     let withContext: InternedString
+    let withTimeout: InternedString
+    let withTimeoutOrNull: InternedString
     let flow: InternedString
     let emit: InternedString
     let to: InternedString
@@ -259,6 +261,8 @@ struct KnownCompilerNames {
         run = interner.intern("run")
         runCatching = interner.intern("runCatching")
         withContext = interner.intern("withContext")
+        withTimeout = interner.intern("withTimeout")
+        withTimeoutOrNull = interner.intern("withTimeoutOrNull")
         flow = interner.intern("flow")
         emit = interner.intern("emit")
         to = interner.intern("to")
