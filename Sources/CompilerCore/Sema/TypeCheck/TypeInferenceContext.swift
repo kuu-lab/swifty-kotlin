@@ -123,13 +123,6 @@ struct TypeInferenceContext {
         if let flowState { copy.flowState = flowState }
         if let enclosingClassSymbol { copy.enclosingClassSymbol = enclosingClassSymbol }
         if let outerReceiverTypes { copy.outerReceiverTypes = outerReceiverTypes }
-        if let implicitReceiverType {
-            if let newType = implicitReceiverType {
-                copy.activeDslMarkerAnnotations = copy.collectDslMarkerAnnotations(for: newType)
-            } else {
-                copy.activeDslMarkerAnnotations = []
-            }
-        }
         return copy
     }
 
