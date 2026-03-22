@@ -510,6 +510,11 @@ final class CallTypeChecker {
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .typeOf)
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: .invalid,
+                substitutedTypeArguments: explicitTypeArgs,
+                parameterMapping: [:]
+            ))
             sema.bindings.bindExprType(id, type: sema.types.anyType)
             return sema.types.anyType
         }
