@@ -68,7 +68,8 @@ extension DataFlowSemaPhase {
 
         // --- HexFormat builder DSL: HexFormat { } top-level function ---
         let builderLambdaType = types.make(.functionType(FunctionType(
-            params: [hexFormatType],
+            receiver: hexFormatType,
+            params: [],
             returnType: types.unitType,
             nullability: .nonNull
         )))
