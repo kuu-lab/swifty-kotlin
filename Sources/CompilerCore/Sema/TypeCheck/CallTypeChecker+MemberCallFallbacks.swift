@@ -790,6 +790,24 @@ extension CallTypeChecker {
             return sema.types.makeNullable(receiverElementType)
         }
 
+        // get() on List/Array returns the element type (TYPE-103).
+        // For Map.get(key), the return type is V? (nullable value type).
+        if memberName == interner.intern("get"), !isMapReceiver {
+            return receiverElementType
+        }
+
+        if memberName == interner.intern("get"), isMapReceiver {
+            if case let .classType(classType) = sema.types.kind(of: receiverElementType),
+               classType.args.count >= 2
+            {
+                return switch classType.args[1] {
+                case let .invariant(t), let .out(t), let .in(t): sema.types.makeNullable(t)
+                case .star: sema.types.nullableAnyType
+                }
+            }
+            return sema.types.nullableAnyType
+        }
+
         if memberName == interner.intern("getOrNull")
             || memberName == interner.intern("elementAtOrNull")
             || memberName == interner.intern("firstOrNull")
@@ -1425,8 +1443,8 @@ extension CallTypeChecker {
             return nil
         }
 
-        // Provide contextual function type for array HOF lambda inference.
-        let receiverElementType = sema.types.anyType
+        // Extract the actual element type from the Array<T> receiver (TYPE-103).
+        let receiverElementType = arrayFallbackElementType(receiverID: receiverID, sema: sema, interner: interner)
         if let expectation = arrayMemberLambdaExpectation(
             memberName: memberName,
             argCount: args.count,
@@ -1452,7 +1470,7 @@ extension CallTypeChecker {
             sema.bindings.markCollectionExpr(id)
         }
 
-        let resultType = arrayMemberResultType(memberName: memberName, sema: sema)
+        let resultType = arrayMemberResultType(memberName: memberName, elementType: receiverElementType, sema: sema)
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
@@ -1486,7 +1504,7 @@ extension CallTypeChecker {
         ["toList", "toMutableList", "map", "filter", "copyOf", "copyOfRange"].contains(memberName)
     }
 
-    private func arrayMemberResultType(memberName: String, sema: SemaModule) -> TypeID {
+    private func arrayMemberResultType(memberName: String, elementType: TypeID, sema: SemaModule) -> TypeID {
         switch memberName {
         case "size":
             sema.types.intType
@@ -1496,6 +1514,8 @@ extension CallTypeChecker {
             sema.types.unitType
         case "concatToString":
             sema.types.stringType
+        case "get":
+            elementType
         default:
             sema.types.anyType
         }
@@ -1522,6 +1542,56 @@ extension CallTypeChecker {
             nullability: .nonNull
         )))
         return (argumentIndex: 0, expectedType: expectedType)
+    }
+
+    /// Extract the element type from an `Array<T>` receiver.
+    /// For generic `Array<T>`, returns `T`; for primitive arrays (IntArray, etc.)
+    /// returns the corresponding primitive type.  Falls back to `Any` when the
+    /// element type cannot be determined.
+    private func arrayFallbackElementType(
+        receiverID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        let nonNull = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNull),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return sema.types.anyType
+        }
+
+        let knownNames = KnownCompilerNames(interner: interner)
+
+        // Generic Array<T>: extract type argument.
+        if symbol.name == knownNames.array, let firstArg = classType.args.first {
+            return switch firstArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                type
+            case .star:
+                sema.types.anyType
+            }
+        }
+
+        // Primitive arrays have a fixed element type.
+        // Note: Byte/Short map to intType (same as builtinType resolution).
+        let primitiveMapping: [(InternedString, TypeID)] = [
+            (knownNames.intArray, sema.types.intType),
+            (knownNames.longArray, sema.types.longType),
+            (knownNames.shortArray, sema.types.intType),
+            (knownNames.byteArray, sema.types.intType),
+            (knownNames.doubleArray, sema.types.doubleType),
+            (knownNames.floatArray, sema.types.floatType),
+            (knownNames.booleanArray, sema.types.booleanType),
+            (knownNames.charArray, sema.types.charType),
+        ]
+        for (name, elementType) in primitiveMapping {
+            if symbol.name == name {
+                return elementType
+            }
+        }
+
+        return sema.types.anyType
     }
 
     func isArrayLikeReceiver(
