@@ -1205,6 +1205,15 @@ extension CollectionLiteralLoweringPass {
             let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
             loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
             hofArgs = [trampolineExpr, closureExpr]
+        } else if (callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName),
+            arguments.count == 2
+        {
+            let cmpClosureRawExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            let selClosureRawExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: cmpClosureRawExpr, value: .intLiteral(0)))
+            loweredBody.append(.constValue(result: selClosureRawExpr, value: .intLiteral(0)))
+            hofArgs = [arguments[0], cmpClosureRawExpr, arguments[1], selClosureRawExpr]
         } else {
             hofArgs = arguments
         }
