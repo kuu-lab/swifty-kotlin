@@ -199,6 +199,28 @@ enum TypeRefParserCore {
             }
         }
 
+        // Check for receiver function type: ReceiverType.() -> ReturnType
+        // After parsing a named type, if we see `.` followed by `(` and eventually `) ->`,
+        // this is a receiver-based function type like `StringBuilder.() -> Unit`.
+        if options.allowFunctionType,
+           next + 1 < tokens.count,
+           tokens[next].kind == .symbol(.dot),
+           tokens[next + 1].kind == .symbol(.lParen)
+        {
+            let receiverRef = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+            if let receiverFnType = parseReceiverFunctionTypeRefSuffix(
+                tokens,
+                from: next + 1,
+                receiver: receiverRef,
+                isSuspend: false,
+                interner: interner,
+                astArena: astArena,
+                options: options
+            ) {
+                return receiverFnType
+            }
+        }
+
         var nullable = false
         if next < tokens.count, tokens[next].kind == .symbol(.question) {
             nullable = true
@@ -306,6 +328,31 @@ enum TypeRefParserCore {
             }
         }
 
+        // Try to parse a receiver type for `suspend ReceiverType.() -> ReturnType`
+        if isSuspend, next < tokens.count, tokens[next].kind != .symbol(.lParen) {
+            // After `suspend`, we expect either `(` for a plain function type or
+            // a named type for a receiver function type like `suspend StringBuilder.() -> Unit`.
+            // Try to parse a named type as receiver.
+            if let receiverParse = parseNamedTypeOnly(
+                tokens, from: next, interner: interner, astArena: astArena, options: options
+            ),
+               receiverParse.next + 1 < tokens.count,
+               tokens[receiverParse.next].kind == .symbol(.dot),
+               tokens[receiverParse.next + 1].kind == .symbol(.lParen)
+            {
+                return parseReceiverFunctionTypeRefSuffix(
+                    tokens,
+                    from: receiverParse.next + 1,
+                    receiver: receiverParse.ref,
+                    isSuspend: true,
+                    interner: interner,
+                    astArena: astArena,
+                    options: options
+                )
+            }
+            return nil
+        }
+
         guard next < tokens.count,
               tokens[next].kind == .symbol(.lParen)
         else {
@@ -344,6 +391,7 @@ enum TypeRefParserCore {
         }
 
         let ref = astArena.appendTypeRef(.functionType(
+            receiver: nil,
             params: params,
             returnType: returnRef.ref,
             isSuspend: isSuspend,
@@ -459,5 +507,120 @@ enum TypeRefParserCore {
         default:
             false
         }
+    }
+
+    /// Parse a named type without consuming nullable suffix or checking for function type suffix.
+    /// Used to parse the receiver part of `ReceiverType.() -> ReturnType`.
+    private static func parseNamedTypeOnly(
+        _ tokens: [Token],
+        from start: Int,
+        interner: StringInterner,
+        astArena: ASTArena,
+        options: Options
+    ) -> (ref: TypeRefID, next: Int)? {
+        guard start < tokens.count,
+              let firstName = identifier(from: tokens[start], interner: interner, options: options)
+        else {
+            return nil
+        }
+
+        var path: [InternedString] = [firstName]
+        var typeArgs: [TypeArgRef] = []
+        var next = start + 1
+
+        if next < tokens.count,
+           tokens[next].kind == .symbol(.lessThan),
+           let parsedArgs = parseTypeArgRefsPrefix(
+               tokens, from: next, interner: interner, astArena: astArena, options: options
+           )
+        {
+            typeArgs = parsedArgs.args
+            next = parsedArgs.next
+        }
+
+        // Allow qualified paths like `com.example.MyType`
+        if options.allowQualifiedPath {
+            while next + 1 < tokens.count,
+                  tokens[next].kind == .symbol(.dot),
+                  let name = identifier(from: tokens[next + 1], interner: interner, options: options)
+            {
+                typeArgs = []
+                path.append(name)
+                next += 2
+
+                if next < tokens.count,
+                   tokens[next].kind == .symbol(.lessThan),
+                   let parsedArgs = parseTypeArgRefsPrefix(
+                       tokens, from: next, interner: interner, astArena: astArena, options: options
+                   )
+                {
+                    typeArgs = parsedArgs.args
+                    next = parsedArgs.next
+                }
+            }
+        }
+
+        let ref = astArena.appendTypeRef(.named(path: path, args: typeArgs, nullable: false))
+        return (ref, next)
+    }
+
+    /// Parse the suffix `(params) -> ReturnType` of a receiver function type,
+    /// starting from `(`.  The caller has already parsed the receiver type and
+    /// consumed the `.` before `(`.
+    private static func parseReceiverFunctionTypeRefSuffix(
+        _ tokens: [Token],
+        from parenStart: Int,
+        receiver: TypeRefID,
+        isSuspend: Bool,
+        interner: StringInterner,
+        astArena: ASTArena,
+        options: Options
+    ) -> (ref: TypeRefID, next: Int)? {
+        guard parenStart < tokens.count,
+              tokens[parenStart].kind == .symbol(.lParen)
+        else {
+            return nil
+        }
+
+        guard let closeParen = findMatchingCloseParen(in: tokens, from: parenStart) else {
+            return nil
+        }
+
+        guard closeParen + 1 < tokens.count,
+              tokens[closeParen + 1].kind == .symbol(.arrow)
+        else {
+            return nil
+        }
+
+        guard let params = parseFunctionParamRefs(
+            in: tokens,
+            range: (parenStart + 1) ..< closeParen,
+            interner: interner,
+            astArena: astArena,
+            options: options
+        ) else {
+            return nil
+        }
+
+        let returnStart = closeParen + 2
+        guard let returnRef = parseTypeRefPrefix(
+            tokens,
+            from: returnStart,
+            interner: interner,
+            astArena: astArena,
+            options: options
+        ) else {
+            return nil
+        }
+
+        let ref = astArena.appendTypeRef(.functionType(
+            receiver: receiver,
+            params: params,
+            returnType: returnRef.ref,
+            isSuspend: isSuspend,
+            nullable: false
+        ))
+
+        return (ref, returnRef.next)
     }
 }

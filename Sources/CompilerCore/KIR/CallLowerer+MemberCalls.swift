@@ -184,6 +184,58 @@ extension CallLowerer {
             return scopeResult
         }
 
+        // Receiver-lambda invocation: `receiver.localVar()` where localVar has
+        // a function-with-receiver type (e.g. `sb.action()` with action: StringBuilder.() -> Unit).
+        if let callableBinding = sema.bindings.callableValueCalls[exprID],
+           case let .functionType(fnType) = sema.types.kind(of: callableBinding.functionType),
+           fnType.receiver != nil,
+           case let .localValue(localSym) = callableBinding.target
+        {
+            let boundType = sema.bindings.exprTypes[exprID] ?? fnType.returnType
+            let loweredReceiver = driver.lowerExpr(
+                receiverExpr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let loweredArgIDs = args.map { argument in
+                driver.lowerExpr(
+                    argument.expr,
+                    ast: ast, sema: sema, arena: arena, interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
+                    instructions: &instructions
+                )
+            }
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType)
+            if let localExprID = driver.ctx.localValue(for: localSym),
+               let info = driver.ctx.callableValueInfo(for: localExprID)
+            {
+                var allArgs = info.captureArguments
+                allArgs.append(loweredReceiver)
+                allArgs.append(contentsOf: loweredArgIDs)
+                instructions.append(.call(
+                    symbol: info.symbol,
+                    callee: info.callee,
+                    arguments: allArgs,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                var allArgs = [loweredReceiver] + loweredArgIDs
+                instructions.append(.call(
+                    symbol: localSym,
+                    callee: calleeName,
+                    arguments: allArgs,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                _ = allArgs
+            }
+            return result
+        }
+
         let effectiveCalleeName = if sema.bindings.isInvokeOperatorCall(exprID) {
             interner.intern("invoke")
         } else {

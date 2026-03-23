@@ -606,8 +606,19 @@ final class CallLowerer {
                 finalArgIDs.append(capacityExpr)
             }
             let callCanThrow = needsThrownChannel(calleeName: loweredCalleeName, interner: interner)
+            // When calling a callable value (function-type local/parameter),
+            // use its symbol so InlineLoweringPass can match it against lambda
+            // parameter symbols and expand the lambda body in place.
+            let callSymbol: SymbolID? = chosen ?? loweredCallable?.symbol ?? {
+                if let binding = callableValueCallBinding,
+                   case let .localValue(sym) = binding.target
+                {
+                    return sym
+                }
+                return nil
+            }()
             instructions.append(.call(
-                symbol: chosen ?? loweredCallable?.symbol,
+                symbol: callSymbol,
                 callee: loweredCalleeName,
                 arguments: finalArgIDs,
                 result: result,

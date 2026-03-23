@@ -3651,6 +3651,35 @@ extension CallTypeChecker {
                 }
             }
 
+            // Receiver-lambda invocation: `receiver.localVar()` where localVar
+            // has a function-with-receiver type matching the receiver.
+            // e.g. `sb.action()` where action: StringBuilder.() -> Unit
+            if let local = locals[calleeName] {
+                let localType = local.type
+                if case let .functionType(fnType) = sema.types.kind(of: localType),
+                   fnType.receiver != nil
+                {
+                    let argTypes = args.map { argument in
+                        driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+                    }
+                    _ = argTypes // suppress unused warning
+                    let resultType = fnType.returnType
+                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                    // Mark as callable-value call so KIR emits an indirect call
+                    // through the closure pointer with the receiver prepended.
+                    sema.bindings.bindCallableValueCall(
+                        id,
+                        binding: CallableValueCallBinding(
+                            target: .localValue(local.symbol),
+                            functionType: localType,
+                            parameterMapping: [:]
+                        )
+                    )
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
+
             ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
             return driver.helpers.bindAndReturnErrorType(id, sema: sema)
         }

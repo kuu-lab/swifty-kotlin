@@ -1896,17 +1896,51 @@ final class CallTypeChecker {
                 receiverType: nonNullReceiver,
                 sema: sema
             )
-            if let bestCandidate = memberCandidates.first,
-               let sig = sema.symbols.functionSignature(for: bestCandidate)
-            {
-                // Eagerly infer argument types
-                for arg in args {
-                    _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+            if !memberCandidates.isEmpty {
+                // Eagerly infer argument types for overload resolution.
+                let memberArgTypes = args.map { argument in
+                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
-                sema.bindings.bindIdentifier(id, symbol: bestCandidate)
-                let resultType = sig.returnType
-                sema.bindings.bindExprType(id, type: resultType)
-                return resultType
+                let resolvedArgs = zip(args, memberArgTypes).map { argument, type in
+                    CallArg(label: argument.label, isSpread: argument.isSpread, type: type)
+                }
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: memberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: calleeName,
+                        args: resolvedArgs,
+                        explicitTypeArgs: explicitTypeArgs
+                    ),
+                    expectedType: expectedType,
+                    implicitReceiverType: receiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = resolved.chosenCallee {
+                    let resultType = bindCallAndResolveReturnType(id, chosen: chosen, resolved: resolved, sema: sema)
+                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
+                } else if let bestCandidate = memberCandidates.first,
+                          let sig = sema.symbols.functionSignature(for: bestCandidate)
+                {
+                    // Fallback: bind directly if resolver could not pick (single candidate).
+                    var mapping: [Int: Int] = [:]
+                    for i in args.indices { mapping[i] = i }
+                    sema.bindings.bindCall(
+                        id,
+                        binding: CallBinding(
+                            chosenCallee: bestCandidate,
+                            substitutedTypeArguments: [],
+                            parameterMapping: mapping
+                        )
+                    )
+                    sema.bindings.bindCallableTarget(id, target: .symbol(bestCandidate))
+                    sema.bindings.markImplicitReceiverMember(id, name: calleeName)
+                    let resultType = sig.returnType
+                    sema.bindings.bindExprType(id, type: resultType)
+                    return resultType
+                }
             }
         }
 

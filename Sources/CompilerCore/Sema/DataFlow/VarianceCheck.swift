@@ -207,7 +207,11 @@ extension DataFlowSemaPhase {
         case let .named(path, typeArgs, _):
             checkNamedTypeVariance(path: path, typeArgs: typeArgs, position: position,
                                    varianceMap: varianceMap, env: env, memberRange: memberRange)
-        case let .functionType(paramTypeRefs, returnTypeRef, _, _):
+        case let .functionType(receiverTypeRef, paramTypeRefs, returnTypeRef, _, _):
+            if let receiverTypeRef {
+                checkTypeRefVariance(receiverTypeRef, position: position.flipped,
+                                     varianceMap: varianceMap, env: env, memberRange: memberRange)
+            }
             checkFunctionTypeVariance(params: paramTypeRefs, ret: returnTypeRef,
                                       position: position, varianceMap: varianceMap,
                                       env: env, memberRange: memberRange)

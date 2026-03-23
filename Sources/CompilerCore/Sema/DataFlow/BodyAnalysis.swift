@@ -129,8 +129,20 @@ extension DataFlowSemaPhase {
             )
             return types.errorType
 
-        case let .functionType(paramRefIDs, returnRefID, isSuspend, nullable):
+        case let .functionType(receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):
             let nullability: Nullability = nullable ? .nullable : .nonNull
+            var receiverType: TypeID? = nil
+            if let receiverRefID {
+                receiverType = resolveTypeRef(
+                    receiverRefID,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    localTypeParameters: localTypeParameters,
+                    diagnostics: diagnostics
+                )
+            }
             var paramTypes: [TypeID] = []
             for paramRef in paramRefIDs {
                 guard let paramType = resolveTypeRef(
@@ -156,6 +168,7 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics
             ) ?? types.unitType
             return types.make(.functionType(FunctionType(
+                receiver: receiverType,
                 params: paramTypes,
                 returnType: returnType,
                 isSuspend: isSuspend,

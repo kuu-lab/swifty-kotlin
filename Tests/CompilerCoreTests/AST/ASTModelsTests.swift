@@ -328,8 +328,8 @@ final class ASTModelsTests: XCTestCase {
         let arena = ASTArena()
         let paramTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
         let returnTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
-        let funcTypeID = arena.appendTypeRef(.functionType(params: [paramTypeRef], returnType: returnTypeRef, isSuspend: true, nullable: false))
-        if case let .functionType(params, ret, suspend, nullable) = arena.typeRef(funcTypeID) {
+        let funcTypeID = arena.appendTypeRef(.functionType(receiver: nil, params: [paramTypeRef], returnType: returnTypeRef, isSuspend: true, nullable: false))
+        if case let .functionType(_, params, ret, suspend, nullable) = arena.typeRef(funcTypeID) {
             XCTAssertEqual(params.count, 1)
             XCTAssertEqual(ret, returnTypeRef)
             XCTAssertTrue(suspend)
