@@ -1,10 +1,16 @@
 extension KotlinParser {
-    func parseBlock(isClassBody: Bool = false) -> NodeID {
+    func parseBlock() -> NodeID {
         var children: [SyntaxChild] = []
         var range = RangeAccumulator()
         guard consumeIfSymbol(.lBrace, into: &children, range: &range) else {
             return arena.appendNode(kind: .block, range: range.value ?? invalidRange, children)
         }
+
+        // The first token after `{` is treated as if it has a leading newline,
+        // because `{` acts as a statement separator in Kotlin.  This allows
+        // single-line class/interface bodies like `interface I { fun f(): T }`
+        // to parse the member function as a declaration node.
+        var atBlockStart = true
 
         while !stream.atEOF() {
             let token = stream.peek()
@@ -14,22 +20,27 @@ extension KotlinParser {
             }
             if case .keyword(.constructor) = token.kind {
                 children.append(.node(parseConstructorDeclaration()))
+                atBlockStart = false
                 continue
             }
             if case .softKeyword(.constructor) = token.kind {
                 children.append(.node(parseConstructorDeclaration()))
+                atBlockStart = false
                 continue
             }
-            if isDeclarationStart(token.kind), (isClassBody || hasLeadingNewline(token)) {
+            if isDeclarationStart(token.kind), (hasLeadingNewline(token) || atBlockStart) {
                 children.append(.node(parseDeclaration()))
+                atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {
                 children.append(.node(parseStatement(inBlock: true)))
+                atBlockStart = false
             } else {
                 let before = stream.index
                 skipToSynchronizationPoint(inBlock: true, into: &children, range: &range)
                 if stream.index == before, !stream.atEOF() {
                     _ = consumeToken(into: &children, range: &range)
                 }
+                atBlockStart = false
             }
         }
 
@@ -636,7 +647,7 @@ extension KotlinParser {
         ParserBoundaryPolicy.shouldSplitStatementOnNewline(kind)
     }
 
-    func parseTail(inBlock: Bool, isClassBody: Bool = false, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
+    func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var progress = false
         var sawTryKeyword = false
         var groupingDepth = 0
@@ -653,7 +664,7 @@ extension KotlinParser {
                 continue
             }
             if case .symbol(.lBrace) = token.kind {
-                let blockID = parseBlock(isClassBody: isClassBody)
+                let blockID = parseBlock()
                 children.append(.node(blockID))
                 range.append(arena.node(blockID).range)
                 progress = true
