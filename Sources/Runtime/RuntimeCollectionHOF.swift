@@ -1180,6 +1180,20 @@ public func kk_list_sorted(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: sorted))
 }
 
+@_cdecl("kk_set_sorted")
+public func kk_set_sorted(_ setRaw: Int) -> Int {
+    guard let _setBox = runtimeSetBox(from: setRaw) else { invalidContainerPanic(#function, "set") }
+    let elements = _setBox.elements
+    let sorted = elements.enumerated().sorted { lhs, rhs in
+        let comparison = runtimeCompareValues(lhs.element, rhs.element)
+        if comparison != 0 {
+            return comparison < 0
+        }
+        return lhs.offset < rhs.offset
+    }.map(\.element)
+    return registerRuntimeObject(RuntimeListBox(elements: sorted))
+}
+
 @_cdecl("kk_list_distinct")
 public func kk_list_distinct(_ listRaw: Int) -> Int {
     guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
