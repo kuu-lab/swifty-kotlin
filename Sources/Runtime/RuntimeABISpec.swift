@@ -3397,6 +3397,14 @@ public enum RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_duration_from_days",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_duration_from_seconds_long",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -3444,6 +3452,14 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Duration"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_duration_from_days_long",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
     ]
 
     public static let allFunctions: [RuntimeABIFunctionSpec] =
@@ -3471,6 +3487,7 @@ public enum RuntimeABISpec {
             + resultFunctions
             + stringBuilderFunctions
             + fileIOFunctions
+            + uuidFunctions
             + durationFunctions
 
     public static func generateCHeader() -> String {
