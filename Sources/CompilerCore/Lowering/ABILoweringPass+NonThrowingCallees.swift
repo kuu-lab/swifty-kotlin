@@ -60,6 +60,7 @@ extension ABILoweringPass {
             interner.intern("kk_enum_make_entries_list"),
             interner.intern("kk_string_toBoolean"),
             interner.intern("kk_string_lines"),
+            interner.intern("kk_string_lineSequence"),
             interner.intern("kk_string_trimStart"),
             interner.intern("kk_string_trimEnd"),
             interner.intern("kk_string_toByteArray"),
