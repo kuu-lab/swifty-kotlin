@@ -3479,12 +3479,6 @@ extension CallTypeChecker {
                     ) {
                         return boundType
                     }
-                    switch calleeStr {
-                    case "map":
-                        sema.bindings.markCollectionExpr(id)
-                    default:
-                        break
-                    }
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
@@ -3780,18 +3774,6 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let fallbackType = tryFileMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
             if let fallbackType = tryCollectionMemberFallback(
                 id,
                 calleeName: calleeName,
@@ -4067,18 +4049,6 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let fallbackType = tryFileMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
             if let fallbackType = tryArrayMemberFallback(
                 id,
                 calleeName: calleeName,
@@ -4171,18 +4141,6 @@ extension CallTypeChecker {
                 return fallbackType
             }
             if let fallbackType = tryStringMemberFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
-            if let fallbackType = tryFileMemberFallback(
                 id,
                 calleeName: calleeName,
                 isClassNameReceiver: isClassNameReceiver,
