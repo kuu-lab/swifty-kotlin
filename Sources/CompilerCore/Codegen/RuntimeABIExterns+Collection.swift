@@ -38,6 +38,8 @@ public extension RuntimeABIExterns {
         kk_set_containsAll,
         kk_set_is_empty,
         kk_set_toList,
+        kk_set_sorted,
+        kk_set_sortedDescending,
         kk_collection_toList,
         kk_set_intersect,
         kk_set_union,
@@ -474,6 +476,18 @@ public extension RuntimeABIExterns {
 
     static let kk_set_toList = ExternDecl(
         name: "kk_set_toList",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_set_sorted = ExternDecl(
+        name: "kk_set_sorted",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_set_sortedDescending = ExternDecl(
+        name: "kk_set_sortedDescending",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
