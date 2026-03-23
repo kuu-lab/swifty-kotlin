@@ -82,14 +82,14 @@ public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
         elements = Array(array.elements.prefix(count))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
 }
 
 // STDLIB-410: emptyList<T>() - allocates a fresh empty list each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_list_add).
 @_cdecl("kk_emptyList")
 public func kk_emptyList() -> Int {
-    return registerRuntimeObject(RuntimeListBox(elements: []))
+    return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
 }
 
 @_cdecl("kk_list_size")
