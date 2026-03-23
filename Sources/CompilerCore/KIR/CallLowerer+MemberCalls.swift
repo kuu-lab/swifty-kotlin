@@ -3234,6 +3234,8 @@ extension CallLowerer {
         )
         if loweredCallee == interner.intern("kk_channel_send")
             || loweredCallee == interner.intern("kk_channel_receive")
+            || loweredCallee == interner.intern("kk_mutex_lock")
+            || loweredCallee == interner.intern("kk_semaphore_acquire")
         {
             let continuationExpr = arena.appendExpr(
                 .intLiteral(0),
