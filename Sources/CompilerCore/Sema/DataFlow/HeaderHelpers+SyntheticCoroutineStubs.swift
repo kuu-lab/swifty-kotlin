@@ -492,7 +492,15 @@ extension DataFlowSemaPhase {
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
-        guard symbols.lookup(fqName: functionFQName) == nil else {
+        // Only skip if a function with this FQName already exists.
+        // A nominal type (class/interface) sharing the same FQName is allowed
+        // (Kotlin supports factory functions with the same name as a type).
+        let existingSymbols = symbols.lookupAll(fqName: functionFQName)
+        let hasExistingFunction = existingSymbols.contains { id in
+            guard let sym = symbols.symbol(id) else { return false }
+            return sym.kind == .function
+        }
+        guard !hasExistingFunction else {
             return
         }
         let functionSymbol = symbols.define(
