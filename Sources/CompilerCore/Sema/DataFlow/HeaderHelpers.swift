@@ -848,6 +848,7 @@ extension DataFlowSemaPhase {
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
@@ -858,6 +859,7 @@ extension DataFlowSemaPhase {
         registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
     }
 
     func registerSyntheticContractStubs(
