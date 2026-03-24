@@ -2410,6 +2410,7 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "flags", type: .intptr),
                 RuntimeABIParameter(name: "fieldCount", type: .intptr),
                 RuntimeABIParameter(name: "memberCount", type: .intptr),
+                RuntimeABIParameter(name: "constructorCount", type: .intptr),
             ],
             returnType: .intptr,
             section: "TypeCheck"
@@ -2482,6 +2483,103 @@ public enum RuntimeABISpec {
             name: "kk_kclass_members_count",
             parameters: [
                 RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        // REFL-005: KClass.isInstance, members, constructors
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_isInstance",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+                RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_members",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_constructors",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        // REFL-005: KType and typeOf<T>()
+        RuntimeABIFunctionSpec(
+            name: "kk_ktype_create",
+            parameters: [
+                RuntimeABIParameter(name: "classifierRaw", type: .intptr),
+                RuntimeABIParameter(name: "argsRaw", type: .intptr),
+                RuntimeABIParameter(name: "isNullable", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktype_classifier",
+            parameters: [
+                RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktype_arguments",
+            parameters: [
+                RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktype_isMarkedNullable",
+            parameters: [
+                RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktypeprojection_create",
+            parameters: [
+                RuntimeABIParameter(name: "typeRaw", type: .intptr),
+                RuntimeABIParameter(name: "varianceOrdinal", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktypeprojection_type",
+            parameters: [
+                RuntimeABIParameter(name: "projRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktypeprojection_variance",
+            parameters: [
+                RuntimeABIParameter(name: "projRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_typeof",
+            parameters: [
+                RuntimeABIParameter(name: "typeToken", type: .intptr),
+                RuntimeABIParameter(name: "nameHint", type: .intptr),
+                RuntimeABIParameter(name: "argsRaw", type: .intptr),
+                RuntimeABIParameter(name: "isNullable", type: .intptr),
             ],
             returnType: .intptr,
             section: "TypeCheck"

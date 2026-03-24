@@ -1866,7 +1866,7 @@ public enum RuntimeABIExterns {
 
     public static let kk_kclass_register_metadata = ExternDecl(
         name: "kk_kclass_register_metadata",
-        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t"],
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
@@ -1921,6 +1921,76 @@ public enum RuntimeABIExterns {
     public static let kk_kclass_members_count = ExternDecl(
         name: "kk_kclass_members_count",
         parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // REFL-005: KClass.isInstance, members, constructors
+
+    public static let kk_kclass_isInstance = ExternDecl(
+        name: "kk_kclass_isInstance",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_members = ExternDecl(
+        name: "kk_kclass_members",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_constructors = ExternDecl(
+        name: "kk_kclass_constructors",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // REFL-005: KType and typeOf<T>()
+
+    public static let kk_ktype_create = ExternDecl(
+        name: "kk_ktype_create",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktype_classifier = ExternDecl(
+        name: "kk_ktype_classifier",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktype_arguments = ExternDecl(
+        name: "kk_ktype_arguments",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktype_isMarkedNullable = ExternDecl(
+        name: "kk_ktype_isMarkedNullable",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktypeprojection_create = ExternDecl(
+        name: "kk_ktypeprojection_create",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktypeprojection_type = ExternDecl(
+        name: "kk_ktypeprojection_type",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ktypeprojection_variance = ExternDecl(
+        name: "kk_ktypeprojection_variance",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_typeof = ExternDecl(
+        name: "kk_typeof",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
@@ -2882,6 +2952,18 @@ public enum RuntimeABIExterns {
             kk_kclass_is_abstract,
             kk_kclass_supertype_name,
             kk_kclass_members_count,
+            // REFL-005: KClass.isInstance, members, constructors, KType, typeOf
+            kk_kclass_isInstance,
+            kk_kclass_members,
+            kk_kclass_constructors,
+            kk_ktype_create,
+            kk_ktype_classifier,
+            kk_ktype_arguments,
+            kk_ktype_isMarkedNullable,
+            kk_ktypeprojection_create,
+            kk_ktypeprojection_type,
+            kk_ktypeprojection_variance,
+            kk_typeof,
             kk_op_is,
             kk_op_cast,
             kk_op_safe_cast,
