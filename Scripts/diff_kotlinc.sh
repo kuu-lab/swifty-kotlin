@@ -623,16 +623,18 @@ else
     RUNNING_PIDS+=("$!")
 
     if (( ${#RUNNING_PIDS[@]} >= WORKER_COUNT )); then
+      wait -n
+      NEW_PIDS=()
       for pid in "${RUNNING_PIDS[@]}"; do
-        wait "$pid" || true
+        if kill -0 "$pid" 2>/dev/null; then
+          NEW_PIDS+=("$pid")
+        fi
       done
-      RUNNING_PIDS=()
+      RUNNING_PIDS=("${NEW_PIDS[@]}")
     fi
   done
 
-  for pid in "${RUNNING_PIDS[@]}"; do
-    wait "$pid" || true
-  done
+  wait
 
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
