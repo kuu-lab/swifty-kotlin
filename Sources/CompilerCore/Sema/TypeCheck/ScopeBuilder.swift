@@ -192,7 +192,10 @@ struct TypeCheckScopeBuilder {
             } else {
                 Array(symbol.fqName.dropLast())
             }
-            if !candidatePackage.isEmpty, !knownPackages.contains(candidatePackage) {
+            if !candidatePackage.isEmpty,
+               !knownPackages.contains(candidatePackage),
+               !symbol.flags.contains(.synthetic)
+            {
                 continue
             }
             mapping[candidatePackage, default: []].append(symbol.id)
