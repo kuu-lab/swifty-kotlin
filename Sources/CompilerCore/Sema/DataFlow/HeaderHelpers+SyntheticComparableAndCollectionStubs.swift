@@ -436,31 +436,6 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
 
-        // Constructor: Pair(first, second) -> kk_pair_new
-        let initName = interner.intern("<init>")
-        let initFQName = pairFQName + [initName]
-        if symbols.lookup(fqName: initFQName) == nil {
-            let initSymbol = symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: initFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(pairSymbol, for: initSymbol)
-            symbols.setExternalLinkName("kk_pair_new", for: initSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: nil,
-                    parameterTypes: [firstType, secondType],
-                    returnType: pairType,
-                    typeParameterSymbols: [firstSymbol, secondSymbol],
-                    classTypeParameterCount: 2
-                ),
-                for: initSymbol
-            )
-        }
     }
 
     private func registerSyntheticTripleStub(
@@ -618,31 +593,6 @@ extension DataFlowSemaPhase {
         // as a placeholder; patchPairTripleToListReturnTypes() refines this to List<Any?>.
         registerFunctionMember(name: "toList", returnType: types.makeNullable(types.anyType), externalLinkName: "kk_triple_toList", flags: [.synthetic])
 
-        // Constructor: Triple(first, second, third) -> kk_triple_new
-        let initName = interner.intern("<init>")
-        let initFQName = tripleFQName + [initName]
-        if symbols.lookup(fqName: initFQName) == nil {
-            let initSymbol = symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: initFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(tripleSymbol, for: initSymbol)
-            symbols.setExternalLinkName("kk_triple_new", for: initSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: nil,
-                    parameterTypes: [aType, bType, cType],
-                    returnType: tripleType,
-                    typeParameterSymbols: [aSymbol, bSymbol, cSymbol],
-                    classTypeParameterCount: 3
-                ),
-                for: initSymbol
-            )
-        }
     }
 
     /// Patch the provisional `Any?` return types of `Pair.toList()` and `Triple.toList()`
