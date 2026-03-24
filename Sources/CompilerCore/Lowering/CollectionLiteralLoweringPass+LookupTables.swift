@@ -145,6 +145,7 @@ struct CollectionLiteralLookupTables {
     let kkListMinOfWithOrNullName: InternedString
     let kkListTakeName: InternedString
     let kkListDropName: InternedString
+    let kkListSumName: InternedString
     let kkListReversedName: InternedString
     let kkListAsReversedName: InternedString
     let kkListSortedName: InternedString
@@ -720,6 +721,7 @@ struct CollectionLiteralLookupTables {
         kkListMinOfWithOrNullName = interner.intern("kk_list_minOfWithOrNull")
         kkListTakeName = interner.intern("kk_list_take")
         kkListDropName = interner.intern("kk_list_drop")
+        kkListSumName = interner.intern("kk_list_sum")
         kkListReversedName = interner.intern("kk_list_reversed")
         kkListAsReversedName = interner.intern("kk_list_as_reversed")
         kkListSortedName = interner.intern("kk_list_sorted")
