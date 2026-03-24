@@ -20,10 +20,18 @@ extension KIRLoweringDriver {
         bindFunctionParameterLocals(params: params, body: &body, arena: arena)
         lowerFunDeclBody(function, shared: shared, body: &body)
         body.append(.endBlock)
+        // Auto-inline functions that have function-type parameters (receiver lambdas etc.)
+        // so that lambda arguments are expanded at the call site, matching Kotlin semantics.
+        let hasLambdaParam = params.contains { param in
+            if case .functionType = sema.types.kind(of: param.type) { return true }
+            return false
+        }
+        let effectiveInline: Bool = function.isInline || hasLambdaParam
+        let isInlineOnly = !function.isInline && hasLambdaParam
         let kirID = arena.appendDecl(.function(KIRFunction(
             symbol: symbol, name: function.name, params: params,
-            returnType: returnType, body: body,
-            isSuspend: function.isSuspend, isInline: function.isInline,
+            returnType: returnType, body: Array(body),
+            isSuspend: function.isSuspend, isInline: effectiveInline, isInlineOnly: isInlineOnly,
             isTailrec: function.isTailrec,
             sourceRange: function.range
         )))

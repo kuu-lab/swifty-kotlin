@@ -440,10 +440,15 @@ extension ExprTypeChecker {
             )
         }
 
-        let bodyCtx: TypeInferenceContext = if let label {
+        var bodyCtx: TypeInferenceContext = if let label {
             ctx.withLambdaLabel(label)
         } else {
             ctx
+        }
+        // When the expected function type has a receiver (e.g. StringBuilder.() -> Unit),
+        // set the implicit receiver so that unqualified member calls resolve correctly.
+        if let receiverType = expectedFunctionType?.receiver {
+            bodyCtx = bodyCtx.with(implicitReceiverType: receiverType)
         }
         let inferredBodyType = driver.inferExpr(
             body,
@@ -479,14 +484,18 @@ extension ExprTypeChecker {
         }
 
         if let expectedType, let expectedFunctionType {
-            driver.emitSubtypeConstraint(
-                left: inferredBodyType,
-                right: expectedFunctionType.returnType,
-                range: ast.arena.exprRange(body),
-                solver: ConstraintSolver(),
-                sema: sema,
-                diagnostics: ctx.semaCtx.diagnostics
-            )
+            // When the expected return type is Unit, skip the subtype constraint
+            // because any expression type is discardable in a Unit-returning lambda.
+            if expectedFunctionType.returnType != sema.types.unitType {
+                driver.emitSubtypeConstraint(
+                    left: inferredBodyType,
+                    right: expectedFunctionType.returnType,
+                    range: ast.arena.exprRange(body),
+                    solver: ConstraintSolver(),
+                    sema: sema,
+                    diagnostics: ctx.semaCtx.diagnostics
+                )
+            }
             sema.bindings.bindExprType(id, type: expectedType)
             return expectedType
         }

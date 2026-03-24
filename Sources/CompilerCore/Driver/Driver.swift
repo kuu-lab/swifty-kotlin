@@ -384,7 +384,10 @@ public final class CompilerDriver {
             if let last = path.last {
                 depended.insert(interner.resolve(last))
             }
-        case let .functionType(paramTypes, returnType, _, _):
+        case let .functionType(receiverType, paramTypes, returnType, _, _):
+            if let receiverType {
+                collectTypeRefDependencies(typeRefID: receiverType, ast: ast, interner: interner, depended: &depended)
+            }
             for paramType in paramTypes {
                 collectTypeRefDependencies(typeRefID: paramType, ast: ast, interner: interner, depended: &depended)
             }

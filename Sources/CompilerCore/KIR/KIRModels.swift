@@ -127,18 +127,23 @@ public struct KIRFunction: Sendable {
     public internal(set) var body: [KIRInstruction]
     public let isSuspend: Bool
     public let isInline: Bool
+    /// When true, this function was auto-promoted to inline because it has
+    /// function-type parameters. Its body should only be used for inline
+    /// expansion and should not be emitted as a standalone LLVM function.
+    public let isInlineOnly: Bool
     public let isTailrec: Bool
     public let sourceRange: SourceRange? // function-level source location
     public internal(set) var instructionLocations: [SourceRange?] // per-instruction source locations, parallel to body
 
     public init(
         symbol: SymbolID, name: InternedString, params: [KIRParameter], returnType: TypeID,
-        body: [KIRInstruction], isSuspend: Bool, isInline: Bool, isTailrec: Bool = false,
+        body: [KIRInstruction], isSuspend: Bool, isInline: Bool, isInlineOnly: Bool = false, isTailrec: Bool = false,
         sourceRange: SourceRange? = nil, instructionLocations: [SourceRange?] = []
     ) {
         self.symbol = symbol; self.name = name; self.params = params
         self.returnType = returnType; self.body = body
         self.isSuspend = isSuspend; self.isInline = isInline
+        self.isInlineOnly = isInlineOnly
         self.isTailrec = isTailrec; self.sourceRange = sourceRange
         self.instructionLocations = instructionLocations
     }

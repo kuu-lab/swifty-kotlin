@@ -129,6 +129,12 @@ struct TypeCheckScopeBuilder {
 
             let resolved = sema.symbols.lookupAll(fqName: importDecl.path)
             if resolved.isEmpty {
+                let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
+                if !packageSymbols.isEmpty {
+                    for packageSymbol in packageSymbols {
+                        wildcardImportScope.insert(packageSymbol)
+                    }
+                }
                 continue
             }
 
@@ -173,8 +179,7 @@ struct TypeCheckScopeBuilder {
         var mapping: [[InternedString]: [SymbolID]] = [:]
         let allSymbols = sema.symbols.allSymbols()
         for symbol in allSymbols {
-            guard symbol.flags.contains(.synthetic),
-                  symbol.kind != .package,
+            guard symbol.kind != .package,
                   symbol.fqName.count >= 1
             else {
                 continue
@@ -192,7 +197,10 @@ struct TypeCheckScopeBuilder {
             } else {
                 Array(symbol.fqName.dropLast())
             }
-            if !candidatePackage.isEmpty, !knownPackages.contains(candidatePackage) {
+            if !candidatePackage.isEmpty,
+               !knownPackages.contains(candidatePackage),
+               !symbol.flags.contains(.synthetic)
+            {
                 continue
             }
             mapping[candidatePackage, default: []].append(symbol.id)

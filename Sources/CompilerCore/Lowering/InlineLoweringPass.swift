@@ -686,9 +686,14 @@ final class InlineLoweringPass: LoweringPass {
                 lambdaParamValues[lambdaFunction.params[offset + i].symbol] = arguments[i]
             }
         } else {
-            // More arguments than parameters -- cannot inline; caller will
-            // fall back to emitting the original call instruction.
-            return nil
+            // More arguments than parameters.  This can happen when a
+            // receiver-lambda (e.g. `StringBuilder.() -> Unit`) is invoked
+            // with the receiver prepended as the first argument.  Map only
+            // the trailing parameters and ignore the leading receiver args.
+            let offset = arguments.count - paramCount
+            for i in 0 ..< paramCount {
+                lambdaParamValues[lambdaFunction.params[i].symbol] = arguments[offset + i]
+            }
         }
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]

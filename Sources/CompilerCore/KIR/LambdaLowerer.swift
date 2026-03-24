@@ -63,18 +63,34 @@ final class LambdaLowerer {
         // the bound function type declares parameters (implicit `it`), use the
         // function-type parameter count so that the generated KIR function
         // receives the expected arguments.
-        let effectiveParamCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
-            functionType.params.count
-        } else {
-            params.count
-        }
-
-        let lambdaParameterTypes: [TypeID] = (0 ..< effectiveParamCount).map { index in
-            if let functionType, index < functionType.params.count {
-                return functionType.params[index]
+        // When the function type has a receiver and there is no active implicit
+        // receiver in the current scope (i.e. not inside `with`/`run`/`apply`),
+        // add a receiver parameter so inline expansion can pass it.
+        let hasReceiverParam = functionType?.receiver != nil && driver.ctx.activeImplicitReceiverExprID() == nil
+        let effectiveParamCount: Int = {
+            let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
+                functionType.params.count
+            } else {
+                params.count
             }
-            return sema.types.anyType
-        }
+            return baseCount + (hasReceiverParam ? 1 : 0)
+        }()
+
+        let lambdaParameterTypes: [TypeID] = {
+            var types: [TypeID] = []
+            if hasReceiverParam, let receiverType = functionType?.receiver {
+                types.append(receiverType)
+            }
+            let valueParamCount = effectiveParamCount - (hasReceiverParam ? 1 : 0)
+            for index in 0 ..< valueParamCount {
+                if let functionType, index < functionType.params.count {
+                    types.append(functionType.params[index])
+                } else {
+                    types.append(sema.types.anyType)
+                }
+            }
+            return types
+        }()
         let lambdaReturnType = functionType?.returnType
             ?? sema.bindings.exprTypes[bodyExpr]
             ?? sema.types.anyType
@@ -179,10 +195,15 @@ final class LambdaLowerer {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
             }
         }
-        for lambdaParam in lambdaParameters {
+        for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
+            // When the first parameter is the receiver (from a function-with-receiver type),
+            // set it as the implicit receiver so that member calls resolve correctly.
+            if paramIndex == 0, hasReceiverParam {
+                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
+            }
         }
         if usesClosureRawCapture,
            let closureCapture = captureBindings.first,

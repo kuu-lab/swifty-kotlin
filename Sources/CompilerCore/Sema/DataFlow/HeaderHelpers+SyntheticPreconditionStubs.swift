@@ -12,8 +12,6 @@ extension DataFlowSemaPhase {
         _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
         let packageSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
-        // STDLIB-591: require() and check() have contract { returns() implies condition }
-        // The condition parameter (index 0) is guaranteed true after normal return.
         registerSyntheticPreconditionTopLevelFunction(
             named: "require",
             packageFQName: kotlinPkg,
@@ -23,7 +21,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_require",
             symbols: symbols,
             interner: interner,
-            contractConditionParameterIndex: 0
+            contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
             named: "require",
@@ -42,7 +40,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_require_lazy",
             symbols: symbols,
             interner: interner,
-            contractConditionParameterIndex: 0
+            contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
             named: "check",
@@ -53,7 +51,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_check",
             symbols: symbols,
             interner: interner,
-            contractConditionParameterIndex: 0
+            contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
             named: "check",
@@ -72,7 +70,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_check_lazy",
             symbols: symbols,
             interner: interner,
-            contractConditionParameterIndex: 0
+            contractNonNullParameterIndex: 0
         )
         // STDLIB-258: assert(condition) and assert(condition, lazyMessage)
         registerSyntheticPreconditionTopLevelFunction(
@@ -83,7 +81,8 @@ extension DataFlowSemaPhase {
             returnType: types.unitType,
             externalLinkName: "kk_precondition_assert",
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
             named: "assert",
@@ -101,7 +100,8 @@ extension DataFlowSemaPhase {
             returnType: types.unitType,
             externalLinkName: "kk_precondition_assert_lazy",
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            contractNonNullParameterIndex: 0
         )
         registerSyntheticPreconditionTopLevelFunction(
             named: "error",
@@ -144,7 +144,7 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         symbols: SymbolTable,
         interner: StringInterner,
-        contractConditionParameterIndex: Int? = nil
+        contractNonNullParameterIndex: Int? = nil
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
@@ -156,9 +156,16 @@ extension DataFlowSemaPhase {
                 && existingSignature.returnType == returnType
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
-            if let conditionIndex = contractConditionParameterIndex {
-                symbols.setContractConditionEffect(
-                    ContractConditionEffect(conditionParameterIndex: conditionIndex),
+            if let contractNonNullParameterIndex,
+               let signature = symbols.functionSignature(for: existing),
+               contractNonNullParameterIndex < signature.valueParameterSymbols.count
+            {
+                let parameterSymbol = signature.valueParameterSymbols[contractNonNullParameterIndex]
+                symbols.setContractNonNullEffect(
+                    ContractNonNullEffect(
+                        parameterSymbol: parameterSymbol,
+                        appliesOnAnyReturn: true
+                    ),
                     for: existing
                 )
             }
@@ -203,11 +210,15 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-
-        // STDLIB-591: Register contract condition effect for smart casts.
-        if let conditionIndex = contractConditionParameterIndex {
-            symbols.setContractConditionEffect(
-                ContractConditionEffect(conditionParameterIndex: conditionIndex),
+        if let contractNonNullParameterIndex,
+           contractNonNullParameterIndex < valueParameterSymbols.count
+        {
+            let parameterSymbol = valueParameterSymbols[contractNonNullParameterIndex]
+            symbols.setContractNonNullEffect(
+                ContractNonNullEffect(
+                    parameterSymbol: parameterSymbol,
+                    appliesOnAnyReturn: true
+                ),
                 for: functionSymbol
             )
         }

@@ -241,9 +241,9 @@ extension DataFlowSemaPhase {
                 }
             }
             return nil
-        case let .functionType(paramRefIDs, returnRefID, isSuspend, nullable):
+        case let .functionType(receiverRefID, paramRefIDs, returnRefID, isSuspend, nullable):
             return resolveFunctionTypeForInheritance(
-                paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
+                receiverRefID: receiverRefID, paramRefIDs: paramRefIDs, returnRefID: returnRefID, isSuspend: isSuspend, nullable: nullable,
                 currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
             )
         case let .intersection(partRefs):
@@ -254,6 +254,7 @@ extension DataFlowSemaPhase {
     }
 
     private func resolveFunctionTypeForInheritance(
+        receiverRefID: TypeRefID?,
         paramRefIDs: [TypeRefID],
         returnRefID: TypeRefID,
         isSuspend: Bool,
@@ -265,6 +266,13 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> TypeID? {
         let nullability: Nullability = nullable ? .nullable : .nonNull
+        var receiverType: TypeID? = nil
+        if let receiverRefID {
+            guard let resolved = resolveTypeRefForInheritance(
+                receiverRefID, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
+            ) else { return nil }
+            receiverType = resolved
+        }
         var paramTypes: [TypeID] = []
         for paramRef in paramRefIDs {
             guard let paramType = resolveTypeRefForInheritance(
@@ -276,7 +284,7 @@ extension DataFlowSemaPhase {
             returnRefID, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner
         ) else { return nil }
         return types.make(.functionType(FunctionType(
-            params: paramTypes, returnType: returnType, isSuspend: isSuspend, nullability: nullability
+            receiver: receiverType, params: paramTypes, returnType: returnType, isSuspend: isSuspend, nullability: nullability
         )))
     }
 
