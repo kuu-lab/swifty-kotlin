@@ -65,6 +65,12 @@ public enum RuntimeABIExterns {
         returnType: "void *"
     )
 
+    public static let kk_throwable_new_with_cause = ExternDecl(
+        name: "kk_throwable_new_with_cause",
+        parameterTypes: ["void * _Nullable", "intptr_t"],
+        returnType: "void *"
+    )
+
     public static let kk_throwable_is_cancellation = ExternDecl(
         name: "kk_throwable_is_cancellation",
         parameterTypes: ["intptr_t"],
@@ -833,6 +839,24 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_string_indexOf_from = ExternDecl(
+        name: "kk_string_indexOf_from",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_string_indexOfFirst = ExternDecl(
+        name: "kk_string_indexOfFirst",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_string_indexOfLast = ExternDecl(
+        name: "kk_string_indexOfLast",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
     /// STDLIB-140
     public static let kk_string_get = ExternDecl(
         name: "kk_string_get",
@@ -1558,21 +1582,15 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    public static let kk_coroutine_yield = ExternDecl(
-        name: "kk_coroutine_yield",
-        parameterTypes: [],
+    public static let kk_supervisor_scope_run = ExternDecl(
+        name: "kk_supervisor_scope_run",
+        parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
-    public static let kk_with_timeout = ExternDecl(
-        name: "kk_with_timeout",
-        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_with_timeout_or_null = ExternDecl(
-        name: "kk_with_timeout_or_null",
-        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
+    public static let kk_supervisor_scope_run_with_cont = ExternDecl(
+        name: "kk_supervisor_scope_run_with_cont",
+        parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
@@ -2634,6 +2652,7 @@ public enum RuntimeABIExterns {
             kk_write_barrier,
             // Exception
             kk_throwable_new,
+            kk_throwable_new_with_cause,
             kk_throwable_is_cancellation,
             kk_panic,
             kk_abort_unreachable,
@@ -2689,6 +2708,9 @@ public enum RuntimeABIExterns {
             kk_string_toFloatOrNull,
             kk_string_indexOf,
             kk_string_lastIndexOf,
+            kk_string_indexOf_from,
+            kk_string_indexOfFirst,
+            kk_string_indexOfLast,
             kk_string_get,
             kk_string_compareTo_member,
             kk_string_compareToIgnoreCase,
@@ -2869,9 +2891,8 @@ public enum RuntimeABIExterns {
             kk_job_join,
             kk_coroutine_scope_run,
             kk_coroutine_scope_run_with_cont,
-            kk_coroutine_yield,
-            kk_with_timeout,
-            kk_with_timeout_or_null,
+            kk_supervisor_scope_run,
+            kk_supervisor_scope_run_with_cont,
             // Cancellation (CORO-002)
             kk_coroutine_check_cancellation,
             kk_is_cancellation_exception,
@@ -3047,6 +3068,7 @@ public enum RuntimeABIExterns {
             kk_timedvalue_duration,
             kk_timedvalue_toString,
         ]
+        all += atomicExterns
         return all
     }()
 
