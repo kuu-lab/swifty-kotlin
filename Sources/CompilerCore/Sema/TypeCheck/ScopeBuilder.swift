@@ -173,8 +173,7 @@ struct TypeCheckScopeBuilder {
         var mapping: [[InternedString]: [SymbolID]] = [:]
         let allSymbols = sema.symbols.allSymbols()
         for symbol in allSymbols {
-            guard symbol.flags.contains(.synthetic),
-                  symbol.kind != .package,
+            guard symbol.kind != .package,
                   symbol.fqName.count >= 1
             else {
                 continue
