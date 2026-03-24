@@ -129,6 +129,12 @@ struct TypeCheckScopeBuilder {
 
             let resolved = sema.symbols.lookupAll(fqName: importDecl.path)
             if resolved.isEmpty {
+                let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
+                if !packageSymbols.isEmpty {
+                    for packageSymbol in packageSymbols {
+                        wildcardImportScope.insert(packageSymbol)
+                    }
+                }
                 continue
             }
 
