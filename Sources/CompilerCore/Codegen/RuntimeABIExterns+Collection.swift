@@ -116,7 +116,6 @@ public extension RuntimeABIExterns {
         kk_list_reversed,
         kk_list_as_reversed,
         kk_list_sorted,
-        kk_set_sorted,
         kk_list_distinct,
         kk_list_distinctBy,
         kk_list_shuffled,
@@ -227,7 +226,6 @@ public extension RuntimeABIExterns {
         kk_list_lastOrNull,
         kk_list_single,
         kk_list_singleOrNull,
-        kk_list_binarySearch,
         kk_mutable_list_add,
         kk_mutable_list_addAll,
         kk_mutable_list_removeAll,
@@ -1254,12 +1252,6 @@ public extension RuntimeABIExterns {
 
     static let kk_list_sorted = ExternDecl(
         name: "kk_list_sorted",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    static let kk_set_sorted = ExternDecl(
-        name: "kk_set_sorted",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
