@@ -36,10 +36,10 @@ fun main() {
     println("reverse compare for 15: $reverseCompare")
     
     // Using when expression
-    val whenCompare = list.binarySearch { target ->
+    val whenCompare = list.binarySearch {
         when {
-            it < target -> -1
-            it > target -> 1
+            it < 15 -> -1
+            it > 15 -> 1
             else -> 0
         }
     }

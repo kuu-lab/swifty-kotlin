@@ -2777,26 +2777,16 @@ extension CallLowerer {
                     boxedFormatArgument(arg.expr, loweredArgID: loweredArgID)
                 }
 
-                let packedArgs = driver.callSupportLowerer.emitArrayNew(
-                    count: boxedArgIDs.count,
+                let packedArgs = driver.callSupportLowerer.packVarargArguments(
+                    argIndices: Array(boxedArgIDs.indices),
+                    providedArguments: boxedArgIDs,
+                    spreadFlags: args.map(\.isSpread),
                     arena: arena,
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.nullableAnyType,
                     instructions: &instructions
                 )
-                for (slotIndex, boxedArg) in boxedArgIDs.enumerated() {
-                    let indexExpr = arena.appendExpr(.intLiteral(Int64(slotIndex)), type: intType)
-                    instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(slotIndex))))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_set"),
-                        arguments: [packedArgs, indexExpr, boxedArg],
-                        result: nil,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_format"),

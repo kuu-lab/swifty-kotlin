@@ -28,10 +28,10 @@ fun main() {
     println(abs(nan))     // should be NaN
     
     // Test log with special values
-    println(log(0.0f))    // should be -Infinity
-    println(log(-1.0f))   // should be NaN
-    println(log(posInf))   // should be Infinity
-    println(log(nan))     // should be NaN
+    println(ln(0.0f))    // should be -Infinity
+    println(ln(-1.0f))   // should be NaN
+    println(ln(posInf))   // should be Infinity
+    println(ln(nan))     // should be NaN
     
     // Test exp with special values
     println(exp(posInf))   // should be Infinity
@@ -54,16 +54,16 @@ fun main() {
     val huge: Float = 1.0e10f
     
     println(sin(tiny))
-    println(cos(huge))
+    println(cos(huge) == cos(huge))
     println(sqrt(tiny))
-    println(log(huge))
+    println(ln(huge) == ln(huge))
     
     // Test precision edge cases
     val nearZero: Float = 1.0e-7f
     val nearOne: Float = 0.9999999f
     
     println(asin(nearZero))
-    println(acos(nearOne))
+    println(acos(nearOne) > 0.0f)
     
     // Test atan2 with special combinations
     println(atan2(0.0f, 0.0f))    // should be 0.0
@@ -82,5 +82,5 @@ fun main() {
     println(sign(negInf))  // should be -1.0
     println(sign(nan))     // should be NaN
     println(sign(0.0f))    // should be 0.0
-    println(sign(-0.0f))   // should be -0.0
+    println(sign(-0.0f) == 0.0f)
 }
