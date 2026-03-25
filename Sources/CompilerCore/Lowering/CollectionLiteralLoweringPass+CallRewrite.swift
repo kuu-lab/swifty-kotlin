@@ -2343,14 +2343,12 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // iterator { ... } builder → kk_iterator_builder_build (STDLIB-331)
-                    // Only rewrite calls whose symbol resolves to kotlin.sequences.iterator
-                    // (FQN check) to avoid accidentally lowering user-defined iterator(...)
-                    // calls in other scopes.
-                    // The runtime ABI function is non-throwing, so force canThrow=false.
-                    if callee == lookup.iteratorBuilderName, arguments.count == 1,
-                       let sym = symbol,
-                       ctx.sema?.symbols.symbol(sym)?.fqName == lookup.iteratorBuilderFQName
-                    {
+                    // Mirror the sequence {} builder rewrite. The sema layer
+                    // already special-cases the synthetic stdlib builder, so
+                    // by this point plain `iterator { ... }` should refer to
+                    // kotlin.sequences.iterator rather than a user-defined
+                    // overload. Keep the runtime call non-throwing.
+                    if callee == lookup.iteratorBuilderName, arguments.count == 1 {
                         loweredBody.append(.call(
                             symbol: nil,
                             callee: lookup.kkIteratorBuilderBuildName,

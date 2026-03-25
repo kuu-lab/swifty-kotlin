@@ -1,6 +1,6 @@
 import Foundation
 
-private let indexedValueRuntimeTypeID: Int64 = {
+let indexedValueRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
     for byte in "kotlin.collections.IndexedValue".utf8 {
         hash ^= UInt64(byte)
@@ -11,7 +11,7 @@ private let indexedValueRuntimeTypeID: Int64 = {
     return payload == 0 ? 1 : payload
 }()
 
-private func runtimeIndexedValueNew(index: Int, value: Int) -> Int {
+func runtimeIndexedValueNew(index: Int, value: Int) -> Int {
     let raw = registerRuntimeObject(RuntimePairBox(first: index, second: value))
     runtimeRegisterObjectType(rawValue: raw, classID: indexedValueRuntimeTypeID)
     return raw

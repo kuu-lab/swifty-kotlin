@@ -110,6 +110,9 @@ public func kk_op_step(_ rangeRaw: Int, _ stepValue: Int) -> Int {
 
 @_cdecl("kk_range_iterator")
 public func kk_range_iterator(_ rangeRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
+        return rangeRaw
+    }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
     }
@@ -120,6 +123,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
 
 @_cdecl("kk_range_hasNext")
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+        return kk_iterator_builder_hasNext(iterRaw)
+    }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
     }
@@ -134,6 +140,9 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
 
 @_cdecl("kk_range_next")
 public func kk_range_next(_ iterRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+        return kk_iterator_builder_next(iterRaw)
+    }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
     }

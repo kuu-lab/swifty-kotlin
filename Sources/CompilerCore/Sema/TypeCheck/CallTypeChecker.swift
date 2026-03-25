@@ -102,6 +102,144 @@ final class CallTypeChecker {
             }
         }
 
+        // --- sequence { ... } builder (STDLIB-330) ---
+        // Intercept before eager argument inference so the lambda is inferred
+        // with a SequenceScope<T> implicit receiver and T can be recovered from
+        // expected type or nested yield()/yieldAll() calls.
+        if let calleeName,
+           interner.resolve(calleeName) == "sequence",
+           args.count == 1,
+           shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
+        {
+            let argumentExprID = args[0].expr
+            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+
+            let returnType = sequenceBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            let receiverType = sequenceBuilderReceiverType(
+                sequenceType: returnType,
+                sema: sema,
+                interner: interner
+            )
+            let lambdaExpectedType = sequenceBuilderLambdaType(
+                receiverType: receiverType,
+                sema: sema
+            )
+            _ = driver.inferExpr(
+                argumentExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            let refinedReturnType = sequenceBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            if let chosen = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("sequence"),
+            ]) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            }
+            sema.bindings.markCollectionExpr(id)
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
+        }
+
+        // --- iterator { ... } builder (STDLIB-331/564) ---
+        if let calleeName,
+           interner.resolve(calleeName) == "iterator",
+           args.count == 1,
+           locals[calleeName] == nil
+        {
+            let argumentExprID = args[0].expr
+            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+
+            let returnType = iteratorBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            let receiverType = sequenceBuilderReceiverType(
+                sequenceType: returnType,
+                sema: sema,
+                interner: interner
+            )
+            let lambdaExpectedType = sequenceBuilderLambdaType(
+                receiverType: receiverType,
+                sema: sema
+            )
+            _ = driver.inferExpr(
+                argumentExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            let refinedReturnType = iteratorBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            if let chosen = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("iterator"),
+            ]) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            }
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
+        }
+
         // --- Scope function: with(receiver, block) (STDLIB-004, STDLIB-061) ---
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct implicit receiver type.

@@ -381,6 +381,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         if runtimeIsMapEntry(rawValue: elem) {
             return "\(first)=\(second)"
         }
+        if runtimeObjectTypeID(rawValue: elem) == indexedValueRuntimeTypeID {
+            return "IndexedValue(index=\(first), value=\(second))"
+        }
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(ptr, to: RuntimeTripleBox.self) {

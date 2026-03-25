@@ -1,4 +1,3 @@
-// SKIP-DIFF
 // STDLIB-563: Verify that sequence {} builder is lazy.
 // Side effects in the builder should only execute when elements are consumed.
 // Currently blocked on builder DSL type inference for SequenceScope<T> receiver.

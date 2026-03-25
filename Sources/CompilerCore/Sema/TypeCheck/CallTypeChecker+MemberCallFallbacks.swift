@@ -1389,7 +1389,7 @@ extension CallTypeChecker {
         return isSequenceLikeType(receiverType, sema: sema, interner: interner)
     }
 
-    private func isSequenceLikeType(
+    func isSequenceLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner

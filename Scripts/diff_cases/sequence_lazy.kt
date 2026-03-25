@@ -41,4 +41,3 @@ fun main() {
     println(sequenceOf(10, 20, 30).withIndex().take(1).toList())
     println(sequenceOf(1, 2).flatMap { listOf(it, it * 10) }.take(3).toList())
 }
-// SKIP-DIFF: sequence parity pending

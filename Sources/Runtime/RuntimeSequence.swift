@@ -332,7 +332,7 @@ private func runtimeSequenceTransformElement(
         let index = state.takeCounts[stepIndex, default: 0]
         state.takeCounts[stepIndex] = index + 1
         runtimeSequenceTransformElement(
-            kk_pair_new(index, element),
+            runtimeIndexedValueNew(index: index, value: element),
             steps: steps,
             stepIndex: stepIndex + 1,
             state: state,
@@ -663,7 +663,7 @@ private func applyWithIndexStep(_ elements: [Int]) -> [Int] {
     var pairs: [Int] = []
     pairs.reserveCapacity(elements.count)
     for (idx, elem) in elements.enumerated() {
-        pairs.append(kk_pair_new(idx, elem))
+        pairs.append(runtimeIndexedValueNew(index: idx, value: elem))
     }
     return pairs
 }

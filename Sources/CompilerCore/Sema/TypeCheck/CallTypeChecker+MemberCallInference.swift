@@ -736,6 +736,8 @@ extension CallTypeChecker {
         let isSyntheticSequenceReceiver = sema.bindings.isCollectionExpr(receiverID)
             && !isCollectionLikeType(receiverType, sema: sema, interner: interner)
             && !isMapReceiver
+        let isSequenceReceiver = isSequenceLikeType(receiverType, sema: sema, interner: interner)
+            || isSyntheticSequenceReceiver
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
@@ -809,16 +811,21 @@ extension CallTypeChecker {
 
                     switch calleeStr {
                     case "map":
-                        if isSyntheticSequenceReceiver {
-                            resultType = sema.types.anyType
+                        let bodyType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
+                            sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
+                        } else if case let .functionType(fnType) = sema.types.kind(of: sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType) {
+                            fnType.returnType
                         } else {
-                            let bodyType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
-                                sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType
-                            } else if case let .functionType(fnType) = sema.types.kind(of: sema.bindings.exprType(for: args[0].expr) ?? sema.types.anyType) {
-                                fnType.returnType
-                            } else {
-                                sema.types.anyType
-                            }
+                            sema.types.anyType
+                        }
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: bodyType
+                            )
+                        } else {
                             if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                                 resultType = sema.types.make(.classType(ClassType(
                                     classSymbol: listSymbol,
@@ -830,21 +837,54 @@ extension CallTypeChecker {
                             }
                         }
                     case "filter", "filterNot":
-                        resultType = isSyntheticSequenceReceiver ? sema.types.anyType : receiverType
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: collectionElementType
+                            )
+                        } else {
+                            resultType = receiverType
+                        }
                     case "takeWhile", "dropWhile":
-                        resultType = receiverType
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: collectionElementType
+                            )
+                        } else {
+                            resultType = receiverType
+                        }
                     case "forEach": resultType = sema.types.unitType
-                    case "onEach": resultType = receiverType
+                    case "onEach":
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: collectionElementType
+                            )
+                        } else {
+                            resultType = receiverType
+                        }
                     case "flatMap":
-                        if isSyntheticSequenceReceiver {
-                            resultType = sema.types.anyType
+                        let lambdaBodyType = inferredLambdaReturnType(
+                            argExpr: args[0].expr, ast: ast, sema: sema
+                        )
+                        let innerElementType = extractListElementType(
+                            lambdaBodyType, sema: sema, interner: interner
+                        )
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: innerElementType
+                            )
                         } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
-                            let lambdaBodyType = inferredLambdaReturnType(
-                                argExpr: args[0].expr, ast: ast, sema: sema
-                            )
-                            let innerElementType = extractListElementType(
-                                lambdaBodyType, sema: sema, interner: interner
-                            )
                             resultType = sema.types.make(.classType(ClassType(
                                 classSymbol: listSymbol,
                                 args: [.invariant(innerElementType)],
@@ -977,7 +1017,14 @@ extension CallTypeChecker {
                         } else {
                             sema.types.anyType
                         }
-                        if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: bodyType
+                            )
+                        } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                             resultType = sema.types.make(.classType(ClassType(
                                 classSymbol: listSymbol,
                                 args: [.invariant(bodyType)],
@@ -1453,7 +1500,26 @@ extension CallTypeChecker {
                 if calleeStr == "forEachIndexed" {
                     resultType = sema.types.unitType
                 } else if calleeStr == "onEachIndexed" {
-                    resultType = receiverType
+                    if isSequenceReceiver {
+                        resultType = makeSyntheticSequenceType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: collectionElementType
+                        )
+                    } else {
+                        resultType = receiverType
+                    }
+                } else if isSequenceReceiver {
+                    let bodyType = inferredLambdaReturnType(
+                        argExpr: args[0].expr, ast: ast, sema: sema
+                    )
+                    resultType = makeSyntheticSequenceType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: bodyType
+                    )
                 } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
                     let bodyType = inferredLambdaReturnType(
                         argExpr: args[0].expr, ast: ast, sema: sema
