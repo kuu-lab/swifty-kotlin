@@ -1744,6 +1744,12 @@ public func kk_list_windowed_partial(_ listRaw: Int, _ size: Int, _ step: Int, _
 
 @_cdecl("kk_list_indexOf")
 public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+       runtimeStorage.withLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       tryCast(ptr, to: RuntimeStringBox.self) != nil
+    {
+        return kk_string_indexOf(listRaw, element)
+    }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() where runtimeCompareValues(elem, element) == 0 {
         return index
@@ -1753,6 +1759,12 @@ public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
 
 @_cdecl("kk_list_lastIndexOf")
 public func kk_list_lastIndexOf(_ listRaw: Int, _ element: Int) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+       runtimeStorage.withLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       tryCast(ptr, to: RuntimeStringBox.self) != nil
+    {
+        return kk_string_lastIndexOf(listRaw, element)
+    }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1
     for (index, elem) in list.elements.enumerated() where runtimeCompareValues(elem, element) == 0 {
@@ -1763,6 +1775,12 @@ public func kk_list_lastIndexOf(_ listRaw: Int, _ element: Int) -> Int {
 
 @_cdecl("kk_list_indexOfFirst")
 public func kk_list_indexOfFirst(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+       runtimeStorage.withLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       tryCast(ptr, to: RuntimeStringBox.self) != nil
+    {
+        return kk_string_indexOfFirst(listRaw, fnPtr, closureRaw, outThrown)
+    }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() {
         var thrown = 0
@@ -1775,6 +1793,12 @@ public func kk_list_indexOfFirst(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int
 
 @_cdecl("kk_list_indexOfLast")
 public func kk_list_indexOfLast(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+       runtimeStorage.withLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
+       tryCast(ptr, to: RuntimeStringBox.self) != nil
+    {
+        return kk_string_indexOfLast(listRaw, fnPtr, closureRaw, outThrown)
+    }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1
     for (index, elem) in list.elements.enumerated() {

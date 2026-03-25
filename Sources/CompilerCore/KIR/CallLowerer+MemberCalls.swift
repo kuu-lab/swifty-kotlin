@@ -2026,6 +2026,19 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = interner.resolve(calleeName)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               calleeStr == "indexOf"
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_indexOf_from"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
                calleeStr == "windowed"
             {
                 instructions.append(.call(
@@ -2720,25 +2733,70 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
-                let boxedArgIDs = loweredArgIDs.map { argID in
+                let intType = sema.types.make(.primitive(.int, .nonNull))
+                func boxedFormatArgument(_ argExpr: ExprID, loweredArgID: KIRExprID) -> KIRExprID {
+                    let argType = sema.bindings.exprTypes[argExpr] ?? sema.types.anyType
+                    let nonNullArgType = sema.types.makeNonNullable(argType)
+                    let boxCallee: String? = switch sema.types.kind(of: nonNullArgType) {
+                    case .primitive(.int, _):
+                        "kk_box_int"
+                    case .primitive(.boolean, _):
+                        "kk_box_bool"
+                    case .primitive(.long, _):
+                        "kk_box_long"
+                    case .primitive(.float, _):
+                        "kk_box_float"
+                    case .primitive(.double, _):
+                        "kk_box_double"
+                    case .primitive(.char, _):
+                        "kk_box_char"
+                    default:
+                        nil
+                    }
+
                     let boxedArg = arena.appendExpr(
                         .temporary(Int32(arena.expressions.count)),
                         type: sema.types.nullableAnyType
                     )
-                    instructions.append(.copy(from: argID, to: boxedArg))
+                    if let boxCallee {
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern(boxCallee),
+                            arguments: [loweredArgID],
+                            result: boxedArg,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    } else {
+                        instructions.append(.copy(from: loweredArgID, to: boxedArg))
+                    }
                     return boxedArg
                 }
-                let intType = sema.types.make(.primitive(.int, .nonNull))
-                let packedArgs = driver.callSupportLowerer.packVarargArguments(
-                    argIndices: Array(boxedArgIDs.indices),
-                    providedArguments: boxedArgIDs,
-                    spreadFlags: args.map(\.isSpread),
+
+                let boxedArgIDs = zip(args, loweredArgIDs).map { arg, loweredArgID in
+                    boxedFormatArgument(arg.expr, loweredArgID: loweredArgID)
+                }
+
+                let packedArgs = driver.callSupportLowerer.emitArrayNew(
+                    count: boxedArgIDs.count,
                     arena: arena,
                     interner: interner,
                     intType: intType,
                     anyType: sema.types.nullableAnyType,
                     instructions: &instructions
                 )
+                for (slotIndex, boxedArg) in boxedArgIDs.enumerated() {
+                    let indexExpr = arena.appendExpr(.intLiteral(Int64(slotIndex)), type: intType)
+                    instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(slotIndex))))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_array_set"),
+                        arguments: [packedArgs, indexExpr, boxedArg],
+                        result: nil,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_format"),

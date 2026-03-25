@@ -165,6 +165,10 @@ extension CallTypeChecker {
         let resultType: TypeID? = switch (memberName, args.count) {
         case ("toRegex", 0):
             regexType ?? sema.types.anyType
+        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1):
+            sema.types.intType
+        case ("indexOfFirst", 1), ("indexOfLast", 1):
+            sema.types.intType
         case ("lines", 0):
             listStringType
         case ("lineSequence", 0):
@@ -173,6 +177,13 @@ extension CallTypeChecker {
                 types: sema.types,
                 interner: interner,
                 elementType: sema.types.stringType
+            )
+        case ("asSequence", 0):
+            makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: sema.types.charType
             )
         case ("replaceFirstChar", 1):
             sema.types.stringType
@@ -201,11 +212,35 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return safeCall ? sema.types.makeNullable(resultType) : resultType
         }
+        if memberName == "indexOf", args.indices.contains(0) {
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.stringType)
+        }
+        if memberName == "indexOf", args.indices.contains(1) {
+            _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+        }
+        if memberName == "lastIndexOf", args.indices.contains(0) {
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.stringType)
+        }
         if args.indices.contains(0), let regexType {
             let expectedType = memberName == "replace" || memberName == "contains" || memberName == "matches" || memberName == "split"
                 ? regexType
                 : nil
             if let expectedType {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            }
+        }
+        if memberName == "indexOfFirst" || memberName == "indexOfLast" {
+            let charType = sema.types.make(.primitive(.char, .nonNull))
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [charType],
+                returnType: sema.types.booleanType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            if args.indices.contains(0) {
+                if let lambdaExpr = ctx.ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             }
         }

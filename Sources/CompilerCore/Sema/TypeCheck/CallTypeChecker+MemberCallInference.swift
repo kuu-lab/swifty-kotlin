@@ -1731,7 +1731,7 @@ extension CallTypeChecker {
             }
         }
 
-        // Early String HOF fallback: String filter/map/count/any/all/none need
+        // Early String HOF fallback: String filter/map/count/any/all/none/indexOfFirst/indexOfLast need
         // lambda inference with expectedType so the implicit `it` parameter (Char)
         // gets bound correctly.  Must run before argument pre-inference below.
         if args.count == 1 {
@@ -1740,14 +1740,14 @@ extension CallTypeChecker {
                 : receiverType
             let stringHOFCalleeStr = interner.resolve(calleeName)
             if sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType),
-               ["filter", "map", "count", "any", "all", "none"].contains(stringHOFCalleeStr)
+               ["filter", "map", "count", "any", "all", "none", "indexOfFirst", "indexOfLast"].contains(stringHOFCalleeStr)
             {
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
                 let charType = sema.types.make(.primitive(.char, .nonNull))
                 let predicateReturnType: TypeID = switch stringHOFCalleeStr {
-                case "filter", "any", "all", "none", "count": sema.types.booleanType
+                case "filter", "any", "all", "none", "count", "indexOfFirst", "indexOfLast": sema.types.booleanType
                 case "map": sema.types.anyType
                 default: sema.types.anyType
                 }
@@ -1775,10 +1775,29 @@ extension CallTypeChecker {
                 ) {
                     return boundType
                 }
+                if stringHOFCalleeStr == "indexOfFirst" || stringHOFCalleeStr == "indexOfLast" {
+                    let stringMemberFQName = [
+                        interner.intern("kotlin"),
+                        interner.intern("text"),
+                        calleeName,
+                    ]
+                    if let chosen = sema.symbols.lookupAll(fqName: stringMemberFQName).first {
+                        sema.bindings.bindCall(
+                            id,
+                            binding: CallBinding(
+                                chosenCallee: chosen,
+                                substitutedTypeArguments: [],
+                                parameterMapping: [0: 0]
+                            )
+                        )
+                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                    }
+                }
                 let resultType: TypeID = switch stringHOFCalleeStr {
                 case "filter": sema.types.stringType
                 case "map": sema.types.anyType  // Kotlin String.map returns List<R>
                 case "count": sema.types.intType
+                case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
                 default: sema.types.anyType
                 }
@@ -2744,6 +2763,13 @@ extension CallTypeChecker {
                             interner: interner,
                             elementType: sema.types.stringType
                         )
+                    case "asSequence":
+                        makeSyntheticSequenceType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            elementType: sema.types.make(.primitive(.char, .nonNull))
+                        )
                     case "toByteArray", "encodeToByteArray":
                         makeSyntheticListType(
                             symbols: sema.symbols,
@@ -3212,14 +3238,14 @@ extension CallTypeChecker {
                     : lookupReceiverType
                 let calleeStr = interner.resolve(calleeName)
                 if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-                   ["filter", "map", "count", "any", "all", "none"].contains(calleeStr)
+                   ["filter", "map", "count", "any", "all", "none", "indexOfFirst", "indexOfLast"].contains(calleeStr)
                 {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     }
                     let charType = sema.types.make(.primitive(.char, .nonNull))
                     let predicateReturnType: TypeID = switch calleeStr {
-                    case "filter", "any", "all", "none", "count": sema.types.booleanType
+                    case "filter", "any", "all", "none", "count", "indexOfFirst", "indexOfLast": sema.types.booleanType
                     case "map": sema.types.anyType
                     default: sema.types.anyType
                     }
@@ -3234,6 +3260,7 @@ extension CallTypeChecker {
                     case "filter": sema.types.stringType
                     case "map": sema.types.anyType
                     case "count": sema.types.intType
+                    case "indexOfFirst", "indexOfLast": sema.types.intType
                     case "any", "all", "none": sema.types.booleanType
                     default: sema.types.anyType
                     }
@@ -3345,6 +3372,8 @@ extension CallTypeChecker {
                 {
                     let calleeStr = interner.resolve(calleeName)
                     let resultType: TypeID? = switch calleeStr {
+                    case "indexOf" where sema.types.isSubtype(arg1Type, sema.types.intType):
+                        sema.types.intType
                     case "substring" where sema.types.isSubtype(arg1Type, sema.types.intType):
                         sema.types.stringType
                     case "padStart" where arg1Type == sema.types.charType:

@@ -1228,7 +1228,9 @@ public func kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int)
 @_cdecl("kk_string_format")
 public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements ?? []
+    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
+        ?? runtimeListBox(from: argsArrayRaw)?.elements
+        ?? []
     return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
 }
 
