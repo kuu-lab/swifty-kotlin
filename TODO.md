@@ -89,7 +89,7 @@
 - [ ] STDLIB-532: `Map?.orEmpty()` 拡張
 - [ ] STDLIB-533: `List?.orEmpty()` 拡張
 - [x] STDLIB-534: `String?.orEmpty()` 拡張
-- [ ] STDLIB-538: `ListIterator.hasPrevious()` / `previous()`
+- [x] STDLIB-538: `ListIterator.hasPrevious()` / `previous()`
 - [x] STDLIB-539: `ArrayList` 型エイリアスの golden テスト（型スタブは `HeaderHelpers+SyntheticComparableAndCollectionStubs` で登録済み）
 - [ ] STDLIB-540: `LinkedList` 型エイリアスの golden テスト（`ArrayList` / `HashMap` / `LinkedHashMap` も同ファイルでスタブ登録済み）
 - [ ] STDLIB-541: `HashMap` 型エイリアスの golden テスト
