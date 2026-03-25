@@ -352,10 +352,9 @@ final class CallSupportLowerer {
         }
 
         if argIndices.count == 1, allSpread {
-            // Single spread argument: pass the array directly, but convert to
-            // list since vararg parameters are typed as List<T>.
-            let arrayID = providedArguments[argIndices[0]]
-            return emitArrayToList(arrayID, arena: arena, interner: interner, anyType: anyType, instructions: &instructions)
+            // Single spread argument can be forwarded as-is. Downstream runtime
+            // entrypoints already accept either Array or List vararg payloads.
+            return providedArguments[argIndices[0]]
         }
 
         if hasAnySpread {

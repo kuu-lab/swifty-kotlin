@@ -2781,16 +2781,21 @@ extension CallLowerer {
                     boxedFormatArgument(arg.expr, loweredArgID: loweredArgID)
                 }
 
-                let packedArgs = driver.callSupportLowerer.packVarargArguments(
-                    argIndices: Array(boxedArgIDs.indices),
-                    providedArguments: boxedArgIDs,
-                    spreadFlags: args.map(\.isSpread),
-                    arena: arena,
-                    interner: interner,
-                    intType: intType,
-                    anyType: sema.types.nullableAnyType,
-                    instructions: &instructions
-                )
+                let packedArgs: KIRExprID
+                if boxedArgIDs.count == 1, args.first?.isSpread == true {
+                    packedArgs = boxedArgIDs[0]
+                } else {
+                    packedArgs = driver.callSupportLowerer.packVarargArguments(
+                        argIndices: Array(boxedArgIDs.indices),
+                        providedArguments: boxedArgIDs,
+                        spreadFlags: args.map(\.isSpread),
+                        arena: arena,
+                        interner: interner,
+                        intType: intType,
+                        anyType: sema.types.nullableAnyType,
+                        instructions: &instructions
+                    )
+                }
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_format"),

@@ -1303,42 +1303,49 @@ public func kk_logical_or(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("kk_char_plus")
 public func kk_char_plus(_ charValue: Int, _ stringRaw: Int) -> UnsafeMutableRawPointer {
     let unboxedChar = kk_unbox_char(charValue)
-    let charString = String(Character(UnicodeScalar(unboxedChar) ?? UnicodeScalar(0xFFFD)))
-    
-    if let stringBox = tryCast(UnsafeMutableRawPointer(bitPattern: stringRaw), to: RuntimeStringBox.self) {
+    let fallbackScalar = UnicodeScalar(0xFFFD)!
+    let charString = String(Character(UnicodeScalar(unboxedChar) ?? fallbackScalar))
+
+    if let stringPtr = UnsafeMutableRawPointer(bitPattern: stringRaw),
+       let stringBox = tryCast(stringPtr, to: RuntimeStringBox.self)
+    {
         let combined = charString + stringBox.value
         return runtimeMakeStringPointer(combined)
     }
-    
+
     return runtimeMakeStringPointer(charString)
 }
 
 @_cdecl("kk_char_get")
 public func kk_char_get(_ charValue: Int, _ index: Int) -> Int {
     let unboxedChar = kk_unbox_char(charValue)
-    let charString = String(Character(UnicodeScalar(unboxedChar) ?? UnicodeScalar(0xFFFD)))
-    
+    let fallbackScalar = UnicodeScalar(0xFFFD)!
+    let charString = String(Character(UnicodeScalar(unboxedChar) ?? fallbackScalar))
+
     if index >= 0 && index < charString.utf16.count {
         let utf16Index = charString.utf16.index(charString.utf16.startIndex, offsetBy: index)
         let utf16Char = charString.utf16[utf16Index]
-        return kk_box_char(Int32(utf16Char))
+        return kk_box_char(Int(utf16Char))
     }
-    
-    return kk_box_char(Int32(0xFFFD)) // Replacement character for invalid index
+
+    return kk_box_char(0xFFFD) // Replacement character for invalid index
 }
 
 @_cdecl("kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> UnsafeMutableRawPointer {
     let startChar = kk_unbox_char(startValue)
     let endChar = kk_unbox_char(endValue)
-    
+
     // Create a character range from start to end (inclusive)
-    let startScalar = UnicodeScalar(startChar) ?? UnicodeScalar(0)
-    let endScalar = UnicodeScalar(endChar) ?? UnicodeScalar(0)
-    
+    let zeroScalar = UnicodeScalar(0)!
+    let startScalar = UnicodeScalar(startChar) ?? zeroScalar
+    let endScalar = UnicodeScalar(endChar) ?? zeroScalar
+
     if startScalar <= endScalar {
-        let range = startScalar...endScalar
-        let rangeString = range.compactMap { UnicodeScalar($0) }.map { String($0) }.joined()
+        let rangeString = (startScalar.value...endScalar.value)
+            .compactMap(UnicodeScalar.init)
+            .map(String.init)
+            .joined()
         return runtimeMakeStringPointer(rangeString)
     } else {
         // Empty range for invalid bounds
