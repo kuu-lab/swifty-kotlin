@@ -1797,7 +1797,8 @@ extension CallTypeChecker {
             }
         }
 
-        // Early String HOF fallback: String filter/map/count/any/all/none/indexOfFirst/indexOfLast need
+        // Early String HOF fallback: String HOF members need lambda inference with
+        // expected types so the implicit `it` parameter (Char) gets bound correctly.
         // lambda inference with expectedType so the implicit `it` parameter (Char)
         // gets bound correctly.  Must run before argument pre-inference below.
         if args.count == 1 {
@@ -1806,28 +1807,71 @@ extension CallTypeChecker {
                 : receiverType
             let stringHOFCalleeStr = interner.resolve(calleeName)
             if sema.types.isSubtype(stringHOFReceiverType, sema.types.stringType),
-               ["filter", "map", "count", "any", "all", "none", "indexOfFirst", "indexOfLast"].contains(stringHOFCalleeStr)
+               [
+                   "filter", "map", "count", "any", "all", "none",
+                   "indexOfFirst", "indexOfLast",
+                   "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
+                   "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
+               ].contains(stringHOFCalleeStr)
             {
-                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                }
                 let charType = sema.types.make(.primitive(.char, .nonNull))
-                let predicateReturnType: TypeID = switch stringHOFCalleeStr {
-                case "filter", "any", "all", "none", "count", "indexOfFirst", "indexOfLast": sema.types.booleanType
-                case "map": sema.types.anyType
-                default: sema.types.anyType
+                let intType = sema.types.intType
+                if stringHOFCalleeStr != "splitToSequence" {
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    }
+                    let lambdaExpectedType: TypeID = switch stringHOFCalleeStr {
+                    case "mapIndexed":
+                        sema.types.make(.functionType(FunctionType(
+                            params: [intType, charType],
+                            returnType: sema.types.anyType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    case "filterIndexed":
+                        sema.types.make(.functionType(FunctionType(
+                            params: [intType, charType],
+                            returnType: sema.types.booleanType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    case "mapNotNull":
+                        sema.types.make(.functionType(FunctionType(
+                            params: [charType],
+                            returnType: sema.types.nullableAnyType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    case "map":
+                        sema.types.make(.functionType(FunctionType(
+                            params: [charType],
+                            returnType: sema.types.anyType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    default:
+                        sema.types.make(.functionType(FunctionType(
+                            params: [charType],
+                            returnType: sema.types.booleanType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 }
-                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [charType],
-                    returnType: predicateReturnType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 let resolvedArgTypes = args.map { arg in
                     sema.bindings.exprType(for: arg.expr) ?? sema.types.anyType
                 }
-                if let boundType = tryBindSyntheticStringMemberFallback(
+                if stringHOFCalleeStr == "splitToSequence" {
+                    bindSyntheticStringMemberDirectlyIfAvailable(
+                        id,
+                        calleeName: calleeName,
+                        argumentCount: args.count,
+                        receiverType: stringHOFReceiverType,
+                        sema: sema,
+                        interner: interner
+                    )
+                } else if let boundType = tryBindSyntheticStringMemberFallback(
                     id,
                     calleeName: calleeName,
                     receiverType: stringHOFReceiverType,
@@ -1841,30 +1885,35 @@ extension CallTypeChecker {
                 ) {
                     return boundType
                 }
-                if stringHOFCalleeStr == "indexOfFirst" || stringHOFCalleeStr == "indexOfLast" {
-                    let stringMemberFQName = [
-                        interner.intern("kotlin"),
-                        interner.intern("text"),
-                        calleeName,
-                    ]
-                    if let chosen = sema.symbols.lookupAll(fqName: stringMemberFQName).first {
-                        sema.bindings.bindCall(
-                            id,
-                            binding: CallBinding(
-                                chosenCallee: chosen,
-                                substitutedTypeArguments: [],
-                                parameterMapping: [0: 0]
-                            )
-                        )
-                        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                bindSyntheticStringMemberDirectlyIfAvailable(
+                    id,
+                    calleeName: calleeName,
+                    argumentCount: args.count,
+                    receiverType: stringHOFReceiverType,
+                    sema: sema,
+                    interner: interner
+                )
+                let sequenceStringType: TypeID = {
+                    let knownNames = KnownCompilerNames(interner: interner)
+                    guard let sequenceSymbol = sema.symbols.lookupAll(fqName: knownNames.kotlinSequenceFQName).first else {
+                        return sema.types.anyType
                     }
-                }
+                    return sema.types.make(.classType(ClassType(
+                        classSymbol: sequenceSymbol,
+                        args: [.out(sema.types.stringType)],
+                        nullability: .nonNull
+                    )))
+                }()
                 let resultType: TypeID = switch stringHOFCalleeStr {
                 case "filter": sema.types.stringType
                 case "map": sema.types.anyType  // Kotlin String.map returns List<R>
+                case "mapIndexed", "mapNotNull": sema.types.anyType
                 case "count": sema.types.intType
                 case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
+                case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
+                case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
+                case "splitToSequence": sequenceStringType
                 default: sema.types.anyType
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -3440,30 +3489,72 @@ extension CallTypeChecker {
                     : lookupReceiverType
                 let calleeStr = interner.resolve(calleeName)
                 if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
-                   ["filter", "map", "count", "any", "all", "none", "indexOfFirst", "indexOfLast"].contains(calleeStr)
+                   [
+                       "filter", "map", "count", "any", "all", "none",
+                       "indexOfFirst", "indexOfLast",
+                       "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
+                       "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
+                   ].contains(calleeStr)
                 {
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
                     let charType = sema.types.make(.primitive(.char, .nonNull))
-                    let predicateReturnType: TypeID = switch calleeStr {
-                    case "filter", "any", "all", "none", "count", "indexOfFirst", "indexOfLast": sema.types.booleanType
-                    case "map": sema.types.anyType
-                    default: sema.types.anyType
+                    let intType = sema.types.intType
+                    if calleeStr != "splitToSequence" {
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                        let lambdaParamTypes: [TypeID]
+                        switch calleeStr {
+                        case "mapIndexed", "filterIndexed":
+                            lambdaParamTypes = [intType, charType]
+                        default:
+                            lambdaParamTypes = [charType]
+                        }
+                        let lambdaReturnType: TypeID
+                        switch calleeStr {
+                        case "map", "mapIndexed":
+                            lambdaReturnType = sema.types.anyType
+                        case "mapNotNull":
+                            lambdaReturnType = sema.types.nullableAnyType
+                        default:
+                            lambdaReturnType = sema.types.booleanType
+                        }
+                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                            params: lambdaParamTypes,
+                            returnType: lambdaReturnType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                     }
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [charType],
-                        returnType: predicateReturnType,
-                        isSuspend: false,
-                        nullability: .nonNull
-                    )))
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    let sequenceStringType: TypeID = {
+                        let knownNames = KnownCompilerNames(interner: interner)
+                        guard let sequenceSymbol = sema.symbols.lookupAll(fqName: knownNames.kotlinSequenceFQName).first else {
+                            return sema.types.anyType
+                        }
+                        return sema.types.make(.classType(ClassType(
+                            classSymbol: sequenceSymbol,
+                            args: [.out(sema.types.stringType)],
+                            nullability: .nonNull
+                        )))
+                    }()
+                    bindSyntheticStringMemberDirectlyIfAvailable(
+                        id,
+                        calleeName: calleeName,
+                        argumentCount: args.count,
+                        receiverType: receiverTypeForCheck,
+                        sema: sema,
+                        interner: interner
+                    )
                     let resultType: TypeID = switch calleeStr {
                     case "filter": sema.types.stringType
                     case "map": sema.types.anyType
+                    case "mapIndexed", "mapNotNull": sema.types.anyType
                     case "count": sema.types.intType
                     case "indexOfFirst", "indexOfLast": sema.types.intType
                     case "any", "all", "none": sema.types.booleanType
+                    case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
+                    case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
+                    case "splitToSequence": sequenceStringType
                     default: sema.types.anyType
                     }
                     if let boundType = tryBindSyntheticStringMemberFallback(
@@ -4523,6 +4614,38 @@ extension CallTypeChecker {
             return false
         }
         return signature.receiverType == sema.types.stringType
+    }
+
+    private func bindSyntheticStringMemberDirectlyIfAvailable(
+        _ id: ExprID,
+        calleeName: InternedString,
+        argumentCount: Int,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        let stringMemberFQName = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            calleeName,
+        ]
+        guard sema.types.isSubtype(sema.types.makeNonNullable(receiverType), sema.types.stringType),
+              let chosen = sema.symbols.lookupAll(fqName: stringMemberFQName).first(where: { candidate in
+                  isSyntheticStringMemberCandidate(candidate, named: calleeName, sema: sema, interner: interner)
+              })
+        else {
+            return
+        }
+        let mapping = Dictionary(uniqueKeysWithValues: (0..<argumentCount).map { ($0, $0) })
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: [],
+                parameterMapping: mapping
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
     }
 
     private func getCollectionElementType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> TypeID {

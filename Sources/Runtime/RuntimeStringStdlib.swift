@@ -2174,11 +2174,16 @@ public func kk_string_mapIndexed(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var mappedElements: [Int] = []
     for (index, scalar) in scalars.enumerated() {
         var thrown = 0
-        let result = lambda(closureRaw, index, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: index,
+            rhs: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         mappedElements.append(result)
     }
@@ -2192,11 +2197,15 @@ public func kk_string_mapNotNull(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return strRaw }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var mappedElements: [Int] = []
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result != runtimeNullSentinelInt {
             mappedElements.append(result)
@@ -2212,11 +2221,16 @@ public func kk_string_filterIndexed(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var filtered: [UnicodeScalar] = []
     for (index, scalar) in scalars.enumerated() {
         var thrown = 0
-        let result = lambda(closureRaw, index, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            lhs: index,
+            rhs: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result != 0 { filtered.append(scalar) }
     }
@@ -2230,11 +2244,15 @@ public func kk_string_filterNot(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var filtered: [UnicodeScalar] = []
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result == 0 { filtered.append(scalar) }
     }
@@ -2248,11 +2266,15 @@ public func kk_string_takeWhile(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var taken: [UnicodeScalar] = []
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result == 0 { break }
         taken.append(scalar)
@@ -2267,11 +2289,15 @@ public func kk_string_dropWhile(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function)) }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var dropIndex = 0
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
         if result == 0 { break }
         dropIndex += 1
@@ -2319,10 +2345,14 @@ public func kk_string_find(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
         if result != 0 { return kk_box_char(Int(scalar.value)) }
     }
@@ -2336,11 +2366,15 @@ public func kk_string_findLast(
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var foundChar: UnicodeScalar?
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
         if result != 0 { foundChar = scalar }
     }

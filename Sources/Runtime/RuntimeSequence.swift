@@ -120,7 +120,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        if maybeUnbox(predicateResult) != 0 {
+        if runtimeCollectionBool(predicateResult) {
             runtimeSequenceTransformElement(
                 element,
                 steps: steps,
@@ -139,7 +139,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        if maybeUnbox(predicateResult) == 0 {
+        if !runtimeCollectionBool(predicateResult) {
             runtimeSequenceTransformElement(
                 element,
                 steps: steps,
@@ -287,8 +287,7 @@ private func runtimeSequenceTransformElement(
             state.stop = true
             return
         }
-        let unboxed = maybeUnbox(mapped)
-        if unboxed != runtimeNullSentinelInt {
+        if let unboxed = runtimeNormalizeNullableCollectionValue(mapped) {
             runtimeSequenceTransformElement(
                 unboxed,
                 steps: steps,
@@ -299,7 +298,7 @@ private func runtimeSequenceTransformElement(
             )
         }
     case .filterNotNullStep:
-        if maybeUnbox(element) != runtimeNullSentinelInt {
+        if runtimeNormalizeNullableCollectionValue(element) != nil {
             runtimeSequenceTransformElement(
                 element,
                 steps: steps,
@@ -627,8 +626,7 @@ private func applyMapNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int,
             }
             return []
         }
-        let normalized = maybeUnbox(result)
-        if normalized != runtimeNullSentinelInt {
+        if let normalized = runtimeNormalizeNullableCollectionValue(result) {
             mapped.append(normalized)
         }
     }
@@ -637,7 +635,7 @@ private func applyMapNotNullStep(_ elements: [Int], fnPtr: Int, closureRaw: Int,
 
 /// Applies a filterNotNull transformation: filters out null values.
 private func applyFilterNotNullStep(_ elements: [Int]) -> [Int] {
-    return elements.filter { maybeUnbox($0) != runtimeNullSentinelInt }
+    return elements.filter { runtimeNormalizeNullableCollectionValue($0) != nil }
 }
 
 /// Applies a mapIndexed transformation: maps elements with their index.

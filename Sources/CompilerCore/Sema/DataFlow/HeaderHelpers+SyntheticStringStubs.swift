@@ -1029,6 +1029,36 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let charToNullableAnyType = types.make(.functionType(FunctionType(
+            params: [charType],
+            returnType: types.nullableAnyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let intCharToAnyType = types.make(.functionType(FunctionType(
+            params: [intType, charType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let intCharToBoolType = types.make(.functionType(FunctionType(
+            params: [intType, charType],
+            returnType: boolType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let listAnyType = makeListType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: types.anyType
+        )
+        let sequenceStringType = makeSequenceType(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            elementType: stringType
+        )
         registerSyntheticStringExtensionFunction(
             named: "filter",
             externalLinkName: "kk_string_filter",
@@ -1087,6 +1117,96 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "mapIndexed",
+            externalLinkName: "kk_string_mapIndexed",
+            receiverType: stringType,
+            parameters: [("transform", intCharToAnyType, false, false)],
+            returnType: listAnyType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "mapNotNull",
+            externalLinkName: "kk_string_mapNotNull",
+            receiverType: stringType,
+            parameters: [("transform", charToNullableAnyType, false, false)],
+            returnType: listAnyType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "filterIndexed",
+            externalLinkName: "kk_string_filterIndexed",
+            receiverType: stringType,
+            parameters: [("predicate", intCharToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "filterNot",
+            externalLinkName: "kk_string_filterNot",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "takeWhile",
+            externalLinkName: "kk_string_takeWhile",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "dropWhile",
+            externalLinkName: "kk_string_dropWhile",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "find",
+            externalLinkName: "kk_string_find",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "findLast",
+            externalLinkName: "kk_string_findLast",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "splitToSequence",
+            externalLinkName: "kk_string_splitToSequence",
+            receiverType: stringType,
+            parameters: [("delimiter", stringType, false, false)],
+            returnType: sequenceStringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1164,13 +1284,6 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-666: String.lineSequence ---
-
-        let sequenceStringType = makeSequenceType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: stringType
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "lineSequence",

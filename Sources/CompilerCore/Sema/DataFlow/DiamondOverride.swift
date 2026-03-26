@@ -143,9 +143,11 @@ extension DataFlowSemaPhase {
 
         var conflicts: [InternedString: Set<SymbolID>] = [:]
         for (methodName, implementations) in mostSpecificImpls {
-            // Find the most specific implementations (maximum depth)
-            let maxDepth = implementations.map { $0.2 }.max() ?? 0
-            let mostSpecific = implementations.filter { $0.2 == maxDepth }
+            // Find the most specific implementations (minimum inheritance depth).
+            // Depth 0 means the direct interface provides the implementation,
+            // which is more specific than defaults inherited from ancestors.
+            let minDepth = implementations.map { $0.2 }.min() ?? 0
+            let mostSpecific = implementations.filter { $0.2 == minDepth }
             
             // Group by implementation symbol to identify identical implementations
             var implGroups: [SymbolID: Set<SymbolID>] = [:]

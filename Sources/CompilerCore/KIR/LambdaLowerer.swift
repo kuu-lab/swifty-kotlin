@@ -15,6 +15,49 @@ final class LambdaLowerer {
         self.driver = driver
     }
 
+    private func normalizeHOFPrimitiveParameter(
+        _ exprID: KIRExprID,
+        type: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let unboxCallee: String? = switch sema.types.kind(of: type) {
+        case .primitive(.int, .nonNull),
+             .primitive(.uint, .nonNull), .primitive(.ushort, .nonNull), .primitive(.ubyte, .nonNull):
+            "kk_unbox_int"
+        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
+            "kk_unbox_long"
+        case .primitive(.boolean, .nonNull):
+            "kk_unbox_bool"
+        case .primitive(.char, .nonNull):
+            "kk_unbox_char"
+        case .primitive(.float, .nonNull):
+            "kk_unbox_float"
+        case .primitive(.double, .nonNull):
+            "kk_unbox_double"
+        default:
+            nil
+        }
+        guard let unboxCallee else {
+            return exprID
+        }
+        let normalizedExpr = arena.appendExpr(
+            .temporary(Int32(clamping: arena.expressions.count)),
+            type: type
+        )
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(unboxCallee),
+            arguments: [exprID],
+            result: normalizedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return normalizedExpr
+    }
+
     func lowerLambdaLiteralExpr(
         _ exprID: ExprID,
         params: [InternedString],
@@ -221,11 +264,24 @@ final class LambdaLowerer {
         for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
-            driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
+            let normalizedParamExpr: KIRExprID
+            if needsClosureParam, paramIndex > 0 {
+                normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                    paramExpr,
+                    type: lambdaParam.type,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &lambdaBody
+                )
+            } else {
+                normalizedParamExpr = paramExpr
+            }
+            driver.ctx.setLocalValue(normalizedParamExpr, for: lambdaParam.symbol)
             // When the first parameter is the receiver (from a function-with-receiver type),
             // set it as the implicit receiver so that member calls resolve correctly.
             if paramIndex == 0, hasReceiverParam {
-                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
+                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
             }
         }
         if usesClosureRawCapture,
@@ -731,7 +787,15 @@ final class LambdaLowerer {
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
                 body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
-                callArgExprs.append(paramExpr)
+                let normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                    paramExpr,
+                    type: valueParam.type,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &body
+                )
+                callArgExprs.append(normalizedParamExpr)
             }
             let callResult = arena.appendExpr(
                 .temporary(Int32(arena.expressions.count)),
@@ -830,6 +894,13 @@ final class LambdaLowerer {
             callee: callableName,
             captureArguments: captureArguments
         )
+
+        // Collection HOF runtimes expect a raw function pointer plus closure payload.
+        // Returning a tagged callable reference here would pass the reflection wrapper
+        // object to runtime HOF entry points instead of the generated thunk symbol.
+        if needsHOFWrapper {
+            return callableExpr
+        }
 
         // REFL-003: Emit KFunction / KProperty type identity tag.
         // The tagging call wraps the callable value with reflection

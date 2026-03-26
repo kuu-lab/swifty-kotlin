@@ -120,7 +120,7 @@ public func kk_list_filter(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        if maybeUnbox(result) != 0 { filtered.append(elem) }
+        if runtimeCollectionBool(result) { filtered.append(elem) }
     }
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
@@ -135,8 +135,7 @@ public func kk_list_mapNotNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        let normalized = maybeUnbox(result)
-        if normalized != runtimeNullSentinelInt {
+        if let normalized = runtimeNormalizeNullableCollectionValue(result) {
             mapped.append(normalized)
         }
     }
@@ -148,7 +147,7 @@ public func kk_list_filterNotNull(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         invalidContainerPanic(#function, "list")
     }
-    let filtered = list.elements.filter { maybeUnbox($0) != runtimeNullSentinelInt }
+    let filtered = list.elements.filter { runtimeNormalizeNullableCollectionValue($0) != nil }
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
 
@@ -1945,7 +1944,7 @@ private func evalPredicate(
     let predResult = runtimeInvokeCollectionLambda1(
         fnPtr: fnPtr, closureRaw: closureRaw, value: value, outThrown: &thrown)
     if thrown != 0 { return (thrownValue: thrown, satisfied: false) }
-    return (thrownValue: 0, satisfied: maybeUnbox(predResult) != 0)
+    return (thrownValue: 0, satisfied: runtimeCollectionBool(predResult))
 }
 
 @_cdecl("kk_list_takeWhile")

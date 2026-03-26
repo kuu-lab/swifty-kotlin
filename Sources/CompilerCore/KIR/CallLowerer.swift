@@ -377,6 +377,7 @@ final class CallLowerer {
             ?? chosen.flatMap { symbol in
                 driver.ctx.localValue(for: symbol).flatMap { driver.ctx.callableValueInfo(for: $0) }
             }
+        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
         let sourceCalleeName: InternedString = if let callee = ast.arena.expr(calleeExpr), case let .nameRef(name, _) = callee {
             name
         } else if let loweredCallable {
@@ -423,8 +424,31 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
+        if chosen == nil,
+           loweredCallable == nil,
+           let implicitStringBuilderCall = implicitReceiverStringBuilderRuntimeCallee(
+               sourceCalleeName: sourceCalleeName,
+               loweredArguments: loweredArgIDs,
+               sema: sema,
+               arena: arena,
+               interner: interner
+           )
+        {
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: boundType ?? sema.types.anyType
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: implicitStringBuilderCall.callee,
+                arguments: [implicitStringBuilderCall.receiver] + loweredArgIDs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
-        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
                 providedArguments: loweredArgIDs,
@@ -449,7 +473,22 @@ final class CallLowerer {
             )
         }
         var finalArgIDs = callNormalized.arguments
-        if let loweredCallable {
+        // Compiler-generated lambdas/local functions use the compiler ABI
+        // (including the hidden thrown channel), so route them through their
+        // lowered symbol directly instead of Swift closure helpers.
+        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
+            runtimeCallableInvokeCallee(
+                callableValueCallBinding: callableValueCallBinding,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        if let callableInvokeCallee {
+            finalArgIDs.insert(loweredCalleeExprID, at: 0)
+        }
+        if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
             if loweredCallable.hasClosureParam {
                 let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
@@ -630,7 +669,9 @@ final class CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArgIDs
             )
-            let loweredCalleeName: InternedString = if let chosen,
+            let loweredCalleeName: InternedString = if let callableInvokeCallee {
+                callableInvokeCallee
+            } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
             {
@@ -679,6 +720,97 @@ final class CallLowerer {
             ))
         }
         return result
+    }
+
+    private func runtimeCallableInvokeCallee(
+        callableValueCallBinding: CallableValueCallBinding?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let callableValueCallBinding else {
+            return nil
+        }
+        let nonNullFunctionType = sema.types.makeNonNullable(callableValueCallBinding.functionType)
+        guard case let .functionType(functionType) = sema.types.kind(of: nonNullFunctionType) else {
+            return nil
+        }
+
+        if functionType.isSuspend {
+            switch functionType.params.count {
+            case 0:
+                return interner.intern("kk_suspend_function_invoke_0")
+            case 1:
+                return interner.intern("kk_suspend_function_invoke")
+            default:
+                return nil
+            }
+        }
+
+        switch functionType.params.count {
+        case 0:
+            return interner.intern("kk_function_invoke_0")
+        case 1:
+            return interner.intern("kk_function_invoke")
+        case 2:
+            return interner.intern("kk_function_invoke_2")
+        case 3:
+            return interner.intern("kk_function_invoke_3")
+        default:
+            return nil
+        }
+    }
+
+    private func implicitReceiverStringBuilderRuntimeCallee(
+        sourceCalleeName: InternedString,
+        loweredArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (receiver: KIRExprID, callee: InternedString)? {
+        guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+              let receiverType = arena.exprType(implicitReceiver),
+              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return nil
+        }
+
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.isStringBuilderSymbol(symbol) else {
+            return nil
+        }
+
+        let callee: String? = switch (interner.resolve(sourceCalleeName), loweredArguments.count) {
+        case ("append", 1):
+            "kk_string_builder_append_obj"
+        case ("appendLine", 0):
+            "kk_string_builder_append_line_noarg_obj"
+        case ("appendLine", 1):
+            "kk_string_builder_append_line_obj"
+        case ("appendRange", 3):
+            "kk_string_builder_appendRange_obj"
+        case ("toString", 0):
+            "kk_string_builder_toString"
+        case ("clear", 0):
+            "kk_string_builder_clear"
+        case ("reverse", 0):
+            "kk_string_builder_reverse"
+        case ("length", 0):
+            "kk_string_builder_length_prop"
+        case ("deleteCharAt", 1):
+            "kk_string_builder_deleteCharAt"
+        case ("insert", 2):
+            "kk_string_builder_insert_obj"
+        case ("delete", 2):
+            "kk_string_builder_delete_obj"
+        default:
+            nil
+        }
+
+        guard let callee else {
+            return nil
+        }
+        return (implicitReceiver, interner.intern(callee))
     }
 
     /// Returns true if the callee is a runtime function that requires a thrown

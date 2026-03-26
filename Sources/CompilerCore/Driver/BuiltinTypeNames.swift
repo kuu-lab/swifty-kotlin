@@ -14,6 +14,7 @@ public struct BuiltinTypeNames {
     public let ubyte: InternedString
     public let ushort: InternedString
     public let any: InternedString
+    public let number: InternedString
     public let unit: InternedString
     public let nothing: InternedString
     public let null: InternedString
@@ -37,6 +38,7 @@ public struct BuiltinTypeNames {
         self.ubyte = interner.intern("UByte")
         self.ushort = interner.intern("UShort")
         self.any = interner.intern("Any")
+        self.number = interner.intern("Number")
         self.unit = interner.intern("Unit")
         self.nothing = interner.intern("Nothing")
         self.null = interner.intern("null")
@@ -73,7 +75,9 @@ public struct BuiltinTypeNames {
         if let prim = primitiveType(for: name) {
             return types.withNullability(nullability, for: types.make(.primitive(prim, .nonNull)))
         }
-        if name == any { return nullability == .nullable ? types.nullableAnyType : types.anyType }
+        if name == any || name == number {
+            return nullability == .nullable ? types.nullableAnyType : types.anyType
+        }
         if name == unit { return types.unitType }
         if name == nothing { return nullability == .nullable ? types.nullableNothingType : types.nothingType }
         return nil
