@@ -39,4 +39,3 @@ fun main() {
     duplicateElements.sortDescending()
     println(duplicateElements)
 }
-// SKIP-DIFF: mutable list sort parity pending

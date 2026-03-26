@@ -348,26 +348,12 @@ final class LambdaClosureConversionPass: LoweringPass {
         // Nominal marker type for the closure object. The runtime payload is
         // stored in the array box allocated by `kk_object_new`.
         let nominalName = interner.intern("kk_closure_obj_\(lambdaSymbolRaw)")
-        let nominalSymbol = sema.symbols.define(
-            kind: .class,
-            name: nominalName,
-            fqName: [nominalName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
+        let nominalSymbol = SymbolID(rawValue: Int32(clamping: -(41_000_000 + Int64(lambdaSymbolRaw))))
         let nominalDecl = KIRDecl.nominalType(KIRNominalType(symbol: nominalSymbol))
 
         // Invoke wrapper function.
         let invokeWrapperName = interner.intern("kk_closure_invoke_\(lambdaSymbolRaw)")
-        let invokeSymbol = sema.symbols.define(
-            kind: .function,
-            name: invokeWrapperName,
-            fqName: [invokeWrapperName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
+        let invokeSymbol = SymbolID(rawValue: Int32(clamping: -(42_000_000 + Int64(lambdaSymbolRaw))))
 
         let closureObjParamSymbol = SymbolID(rawValue: -(30_000_000 + lambdaSymbolRaw))
         let closureObjParam = KIRParameter(symbol: closureObjParamSymbol, type: anyType)

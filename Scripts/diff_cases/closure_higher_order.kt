@@ -1,4 +1,3 @@
-// SKIP-DIFF  -- requires first-class function parameters and invoke operator
 fun apply(x: Int, f: (Int) -> Int): Int = f(x)
 
 fun compose(f: (Int) -> Int, g: (Int) -> Int): (Int) -> Int = { x -> f(g(x)) }

@@ -601,7 +601,12 @@ extension ExprLowerer {
                 if driver.ctx.isMutableCaptureBoxed(symbol),
                    let loadedValue = loadMutableCaptureCellValue(
                        symbol: symbol,
-                       resultType: boundType ?? sema.types.anyType,
+                       resultType: {
+                           if let boundType, boundType != sema.types.anyType {
+                               return boundType
+                           }
+                           return driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                       }(),
                        sema: sema,
                        arena: arena,
                        interner: interner,
@@ -915,6 +920,7 @@ extension ExprLowerer {
                         for: capturedSymbol,
                         sema: sema,
                         arena: arena,
+                        interner: interner,
                         instructions: &instructions
                     ) else {
                         continue
@@ -1547,7 +1553,12 @@ extension ExprLowerer {
                 } else if driver.ctx.isMutableCaptureBoxed(symbol),
                           let loadedValue = loadMutableCaptureCellValue(
                               symbol: symbol,
-                              resultType: boundType ?? sema.types.anyType,
+                              resultType: {
+                                  if let boundType, boundType != sema.types.anyType {
+                                      return boundType
+                                  }
+                                  return driver.lambdaLowerer.typeForSymbolReference(symbol, sema: sema)
+                              }(),
                               sema: sema,
                               arena: arena,
                               interner: interner,

@@ -1279,6 +1279,8 @@ final class CallTypeChecker {
                               case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
                     {
                         Array(expectedClassType.args.prefix(aliasTypeParameters.count))
+                    } else if !aliasTypeParameters.isEmpty {
+                        Array(repeating: TypeArg.invariant(sema.types.anyType), count: aliasTypeParameters.count)
                     } else {
                         []
                     }

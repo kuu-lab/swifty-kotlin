@@ -98,9 +98,12 @@ extension CallLowerer {
         "count", "iterator",
         "map", "filter", "filterNot", "mapNotNull", "filterNotNull", "forEach", "flatMap",
         "any", "none", "all",
-        "fold", "foldIndexed", "reduce", "reduceIndexed", "scan", "runningFold", "runningReduce", "groupBy", "groupingBy", "sortedBy", "find", "associateBy", "associateWith", "associate", "zip", "zipWithNext", "unzip",
+        "fold", "foldIndexed", "reduce", "reduceIndexed", "reduceIndexedOrNull",
+        "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
+        "runningReduce", "runningReduceIndexed",
+        "groupBy", "groupingBy", "sortedBy", "find", "associateBy", "associateWith", "associate", "zip", "zipWithNext", "unzip",
         "eachCount",
-        "withIndex", "forEachIndexed", "mapIndexed", "mapValues", "mapKeys",
+        "withIndex", "forEachIndexed", "mapIndexed", "filterIndexed", "mapValues", "mapKeys",
         "getValue", "getOrDefault", "getOrElse", "getOrPut", "getOrNull", "elementAtOrNull",
         "putAll", "addAll",
         "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOrNull", "minOrNull",
@@ -3150,13 +3153,14 @@ extension CallLowerer {
     ) -> Bool {
         [
             "map", "filter", "mapNotNull", "forEach", "flatMap",
-            "any", "none", "all", "fold", "reduce", "scan", "runningFold", "runningReduce", "groupBy", "groupingBy",
+            "any", "none", "all", "fold", "reduce", "scan", "scanIndexed",
+            "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "groupBy", "groupingBy",
             "sortedBy", "count", "first", "last", "find",
             "associateBy", "associateWith", "associate",
             "forEachIndexed", "mapIndexed", "filterIndexed", "sumOf", "mapValues", "mapKeys",
             "getOrElse", "getOrPut",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch",
+            "indexOfFirst", "indexOfLast", "binarySearch", "reduceIndexed", "reduceIndexedOrNull", "foldIndexed",
             "sortedByDescending", "sortedWith", "partition", "zipWithNext",
             "takeWhile", "dropWhile", "filterNot", "findLast",
             "replaceFirstChar",
@@ -4462,6 +4466,14 @@ extension CallLowerer {
                 return interner.intern(hasHOFLambdaArg
                     ? "kk_list_binarySearch_compare"
                     : "kk_list_binarySearch")
+            case "reduceIndexedOrNull":
+                return interner.intern("kk_list_reduceIndexedOrNull")
+            case "runningFoldIndexed":
+                return interner.intern("kk_list_runningFoldIndexed")
+            case "runningReduceIndexed":
+                return interner.intern("kk_list_runningReduceIndexed")
+            case "scanIndexed":
+                return interner.intern("kk_list_scanIndexed")
             default:
                 break
             }
@@ -4469,6 +4481,14 @@ extension CallLowerer {
 
         if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
+            case "sort":
+                return interner.intern("kk_mutable_list_sort")
+            case "sortBy":
+                return interner.intern("kk_mutable_list_sortBy")
+            case "sortByDescending":
+                return interner.intern("kk_mutable_list_sortByDescending")
+            case "sortDescending":
+                return interner.intern("kk_mutable_list_sortDescending")
             case "addAll":
                 return interner.intern("kk_mutable_list_addAll")
             case "removeAll":

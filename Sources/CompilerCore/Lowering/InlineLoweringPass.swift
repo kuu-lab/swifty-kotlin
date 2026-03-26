@@ -200,7 +200,9 @@ final class InlineLoweringPass: LoweringPass {
                 if let lambdaExpansion = expandLambdaBody(
                     lambdaFunction: lambdaFunction,
                     arguments: fullArgs,
-                    module: module
+                    module: module,
+                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    ctx: ctx
                 ) {
                     loweredBody.append(contentsOf: lambdaExpansion.instructions)
                     if let result {
@@ -555,11 +557,21 @@ final class InlineLoweringPass: LoweringPass {
                 {
                     let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
                     let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
-                    let fullArgs = captureArgs + resolvedArgs
+                    let valueArgs: [KIRExprID]
+                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"]
+                        .contains(ctx.interner.resolve(callee))
+                    {
+                        valueArgs = Array(resolvedArgs.dropFirst())
+                    } else {
+                        valueArgs = resolvedArgs
+                    }
+                    let fullArgs = captureArgs + valueArgs
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
-                        module: module
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
                     ) {
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
@@ -595,7 +607,9 @@ final class InlineLoweringPass: LoweringPass {
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
-                        module: module
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
                     ) {
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
@@ -784,7 +798,9 @@ final class InlineLoweringPass: LoweringPass {
     private func expandLambdaBody(
         lambdaFunction: KIRFunction,
         arguments: [KIRExprID],
-        module: KIRModule
+        module: KIRModule,
+        allFunctionsBySymbol: [SymbolID: KIRFunction],
+        ctx: KIRContext
     ) -> InlineExpansion? {
         // Map lambda parameters to arguments. If the argument count does not
         // match the parameter count, skip capture parameters at the front and
@@ -932,6 +948,39 @@ final class InlineLoweringPass: LoweringPass {
                 )
 
             case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"].contains(ctx.interner.resolve(callee)),
+                   let callableExpr = resolvedArgs.first,
+                   let nestedLambdaFunction = resolveLambdaFunction(
+                       argExpr: callableExpr,
+                       arena: module.arena,
+                       allFunctionsBySymbol: allFunctionsBySymbol,
+                       callerBody: lambdaFunction.body
+                   )
+                {
+                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
+                        .map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
+                    if let lambdaExpansion = expandLambdaBody(
+                        lambdaFunction: nestedLambdaFunction,
+                        arguments: fullArgs,
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
+                    ) {
+                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        if let result {
+                            if let lambdaReturn = lambdaExpansion.returnedExpr {
+                                localExprMap[result] = lambdaReturn
+                            } else {
+                                let unitExpr = module.arena.appendExpr(.unit, type: nil)
+                                lowered.append(.constValue(result: unitExpr, value: .unit))
+                                localExprMap[result] = unitExpr
+                            }
+                        }
+                        break
+                    }
+                }
                 let loweredResult = result.map { expr -> KIRExprID in
                     let cloned = cloneExpr(expr, in: module.arena)
                     localExprMap[expr] = cloned
@@ -946,7 +995,7 @@ final class InlineLoweringPass: LoweringPass {
                     .call(
                         symbol: symbol,
                         callee: callee,
-                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        arguments: resolvedArgs,
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,

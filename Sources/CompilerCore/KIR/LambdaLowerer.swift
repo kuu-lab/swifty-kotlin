@@ -177,6 +177,7 @@ final class LambdaLowerer {
                 for: symbol,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             ) else {
                 continue
@@ -256,7 +257,14 @@ final class LambdaLowerer {
         for capture in functionCaptureBindings {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+            if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+               semanticSymbol.kind == .local,
+               semanticSymbol.flags.contains(.mutable)
+            {
+                driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+            }
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
             }
@@ -289,7 +297,14 @@ final class LambdaLowerer {
            let closureParam = lambdaParameters.first,
            let closureExpr = driver.ctx.localValue(for: closureParam.symbol)
         {
-            driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
+            if let semanticSymbol = sema.symbols.symbol(closureCapture.capturedSymbol),
+               semanticSymbol.kind == .local,
+               semanticSymbol.flags.contains(.mutable)
+            {
+                driver.ctx.setMutableCaptureCell(closureExpr, for: closureCapture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
+            }
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
             }
@@ -314,7 +329,14 @@ final class LambdaLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
+                if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                   semanticSymbol.kind == .local,
+                   semanticSymbol.flags.contains(.mutable)
+                {
+                    driver.ctx.setMutableCaptureCell(loadedExpr, for: capture.capturedSymbol)
+                } else {
+                    driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
+                }
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
                 }

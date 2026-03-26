@@ -1,4 +1,3 @@
-// SKIP-DIFF  -- requires callable val (invoke operator on lambda variables)
 fun main() {
     // Nested lambda captures
     val x = 10
