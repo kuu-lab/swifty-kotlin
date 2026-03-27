@@ -1,13 +1,13 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-03-25
+最終更新: 2026-03-28
 
 ## 実装サマリー
 
 ### Phase 1 完了済みタスク (高優先度)
 - **プリミティブ型**: Boolean拡張関数 ✓
 - **配列操作**: 基本操作・高階関数・ソートと順序操作 ✓
-- **オブジェクト指向**: インターフェース・シールドクラス・データクラス・オブジェクト宣言・無名オブジェクト ✓
+- **オブジェクト指向**: インターフェース・シールドクラス・データクラス・オブジェクト宣言・無名オブジェクト・抽象クラス制約 ✓
 - **関数型プログラミング**: コレクション高階関数・スコープ関数・関数参照・拡張関数・拡張プロパティ・シーケンス高階関数・文字列高階関数・ラムダとクロージャ ✓
 - **プロパティデリゲート**: lazyデリゲート・lateinitプロパティ ✓
 - **ジェネリクス**: ジェネリッククラス制約 ✓
@@ -16,7 +16,6 @@
 - **プリミティブ型変換**: 全ての型間相互変換・unsigned型変換 ✓
 
 ### Phase 2 未完了タスク (中優先度)
-- 抽象クラス制約
 - データクラス継承制約
 - コンパニオンオブジェクト
 - 継承修飾子とオーバーライド
@@ -63,16 +62,16 @@
 
 #### Phase 1: オブジェクト指向機能 (高優先度)
 
-- [ ] STDLIB-CLASS-010: 抽象クラス完全実装
+- [x] STDLIB-CLASS-010: 抽象クラス完全実装
   - **仕様**: 抽象クラスの完全なサポートと制約
   - **実装内容**:
     - abstractメンバの定義と強制
     - 抽象クラスのインスタンス化禁止
     - 抽象プロパティと抽象関数
     - 抽象クラスの継承チェーン
-  - **現状**: 基本的な抽象クラスは実装済み、制約チェックは未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/abstract_class.kt`
+  - **現状**: 完了。制約チェック（インスタンス化禁止、abstractメンバにbody/initializer禁止、具象サブクラスの抽象メンバ実装強制、abstractプロパティ制約、abstract+final衝突検出、抽象メンバ無し警告）すべて実装済み
+  - **関連ファイル**: `Inheritance.swift`, `MemberHeaderCollection.swift`, `HeaderCollection.swift`, `CallTypeChecker.swift`
+  - **テストケース**: `Scripts/diff_cases/abstract_class.kt`, `Scripts/diff_cases/abstract_open_override.kt`, `Scripts/diff_cases/abstract_property_errors.kt`
 
 
 - [ ] STDLIB-INHERIT-018: 継承修飾子完全実装
