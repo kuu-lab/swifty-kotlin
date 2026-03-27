@@ -216,6 +216,25 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: nullableStringType)
                     return nullableStringType
                 }
+                if calleeName == knownNames.isInstanceName, args.count == 1 {
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                    let boolType = sema.types.booleanType
+                    sema.bindings.bindExprType(id, type: boolType)
+                    return boolType
+                }
+                if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
+                   args.isEmpty
+                {
+                    let listType = makeSyntheticListType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: sema.types.anyType
+                    )
+                    sema.bindings.markCollectionExpr(id)
+                    sema.bindings.bindExprType(id, type: listType)
+                    return listType
+                }
             }
         }
 
@@ -236,6 +255,28 @@ extension CallTypeChecker {
         }
 
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
+
+        if case .kClassType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) {
+            if calleeName == knownNames.isInstanceName, args.count == 1 {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                let boolType = sema.types.booleanType
+                sema.bindings.bindExprType(id, type: boolType)
+                return boolType
+            }
+            if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
+               args.isEmpty
+            {
+                let listType = makeSyntheticListType(
+                    symbols: sema.symbols,
+                    types: sema.types,
+                    interner: interner,
+                    elementType: sema.types.anyType
+                )
+                sema.bindings.markCollectionExpr(id)
+                sema.bindings.bindExprType(id, type: listType)
+                return listType
+            }
+        }
 
         if args.isEmpty,
            case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
@@ -704,6 +745,9 @@ extension CallTypeChecker {
             "sumOf", "maxOrNull", "minOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+            "maxOf", "minOf",
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "sortedByDescending", "sortedWith", "partition", "takeWhile", "dropWhile", "distinctBy", "zipWithNext",
             "sort", "sortBy", "sortByDescending",
         ]
@@ -1455,6 +1499,86 @@ extension CallTypeChecker {
                 }
                 resultType = receiverType
 
+            case "maxWith", "minWith", "maxWithOrNull", "minWithOrNull":
+                guard args.count == 1 else {
+                    let failedType = (calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull")
+                        ? sema.types.makeNullable(sema.types.errorType)
+                        : sema.types.errorType
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    let comparatorLambdaType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType, collectionElementType],
+                        returnType: sema.types.intType
+                    )))
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorLambdaType)
+                } else {
+                    let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+                    let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: comparatorSymbol,
+                            args: [.invariant(collectionElementType)],
+                            nullability: .nonNull
+                        )))
+                    } else {
+                        nil
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
+                }
+                resultType = (calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull")
+                    ? sema.types.makeNullable(collectionElementType)
+                    : collectionElementType
+
+            case "maxOfWith", "minOfWith", "maxOfWithOrNull", "minOfWithOrNull":
+                guard args.count == 2 else {
+                    let failedType = (calleeStr == "maxOfWithOrNull" || calleeStr == "minOfWithOrNull")
+                        ? sema.types.makeNullable(sema.types.errorType)
+                        : sema.types.errorType
+                    sema.bindings.bindExprType(id, type: failedType)
+                    return failedType
+                }
+                let selectorExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                }
+                _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: selectorExpectedType)
+                let selectorResultType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[1].expr) {
+                    sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
+                } else if let lambdaExprType = sema.bindings.exprType(for: args[1].expr),
+                          case let .functionType(fnType) = sema.types.kind(of: lambdaExprType) {
+                    sema.types.makeNonNullable(fnType.returnType)
+                } else {
+                    sema.types.anyType
+                }
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    let comparatorLambdaType = sema.types.make(.functionType(FunctionType(
+                        params: [selectorResultType, selectorResultType],
+                        returnType: sema.types.intType
+                    )))
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorLambdaType)
+                } else {
+                    let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+                    let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: comparatorSymbol,
+                            args: [.invariant(selectorResultType)],
+                            nullability: .nonNull
+                        )))
+                    } else {
+                        nil
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
+                }
+                resultType = (calleeStr == "maxOfWithOrNull" || calleeStr == "minOfWithOrNull")
+                    ? sema.types.makeNullable(selectorResultType)
+                    : selectorResultType
+
             case "partition":
                 guard args.count == 1 else {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
@@ -1710,6 +1834,28 @@ extension CallTypeChecker {
                     }
                 }
                 resultType = sema.types.makeNullable(collectionElementType)
+
+            case "maxOf", "minOf":
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.errorType)
+                    return sema.types.errorType
+                }
+                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.anyType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                resultType = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
+                    sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
+                } else if let lambdaExprType = sema.bindings.exprType(for: args[0].expr),
+                          case let .functionType(fnType) = sema.types.kind(of: lambdaExprType) {
+                    sema.types.makeNonNullable(fnType.returnType)
+                } else {
+                    sema.types.anyType
+                }
 
             case "maxOfOrNull", "minOfOrNull":
                 guard args.count == 1 else {
@@ -3004,6 +3150,66 @@ extension CallTypeChecker {
                             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: charsetExpectedType)
                         }
                         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
+                }
+            }
+            // STDLIB-HEX-001: HexFormat extension methods with default format parameter.
+            do {
+                let receiverTypeForCheck = safeCall
+                    ? sema.types.makeNonNullable(lookupReceiverType)
+                    : lookupReceiverType
+                let calleeStr = interner.resolve(calleeName)
+                let isSupportedHexReceiver =
+                    (calleeStr == "toHexString" && (receiverTypeForCheck == sema.types.intType || receiverTypeForCheck == sema.types.longType))
+                    || (calleeStr == "hexToInt" && receiverTypeForCheck == sema.types.stringType)
+                if isSupportedHexReceiver, args.count <= 1 {
+                    let kotlinTextPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("text")]
+                    let functionFQName = kotlinTextPkg + [calleeName]
+                    let hexFormatFQName = kotlinTextPkg + [interner.intern("HexFormat")]
+                    let hexFormatType: TypeID? = {
+                        guard let hexFormatSymbol = sema.symbols.lookup(fqName: hexFormatFQName) else { return nil }
+                        return sema.types.make(.classType(ClassType(classSymbol: hexFormatSymbol, args: [], nullability: .nonNull)))
+                    }()
+                    if let chosen = sema.symbols.lookupAll(fqName: functionFQName).first(where: { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate),
+                              signature.receiverType == receiverTypeForCheck
+                        else {
+                            return false
+                        }
+                        guard args.count <= signature.parameterTypes.count else {
+                            return false
+                        }
+                        if args.count < signature.parameterTypes.count {
+                            let remainingDefaults = signature.valueParameterHasDefaultValues.dropFirst(args.count)
+                            guard remainingDefaults.allSatisfy({ $0 }) else {
+                                return false
+                            }
+                        }
+                        if args.count == 1,
+                           let expectedType = hexFormatType,
+                           signature.parameterTypes.first != expectedType
+                        {
+                            return false
+                        }
+                        return true
+                    }) {
+                        if args.count == 1, let expectedType = hexFormatType {
+                            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+                        }
+                        let returnType = bindCallAndResolveReturnType(
+                            id,
+                            chosen: chosen,
+                            resolved: ResolvedCall(
+                                chosenCallee: chosen,
+                                substitutedTypeArguments: [:],
+                                parameterMapping: args.count == 1 ? [0: 0] : [:],
+                                diagnostic: nil
+                            ),
+                            sema: sema
+                        )
+                        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
                         sema.bindings.bindExprType(id, type: finalType)
                         return finalType
                     }

@@ -2844,12 +2844,20 @@ extension DataFlowSemaPhase {
 
         // maxWith / maxWithOrNull / minWith / minWithOrNull (comparator-based) (STDLIB-301c)
         do {
-            let comparatorType = types.make(.functionType(FunctionType(
-                params: [listTypeParamType, listTypeParamType],
-                returnType: types.intType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
+            let comparatorType = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
+                types.make(.classType(ClassType(
+                    classSymbol: comparatorSymbol,
+                    args: [.invariant(listTypeParamType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.make(.functionType(FunctionType(
+                    params: [listTypeParamType, listTypeParamType],
+                    returnType: types.intType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+            }
 
             func registerWithComparator(
                 name: String,
@@ -2910,12 +2918,20 @@ extension DataFlowSemaPhase {
                 )
                 let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
 
-                let comparatorType = types.make(.functionType(FunctionType(
-                    params: [rType, rType],
-                    returnType: types.intType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
+                let comparatorType = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
+                    types.make(.classType(ClassType(
+                        classSymbol: comparatorSymbol,
+                        args: [.invariant(rType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    types.make(.functionType(FunctionType(
+                        params: [rType, rType],
+                        returnType: types.intType,
+                        isSuspend: false,
+                        nullability: .nonNull
+                    )))
+                }
                 let selectorType = types.make(.functionType(FunctionType(
                     params: [listTypeParamType],
                     returnType: rType,

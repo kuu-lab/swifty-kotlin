@@ -5,6 +5,25 @@ extension BuildASTPhase.ExpressionParser {
         if matches(.symbol(.lBrace)) {
             return parseBlockExpression()
         }
+        let startIndex = index
+        if startIndex < tokens.endIndex {
+            let remaining = Array(tokens[startIndex ..< tokens.endIndex])
+            let statementRanges = splitBlockTokensIntoStatementRanges(remaining)
+            if let (statementStart, statementEnd) = statementRanges.first,
+               statementStart == 0,
+               statementEnd > statementStart
+            {
+                let bodySlice = remaining[statementStart ..< statementEnd]
+                if let localDecl = parseLocalDeclFromSlice(bodySlice[...]) {
+                    index = startIndex + statementEnd
+                    return localDecl
+                }
+                if let localAssign = parseLocalAssignFromSlice(bodySlice[...]) {
+                    index = startIndex + statementEnd
+                    return localAssign
+                }
+            }
+        }
         return parseExpression(minPrecedence: 0)
     }
 

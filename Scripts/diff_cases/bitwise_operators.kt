@@ -115,4 +115,3 @@ fun main() {
     println(0 / 1)
     // println(1 / 0) // Would throw exception - commented out for testing
 }
-// SKIP-DIFF: bitwise operator parity pending

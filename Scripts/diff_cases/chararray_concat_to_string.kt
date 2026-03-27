@@ -34,4 +34,3 @@ fun main() {
     println(greeting.concatToString() + " there")
     println(greeting.concatToString().length)
 }
-// SKIP-DIFF: CharArray concatToString parity pending

@@ -8,4 +8,3 @@ fun main() {
     accept(Box<Int>())
     accept(Box<String>())
 }
-// SKIP-DIFF: star projection parity pending

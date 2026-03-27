@@ -278,7 +278,8 @@ extension DataFlowSemaPhase {
                             valueParameterSymbols: params.paramSymbols,
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
                             valueParameterIsVararg: params.paramIsVararg,
-                            typeParameterSymbols: classTypeParamSymbols
+                            typeParameterSymbols: classTypeParamSymbols,
+                            classTypeParameterCount: classTypeParamSymbols.count
                         ),
                         for: primaryCtorSymbol
                     )
@@ -315,7 +316,8 @@ extension DataFlowSemaPhase {
                         valueParameterSymbols: params.paramSymbols,
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
                         valueParameterIsVararg: params.paramIsVararg,
-                        typeParameterSymbols: classTypeParamSymbols
+                        typeParameterSymbols: classTypeParamSymbols,
+                        classTypeParameterCount: classTypeParamSymbols.count
                     ),
                     for: secCtorSymbol
                 )

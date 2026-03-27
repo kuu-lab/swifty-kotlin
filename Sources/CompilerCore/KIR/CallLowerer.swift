@@ -591,6 +591,53 @@ final class CallLowerer {
                         thrownResult: nil
                     ))
                 }
+                if let objectLayout = sema.symbols.nominalLayout(for: ownerNominalSymbol) {
+                    for interfaceSymbol in sema.symbols.directSupertypes(for: ownerNominalSymbol) {
+                        guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
+                              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
+                        else {
+                            continue
+                        }
+                        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
+                        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
+                            let methodSlot = Int64(methodSlotInt)
+                            let implementationSymbol: SymbolID = {
+                                guard let methodSym = sema.symbols.symbol(methodSymbol),
+                                      let ownerSym = sema.symbols.symbol(ownerNominalSymbol)
+                                else {
+                                    return methodSymbol
+                                }
+                                let overrideFQName = ownerSym.fqName + [methodSym.name]
+                                for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+                                    guard let candidateSym = sema.symbols.symbol(candidate),
+                                          candidateSym.kind == .function,
+                                          sema.symbols.parentSymbol(for: candidate) == ownerNominalSymbol
+                                    else {
+                                        continue
+                                    }
+                                    return candidate
+                                }
+                                return methodSymbol
+                            }()
+
+                            let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
+                            instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
+                            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
+                            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+                            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
+                            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+                            let registerMethodResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                            instructions.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_object_register_itable_method"),
+                                arguments: [allocatedObj, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                                result: registerMethodResult,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        }
+                    }
+                }
                 // REFL-005: Register KClass metadata for this nominal type.
                 emitKClassMetadataRegistration(
                     objectSymbol: ownerNominalSymbol,

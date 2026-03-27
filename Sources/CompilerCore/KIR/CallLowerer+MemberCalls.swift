@@ -111,6 +111,9 @@ extension CallLowerer {
         "asSequence", "asIterable", "toList", "toSet", "toMap", "toMutableList", "toMutableSet", "toTypedArray",
         "take", "drop", "reversed", "asReversed", "sorted", "distinct", "flatten", "chunked", "windowed", "collect", "subList",
         "sortedDescending", "sortedByDescending", "sortedWith", "partition",
+        "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+        "maxOf", "minOf",
+        "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         "replaceFirstChar",
         "sort", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
@@ -1067,8 +1070,17 @@ extension CallLowerer {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return loweredArgIDs
             }
-            return addCollectionHOFClosureArguments(
+            let closureAdapted = addCollectionHOFClosureArguments(
                 loweredArgIDs: loweredArgIDs,
+                argExprIDs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            return adaptComparatorFactoryArgumentsForCollectionHOF(
+                calleeName: calleeName,
+                loweredArgIDs: closureAdapted,
                 argExprIDs: args.map(\.expr),
                 sema: sema,
                 arena: arena,
@@ -2658,6 +2670,26 @@ extension CallLowerer {
                     "kk_list_sortedByDescending"
                 case "sortedWith":
                     "kk_list_sortedWith"
+                case "maxOf":
+                    "kk_list_maxOf"
+                case "minOf":
+                    "kk_list_minOf"
+                case "maxWith":
+                    "kk_list_maxWith"
+                case "maxWithOrNull":
+                    "kk_list_maxWithOrNull"
+                case "minWith":
+                    "kk_list_minWith"
+                case "minWithOrNull":
+                    "kk_list_minWithOrNull"
+                case "maxOfWith":
+                    "kk_list_maxOfWith"
+                case "maxOfWithOrNull":
+                    "kk_list_maxOfWithOrNull"
+                case "minOfWith":
+                    "kk_list_minOfWith"
+                case "minOfWithOrNull":
+                    "kk_list_minOfWithOrNull"
                 case "indexOf":
                     "kk_list_indexOf"
                 case "lastIndexOf":
@@ -3160,6 +3192,9 @@ extension CallLowerer {
             "forEachIndexed", "mapIndexed", "filterIndexed", "sumOf", "mapValues", "mapKeys",
             "getOrElse", "getOrPut",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
+            "maxOf", "minOf",
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+            "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch", "reduceIndexed", "reduceIndexedOrNull", "foldIndexed",
             "sortedByDescending", "sortedWith", "partition", "zipWithNext",
             "takeWhile", "dropWhile", "filterNot", "findLast",
@@ -3280,6 +3315,198 @@ extension CallLowerer {
         }
 
         return finalArgs
+    }
+
+    private func makeComparatorTrampolineArgument(
+        comparatorExprID: ExprID?,
+        loweredComparatorID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID]? {
+        func trampolineName(for externalLinkName: String) -> String? {
+            switch externalLinkName {
+        case "kk_comparator_from_selector":
+            return "kk_comparator_from_selector_trampoline"
+        case "kk_comparator_from_selector_descending":
+            return "kk_comparator_from_selector_descending_trampoline"
+        case "kk_comparator_from_multi_selectors",
+             "kk_comparator_from_multi_selectors3":
+            return "kk_comparator_from_multi_selectors_trampoline"
+        case "kk_comparator_then_by":
+            return "kk_comparator_then_by_trampoline"
+        case "kk_comparator_then_by_descending":
+            return "kk_comparator_then_by_descending_trampoline"
+        case "kk_comparator_reversed":
+            return "kk_comparator_reversed_trampoline"
+        case "kk_comparator_natural_order":
+            return "kk_comparator_natural_order_trampoline"
+        case "kk_comparator_reverse_order":
+            return "kk_comparator_reverse_order_trampoline"
+        default:
+            return nil
+            }
+        }
+
+        func trampolineName(for comparatorSymbol: SymbolID) -> String? {
+            guard let symbol = sema.symbols.symbol(comparatorSymbol) else {
+                return nil
+            }
+            switch interner.resolve(symbol.name) {
+            case "compareBy":
+                return "kk_comparator_from_selector_trampoline"
+            case "compareByDescending":
+                return "kk_comparator_from_selector_descending_trampoline"
+            case "thenBy":
+                return "kk_comparator_then_by_trampoline"
+            case "thenByDescending":
+                return "kk_comparator_then_by_descending_trampoline"
+            case "reversed":
+                return "kk_comparator_reversed_trampoline"
+            case "naturalOrder":
+                return "kk_comparator_natural_order_trampoline"
+            case "reverseOrder":
+                return "kk_comparator_reverse_order_trampoline"
+            default:
+                return nil
+            }
+        }
+
+        let trampolineName: String? = {
+            if let comparatorExprID,
+               let chosenCallee = sema.bindings.callBinding(for: comparatorExprID)?.chosenCallee
+            {
+                if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+                   let trampolineName = trampolineName(for: externalLinkName)
+                {
+                    return trampolineName
+                }
+                if let trampolineName = trampolineName(for: chosenCallee) {
+                    return trampolineName
+                }
+            }
+            for instruction in instructions.reversed() {
+                guard case let .call(_, callee, _, result, _, _, _, _) = instruction,
+                      result == loweredComparatorID,
+                      let trampolineName = trampolineName(for: interner.resolve(callee))
+                else {
+                    continue
+                }
+                return trampolineName
+            }
+            return nil
+        }()
+        guard let trampolineName else {
+            return nil
+        }
+
+        let fnPtrExpr = arena.appendExpr(
+            .temporary(Int32(clamping: arena.expressions.count)),
+            type: sema.types.intType
+        )
+        instructions.append(.constValue(
+            result: fnPtrExpr,
+            value: .externSymbolAddress(interner.intern(trampolineName))
+        ))
+        return [fnPtrExpr, loweredComparatorID]
+    }
+
+    private func adaptComparatorFactoryArgumentsForCollectionHOF(
+        calleeName: InternedString,
+        loweredArgIDs: [KIRExprID],
+        argExprIDs: [ExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        let comparatorOnlyHOFNames: Set<String> = [
+            "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
+        ]
+        guard comparatorOnlyHOFNames.contains(interner.resolve(calleeName)),
+              loweredArgIDs.count == 1,
+              let comparatorArgID = loweredArgIDs.first,
+              let comparatorExprID = argExprIDs.first,
+              let comparatorArgs = makeComparatorTrampolineArgument(
+                  comparatorExprID: comparatorExprID,
+                  loweredComparatorID: comparatorArgID,
+                  sema: sema,
+                  arena: arena,
+                  interner: interner,
+                  instructions: &instructions
+              )
+        else {
+            return loweredArgIDs
+        }
+        return comparatorArgs
+    }
+
+    private func adaptComparatorBackedCollectionArguments(
+        loweredCallee: InternedString,
+        finalArguments: [KIRExprID],
+        sourceArgExprs: [ExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        let comparatorOnlyCallees: Set<InternedString> = [
+            interner.intern("kk_list_maxWith"),
+            interner.intern("kk_list_maxWithOrNull"),
+            interner.intern("kk_list_minWith"),
+            interner.intern("kk_list_minWithOrNull"),
+        ]
+        if comparatorOnlyCallees.contains(loweredCallee),
+           finalArguments.count == 2,
+           let comparatorArgs = makeComparatorTrampolineArgument(
+               comparatorExprID: sourceArgExprs.first,
+               loweredComparatorID: finalArguments[1],
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return [finalArguments[0]] + comparatorArgs
+        }
+
+        let comparatorSelectorCallees: Set<InternedString> = [
+            interner.intern("kk_list_maxOfWith"),
+            interner.intern("kk_list_maxOfWithOrNull"),
+            interner.intern("kk_list_minOfWith"),
+            interner.intern("kk_list_minOfWithOrNull"),
+        ]
+        if comparatorSelectorCallees.contains(loweredCallee),
+           sourceArgExprs.count == 2
+        {
+            let hasReceiver = finalArguments.count >= 4
+            let receiverArg = hasReceiver ? finalArguments[0] : nil
+            let comparatorIndex = hasReceiver ? 1 : 0
+            let selectorStartIndex = hasReceiver ? 2 : 1
+            guard finalArguments.count >= selectorStartIndex + 2,
+                  let comparatorArgs = makeComparatorTrampolineArgument(
+                      comparatorExprID: sourceArgExprs.first,
+                      loweredComparatorID: finalArguments[comparatorIndex],
+                      sema: sema,
+                      arena: arena,
+                      interner: interner,
+                      instructions: &instructions
+                  )
+            else {
+                return finalArguments
+            }
+
+            var adapted: [KIRExprID] = []
+            if let receiverArg {
+                adapted.append(receiverArg)
+            }
+            adapted.append(contentsOf: comparatorArgs)
+            adapted.append(contentsOf: finalArguments[selectorStartIndex...])
+            return adapted
+        }
+
+        return finalArguments
     }
 
     private func makeCollectionHOFCallableAdapter(
@@ -3965,6 +4192,34 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        finalArguments = adaptComparatorBackedCollectionArguments(
+            loweredCallee: loweredCallee,
+            finalArguments: finalArguments,
+            sourceArgExprs: sourceArgExprs,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+        let comparatorOnlyCallees: Set<InternedString> = [
+            interner.intern("kk_list_maxWith"),
+            interner.intern("kk_list_maxWithOrNull"),
+            interner.intern("kk_list_minWith"),
+            interner.intern("kk_list_minWithOrNull"),
+        ]
+        if comparatorOnlyCallees.contains(loweredCallee),
+           finalArguments.count == 2,
+           let comparatorArgs = makeComparatorTrampolineArgument(
+               comparatorExprID: nil,
+               loweredComparatorID: finalArguments[1],
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            finalArguments = [finalArguments[0]] + comparatorArgs
+        }
         if loweredCallee == interner.intern("kk_channel_send")
             || loweredCallee == interner.intern("kk_channel_receive")
             || loweredCallee == interner.intern("kk_mutex_lock")
@@ -4444,6 +4699,26 @@ extension CallLowerer {
                 return interner.intern("kk_list_maxByOrNull")
             case "minByOrNull":
                 return interner.intern("kk_list_minByOrNull")
+            case "maxOf":
+                return interner.intern("kk_list_maxOf")
+            case "minOf":
+                return interner.intern("kk_list_minOf")
+            case "maxWith":
+                return interner.intern("kk_list_maxWith")
+            case "maxWithOrNull":
+                return interner.intern("kk_list_maxWithOrNull")
+            case "minWith":
+                return interner.intern("kk_list_minWith")
+            case "minWithOrNull":
+                return interner.intern("kk_list_minWithOrNull")
+            case "maxOfWith":
+                return interner.intern("kk_list_maxOfWith")
+            case "maxOfWithOrNull":
+                return interner.intern("kk_list_maxOfWithOrNull")
+            case "minOfWith":
+                return interner.intern("kk_list_minOfWith")
+            case "minOfWithOrNull":
+                return interner.intern("kk_list_minOfWithOrNull")
             case "partition":
                 return interner.intern("kk_list_partition")
             case "zipWithNext":
@@ -4609,6 +4884,26 @@ extension CallLowerer {
             return interner.intern("kk_list_maxByOrNull")
         case "minByOrNull":
             return interner.intern("kk_list_minByOrNull")
+        case "maxOf":
+            return interner.intern("kk_list_maxOf")
+        case "minOf":
+            return interner.intern("kk_list_minOf")
+        case "maxWith":
+            return interner.intern("kk_list_maxWith")
+        case "maxWithOrNull":
+            return interner.intern("kk_list_maxWithOrNull")
+        case "minWith":
+            return interner.intern("kk_list_minWith")
+        case "minWithOrNull":
+            return interner.intern("kk_list_minWithOrNull")
+        case "maxOfWith":
+            return interner.intern("kk_list_maxOfWith")
+        case "maxOfWithOrNull":
+            return interner.intern("kk_list_maxOfWithOrNull")
+        case "minOfWith":
+            return interner.intern("kk_list_minOfWith")
+        case "minOfWithOrNull":
+            return interner.intern("kk_list_minOfWithOrNull")
         case "firstOrNull":
             return interner.intern("kk_list_firstOrNull")
         case "lastOrNull":

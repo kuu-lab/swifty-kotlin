@@ -768,6 +768,9 @@ extension CallTypeChecker {
              interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"),
              interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
              interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"),
+             interner.intern("maxOf"), interner.intern("minOf"),
+             interner.intern("maxWith"), interner.intern("maxWithOrNull"),
+             interner.intern("minWith"), interner.intern("minWithOrNull"),
              interner.intern("elementAt"):
             return argCount == 1
         case interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"):
@@ -1125,6 +1128,8 @@ extension CallTypeChecker {
             interner.intern("minByOrNull"),
             interner.intern("maxOfOrNull"),
             interner.intern("minOfOrNull"),
+            interner.intern("maxOf"),
+            interner.intern("minOf"),
         ]
         let mapOnlyMembers: Set = [
             mapValues,
@@ -1150,6 +1155,39 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 0, expectedType: expectedType)
+        }
+
+        if (memberName == interner.intern("maxWith")
+            || memberName == interner.intern("maxWithOrNull")
+            || memberName == interner.intern("minWith")
+            || memberName == interner.intern("minWithOrNull")),
+           argCount == 1,
+           let comparatorSymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("Comparator"),
+           ])
+        {
+            let expectedType = sema.types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                args: [.invariant(receiverElementType)],
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+
+        if (memberName == interner.intern("maxOfWith")
+            || memberName == interner.intern("maxOfWithOrNull")
+            || memberName == interner.intern("minOfWith")
+            || memberName == interner.intern("minOfWithOrNull")),
+           argCount == 2
+        {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
         }
 
         // *To functions: destination + lambda (2 args), lambda is at index 1

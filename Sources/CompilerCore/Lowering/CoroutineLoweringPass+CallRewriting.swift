@@ -289,7 +289,10 @@ extension CoroutineLoweringPass {
         {
             return symbol
         }
-        return propagatedSymbols[exprID.rawValue]
+        if let symbol = propagatedSymbols[exprID.rawValue] {
+            return symbol
+        }
+        return module.arena.callableValueInfo(for: exprID)?.symbol
     }
 
     func rewriteFlowCollectCall(

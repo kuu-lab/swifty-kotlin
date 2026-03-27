@@ -63,7 +63,9 @@ extension KIRLoweringDriver {
             allTopLevelInitInstructions: allTopLevelInitInstructions,
             delegateStorageSymbolByPropertySymbol: delegateStorageSymbolByPropertySymbol
         )
-        return KIRModule(files: files, arena: arena)
+        let module = KIRModule(files: files, arena: arena)
+        module.arena.callableValueInfoByExprID = ctx.callableValueInfoByExprID
+        return module
     }
 
     private func buildSourceByFileID(

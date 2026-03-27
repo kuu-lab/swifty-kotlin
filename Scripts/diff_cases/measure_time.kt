@@ -1,4 +1,3 @@
-// SKIP-DIFF
 import kotlin.system.measureTimeMillis
 import kotlin.system.measureNanoTime
 
