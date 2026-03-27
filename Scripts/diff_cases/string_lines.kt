@@ -1,27 +1,57 @@
+private fun dumpLines(lines: List<String>) {
+    println(lines.size)
+    for (line in lines) {
+        println("[$line]")
+    }
+    println("--")
+}
+
 fun main() {
     // Basic cases
-    println("a\nb\nc".lines())
-    println("hello".lines())
-    println("".lines())
-    println("a\n\nb".lines())
+    dumpLines("a\nb\nc".lines())
+    dumpLines("hello".lines())
+    dumpLines("".lines())
+    dumpLines("a\n\nb".lines())
 
     // Trailing newline
-    println("a\nb\n".lines())
+    dumpLines("a\nb\n".lines())
 
     // \r\n (Windows line endings)
-    println("a\r\nb\r\nc".lines())
+    dumpLines("a\r\nb\r\nc".lines())
 
     // Mixed line endings
-    println("a\nb\r\nc\rd".lines())
+    dumpLines("a\nb\r\nc\rd".lines())
 
     // Only newlines
-    println("\n".lines())
-    println("\n\n".lines())
-    println("\r\n".lines())
+    dumpLines("\n".lines())
+    dumpLines("\n\n".lines())
+    dumpLines("\r\n".lines())
 
     // Single char
-    println("x".lines())
+    dumpLines("x".lines())
 
     // lines() size
     println("a\nb\nc".lines().size)
+
+    // Edge cases for comprehensive testing
+    // Multiple trailing newlines
+    dumpLines("a\nb\n\n".lines())
+    dumpLines("a\nb\n\r\n".lines())
+
+    // Starting with newlines
+    dumpLines("\na\nb".lines())
+    dumpLines("\r\na\nb".lines())
+
+    // Only carriage returns
+    dumpLines("\r".lines())
+    dumpLines("\r\r".lines())
+
+    // Complex mixed patterns
+    dumpLines("a\r\n\nb\r\nc\n\r".lines())
+
+    // Whitespace handling
+    dumpLines(" \n \t\n ".lines())
+
+    // Unicode content with newlines
+    dumpLines("こんにちは\n世界\n".lines())
 }

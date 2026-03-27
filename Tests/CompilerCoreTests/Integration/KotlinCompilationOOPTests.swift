@@ -47,13 +47,73 @@ final class KotlinCompilationOOPTests: XCTestCase {
         try assertKotlinCompilesToKIR("""
         abstract class Shape {
             abstract fun area(): Double
+            abstract val name: String
         }
         class Circle(val radius: Double) : Shape() {
             override fun area(): Double = 3.14159 * radius * radius
+            override val name: String = "circle"
         }
         fun main() {
             val c = Circle(5.0)
             c.area()
+        }
+        """)
+    }
+
+    func testCompile_class_abstractProperty() throws {
+        try assertKotlinCompilesToKIR("""
+        abstract class Container {
+            abstract var items: List<String>
+        }
+        class Box : Container() {
+            override var items: List<String> = emptyList()
+        }
+        fun main() {
+            val box = Box()
+            box.items = listOf("item1", "item2")
+        }
+        """)
+    }
+
+    func testCompile_class_sealedImplicitlyAbstract() throws {
+        try assertKotlinCompilesToKIR("""
+        sealed class Result {
+            abstract fun getValue(): String
+        }
+        class Success(val data: String) : Result() {
+            override fun getValue(): String = data
+        }
+        class Error(val message: String) : Result() {
+            override fun getValue(): String = message
+        }
+        fun main() {
+            val s = Success("test")
+            s.getValue()
+        }
+        """)
+    }
+
+    func testCompile_class_abstractInheritanceChain() throws {
+        try assertKotlinCompilesToKIR("""
+        abstract class Animal {
+            abstract fun speak(): String
+            abstract val species: String
+        }
+        abstract class Pet : Animal() {
+            abstract fun name(): String
+            abstract val owner: String
+            override fun speak(): String = "pet sound"
+        }
+        class Dog : Pet() {
+            override fun speak(): String = "woof"
+            override fun name(): String = "dog"
+            override val species: String = "canine"
+            override val owner: String = "human"
+        }
+        fun main() {
+            val d = Dog()
+            d.speak()
+            d.name()
         }
         """)
     }

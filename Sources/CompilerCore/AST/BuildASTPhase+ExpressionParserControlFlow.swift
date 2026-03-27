@@ -1,6 +1,32 @@
 import Foundation
 
 extension BuildASTPhase.ExpressionParser {
+    private func parseControlFlowBodyExpression() -> ExprID? {
+        if matches(.symbol(.lBrace)) {
+            return parseBlockExpression()
+        }
+        let startIndex = index
+        if startIndex < tokens.endIndex {
+            let remaining = Array(tokens[startIndex ..< tokens.endIndex])
+            let statementRanges = splitBlockTokensIntoStatementRanges(remaining)
+            if let (statementStart, statementEnd) = statementRanges.first,
+               statementStart == 0,
+               statementEnd > statementStart
+            {
+                let bodySlice = remaining[statementStart ..< statementEnd]
+                if let localDecl = parseLocalDeclFromSlice(bodySlice[...]) {
+                    index = startIndex + statementEnd
+                    return localDecl
+                }
+                if let localAssign = parseLocalAssignFromSlice(bodySlice[...]) {
+                    index = startIndex + statementEnd
+                    return localAssign
+                }
+            }
+        }
+        return parseExpression(minPrecedence: 0)
+    }
+
     func parseWhenExpression() -> ExprID? {
         guard let whenToken = consume() else {
             return nil
@@ -143,12 +169,19 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
 
+        let branchTokens = tokens[startIndex ..< endIndex]
         let parser = BuildASTPhase.ExpressionParser(
-            tokens: tokens[startIndex ..< endIndex],
+            tokens: branchTokens,
             interner: interner,
             astArena: astArena
         )
-        guard let body = parser.parse() else {
+        let body: ExprID?
+        if branchTokens.first?.kind == .symbol(.lBrace) {
+            body = parser.parseBlockExpression()
+        } else {
+            body = parser.parse()
+        }
+        guard let body else {
             return nil
         }
 
@@ -364,7 +397,7 @@ extension BuildASTPhase.ExpressionParser {
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
                 }
                 _ = consumeIf(.symbol(.rParen))
-                guard let body = parseExpression(minPrecedence: 0) else {
+                guard let body = parseControlFlowBodyExpression() else {
                     index = savedIndex
                     return parseForExpressionFallback(forToken: forToken, label: label, start: start)
                 }
@@ -411,7 +444,7 @@ extension BuildASTPhase.ExpressionParser {
         }
         _ = consumeIf(.symbol(.rParen))
 
-        guard let body = parseExpression(minPrecedence: 0) else {
+        guard let body = parseControlFlowBodyExpression() else {
             return nil
         }
         let end = astArena.exprRange(body)?.end ?? forToken.range.end
@@ -430,7 +463,7 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         _ = consumeIf(.symbol(.rParen))
-        guard let body = parseExpression(minPrecedence: 0) else {
+        guard let body = parseControlFlowBodyExpression() else {
             return nil
         }
         let end = astArena.exprRange(body)?.end ?? whileToken.range.end
@@ -444,12 +477,11 @@ extension BuildASTPhase.ExpressionParser {
         }
         let bodyStartIndex = index
 
-        var body = parseExpression(minPrecedence: 0)
+        var body = parseControlFlowBodyExpression()
 
         if !matches(.keyword(.while)),
            let whileIndex = findDoWhileConditionKeyword(startingAt: bodyStartIndex),
-           bodyStartIndex < whileIndex,
-           whileIndex >= index
+           bodyStartIndex < whileIndex
         {
             let bodyTokens = tokens[bodyStartIndex ..< whileIndex]
             if let reparsedBody = parseDoWhileBodyExpression(from: bodyTokens) {
@@ -489,7 +521,7 @@ extension BuildASTPhase.ExpressionParser {
         if let first = bodyTokens.first, first.kind == .symbol(.lBrace) {
             return BuildASTPhase.ExpressionParser(
                 tokens: bodyTokens, interner: interner, astArena: astArena
-            ).parse()
+            ).parseBlockExpression()
         }
         let sanitized = bodyTokens.filter { $0.kind != .symbol(.semicolon) }
         guard !sanitized.isEmpty else {
@@ -534,14 +566,14 @@ extension BuildASTPhase.ExpressionParser {
         }
         _ = consumeIf(.symbol(.rParen))
 
-        guard let thenExpr = parseExpression(minPrecedence: 0) else {
+        guard let thenExpr = parseControlFlowBodyExpression() else {
             return nil
         }
 
         var elseExpr: ExprID?
         if matches(.keyword(.else)) {
             _ = consume()
-            elseExpr = parseExpression(minPrecedence: 0)
+            elseExpr = parseControlFlowBodyExpression()
         }
 
         let end = elseExpr
@@ -556,7 +588,7 @@ extension BuildASTPhase.ExpressionParser {
         guard let tryToken = consume() else {
             return nil
         }
-        guard let bodyExpr = parseExpression(minPrecedence: 0) else {
+        guard let bodyExpr = parseControlFlowBodyExpression() else {
             return nil
         }
 
@@ -564,7 +596,7 @@ extension BuildASTPhase.ExpressionParser {
         while matches(.keyword(.catch)) {
             let catchToken = consume()!
             let (paramName, paramTypeName) = parseCatchParameter()
-            if let catchExpr = parseExpression(minPrecedence: 0) {
+            if let catchExpr = parseControlFlowBodyExpression() {
                 let clauseEnd = astArena.exprRange(catchExpr)?.end ?? catchToken.range.end
                 let clauseRange = SourceRange(start: catchToken.range.start, end: clauseEnd)
                 catchClauses.append(CatchClause(paramName: paramName, paramTypeName: paramTypeName, body: catchExpr, range: clauseRange))
@@ -576,7 +608,7 @@ extension BuildASTPhase.ExpressionParser {
         var finallyExpr: ExprID?
         if matches(.keyword(.finally)) {
             _ = consume()
-            finallyExpr = parseExpression(minPrecedence: 0)
+            finallyExpr = parseControlFlowBodyExpression()
         }
 
         let tailEnd = finallyExpr

@@ -1,8 +1,6 @@
 import Foundation
 
 extension CallLowerer {
-    private static let coroutineHandleMemberNames: Set<String> = ["await", "join", "cancel"]
-
     // swiftlint:disable:next cyclomatic_complexity
     func lowerSafeMemberCallExpr(
         _ exprID: ExprID,
@@ -147,12 +145,14 @@ extension CallLowerer {
         }
 
         // Int.countOneBits() / countLeadingZeroBits() / countTrailingZeroBits() (STDLIB-501)
+        // STDLIB-BIT-007: Additional bit manipulation functions
         // NOTE: This bit-count lowering logic is intentionally duplicated in
         // CallLowerer+MemberCalls.swift for the non-safe-call path.
         // Keep the callee-name -> runtime-name mapping in sync.
         if args.isEmpty {
             let calleeStr = interner.resolve(effectiveCalleeName)
-            if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" {
+            if calleeStr == "countOneBits" || calleeStr == "countLeadingZeroBits" || calleeStr == "countTrailingZeroBits" ||
+               calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
                 let intType = sema.types.intType
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -162,7 +162,11 @@ extension CallLowerer {
                     case "countOneBits": runtimeName = "kk_int_countOneBits"
                     case "countLeadingZeroBits": runtimeName = "kk_int_countLeadingZeroBits"
                     case "countTrailingZeroBits": runtimeName = "kk_int_countTrailingZeroBits"
-                    default: fatalError("unreachable: calleeStr already guarded to countOneBits|countLeadingZeroBits|countTrailingZeroBits")
+                    case "highestOneBit": runtimeName = "kk_int_highestOneBit"
+                    case "lowestOneBit": runtimeName = "kk_int_lowestOneBit"
+                    case "takeHighestOneBit": runtimeName = "kk_int_takeHighestOneBit"
+                    case "takeLowestOneBit": runtimeName = "kk_int_takeLowestOneBit"
+                    default: fatalError("unreachable: calleeStr already guarded to bit operation functions")
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -177,7 +181,91 @@ extension CallLowerer {
             }
         }
 
-        // Primitive infix member functions: Int/Long/UInt/ULong.and|or|xor|shl|shr|ushr (EXPR-003, TYPE-005)
+        // Int.rotateLeft() / rotateRight() (STDLIB-BIT-007)
+        if args.count == 1 {
+            let calleeStr = interner.resolve(effectiveCalleeName)
+            if calleeStr == "rotateLeft" || calleeStr == "rotateRight" {
+                let intType = sema.types.intType
+                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+                if nonNullReceiverType == intType {
+                    let runtimeName: String
+                    switch calleeStr {
+                    case "rotateLeft": runtimeName = "kk_int_rotateLeft"
+                    case "rotateRight": runtimeName = "kk_int_rotateRight"
+                    default: fatalError("unreachable: calleeStr already guarded to rotate functions")
+                    }
+                    let loweredArgID = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeName),
+                        arguments: [loweredReceiverID, loweredArgID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+        }
+
+        // Long bit manipulation functions (STDLIB-BIT-007)
+        let longType = sema.types.longType
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+
+        if nonNullReceiverType == longType {
+            let calleeStr = interner.resolve(effectiveCalleeName)
+
+            // Zero-argument functions
+            if args.isEmpty {
+                let runtimeName: String?
+                switch calleeStr {
+                case "highestOneBit": runtimeName = "kk_long_highestOneBit"
+                case "lowestOneBit": runtimeName = "kk_long_lowestOneBit"
+                case "takeHighestOneBit": runtimeName = "kk_long_takeHighestOneBit"
+                case "takeLowestOneBit": runtimeName = "kk_long_takeLowestOneBit"
+                default: runtimeName = nil
+                }
+
+                if let name = runtimeName {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(name),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+
+            // Single-argument functions (rotate)
+            if args.count == 1 {
+                let runtimeName: String?
+                switch calleeStr {
+                case "rotateLeft": runtimeName = "kk_long_rotateLeft"
+                case "rotateRight": runtimeName = "kk_long_rotateRight"
+                default: runtimeName = nil
+                }
+
+                if let name = runtimeName {
+                    let loweredArgID = driver.lowerExpr(args[0].expr, shared: shared, emit: &instructions)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(name),
+                        arguments: [loweredReceiverID, loweredArgID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+        }
+
+        // Primitive arithmetic/infix member functions on numeric receivers.
         if args.count == 1 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -189,6 +277,16 @@ extension CallLowerer {
                 let rhsType = sema.types.makeNonNullable(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType)
                 let isIntegerRhs = rhsType == intType || rhsType == longType || rhsType == uintType || rhsType == ulongType
                 let primitiveCallee: InternedString? = switch interner.resolve(effectiveCalleeName) {
+                case "plus":
+                    interner.intern("kk_op_add")
+                case "minus":
+                    interner.intern("kk_op_sub")
+                case "times":
+                    interner.intern("kk_op_mul")
+                case "div":
+                    interner.intern("kk_op_div")
+                case "rem", "mod":
+                    interner.intern("kk_op_mod")
                 case "and":
                     isIntegerRhs ? interner.intern("kk_bitwise_and") : nil
                 case "or":
@@ -263,20 +361,9 @@ extension CallLowerer {
         default:
             nonNullAnyFallbackReceiverType == sema.types.anyType
         }
-        func anyFallbackTag(for type: TypeID) -> Int64 {
-            switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
-            case .primitive(.boolean, _):
-                2
-            case .primitive(.string, _):
-                3
-            default:
-                1
-            }
-        }
-
         // Any.toString(): String — no-arg fallback via kk_any_to_string (STDLIB-306)
         if args.isEmpty, interner.resolve(effectiveCalleeName) == "toString", allowsAnyFallback {
-            let tag = anyFallbackTag(for: anyFallbackReceiverType)
+            let tag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let callLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
@@ -311,7 +398,7 @@ extension CallLowerer {
             instructions.append(.copy(from: nullExpr, to: result))
             instructions.append(.jump(endLabel))
             instructions.append(.label(callLabel))
-            let receiverTag = anyFallbackTag(for: anyFallbackReceiverType)
+            let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             instructions.append(.call(
@@ -337,9 +424,9 @@ extension CallLowerer {
             instructions.append(.copy(from: nullExpr, to: result))
             instructions.append(.jump(endLabel))
             instructions.append(.label(callLabel))
-            let receiverTag = anyFallbackTag(for: anyFallbackReceiverType)
+            let receiverTag = anyFallbackTag(for: anyFallbackReceiverType, sema: sema)
             let argType = sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
-            let argTag = anyFallbackTag(for: argType)
+            let argTag = anyFallbackTag(for: argType, sema: sema)
             let receiverTagID = arena.appendExpr(.intLiteral(receiverTag), type: intType)
             instructions.append(.constValue(result: receiverTagID, value: .intLiteral(receiverTag)))
             let argTagID = arena.appendExpr(.intLiteral(argTag), type: intType)
@@ -411,6 +498,24 @@ extension CallLowerer {
             if calleeStr == "coerceAtLeast" || calleeStr == "coerceAtMost" {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
+                    // Check if this is range-based coercion (single range argument)
+                    if args.count == 1 {
+                        let argExprID = args[0].expr
+                        if sema.bindings.isRangeExpr(argExprID) {
+                            // Use range-based coercion functions
+                            let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast_range" : "_coerceAtMost_range"
+                            instructions.append(.call(
+                                symbol: nil,
+                                callee: interner.intern(prefix + suffix),
+                                arguments: [loweredReceiverID, loweredArgIDs[0]],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            return result
+                        }
+                    }
+                    // Fallback to single-value coercion
                     let suffix = calleeStr == "coerceAtLeast" ? "_coerceAtLeast" : "_coerceAtMost"
                     instructions.append(.call(
                         symbol: nil,
@@ -431,6 +536,9 @@ extension CallLowerer {
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let uintType = sema.types.make(.primitive(.uint, .nonNull))
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
+            let ubyteType = sema.types.ubyteType
+            let ushortType = sema.types.ushortType
+            let charType = sema.types.charType
             let floatType = sema.types.make(.primitive(.float, .nonNull))
             let doubleType = sema.types.make(.primitive(.double, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
@@ -441,20 +549,32 @@ extension CallLowerer {
             let conversionCallee: InternedString? = switch (calleeStr, nonNullReceiverType, nonNullResultType) {
             case ("toInt", uintType, intType): interner.intern("kk_uint_to_int")
             case ("toInt", ulongType, intType): interner.intern("kk_ulong_to_int")
+            case ("toInt", ubyteType, intType): interner.intern("kk_ubyte_to_int")
+            case ("toInt", ushortType, intType): interner.intern("kk_ushort_to_int")
             case ("toInt", doubleType, intType): interner.intern("kk_double_to_int")
             case ("toInt", floatType, intType): interner.intern("kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
+            case ("toInt", charType, intType): interner.intern("kk_char_to_int")
             case ("toInt", intType, intType): nil // identity
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
+            case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
+            case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
+            case ("toUInt", charType, uintType): interner.intern("kk_char_to_uint")
             case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
+            case ("toLong", ubyteType, longType): interner.intern("kk_ubyte_to_long")
+            case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
             case ("toLong", doubleType, longType): interner.intern("kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("kk_float_to_long")
+            case ("toLong", charType, longType): interner.intern("kk_char_to_long")
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
             case ("toULong", intType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", longType, ulongType): interner.intern("kk_long_to_ulong")
+            case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
+            case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
+            case ("toULong", charType, ulongType): interner.intern("kk_char_to_ulong")
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
             case ("toULong", ulongType, ulongType): nil // identity
             case ("toFloat", intType, floatType): interner.intern("kk_int_to_float")
@@ -469,6 +589,23 @@ extension CallLowerer {
             case ("toByte", longType, intType): interner.intern("kk_long_to_byte")
             case ("toShort", intType, intType): interner.intern("kk_int_to_short")
             case ("toShort", longType, intType): interner.intern("kk_long_to_short")
+            case ("toUByte", intType, ubyteType): interner.intern("kk_int_to_ubyte")
+            case ("toUByte", longType, ubyteType): interner.intern("kk_long_to_ubyte")
+            case ("toUByte", uintType, ubyteType): interner.intern("kk_uint_to_ubyte")
+            case ("toUByte", ulongType, ubyteType): interner.intern("kk_ulong_to_ubyte")
+            case ("toUByte", ubyteType, ubyteType): nil // identity
+            case ("toUShort", intType, ushortType): interner.intern("kk_int_to_ushort")
+            case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
+            case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
+            case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
+            case ("toUShort", ushortType, ushortType): nil // identity
+            case ("toChar", intType, charType): interner.intern("kk_int_to_char")
+            case ("toChar", longType, charType): interner.intern("kk_long_to_char")
+            case ("toChar", uintType, charType): interner.intern("kk_uint_to_char")
+            case ("toChar", ulongType, charType): interner.intern("kk_ulong_to_char")
+            case ("toChar", ubyteType, charType): interner.intern("kk_ubyte_to_char")
+            case ("toChar", ushortType, charType): interner.intern("kk_ushort_to_char")
+            case ("toChar", charType, charType): nil // identity
             default: nil
             }
             if let callee = conversionCallee {
@@ -513,7 +650,7 @@ extension CallLowerer {
             finalArguments.insert(loweredReceiverID, at: 0)
         } else if chosen == nil {
             let calleeStr = interner.resolve(effectiveCalleeName)
-            if Self.coroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver, args.isEmpty {
+            if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver, args.isEmpty {
                 finalArguments.insert(loweredReceiverID, at: 0)
             }
         }

@@ -62,6 +62,32 @@ extension DataFlowSemaPhase {
             if classDecl.modifiers.contains(.value) {
                 classFlags.insert(.valueType)
             }
+            
+            // STDLIB-CLASS-010: Check for conflicting modifiers
+            if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ABSTRACT",
+                    "Class cannot be both 'abstract' and 'final'.",
+                    range: classDecl.range
+                )
+            }
+            if classDecl.modifiers.contains(.sealed) && classDecl.modifiers.contains(.final) {
+                diagnostics.error(
+                    "KSWIFTK-SEMA-ABSTRACT",
+                    "Class cannot be both 'sealed' and 'final'.",
+                    range: classDecl.range
+                )
+            }
+            
+            // STDLIB-CLASS-010: Abstract classes are implicitly open
+            if classDecl.modifiers.contains(.abstract) {
+                classFlags.insert(.openType)
+            }
+            // STDLIB-CLASS-010: Sealed classes are implicitly abstract
+            if classDecl.modifiers.contains(.sealed) {
+                classFlags.insert(.abstractType)
+                classFlags.insert(.openType)
+            }
             declaration = (
                 kind: classSymbolKind(for: classDecl),
                 name: classDecl.name,
@@ -252,7 +278,8 @@ extension DataFlowSemaPhase {
                             valueParameterSymbols: params.paramSymbols,
                             valueParameterHasDefaultValues: params.paramHasDefaultValues,
                             valueParameterIsVararg: params.paramIsVararg,
-                            typeParameterSymbols: classTypeParamSymbols
+                            typeParameterSymbols: classTypeParamSymbols,
+                            classTypeParameterCount: classTypeParamSymbols.count
                         ),
                         for: primaryCtorSymbol
                     )
@@ -289,7 +316,8 @@ extension DataFlowSemaPhase {
                         valueParameterSymbols: params.paramSymbols,
                         valueParameterHasDefaultValues: params.paramHasDefaultValues,
                         valueParameterIsVararg: params.paramIsVararg,
-                        typeParameterSymbols: classTypeParamSymbols
+                        typeParameterSymbols: classTypeParamSymbols,
+                        classTypeParameterCount: classTypeParamSymbols.count
                     ),
                     for: secCtorSymbol
                 )

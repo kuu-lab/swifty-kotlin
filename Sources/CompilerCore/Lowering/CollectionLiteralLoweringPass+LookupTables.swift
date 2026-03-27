@@ -8,6 +8,7 @@ struct CollectionLiteralLookupTables {
     let emptyListName: InternedString
     let listOfNotNullName: InternedString
     let arrayOfName: InternedString
+    let emptyArrayName: InternedString
     let intArrayOfName: InternedString
     let longArrayOfName: InternedString
     let doubleArrayOfName: InternedString
@@ -32,6 +33,7 @@ struct CollectionLiteralLookupTables {
     let kkListOfName: InternedString
     let kkListOfNotNullName: InternedString
     let kkEmptyListName: InternedString
+    let kkEmptyArrayName: InternedString
     let kkEmptySetName: InternedString
     let kkEmptyMapName: InternedString
     let kkListSizeName: InternedString
@@ -325,6 +327,27 @@ struct CollectionLiteralLookupTables {
     let kkRangeToListName: InternedString
     let kkRangeForEachName: InternedString
     let kkRangeMapName: InternedString
+    let kkRangeMapIndexedName: InternedString
+    let kkRangeMapNotNullName: InternedString
+    let kkRangeFilterName: InternedString
+    let kkRangeFilterIndexedName: InternedString
+    let kkRangeFilterNotName: InternedString
+    let kkRangeReduceName: InternedString
+    let kkRangeReduceIndexedName: InternedString
+    let kkRangeFoldName: InternedString
+    let kkRangeFoldIndexedName: InternedString
+    let kkRangeFindName: InternedString
+    let kkRangeFindLastName: InternedString
+    let kkRangeFirstPredicateName: InternedString
+    let kkRangeFirstOrNullPredicateName: InternedString
+    let kkRangeLastPredicateName: InternedString
+    let kkRangeLastOrNullPredicateName: InternedString
+    let kkRangeAnyName: InternedString
+    let kkRangeAllName: InternedString
+    let kkRangeNoneName: InternedString
+    let kkRangeChunkedName: InternedString
+    let kkRangeWindowedName: InternedString
+    let kkRangeStepName: InternedString
     let kkRangeReversedName: InternedString
     let kkRangeIsEmptyName: InternedString
     let kkRangeSumName: InternedString
@@ -338,10 +361,16 @@ struct CollectionLiteralLookupTables {
     let kkCharRangeToListName: InternedString
     let kkCharRangeForEachName: InternedString
 
-    // ULongRange (STDLIB-524)
+    // ULongRange (STDLIB-524, STDLIB-RANGE-037)
     let kkULongRangeToListName: InternedString
+    let kkULongRangeContainsName: InternedString
+    let kkULongRangeFirstName: InternedString
+    let kkULongRangeLastName: InternedString
+    let kkULongRangeStepName: InternedString
+    let kkULongRangeIsEmptyName: InternedString
+    let kkULongRangeReversedName: InternedString
+    let kkULongRangeToULongArrayName: InternedString
 
-    // Member names
     let sizeName: InternedString
     let getName: InternedString
     let containsName: InternedString
@@ -352,6 +381,9 @@ struct CollectionLiteralLookupTables {
     let countName: InternedString
     let addName: InternedString
     let removeName: InternedString
+    let firstName: InternedString
+    let lastName: InternedString
+    let stepName: InternedString
 
     // ListIterator member names (STDLIB-538)
     let listIteratorMemberName: InternedString
@@ -361,6 +393,7 @@ struct CollectionLiteralLookupTables {
     // Higher-order collection member names (FUNC-003)
     let mapName: InternedString
     let filterName: InternedString
+    let filterNotName: InternedString
     let mapNotNullName: InternedString
     let filterNotNullName: InternedString
     let forEachName: InternedString
@@ -380,6 +413,7 @@ struct CollectionLiteralLookupTables {
     let groupByName: InternedString
     let sortedByName: InternedString
     let findName: InternedString
+    let findLastName: InternedString
     let associateByName: InternedString
     let associateWithName: InternedString
     let associateName: InternedString
@@ -428,8 +462,6 @@ struct CollectionLiteralLookupTables {
     let distinctByName: InternedString
     let shuffledName: InternedString
     let flattenName: InternedString
-    let firstName: InternedString
-    let lastName: InternedString
     let indexOfName: InternedString
     let lastIndexOfName: InternedString
     let indexOfFirstName: InternedString
@@ -444,6 +476,8 @@ struct CollectionLiteralLookupTables {
     let dropWhileName: InternedString
     let takeLastWhileName: InternedString
     let dropLastWhileName: InternedString
+    let firstOrNullName: InternedString
+    let lastOrNullName: InternedString
 
     // Array member names (STDLIB-087/088/089)
     let toMutableListName: InternedString
@@ -459,6 +493,7 @@ struct CollectionLiteralLookupTables {
     // Sequence member names (STDLIB-003)
     let asSequenceName: InternedString
     let toListName: InternedString
+    let toULongArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
@@ -467,6 +502,7 @@ struct CollectionLiteralLookupTables {
     let iteratorBuilderFQName: [InternedString]
     // FQN arrays for stdlib collection factory functions (STDLIB-410)
     let emptyListFQName: [InternedString]
+    let emptyArrayFQName: [InternedString]
     let emptySetFQName: [InternedString]
     let emptyMapFQName: [InternedString]
     let listOfFQName: [InternedString]
@@ -590,6 +626,7 @@ struct CollectionLiteralLookupTables {
         emptyListName = interner.intern("emptyList")
         listOfNotNullName = interner.intern("listOfNotNull")
         arrayOfName = interner.intern("arrayOf")
+        emptyArrayName = interner.intern("emptyArray")
         intArrayOfName = interner.intern("intArrayOf")
         longArrayOfName = interner.intern("longArrayOf")
         doubleArrayOfName = interner.intern("doubleArrayOf")
@@ -612,6 +649,7 @@ struct CollectionLiteralLookupTables {
         kkListOfName = interner.intern("kk_list_of")
         kkListOfNotNullName = interner.intern("kk_list_of_not_null")
         kkEmptyListName = interner.intern("kk_emptyList")
+        kkEmptyArrayName = interner.intern("kk_empty_array")
         kkEmptySetName = interner.intern("kk_emptySet")
         kkEmptyMapName = interner.intern("kk_emptyMap")
         kkListSizeName = interner.intern("kk_list_size")
@@ -893,6 +931,27 @@ struct CollectionLiteralLookupTables {
         kkRangeToListName = interner.intern("kk_range_toList")
         kkRangeForEachName = interner.intern("kk_range_forEach")
         kkRangeMapName = interner.intern("kk_range_map")
+        kkRangeMapIndexedName = interner.intern("kk_range_mapIndexed")
+        kkRangeMapNotNullName = interner.intern("kk_range_mapNotNull")
+        kkRangeFilterName = interner.intern("kk_range_filter")
+        kkRangeFilterIndexedName = interner.intern("kk_range_filterIndexed")
+        kkRangeFilterNotName = interner.intern("kk_range_filterNot")
+        kkRangeReduceName = interner.intern("kk_range_reduce")
+        kkRangeReduceIndexedName = interner.intern("kk_range_reduceIndexed")
+        kkRangeFoldName = interner.intern("kk_range_fold")
+        kkRangeFoldIndexedName = interner.intern("kk_range_foldIndexed")
+        kkRangeFindName = interner.intern("kk_range_find")
+        kkRangeFindLastName = interner.intern("kk_range_findLast")
+        kkRangeFirstPredicateName = interner.intern("kk_range_first_predicate")
+        kkRangeFirstOrNullPredicateName = interner.intern("kk_range_firstOrNull_predicate")
+        kkRangeLastPredicateName = interner.intern("kk_range_last_predicate")
+        kkRangeLastOrNullPredicateName = interner.intern("kk_range_lastOrNull_predicate")
+        kkRangeAnyName = interner.intern("kk_range_any")
+        kkRangeAllName = interner.intern("kk_range_all")
+        kkRangeNoneName = interner.intern("kk_range_none")
+        kkRangeChunkedName = interner.intern("kk_range_chunked")
+        kkRangeWindowedName = interner.intern("kk_range_windowed")
+        kkRangeStepName = interner.intern("kk_range_step")
         kkRangeReversedName = interner.intern("kk_range_reversed")
         kkRangeIsEmptyName = interner.intern("kk_range_isEmpty")
         kkRangeSumName = interner.intern("kk_range_sum")
@@ -905,8 +964,15 @@ struct CollectionLiteralLookupTables {
         kkCharRangeToListName = interner.intern("kk_char_range_toList")
         kkCharRangeForEachName = interner.intern("kk_char_range_forEach")
 
-        // ULongRange (STDLIB-524)
+        // ULongRange (STDLIB-524, STDLIB-RANGE-037)
         kkULongRangeToListName = interner.intern("kk_ulong_range_toList")
+        kkULongRangeContainsName = interner.intern("kk_ulong_range_contains")
+        kkULongRangeFirstName = interner.intern("kk_ulong_range_first")
+        kkULongRangeLastName = interner.intern("kk_ulong_range_last")
+        kkULongRangeStepName = interner.intern("kk_ulong_range_step")
+        kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
+        kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
+        kkULongRangeToULongArrayName = interner.intern("kk_ulong_range_toULongArray")
 
         sizeName = interner.intern("size")
         getName = interner.intern("get")
@@ -918,6 +984,9 @@ struct CollectionLiteralLookupTables {
         countName = interner.intern("count")
         addName = interner.intern("add")
         removeName = interner.intern("remove")
+        firstName = interner.intern("first")
+        lastName = interner.intern("last")
+        stepName = interner.intern("step")
 
         // ListIterator member names (STDLIB-538)
         listIteratorMemberName = interner.intern("listIterator")
@@ -926,6 +995,7 @@ struct CollectionLiteralLookupTables {
 
         mapName = interner.intern("map")
         filterName = interner.intern("filter")
+        filterNotName = interner.intern("filterNot")
         mapNotNullName = interner.intern("mapNotNull")
         filterNotNullName = interner.intern("filterNotNull")
         forEachName = interner.intern("forEach")
@@ -944,6 +1014,7 @@ struct CollectionLiteralLookupTables {
         groupByName = interner.intern("groupBy")
         sortedByName = interner.intern("sortedBy")
         findName = interner.intern("find")
+        findLastName = interner.intern("findLast")
         associateByName = interner.intern("associateBy")
         associateWithName = interner.intern("associateWith")
         associateName = interner.intern("associate")
@@ -992,8 +1063,6 @@ struct CollectionLiteralLookupTables {
         distinctByName = interner.intern("distinctBy")
         shuffledName = interner.intern("shuffled")
         flattenName = interner.intern("flatten")
-        firstName = interner.intern("first")
-        lastName = interner.intern("last")
         indexOfName = interner.intern("indexOf")
         lastIndexOfName = interner.intern("lastIndexOf")
         indexOfFirstName = interner.intern("indexOfFirst")
@@ -1008,6 +1077,8 @@ struct CollectionLiteralLookupTables {
         dropWhileName = interner.intern("dropWhile")
         takeLastWhileName = interner.intern("takeLastWhile")
         dropLastWhileName = interner.intern("dropLastWhile")
+        firstOrNullName = interner.intern("firstOrNull")
+        lastOrNullName = interner.intern("lastOrNull")
 
         toMutableListName = interner.intern("toMutableList")
         toTypedArrayName = interner.intern("toTypedArray")
@@ -1020,6 +1091,7 @@ struct CollectionLiteralLookupTables {
 
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
+        toULongArrayName = interner.intern("toULongArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")
@@ -1028,6 +1100,7 @@ struct CollectionLiteralLookupTables {
         iteratorBuilderFQName = [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("iterator")]
         let kotlinCollectionsPkg = [interner.intern("kotlin"), interner.intern("collections")]
         emptyListFQName = kotlinCollectionsPkg + [interner.intern("emptyList")]
+        emptyArrayFQName = [interner.intern("kotlin")] + [interner.intern("emptyArray")]
         emptySetFQName = kotlinCollectionsPkg + [interner.intern("emptySet")]
         emptyMapFQName = kotlinCollectionsPkg + [interner.intern("emptyMap")]
         listOfFQName = kotlinCollectionsPkg + [interner.intern("listOf")]
@@ -1134,7 +1207,7 @@ struct CollectionLiteralLookupTables {
         mutableListConstructorNames = [arrayListName]
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
-        arrayOfFactoryNames = [arrayOfName, intArrayOfName, longArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
+        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
         builderDSLNames = [buildStringName, buildListName, buildSetName, buildMapName]
 
         stringProducingCallees = [

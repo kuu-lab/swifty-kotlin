@@ -1,4 +1,3 @@
-// SKIP-DIFF: type parameter R in maxByOrNull/minByOrNull inferred as Any instead of selector return type
 fun main() {
     val words = listOf("a", "bbb", "cc")
     println(words.maxByOrNull { value: String -> value })

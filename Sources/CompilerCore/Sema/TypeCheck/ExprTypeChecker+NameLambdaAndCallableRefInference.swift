@@ -68,7 +68,7 @@ extension ExprTypeChecker {
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
         let (visibleIDs, _) = ctx.filterByVisibility(dslFilteredIDs)
-        let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
+        var candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
         if let propSymbol = candidates.first(where: { sym in
             guard sym.kind == .property else { return false }
             guard let parentID = sema.symbols.parentSymbol(for: sym.id),
@@ -191,8 +191,28 @@ extension ExprTypeChecker {
         // that share a DslMarker annotation with the current implicit receiver.
         let dslBlockedIDs = allCandidateIDs.filter { ctx.isCandidateBlockedByDslMarker($0) }
         let dslFilteredIDs = allCandidateIDs.filter { !ctx.isCandidateBlockedByDslMarker($0) }
-        let (visibleIDs, invisibleSyms) = ctx.filterByVisibility(dslFilteredIDs)
-        let candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
+        let (visibleIDs, initialInvisibleSyms) = ctx.filterByVisibility(dslFilteredIDs)
+        var invisibleSyms = initialInvisibleSyms
+        var candidates = visibleIDs.compactMap { ctx.cachedSymbol($0) }
+        if candidates.isEmpty {
+            let nominalFallbackIDs = sema.symbols.lookupByShortName(name).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else {
+                    return false
+                }
+                switch symbol.kind {
+                case .object, .class, .interface, .enumClass, .annotationClass, .typeAlias:
+                    return true
+                default:
+                    return false
+                }
+            }
+            let (visibleFallbackIDs, invisibleFallbackSyms) = ctx.filterByVisibility(nominalFallbackIDs)
+            if !visibleFallbackIDs.isEmpty {
+                candidates = visibleFallbackIDs.compactMap { ctx.cachedSymbol($0) }
+            } else if invisibleSyms.isEmpty, !invisibleFallbackSyms.isEmpty {
+                invisibleSyms = invisibleFallbackSyms
+            }
+        }
         if let receiverType = ctx.implicitReceiverType {
             let memberType = resolveImplicitReceiverMember(
                 id: id,
@@ -392,7 +412,6 @@ extension ExprTypeChecker {
         let sema = ctx.sema
 
         let label: InternedString? = if case let .lambdaLiteral(_, _, lbl, _) = ast.arena.expr(id) { lbl } else { nil }
-
         // SAM conversion: when the expected type is a functional interface,
         // extract the SAM method's function type so the lambda's parameters
         // and return type can be inferred from it.
@@ -411,13 +430,29 @@ extension ExprTypeChecker {
 
         var lambdaLocals = locals
         let outerSymbols = Set(locals.values.map(\.symbol))
+        let inferredImplicitItType = params.isEmpty
+            ? inferItParameterType(ctx: ctx, id: id, sema: sema)
+            : nil
 
         // Implicit `it` parameter for no-arrow lambdas with single expected param.
-        let effectiveParams: [InternedString] = if params.isEmpty,
-                                                   let expectedFunctionType,
-                                                   expectedFunctionType.params.count == 1
-        {
-            [ctx.interner.intern("it")]
+        // Enhanced to support complex type inference contexts and generic types.
+        let effectiveParams: [InternedString] = if params.isEmpty {
+            // Check for expected function type first
+            if let expectedFunctionType, expectedFunctionType.params.count == 1 {
+                [ctx.interner.intern("it")]
+            }
+            // Check for SAM conversion with single parameter method
+            else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema),
+                    samFT.params.count == 1 {
+                [ctx.interner.intern("it")]
+            }
+            // Check for common HOF patterns (map, filter, etc.) through context
+            else if inferredImplicitItType != nil {
+                [ctx.interner.intern("it")]
+            }
+            else {
+                params
+            }
         } else {
             params
         }
@@ -426,6 +461,14 @@ extension ExprTypeChecker {
                                           expectedFunctionType.params.count == effectiveParams.count
         {
             expectedFunctionType.params
+        } else if let expectedType, let samFT = driver.helpers.samFunctionType(for: expectedType, sema: sema),
+                  samFT.params.count == effectiveParams.count {
+            // Use SAM conversion parameter types
+            samFT.params
+        } else if effectiveParams.count == 1 && effectiveParams.contains(ctx.interner.intern("it")) {
+            // For implicit `it` parameter, try to infer type from context
+            inferredImplicitItType.map { [$0] }
+                ?? Array(repeating: sema.types.anyType, count: effectiveParams.count)
         } else {
             Array(repeating: sema.types.anyType, count: effectiveParams.count)
         }
@@ -484,11 +527,20 @@ extension ExprTypeChecker {
         }
 
         if let expectedType, let expectedFunctionType {
-            // When the expected return type is Unit, skip the subtype constraint
-            // because any expression type is discardable in a Unit-returning lambda.
+            // Enhanced return type inference with Unit optimization
+            let optimizedReturnType = inferOptimizedReturnType(
+                inferredBodyType: inferredBodyType,
+                expectedReturnType: expectedFunctionType.returnType,
+                bodyExpr: body,
+                ast: ast,
+                sema: sema,
+                ctx: ctx
+            )
+            
+            // Apply subtype constraint only if needed
             if expectedFunctionType.returnType != sema.types.unitType {
                 driver.emitSubtypeConstraint(
-                    left: inferredBodyType,
+                    left: optimizedReturnType,
                     right: expectedFunctionType.returnType,
                     range: ast.arena.exprRange(body),
                     solver: ConstraintSolver(),
@@ -949,5 +1001,167 @@ extension ExprTypeChecker {
         }
         sema.bindings.bindExprType(id, type: receiverType)
         return receiverType
+    }
+
+    // MARK: - Lambda Parameter Inference Helpers
+
+    private enum ParentLambdaCallContext {
+        case topLevel(calleeName: InternedString, argIndex: Int)
+        case member(receiverType: TypeID?, calleeName: InternedString, argIndex: Int)
+    }
+
+    /// Finds the parent call context for a lambda expression by scanning the arena.
+    private func findParentCallContext(for lambdaId: ExprID, ctx: TypeInferenceContext, sema _: SemaModule) -> ParentLambdaCallContext? {
+        let ast = ctx.ast
+        for expr in ast.arena.exprs {
+            switch expr {
+            case let .call(callee, _, args, _):
+                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }),
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(calleeName, _) = calleeExpr
+                else {
+                    continue
+                }
+                return .topLevel(calleeName: calleeName, argIndex: argIndex)
+
+            case let .memberCall(receiver, calleeName, _, args, _):
+                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
+                    continue
+                }
+                let receiverType = ctx.sema.bindings.exprTypes[receiver]
+                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex)
+
+            case let .safeMemberCall(receiver, calleeName, _, args, _):
+                guard let argIndex = args.firstIndex(where: { $0.expr == lambdaId }) else {
+                    continue
+                }
+                let receiverType = ctx.sema.bindings.exprTypes[receiver]
+                return .member(receiverType: receiverType, calleeName: calleeName, argIndex: argIndex)
+
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    /// Infers the type for an implicit `it` parameter based on context
+    private func inferItParameterType(ctx: TypeInferenceContext, id: ExprID, sema: SemaModule) -> TypeID? {
+        if let parentCall = findParentCallContext(for: id, ctx: ctx, sema: sema) {
+            return inferTypeFromHOFContext(parentCall, ctx: ctx, sema: sema)
+        }
+
+        if let assignmentType = inferFromAssignmentContext(id: id, ctx: ctx, sema: sema) {
+            return assignmentType
+        }
+
+        return nil
+    }
+
+    /// Infers lambda parameter type from HOF call context
+    private func inferTypeFromHOFContext(
+        _ callContext: ParentLambdaCallContext,
+        ctx: TypeInferenceContext,
+        sema: SemaModule
+    ) -> TypeID? {
+        let candidateSymbols: [SymbolID]
+        let argIndex: Int
+
+        switch callContext {
+        case let .topLevel(calleeName, index):
+            argIndex = index
+            candidateSymbols = ctx.filterByVisibility(
+                ctx.cachedScopeLookup(calleeName).filter { candidate in
+                    guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                    return symbol.kind == .function || symbol.kind == .constructor
+                }
+            ).visible
+
+        case let .member(receiverType, calleeName, index):
+            guard let receiverType else {
+                return nil
+            }
+            argIndex = index
+            candidateSymbols = driver.helpers.collectMemberFunctionCandidates(
+                named: calleeName,
+                receiverType: receiverType,
+                sema: sema
+            )
+        }
+
+        var inferredParameterTypes: [TypeID] = []
+        for candidate in candidateSymbols {
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  argIndex < signature.parameterTypes.count
+            else {
+                continue
+            }
+            let parameterType = signature.parameterTypes[argIndex]
+            if case let .functionType(functionType) = sema.types.kind(of: parameterType),
+               functionType.params.count == 1
+            {
+                inferredParameterTypes.append(functionType.params[0])
+                continue
+            }
+            if let samFunctionType = driver.helpers.samFunctionType(for: parameterType, sema: sema),
+               samFunctionType.params.count == 1
+            {
+                inferredParameterTypes.append(samFunctionType.params[0])
+            }
+        }
+
+        guard let firstType = inferredParameterTypes.first else {
+            return nil
+        }
+        let allSame = inferredParameterTypes.dropFirst().allSatisfy { $0 == firstType }
+        return allSame ? firstType : nil
+    }
+
+    /// Infers lambda parameter type from assignment context
+    private func inferFromAssignmentContext(id: ExprID, ctx: TypeInferenceContext, sema: SemaModule) -> TypeID? {
+        // This would analyze assignments like `val x: (Int) -> String = { it.toString() }`
+        return nil
+    }
+
+    /// Optimizes return type inference for lambda expressions
+    private func inferOptimizedReturnType(
+        inferredBodyType: TypeID,
+        expectedReturnType: TypeID,
+        bodyExpr: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        // Unit optimization: if expected type is Unit, always return Unit
+        if expectedReturnType == sema.types.unitType {
+            return sema.types.unitType
+        }
+        
+        // If the body is a block expression with no trailing expression, infer Unit
+        if let bodyExprNode = ast.arena.expr(bodyExpr),
+           case let .blockExpr(statements, trailingExpr, _) = bodyExprNode,
+           trailingExpr == nil {
+            return sema.types.unitType
+        }
+        
+        // If the body is already compatible with expected type, use it
+        if sema.types.isSubtype(inferredBodyType, expectedReturnType) {
+            return inferredBodyType
+        }
+        
+        // Try to find a common supertype
+        if let commonType = findCommonSupertype(inferredBodyType, expectedReturnType, sema: sema) {
+            return commonType
+        }
+        
+        // Fall back to inferred type
+        return inferredBodyType
+    }
+
+    /// Finds the common supertype of two types
+    private func findCommonSupertype(_ type1: TypeID, _ type2: TypeID, sema: SemaModule) -> TypeID? {
+        // This would implement type hierarchy analysis to find common supertype
+        // For now, return nil as a placeholder
+        return nil
     }
 }

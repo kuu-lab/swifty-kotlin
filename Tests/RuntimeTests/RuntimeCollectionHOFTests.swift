@@ -49,6 +49,11 @@ private let filterGreaterThanOne: @convention(c) (Int, Int, UnsafeMutablePointer
     value > 1 ? 1 : 0
 }
 
+// Helper function to extract string value from runtime handle
+private func runtimeStringValue(_ raw: Int) -> String {
+    extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+}
+
 private let flatMapPair: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     let array = kk_array_new(2)
     var thrown = 0
@@ -131,6 +136,8 @@ private let sortedByTens: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) 
 }
 
 private let sortBySelfStringValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    // Return the string value itself for comparison
+    // The sort function will use runtimeCompareValues to compare these values
     value
 }
 
@@ -235,12 +242,57 @@ final class RuntimeCollectionHOFTests: XCTestCase {
     }
 
     func testMutableListSortByStringKeyMutatesInPlace() {
-        let source = makeList([makeRuntimeStringRaw("b"), makeRuntimeStringRaw("a"), makeRuntimeStringRaw("c")])
+        // Use different string values to ensure different handles for proper sorting
+        let strA = makeRuntimeStringRaw("a")
+        let strB = makeRuntimeStringRaw("b") 
+        let strC = makeRuntimeStringRaw("c")
+        let source = makeList([strB, strA, strC])
         _ = kk_mutable_list_sortBy(source, unsafeBitCast(sortBySelfStringValue, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
         XCTAssertEqual(listElements(source).map(runtimeStringValue), ["a", "b", "c"])
 
         _ = kk_mutable_list_sortByDescending(source, unsafeBitCast(sortBySelfStringValue, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
         XCTAssertEqual(listElements(source).map(runtimeStringValue), ["c", "b", "a"])
+    }
+
+    func testMutableListShuffleAndReverse() {
+        // Test shuffle
+        let source = makeList([1, 2, 3, 4, 5])
+        let originalElements = listElements(source)
+        
+        _ = kk_mutable_list_shuffle(source)
+        let shuffledElements = listElements(source)
+        
+        // Should have same elements but different order (most likely)
+        XCTAssertEqual(shuffledElements.count, originalElements.count)
+        XCTAssertEqual(Set(shuffledElements), Set(originalElements))
+        
+        // Test reverse
+        _ = kk_mutable_list_reverse(source)
+        let reversedElements = listElements(source)
+        
+        // Should be the reverse of shuffled
+        XCTAssertEqual(reversedElements, shuffledElements.reversed())
+        
+        // Test with empty list
+        let emptyList = makeList([])
+        _ = kk_mutable_list_shuffle(emptyList)
+        XCTAssertEqual(listElements(emptyList), [])
+        
+        _ = kk_mutable_list_reverse(emptyList)
+        XCTAssertEqual(listElements(emptyList), [])
+        
+        // Test with single element
+        let singleList = makeList([42])
+        _ = kk_mutable_list_shuffle(singleList)
+        XCTAssertEqual(listElements(singleList), [42])
+        
+        _ = kk_mutable_list_reverse(singleList)
+        XCTAssertEqual(listElements(singleList), [42])
+        
+        // Test with duplicate elements
+        let duplicateList = makeList([5, 2, 5, 2, 5])
+        _ = kk_mutable_list_reverse(duplicateList)
+        XCTAssertEqual(listElements(duplicateList), [5, 2, 5, 2, 5].reversed())
     }
 
     func testAnyAllNoneShortCircuitAndNoArgOverloads() {
@@ -276,16 +328,15 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(kk_list_find(source, unsafeBitCast(firstGreaterThanTwo, to: Int.self), 0, nil), 3)
 
         var thrown = 0
-        XCTAssertEqual(kk_list_reduce(makeList([]), unsafeBitCast(foldSum, to: Int.self), 0, &thrown), 0)
+        XCTAssertEqual(kk_list_reduce(makeList([]), unsafeBitCast(foldSum, to: Int.self), 0, &thrown), runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_list_first(makeList([]), 0, 0, &thrown), 0)
+        XCTAssertEqual(kk_list_first(makeList([]), 0, 0, &thrown), runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_list_last(makeList([]), 0, 0, &thrown), 0)
-        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(kk_list_last(makeList([]), 0, 0, &thrown), runtimeExceptionCaughtSentinel)
     }
 
     func testGroupByPreservesKeyAndBucketOrder() {
@@ -399,7 +450,7 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         let result = kk_mutable_map_getOrPut(map, 1, unsafeBitCast(throwForGetOrPut, to: Int.self), 0, &thrown)
 
         XCTAssertEqual(gHOFState.callsSnapshot(), 1)
-        XCTAssertEqual(result, 0)
+        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
         XCTAssertEqual(kk_map_get(map, 1), runtimeNullSentinelInt)
     }
@@ -450,7 +501,7 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         let emptyList = makeList([])
         var thrown = 0
         let result = kk_list_reduceOrNull(emptyList, unsafeBitCast(foldSum, to: Int.self), 0, &thrown)
-        XCTAssertEqual(result, 0, "reduceOrNull should return 0 (null) for empty list")
+        XCTAssertEqual(result, runtimeNullSentinelInt, "reduceOrNull should return runtimeNullSentinelInt (null) for empty list")
         XCTAssertEqual(thrown, 0, "reduceOrNull should not set outThrown for empty list")
     }
 
@@ -516,10 +567,6 @@ final class RuntimeCollectionHOFTests: XCTestCase {
                 Int(bitPattern: kk_string_from_utf8(ptr, Int32(value.utf8.count)))
             }
         }
-    }
-
-    private func runtimeStringValue(_ raw: Int) -> String {
-        extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
     // MARK: - associateByTo / associateWithTo / groupByTo tests

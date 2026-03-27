@@ -15,6 +15,49 @@ final class LambdaLowerer {
         self.driver = driver
     }
 
+    private func normalizeHOFPrimitiveParameter(
+        _ exprID: KIRExprID,
+        type: TypeID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let unboxCallee: String? = switch sema.types.kind(of: type) {
+        case .primitive(.int, .nonNull),
+             .primitive(.uint, .nonNull), .primitive(.ushort, .nonNull), .primitive(.ubyte, .nonNull):
+            "kk_unbox_int"
+        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
+            "kk_unbox_long"
+        case .primitive(.boolean, .nonNull):
+            "kk_unbox_bool"
+        case .primitive(.char, .nonNull):
+            "kk_unbox_char"
+        case .primitive(.float, .nonNull):
+            "kk_unbox_float"
+        case .primitive(.double, .nonNull):
+            "kk_unbox_double"
+        default:
+            nil
+        }
+        guard let unboxCallee else {
+            return exprID
+        }
+        let normalizedExpr = arena.appendExpr(
+            .temporary(Int32(clamping: arena.expressions.count)),
+            type: type
+        )
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(unboxCallee),
+            arguments: [exprID],
+            result: normalizedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return normalizedExpr
+    }
+
     func lowerLambdaLiteralExpr(
         _ exprID: ExprID,
         params: [InternedString],
@@ -59,29 +102,29 @@ final class LambdaLowerer {
             driver.ctx.syntheticLambdaSymbol(for: exprID)
         }
 
-        // Effective parameter count: when the AST has zero explicit params but
-        // the bound function type declares parameters (implicit `it`), use the
-        // function-type parameter count so that the generated KIR function
-        // receives the expected arguments.
-        // When the function type has a receiver and there is no active implicit
-        // receiver in the current scope (i.e. not inside `with`/`run`/`apply`),
-        // add a receiver parameter so inline expansion can pass it.
-        let hasReceiverParam = functionType?.receiver != nil && driver.ctx.activeImplicitReceiverExprID() == nil
+        // Enhanced receiver parameter handling for lambda with receiver types
+        let hasReceiverParam = functionType?.receiver != nil
         let effectiveParamCount: Int = {
             let baseCount: Int = if params.isEmpty, let functionType, !functionType.params.isEmpty {
                 functionType.params.count
             } else {
                 params.count
             }
-            return baseCount + (hasReceiverParam ? 1 : 0)
+            // For receiver lambdas (e.g., StringBuilder.() -> Unit), the receiver
+            // is implicitly passed as the first parameter, but only if there's no
+            // active implicit receiver in the current scope
+            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
+            return baseCount + (needsExplicitReceiver ? 1 : 0)
         }()
 
         let lambdaParameterTypes: [TypeID] = {
             var types: [TypeID] = []
-            if hasReceiverParam, let receiverType = functionType?.receiver {
+            // Add receiver parameter first if needed
+            let needsExplicitReceiver = hasReceiverParam && driver.ctx.activeImplicitReceiverExprID() == nil
+            if needsExplicitReceiver, let receiverType = functionType?.receiver {
                 types.append(receiverType)
             }
-            let valueParamCount = effectiveParamCount - (hasReceiverParam ? 1 : 0)
+            let valueParamCount = effectiveParamCount - (needsExplicitReceiver ? 1 : 0)
             for index in 0 ..< valueParamCount {
                 if let functionType, index < functionType.params.count {
                     types.append(functionType.params[index])
@@ -102,14 +145,40 @@ final class LambdaLowerer {
             ast: ast,
             sema: sema
         )
+        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
 
-        var captureBindings: [(capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID)] = []
+        // Non-capturing lambda optimization: if no captures, use function pointer directly
+        let isNonCapturingLambda = captureSymbols.isEmpty && !needsClosureParam
+        if isNonCapturingLambda {
+            return lowerNonCapturingLambda(
+                exprID: exprID,
+                params: params,
+                bodyExpr: bodyExpr,
+                effectiveParamCount: effectiveParamCount,
+                lambdaParameterTypes: lambdaParameterTypes,
+                lambdaReturnType: lambdaReturnType,
+                functionType: functionType,
+                isSamConversion: isSamConversion,
+                boundType: boundType,
+                effectiveFuncTypeID: effectiveFuncTypeID,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
+
+        var captureBindings: [(capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID)] = []
         captureBindings.reserveCapacity(captureSymbols.count)
         for (index, symbol) in captureSymbols.enumerated() {
+            let declaredType = driver.ctx.localDeclaredType(for: symbol) ?? typeForSymbolReference(symbol, sema: sema)
             guard let captureValueExpr = captureValueExpr(
                 for: symbol,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             ) else {
                 continue
@@ -123,14 +192,14 @@ final class LambdaLowerer {
             captureBindings.append((
                 capturedSymbol: symbol,
                 param: captureParam,
-                valueExpr: captureValueExpr
+                valueExpr: captureValueExpr,
+                declaredType: declaredType
             ))
         }
 
         // For lambdas passed to C HOFs (filter, map, mapIndexed, forEachIndexed, fold, etc.),
         // Runtime expects (closureRaw, ...valueParams, outThrown). Add closure param as first param.
         let lambdaParameters: [KIRParameter]
-        let needsClosureParam = sema.bindings.isCollectionHOFLambdaExpr(exprID) && !isSamConversion
         if needsClosureParam, effectiveParamCount == 0 {
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
@@ -190,7 +259,16 @@ final class LambdaLowerer {
         for capture in functionCaptureBindings {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+            if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+               semanticSymbol.kind == .local,
+               semanticSymbol.flags.contains(.mutable)
+            {
+                driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
+                driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
+                driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+            }
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
             }
@@ -198,11 +276,24 @@ final class LambdaLowerer {
         for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
-            driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
+            let normalizedParamExpr: KIRExprID
+            if needsClosureParam, paramIndex > 0 {
+                normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                    paramExpr,
+                    type: lambdaParam.type,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &lambdaBody
+                )
+            } else {
+                normalizedParamExpr = paramExpr
+            }
+            driver.ctx.setLocalValue(normalizedParamExpr, for: lambdaParam.symbol)
             // When the first parameter is the receiver (from a function-with-receiver type),
             // set it as the implicit receiver so that member calls resolve correctly.
             if paramIndex == 0, hasReceiverParam {
-                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
+                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: normalizedParamExpr)
             }
         }
         if usesClosureRawCapture,
@@ -210,7 +301,16 @@ final class LambdaLowerer {
            let closureParam = lambdaParameters.first,
            let closureExpr = driver.ctx.localValue(for: closureParam.symbol)
         {
-            driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
+            if let semanticSymbol = sema.symbols.symbol(closureCapture.capturedSymbol),
+               semanticSymbol.kind == .local,
+               semanticSymbol.flags.contains(.mutable)
+            {
+                driver.ctx.setMutableCaptureCell(closureExpr, for: closureCapture.capturedSymbol)
+                driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureCapture.capturedSymbol)
+            } else {
+                driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
+                driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureCapture.capturedSymbol)
+            }
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
             }
@@ -235,7 +335,16 @@ final class LambdaLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
+                if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                   semanticSymbol.kind == .local,
+                   semanticSymbol.flags.contains(.mutable)
+                {
+                    driver.ctx.setMutableCaptureCell(loadedExpr, for: capture.capturedSymbol)
+                    driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+                } else {
+                    driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
+                    driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+                }
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
                 }
@@ -326,7 +435,171 @@ final class LambdaLowerer {
         if !captureArgs.isEmpty {
             arena.registerLambdaCaptureArgs(lambdaSymbol, captureArgs: captureArgs)
         }
+        if !captureArgs.isEmpty,
+           !needsClosureParam,
+           !isSamConversion,
+           !(functionType?.isSuspend ?? false),
+           let functionType
+        {
+            if let materialized = materializeEscapingCallableValue(
+                exprID: exprID,
+                lambdaSymbol: lambdaSymbol,
+                lambdaReturnType: lambdaReturnType,
+                functionType: functionType,
+                captureArguments: captureArgs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            ) {
+                return materialized
+            }
+        }
         return lambdaValueExpr
+    }
+
+    private func materializeEscapingCallableValue(
+        exprID: ExprID,
+        lambdaSymbol: SymbolID,
+        lambdaReturnType: TypeID,
+        functionType: FunctionType,
+        captureArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        let createCallee: InternedString
+        switch functionType.params.count {
+        case 0:
+            createCallee = interner.intern("kk_function_create_0")
+        case 1:
+            createCallee = interner.intern("kk_function_create_1")
+        case 2:
+            createCallee = interner.intern("kk_function_create_2")
+        default:
+            return nil
+        }
+
+        let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_function_value_adapter_\(exprID.rawValue)_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(
+            symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+            type: sema.types.intType
+        )
+        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+            KIRParameter(
+                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: 100 + index),
+                type: type
+            )
+        }
+
+        var body: [KIRInstruction] = [.beginBlock]
+        let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+        body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+
+        let arrayGet = interner.intern("kk_array_get_inbounds")
+        var callArguments: [KIRExprID] = []
+        for (captureIndex, captureExpr) in captureArguments.enumerated() {
+            let captureType = arena.exprType(captureExpr) ?? sema.types.anyType
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
+            body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
+            let loadedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: captureType)
+            body.append(.call(
+                symbol: nil,
+                callee: arrayGet,
+                arguments: [closureExpr, offsetExpr],
+                result: loadedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            callArguments.append(loadedExpr)
+        }
+
+        for param in valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            callArguments.append(paramExpr)
+        }
+
+        let callResult = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: lambdaReturnType)
+        body.append(.call(
+            symbol: lambdaSymbol,
+            callee: syntheticLambdaName(for: exprID, interner: interner),
+            arguments: callArguments,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        switch sema.types.kind(of: lambdaReturnType) {
+        case .unit, .nothing(.nonNull), .nothing(.nullable):
+            body.append(.returnUnit)
+        default:
+            body.append(.returnValue(callResult))
+        }
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: adapterSymbol,
+                    name: adapterName,
+                    params: [closureParam] + valueParams,
+                    returnType: lambdaReturnType,
+                    body: body,
+                    isSuspend: functionType.isSuspend,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(adapterDecl)
+
+        let slotCountExpr = arena.appendExpr(.intLiteral(Int64(2 + captureArguments.count)), type: sema.types.intType)
+        instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(Int64(2 + captureArguments.count))))
+        let classIDExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+        let closureObj = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_object_new"),
+            arguments: [slotCountExpr, classIDExpr],
+            result: closureObj,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        for (captureIndex, captureExpr) in captureArguments.enumerated() {
+            let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
+            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
+            let setResult = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.anyType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_set"),
+                arguments: [closureObj, offsetExpr, captureExpr],
+                result: setResult,
+                canThrow: true,
+                thrownResult: nil
+            ))
+        }
+
+        let adapterExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: adapterExpr, value: .symbolRef(adapterSymbol)))
+        let materializedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: sema.types.make(.functionType(functionType)))
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [adapterExpr, closureObj],
+            result: materializedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        driver.ctx.registerCallableValue(
+            materializedExpr,
+            symbol: adapterSymbol,
+            callee: adapterName,
+            captureArguments: [closureObj],
+            hasClosureParam: true
+        )
+        return materializedExpr
     }
 
     private func lowerSamWrapperValue(
@@ -335,7 +608,7 @@ final class LambdaLowerer {
         lambdaSymbol: SymbolID,
         lambdaName: InternedString,
         lambdaReturnType: TypeID,
-        captureBindings: [(capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID)],
+        captureBindings: [(capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID)],
         samMethodParamTypes: [TypeID],
         sema: SemaModule,
         arena: KIRArena,
@@ -708,7 +981,15 @@ final class LambdaLowerer {
             for valueParam in valueParams {
                 let paramExpr = arena.appendExpr(.symbolRef(valueParam.symbol), type: valueParam.type)
                 body.append(.constValue(result: paramExpr, value: .symbolRef(valueParam.symbol)))
-                callArgExprs.append(paramExpr)
+                let normalizedParamExpr = normalizeHOFPrimitiveParameter(
+                    paramExpr,
+                    type: valueParam.type,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &body
+                )
+                callArgExprs.append(normalizedParamExpr)
             }
             let callResult = arena.appendExpr(
                 .temporary(Int32(arena.expressions.count)),
@@ -808,6 +1089,13 @@ final class LambdaLowerer {
             captureArguments: captureArguments
         )
 
+        // Collection HOF runtimes expect a raw function pointer plus closure payload.
+        // Returning a tagged callable reference here would pass the reflection wrapper
+        // object to runtime HOF entry points instead of the generated thunk symbol.
+        if needsHOFWrapper {
+            return callableExpr
+        }
+
         // REFL-003: Emit KFunction / KProperty type identity tag.
         // The tagging call wraps the callable value with reflection
         // metadata (name, arity, KFunction vs KProperty).  We register
@@ -896,5 +1184,144 @@ final class LambdaLowerer {
             thrownResult: nil
         ))
         return taggedExpr
+    }
+
+    // MARK: - Non-Capturing Lambda Optimization
+
+    /// Lowers a non-capturing lambda with optimized function pointer generation
+    private func lowerNonCapturingLambda(
+        exprID: ExprID,
+        params: [InternedString],
+        bodyExpr: ExprID,
+        effectiveParamCount: Int,
+        lambdaParameterTypes: [TypeID],
+        lambdaReturnType: TypeID,
+        functionType: FunctionType?,
+        isSamConversion: Bool,
+        boundType: TypeID?,
+        effectiveFuncTypeID: TypeID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let lambdaName = syntheticLambdaName(for: exprID, interner: interner)
+        let lambdaSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
+
+        // Create optimized lambda parameters (no capture parameters needed)
+        let lambdaParameters = (0 ..< effectiveParamCount).map { index in
+            KIRParameter(
+                symbol: syntheticLambdaParamSymbol(lambdaExprID: exprID, paramIndex: index),
+                type: lambdaParameterTypes[index]
+            )
+        }
+
+        // Generate optimized lambda body
+        let scopeSnapshot = driver.ctx.saveScope()
+        defer { driver.ctx.restoreScope(scopeSnapshot) }
+        driver.ctx.resetScopeForFunction()
+
+        var lambdaBody: [KIRInstruction] = [.beginBlock]
+        
+        // Set up parameters only (no captures)
+        for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
+            let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
+            lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
+            driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
+            
+            // Handle receiver parameter if needed
+            if paramIndex == 0, functionType?.receiver != nil {
+                driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
+            }
+        }
+
+        // Set up parameter name mapping for `it` parameter
+        let effectiveParamNames: [InternedString] = if params.isEmpty, let functionType, !functionType.params.isEmpty {
+            [interner.intern("it")]
+        } else {
+            params
+        }
+        for (i, paramName) in effectiveParamNames.enumerated() where i < lambdaParameters.count {
+            driver.ctx.registerLambdaParam(symbol: lambdaParameters[i].symbol, forName: paramName)
+        }
+
+        // Lower the body
+        let loweredBody = driver.lowerExpr(
+            bodyExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &lambdaBody
+        )
+        lambdaBody.append(.returnValue(loweredBody))
+        lambdaBody.append(.endBlock)
+
+        // Create optimized function declaration
+        let lambdaDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: lambdaSymbol,
+                    name: lambdaName,
+                    params: lambdaParameters, // No capture parameters
+                    returnType: lambdaReturnType,
+                    body: lambdaBody,
+                    isSuspend: functionType?.isSuspend ?? false,
+                    isInline: true // Mark as inline for better optimization
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(lambdaDecl)
+
+        // Handle SAM conversion if needed
+        if isSamConversion,
+           let boundType,
+           case let .classType(interfaceType) = sema.types.kind(of: boundType),
+           let samValue = lowerSamWrapperValue(
+               exprID,
+               interfaceSymbol: interfaceType.classSymbol,
+               lambdaSymbol: lambdaSymbol,
+               lambdaName: lambdaName,
+               lambdaReturnType: lambdaReturnType,
+               captureBindings: [], // No captures for non-capturing lambda
+               samMethodParamTypes: lambdaParameterTypes,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            return samValue
+        }
+
+        // Create optimized lambda value
+        let lambdaValueType = effectiveFuncTypeID
+            ?? boundType
+            ?? sema.types.make(
+                .functionType(
+                    FunctionType(
+                        params: lambdaParameterTypes,
+                        returnType: lambdaReturnType,
+                        isSuspend: functionType?.isSuspend ?? false,
+                        nullability: .nonNull
+                    )
+                )
+            )
+        let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
+        instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
+        
+        // Register with no capture arguments for optimization
+        driver.ctx.registerCallableValue(
+            lambdaValueExpr,
+            symbol: lambdaSymbol,
+            callee: lambdaName,
+            captureArguments: [], // Empty for non-capturing lambda
+            hasClosureParam: false
+        )
+        
+        return lambdaValueExpr
     }
 }

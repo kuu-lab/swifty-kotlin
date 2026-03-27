@@ -101,7 +101,9 @@ extension BuildASTPhase.ExpressionParser {
                         || lastKind == .symbol(.lParen)
                         || lastKind == .symbol(.comma)
                     let nextIsContinuation = isBinaryOperatorTokenKind(token.kind)
-                    if !lastIsContinuation, !nextIsContinuation {
+                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace)
+                        && canAcceptTrailingLambda(tokens[groupStart ... lastTokenIndex])
+                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
                         ranges.append((groupStart, lastTokenIndex + 1))
                         groupStart = idx
                     }
@@ -124,25 +126,12 @@ extension BuildASTPhase.ExpressionParser {
         return ranges
     }
 
+    private func canAcceptTrailingLambda(_ tokens: ArraySlice<Token>) -> Bool {
+        BuildASTPhase.canAcceptTrailingLambda(on: tokens)
+    }
+
     func isBinaryOperatorTokenKind(_ kind: TokenKind) -> Bool {
-        switch kind {
-        case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
-             .symbol(.ampAmp), .symbol(.barBar),
-             .symbol(.equalEqual), .symbol(.bangEqual),
-             .symbol(.lessThan), .symbol(.lessOrEqual), .symbol(.greaterThan), .symbol(.greaterOrEqual),
-             .symbol(.assign), .symbol(.plusAssign), .symbol(.minusAssign),
-             .symbol(.starAssign), .symbol(.slashAssign), .symbol(.percentAssign),
-             .symbol(.dotDot), .symbol(.dotDotLt),
-             .symbol(.questionQuestion), .symbol(.questionColon),
-             .symbol(.dot), .symbol(.questionDot),
-             .symbol(.doubleColon),
-             .symbol(.arrow), .symbol(.fatArrow),
-             .keyword(.as), .keyword(.is), .keyword(.in),
-             .keyword(.else), .keyword(.catch), .keyword(.finally):
-            true
-        default:
-            false
-        }
+        BuildASTPhase.isBinaryOperatorToken(kind)
     }
 
     func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {

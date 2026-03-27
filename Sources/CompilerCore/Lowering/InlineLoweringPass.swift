@@ -179,9 +179,45 @@ final class InlineLoweringPass: LoweringPass {
                 aliases.removeValue(forKey: defined)
             }
 
-            guard case let .call(symbol, callee, arguments, result, _, _, _) = instruction else {
+            guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction else {
                 loweredBody.append(instruction)
                 continue
+            }
+
+            let resolvedArguments = arguments.map { resolveAlias(of: $0, aliases: aliases) }
+            if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"].contains(ctx.interner.resolve(callee)),
+               let callableExpr = resolvedArguments.first,
+               let lambdaFunction = resolveLambdaFunction(
+                   argExpr: callableExpr,
+                   arena: module.arena,
+                   allFunctionsBySymbol: allFunctionsBySymbol,
+                   callerBody: function.body
+               )
+            {
+                let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
+                    .map { resolveAlias(of: $0, aliases: aliases) }
+                let fullArgs = captureArgs + Array(resolvedArguments.dropFirst())
+                if let lambdaExpansion = expandLambdaBody(
+                    lambdaFunction: lambdaFunction,
+                    arguments: fullArgs,
+                    module: module,
+                    allFunctionsBySymbol: allFunctionsBySymbol,
+                    ctx: ctx
+                ) {
+                    loweredBody.append(contentsOf: lambdaExpansion.instructions)
+                    if let result {
+                        if let lambdaReturn = lambdaExpansion.returnedExpr {
+                            aliases[result] = resolveAlias(of: lambdaReturn, aliases: aliases)
+                        } else if let unitType = unitType {
+                            let unitExpr = module.arena.appendExpr(.unit, type: unitType)
+                            aliases[result] = unitExpr
+                        } else {
+                            let unitExpr = module.arena.appendExpr(.unit, type: nil)
+                            aliases[result] = unitExpr
+                        }
+                    }
+                    continue
+                }
             }
 
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
@@ -372,6 +408,31 @@ final class InlineLoweringPass: LoweringPass {
         var returnedExpr: KIRExprID?
         var hasNonLocalReturn = false
         var hasNormalReturn = false
+        let inlineReturnCount = inlineTarget.body.reduce(0) { count, inst in
+            switch inst {
+            case .returnUnit, .returnValue: return count + 1
+            default: return count
+            }
+        }
+        let needsInlineMergeLabel = inlineReturnCount > 1
+        let inlineExitLabel: Int32
+        var inlineMergeResult: KIRExprID?
+        if needsInlineMergeLabel {
+            inlineExitLabel = inlineLabelCounter
+            inlineLabelCounter += 1
+            let hasValueReturn = inlineTarget.body.contains {
+                if case .returnValue = $0 { return true }
+                return false
+            }
+            if hasValueReturn {
+                inlineMergeResult = module.arena.appendExpr(
+                    .temporary(Int32(module.arena.expressions.count)),
+                    type: inlineTarget.returnType
+                )
+            }
+        } else {
+            inlineExitLabel = -1
+        }
 
         // Build a label remapping so that each inline expansion gets unique
         // label IDs. This prevents collisions when the same function is
@@ -411,18 +472,29 @@ final class InlineLoweringPass: LoweringPass {
 
             case .returnUnit:
                 hasNormalReturn = true
-                returnedExpr = nil
-                // Preserve in lowered instructions so inlineTransform can
-                // convert it to an exit-label jump in the NLR path.
-                lowered.append(.returnUnit)
+                if needsInlineMergeLabel {
+                    returnedExpr = nil
+                    lowered.append(.jump(inlineExitLabel))
+                } else {
+                    returnedExpr = nil
+                    // Preserve in lowered instructions so inlineTransform can
+                    // convert it to an exit-label jump in the NLR path.
+                    lowered.append(.returnUnit)
+                }
 
             case let .returnValue(value):
                 hasNormalReturn = true
                 let resolved = resolveAlias(of: value, aliases: localExprMap)
-                returnedExpr = resolved
-                // Preserve in lowered instructions so inlineTransform can
-                // convert it to an exit-label jump in the NLR path.
-                lowered.append(.returnValue(resolved))
+                if needsInlineMergeLabel, let dest = inlineMergeResult {
+                    lowered.append(.copy(from: resolved, to: dest))
+                    lowered.append(.jump(inlineExitLabel))
+                    returnedExpr = dest
+                } else {
+                    returnedExpr = resolved
+                    // Preserve in lowered instructions so inlineTransform can
+                    // convert it to an exit-label jump in the NLR path.
+                    lowered.append(.returnValue(resolved))
+                }
 
             case let .nonLocalReturn(value):
                 // Non-local return from a lambda inside this inline function.
@@ -442,6 +514,13 @@ final class InlineLoweringPass: LoweringPass {
                     localExprMap[result] = mapped
                     continue
                 }
+                if case let .symbolRef(symbol) = value,
+                   let captureArgs = module.arena.lambdaCaptureArgsBySymbol[symbol],
+                   !captureArgs.isEmpty
+                {
+                    let resolvedCaptureArgs = captureArgs.map { resolveAlias(of: $0, aliases: localExprMap) }
+                    module.arena.registerLambdaCaptureArgs(symbol, captureArgs: resolvedCaptureArgs)
+                }
                 let loweredResult = cloneExpr(result, in: module.arena)
                 localExprMap[result] = loweredResult
                 lowered.append(.constValue(result: loweredResult, value: value))
@@ -458,7 +537,7 @@ final class InlineLoweringPass: LoweringPass {
                     )
                 )
 
-            case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall):
+            case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 // Attempt to inline a lambda argument passed to this inline function.
                 let resolvedLambdaParamSymbol: SymbolID? = if let symbol, lambdaParamSymbols.contains(symbol) {
                     symbol
@@ -478,11 +557,59 @@ final class InlineLoweringPass: LoweringPass {
                 {
                     let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
                     let captureArgs = module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? []
-                    let fullArgs = captureArgs + resolvedArgs
+                    let valueArgs: [KIRExprID]
+                    if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"]
+                        .contains(ctx.interner.resolve(callee))
+                    {
+                        valueArgs = Array(resolvedArgs.dropFirst())
+                    } else {
+                        valueArgs = resolvedArgs
+                    }
+                    let fullArgs = captureArgs + valueArgs
                     if let lambdaExpansion = expandLambdaBody(
                         lambdaFunction: lambdaFunction,
                         arguments: fullArgs,
-                        module: module
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
+                    ) {
+                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        if let result {
+                            if let lambdaReturn = lambdaExpansion.returnedExpr {
+                                localExprMap[result] = lambdaReturn
+                            } else {
+                                let unitExpr = module.arena.appendExpr(.unit, type: nil)
+                                lowered.append(.constValue(result: unitExpr, value: .unit))
+                                localExprMap[result] = unitExpr
+                            }
+                        }
+                        break
+                    }
+                }
+
+                // A previously inlined function may return a direct lambda symbol.
+                // If that symbol still carries capture arguments in the callee's
+                // local alias map, inline its body here as well so returned
+                // function values preserve their captures.
+                let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"].contains(ctx.interner.resolve(callee)),
+                   let callableExpr = resolvedArgs.first,
+                   let lambdaFunction = resolveLambdaFunction(
+                       argExpr: callableExpr,
+                       arena: module.arena,
+                       allFunctionsBySymbol: allFunctionsBySymbol,
+                       callerBody: callerBody
+                   )
+                {
+                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
+                        .map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
+                    if let lambdaExpansion = expandLambdaBody(
+                        lambdaFunction: lambdaFunction,
+                        arguments: fullArgs,
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
                     ) {
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
@@ -615,6 +742,10 @@ final class InlineLoweringPass: LoweringPass {
             }
         }
 
+        if needsInlineMergeLabel {
+            lowered.append(.label(inlineExitLabel))
+        }
+
         return InlineExpansion(
             instructions: lowered,
             returnedExpr: returnedExpr,
@@ -667,7 +798,9 @@ final class InlineLoweringPass: LoweringPass {
     private func expandLambdaBody(
         lambdaFunction: KIRFunction,
         arguments: [KIRExprID],
-        module: KIRModule
+        module: KIRModule,
+        allFunctionsBySymbol: [SymbolID: KIRFunction],
+        ctx: KIRContext
     ) -> InlineExpansion? {
         // Map lambda parameters to arguments. If the argument count does not
         // match the parameter count, skip capture parameters at the front and
@@ -814,7 +947,40 @@ final class InlineLoweringPass: LoweringPass {
                     )
                 )
 
-            case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall):
+            case let .call(symbol, callee, args, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
+                let resolvedArgs = args.map { resolveAlias(of: $0, aliases: localExprMap) }
+                if ["kk_function_invoke", "kk_function_invoke_0", "kk_function_invoke_2", "kk_function_invoke_3"].contains(ctx.interner.resolve(callee)),
+                   let callableExpr = resolvedArgs.first,
+                   let nestedLambdaFunction = resolveLambdaFunction(
+                       argExpr: callableExpr,
+                       arena: module.arena,
+                       allFunctionsBySymbol: allFunctionsBySymbol,
+                       callerBody: lambdaFunction.body
+                   )
+                {
+                    let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[nestedLambdaFunction.symbol] ?? [])
+                        .map { resolveAlias(of: $0, aliases: localExprMap) }
+                    let fullArgs = captureArgs + Array(resolvedArgs.dropFirst())
+                    if let lambdaExpansion = expandLambdaBody(
+                        lambdaFunction: nestedLambdaFunction,
+                        arguments: fullArgs,
+                        module: module,
+                        allFunctionsBySymbol: allFunctionsBySymbol,
+                        ctx: ctx
+                    ) {
+                        lowered.append(contentsOf: lambdaExpansion.instructions)
+                        if let result {
+                            if let lambdaReturn = lambdaExpansion.returnedExpr {
+                                localExprMap[result] = lambdaReturn
+                            } else {
+                                let unitExpr = module.arena.appendExpr(.unit, type: nil)
+                                lowered.append(.constValue(result: unitExpr, value: .unit))
+                                localExprMap[result] = unitExpr
+                            }
+                        }
+                        break
+                    }
+                }
                 let loweredResult = result.map { expr -> KIRExprID in
                     let cloned = cloneExpr(expr, in: module.arena)
                     localExprMap[expr] = cloned
@@ -829,7 +995,7 @@ final class InlineLoweringPass: LoweringPass {
                     .call(
                         symbol: symbol,
                         callee: callee,
-                        arguments: args.map { resolveAlias(of: $0, aliases: localExprMap) },
+                        arguments: resolvedArgs,
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,
@@ -987,7 +1153,7 @@ final class InlineLoweringPass: LoweringPass {
                 result: result
             )
 
-        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall):
+        case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
             .call(
                 symbol: symbol,
                 callee: callee,
@@ -995,7 +1161,8 @@ final class InlineLoweringPass: LoweringPass {
                 result: result,
                 canThrow: canThrow,
                 thrownResult: thrownResult,
-                isSuperCall: isSuperCall
+                isSuperCall: isSuperCall,
+                qualifiedSuperType: qualifiedSuperType
             )
 
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
@@ -1077,7 +1244,7 @@ final class InlineLoweringPass: LoweringPass {
             result
         case let .binary(_, _, _, result):
             result
-        case let .call(_, _, _, result, _, _, _):
+        case let .call(_, _, _, result, _, _, _, _):
             result
         case let .virtualCall(_, _, _, _, result, _, _, _):
             result

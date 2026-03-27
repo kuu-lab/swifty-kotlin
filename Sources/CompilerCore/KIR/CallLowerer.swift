@@ -28,10 +28,10 @@ final class CallLowerer {
         return nil
     }
 
-    /// Shared helper for coerceIn(range) lowering (STDLIB-525).
+    /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
-    /// kk_{int,long}_coerceIn. Used by both normal and safe-call member lowering
-    /// paths to avoid duplication.
+    /// kk_{int,long,double,float}_coerceIn. Used by both normal and safe-call member lowering
+    /// paths to avoid duplication. Supports all numeric types: Int, Long, Double, Float.
     func emitCoerceInRange(
         prefix: String,
         receiverType: TypeID,
@@ -377,6 +377,7 @@ final class CallLowerer {
             ?? chosen.flatMap { symbol in
                 driver.ctx.localValue(for: symbol).flatMap { driver.ctx.callableValueInfo(for: $0) }
             }
+        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
         let sourceCalleeName: InternedString = if let callee = ast.arena.expr(calleeExpr), case let .nameRef(name, _) = callee {
             name
         } else if let loweredCallable {
@@ -396,6 +397,65 @@ final class CallLowerer {
             )
         }
         let knownNames = KnownCompilerNames(interner: interner)
+        if sourceCalleeName == interner.intern("generateSequence"),
+           loweredArgIDs.count == 2,
+           let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
+           case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
+           functionType.params.isEmpty,
+           let seedCallableInfo = driver.ctx.callableValueInfo(for: loweredArgIDs[0])
+        {
+            let seedResult = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: sema.types.makeNonNullable(functionType.returnType)
+            )
+            instructions.append(.call(
+                symbol: seedCallableInfo.symbol,
+                callee: seedCallableInfo.callee,
+                arguments: seedCallableInfo.captureArguments,
+                result: seedResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
+            instructions.append(.call(
+                symbol: chosen,
+                callee: interner.intern("kk_sequence_generate"),
+                arguments: [seedResult, loweredArgIDs[1]],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        if sema.bindings.builderDSLKind(for: exprID) == .buildString {
+            let builderRuntimeCallee: String? = switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
+            case ("append", 1):
+                "kk_string_builder_append"
+            case ("appendLine", 0):
+                "kk_string_builder_append_line_noarg"
+            case ("appendLine", 1):
+                "kk_string_builder_append_line"
+            case ("appendRange", 3):
+                "kk_string_builder_append_range"
+            default:
+                nil
+            }
+            if let builderRuntimeCallee {
+                let result = arena.appendExpr(
+                    .temporary(Int32(arena.expressions.count)),
+                    type: boundType ?? sema.types.anyType
+                )
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern(builderRuntimeCallee),
+                    arguments: loweredArgIDs,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
         if let loweredToList = tryLowerCollectionToListCall(
             sourceCalleeName: sourceCalleeName,
             args: args,
@@ -423,8 +483,31 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
+        if chosen == nil,
+           loweredCallable == nil,
+           let implicitStringBuilderCall = implicitReceiverStringBuilderRuntimeCallee(
+               sourceCalleeName: sourceCalleeName,
+               loweredArguments: loweredArgIDs,
+               sema: sema,
+               arena: arena,
+               interner: interner
+           )
+        {
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: boundType ?? sema.types.anyType
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: implicitStringBuilderCall.callee,
+                arguments: [implicitStringBuilderCall.receiver] + loweredArgIDs,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
-        let callableValueCallBinding = sema.bindings.callableValueCalls[exprID]
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
                 providedArguments: loweredArgIDs,
@@ -449,13 +532,23 @@ final class CallLowerer {
             )
         }
         var finalArgIDs = callNormalized.arguments
-        if let loweredCallable {
+        // Compiler-generated lambdas/local functions use the compiler ABI
+        // (including the hidden thrown channel), so route them through their
+        // lowered symbol directly instead of Swift closure helpers.
+        let callableInvokeCallee: InternedString? = if loweredCallable == nil {
+            runtimeCallableInvokeCallee(
+                callableValueCallBinding: callableValueCallBinding,
+                sema: sema,
+                interner: interner
+            )
+        } else {
+            nil
+        }
+        if let callableInvokeCallee {
+            finalArgIDs.insert(loweredCalleeExprID, at: 0)
+        }
+        if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
-            if loweredCallable.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                finalArgIDs.insert(zeroExpr, at: loweredCallable.captureArguments.count)
-            }
         } else if let chosen,
                   sema.symbols.symbol(chosen)?.kind == .constructor,
                   sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
@@ -523,6 +616,53 @@ final class CallLowerer {
                         thrownResult: nil
                     ))
                 }
+                if let objectLayout = sema.symbols.nominalLayout(for: ownerNominalSymbol) {
+                    for interfaceSymbol in sema.symbols.directSupertypes(for: ownerNominalSymbol) {
+                        guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
+                              let interfaceLayout = sema.symbols.nominalLayout(for: interfaceSymbol)
+                        else {
+                            continue
+                        }
+                        let ifaceSlot = Int64(objectLayout.itableSlots[interfaceSymbol] ?? 0)
+                        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots {
+                            let methodSlot = Int64(methodSlotInt)
+                            let implementationSymbol: SymbolID = {
+                                guard let methodSym = sema.symbols.symbol(methodSymbol),
+                                      let ownerSym = sema.symbols.symbol(ownerNominalSymbol)
+                                else {
+                                    return methodSymbol
+                                }
+                                let overrideFQName = ownerSym.fqName + [methodSym.name]
+                                for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+                                    guard let candidateSym = sema.symbols.symbol(candidate),
+                                          candidateSym.kind == .function,
+                                          sema.symbols.parentSymbol(for: candidate) == ownerNominalSymbol
+                                    else {
+                                        continue
+                                    }
+                                    return candidate
+                                }
+                                return methodSymbol
+                            }()
+
+                            let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
+                            instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
+                            let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
+                            instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
+                            let methodFnExpr = arena.appendExpr(.symbolRef(implementationSymbol), type: intType)
+                            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementationSymbol)))
+                            let registerMethodResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                            instructions.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_object_register_itable_method"),
+                                arguments: [allocatedObj, ifaceSlotExpr, methodSlotExpr, methodFnExpr],
+                                result: registerMethodResult,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        }
+                    }
+                }
                 // REFL-005: Register KClass metadata for this nominal type.
                 emitKClassMetadataRegistration(
                     objectSymbol: ownerNominalSymbol,
@@ -548,6 +688,7 @@ final class CallLowerer {
                 chosenCallee: chosen,
                 sema: sema,
                 arena: arena,
+                interner: interner,
                 instructions: &instructions
             )
         }
@@ -630,7 +771,9 @@ final class CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArgIDs
             )
-            let loweredCalleeName: InternedString = if let chosen,
+            let loweredCalleeName: InternedString = if let callableInvokeCallee {
+                callableInvokeCallee
+            } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
             {
@@ -679,6 +822,97 @@ final class CallLowerer {
             ))
         }
         return result
+    }
+
+    private func runtimeCallableInvokeCallee(
+        callableValueCallBinding: CallableValueCallBinding?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let callableValueCallBinding else {
+            return nil
+        }
+        let nonNullFunctionType = sema.types.makeNonNullable(callableValueCallBinding.functionType)
+        guard case let .functionType(functionType) = sema.types.kind(of: nonNullFunctionType) else {
+            return nil
+        }
+
+        if functionType.isSuspend {
+            switch functionType.params.count {
+            case 0:
+                return interner.intern("kk_suspend_function_invoke_0")
+            case 1:
+                return interner.intern("kk_suspend_function_invoke")
+            default:
+                return nil
+            }
+        }
+
+        switch functionType.params.count {
+        case 0:
+            return interner.intern("kk_function_invoke_0")
+        case 1:
+            return interner.intern("kk_function_invoke")
+        case 2:
+            return interner.intern("kk_function_invoke_2")
+        case 3:
+            return interner.intern("kk_function_invoke_3")
+        default:
+            return nil
+        }
+    }
+
+    private func implicitReceiverStringBuilderRuntimeCallee(
+        sourceCalleeName: InternedString,
+        loweredArguments: [KIRExprID],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> (receiver: KIRExprID, callee: InternedString)? {
+        guard let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+              let receiverType = arena.exprType(implicitReceiver),
+              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return nil
+        }
+
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard knownNames.isStringBuilderSymbol(symbol) else {
+            return nil
+        }
+
+        let callee: String? = switch (interner.resolve(sourceCalleeName), loweredArguments.count) {
+        case ("append", 1):
+            "kk_string_builder_append_obj"
+        case ("appendLine", 0):
+            "kk_string_builder_append_line_noarg_obj"
+        case ("appendLine", 1):
+            "kk_string_builder_append_line_obj"
+        case ("appendRange", 3):
+            "kk_string_builder_appendRange_obj"
+        case ("toString", 0):
+            "kk_string_builder_toString"
+        case ("clear", 0):
+            "kk_string_builder_clear"
+        case ("reverse", 0):
+            "kk_string_builder_reverse"
+        case ("length", 0):
+            "kk_string_builder_length_prop"
+        case ("deleteCharAt", 1):
+            "kk_string_builder_deleteCharAt"
+        case ("insert", 2):
+            "kk_string_builder_insert_obj"
+        case ("delete", 2):
+            "kk_string_builder_delete_obj"
+        default:
+            nil
+        }
+
+        guard let callee else {
+            return nil
+        }
+        return (implicitReceiver, interner.intern(callee))
     }
 
     /// Returns true if the callee is a runtime function that requires a thrown
@@ -751,6 +985,7 @@ final class CallLowerer {
         chosenCallee: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> [KIRExprID] {
         guard let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
@@ -761,7 +996,29 @@ final class CallLowerer {
 
         let legacyNames: Set = ["kk_require_lazy", "kk_check_lazy", "kk_precondition_assert_lazy", "kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
-            var finalArgs = [loweredArguments[0], loweredArguments[1]]
+            var seedArgument = loweredArguments[0]
+            if externalLinkName == "kk_sequence_generate",
+               let seedCallableInfo = driver.ctx.callableValueInfo(for: loweredArguments[0]),
+               let seedFunctionType = sema.bindings.exprTypes[originalArgs[0].expr],
+               case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
+               functionType.params.isEmpty
+            {
+                let seedResult = arena.appendExpr(
+                    .temporary(Int32(arena.expressions.count)),
+                    type: sema.types.makeNonNullable(functionType.returnType)
+                )
+                instructions.append(.call(
+                    symbol: seedCallableInfo.symbol,
+                    callee: seedCallableInfo.callee,
+                    arguments: seedCallableInfo.captureArguments,
+                    result: seedResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                seedArgument = seedResult
+            }
+
+            var finalArgs = [seedArgument, loweredArguments[1]]
             if sema.bindings.isCollectionHOFLambdaExpr(originalArgs[1].expr),
                let callableInfo = driver.ctx.callableValueInfo(for: loweredArguments[1]),
                let closureRaw = callableInfo.captureArguments.first
@@ -805,8 +1062,37 @@ final class CallLowerer {
             // Remaining arguments are selector lambdas that need expansion
             for i in 2..<loweredArguments.count {
                 let lambdaID = loweredArguments[i]
-                finalArgs.append(lambdaID) // fnPtr
-                if let callableInfo = driver.ctx.callableValueInfo(for: lambdaID),
+                var loweredSelectorID = lambdaID
+                var selectorCallableInfo = driver.ctx.callableValueInfo(for: lambdaID)
+                if selectorCallableInfo == nil,
+                   case let .symbolRef(symbol)? = arena.expr(loweredSelectorID),
+                   let function = arena.function(for: symbol)
+                {
+                    selectorCallableInfo = KIRCallableValueInfo(
+                        symbol: function.symbol,
+                        callee: function.name,
+                        captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                        hasClosureParam: function.params.count >= 2
+                    )
+                }
+                if let callableInfo = selectorCallableInfo,
+                   !callableInfo.hasClosureParam,
+                   let adaptedInfo = makeCollectionHOFCallableAdapter(
+                        callableInfo: callableInfo,
+                        loweredArgID: loweredSelectorID,
+                        argExprID: originalArgs[i].expr,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner
+                    )
+                {
+                    let adaptedExpr = arena.appendExpr(.symbolRef(adaptedInfo.symbol), type: arena.exprType(loweredSelectorID) ?? sema.types.anyType)
+                    instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
+                    loweredSelectorID = adaptedExpr
+                    selectorCallableInfo = adaptedInfo
+                }
+                finalArgs.append(loweredSelectorID) // fnPtr
+                if let callableInfo = selectorCallableInfo,
                    let closureRaw = callableInfo.captureArguments.first
                 {
                     finalArgs.append(closureRaw) // closureRaw
@@ -820,6 +1106,106 @@ final class CallLowerer {
         }
 
         return loweredArguments
+    }
+
+    private func makeCollectionHOFCallableAdapter(
+        callableInfo: KIRCallableValueInfo,
+        loweredArgID: KIRExprID,
+        argExprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> KIRCallableValueInfo? {
+        let callableType = arena.exprType(loweredArgID) ?? sema.bindings.exprTypes[argExprID] ?? sema.types.anyType
+        let nonNullCallableType = sema.types.makeNonNullable(callableType)
+        guard case let .functionType(functionType) = sema.types.kind(of: nonNullCallableType) else {
+            return nil
+        }
+
+        let adapterSymbol = driver.ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_compare_values_hof_adapter_\(argExprID.rawValue)_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(
+            symbol: driver.ctx.allocateSyntheticGeneratedSymbol(),
+            type: sema.types.intType
+        )
+        let valueParams: [KIRParameter] = functionType.params.enumerated().map { index, type in
+            KIRParameter(
+                symbol: SymbolID(rawValue: Int32(clamping: -710_000 - Int64(argExprID.rawValue) * 16 - Int64(index))),
+                type: type
+            )
+        }
+
+        var body: [KIRInstruction] = [.beginBlock]
+        let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
+        body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
+
+        var callArguments: [KIRExprID] = []
+        if callableInfo.captureArguments.count >= 2 {
+            let arrayGet = interner.intern("kk_array_get_inbounds")
+            for (captureIndex, captureExpr) in callableInfo.captureArguments.enumerated() {
+                let captureType = arena.exprType(captureExpr) ?? sema.types.anyType
+                let offsetExpr = arena.appendExpr(.intLiteral(Int64(captureIndex + 2)), type: sema.types.intType)
+                body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(captureIndex + 2))))
+                let loadedExpr = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: captureType)
+                body.append(.call(
+                    symbol: nil,
+                    callee: arrayGet,
+                    arguments: [closureExpr, offsetExpr],
+                    result: loadedExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                callArguments.append(loadedExpr)
+            }
+        } else if !callableInfo.captureArguments.isEmpty {
+            callArguments.append(closureExpr)
+        }
+
+        for param in valueParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            callArguments.append(paramExpr)
+        }
+
+        let callResult = arena.appendExpr(.temporary(Int32(clamping: arena.expressions.count)), type: functionType.returnType)
+        body.append(.call(
+            symbol: callableInfo.symbol,
+            callee: callableInfo.callee,
+            arguments: callArguments,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        switch sema.types.kind(of: functionType.returnType) {
+        case .unit, .nothing(.nonNull), .nothing(.nullable):
+            body.append(.returnUnit)
+        default:
+            body.append(.returnValue(callResult))
+        }
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: adapterSymbol,
+                    name: adapterName,
+                    params: [closureParam] + valueParams,
+                    returnType: functionType.returnType,
+                    body: body,
+                    isSuspend: functionType.isSuspend,
+                    isInline: false
+                )
+            )
+        )
+        driver.ctx.appendGeneratedCallableDecl(adapterDecl)
+
+        return KIRCallableValueInfo(
+            symbol: adapterSymbol,
+            callee: adapterName,
+            captureArguments: callableInfo.captureArguments,
+            hasClosureParam: true
+        )
     }
 
     func appendReifiedTypeTokens(
@@ -981,7 +1367,7 @@ final class CallLowerer {
             return zip(argumentTypes, signature.parameterTypes).allSatisfy { argumentType, parameterType in
                 sema.types.isSubtype(argumentType, parameterType)
             }
-        } ?? candidates.first
+        }
 
         guard let chosen = matched else {
             return nil
@@ -1028,15 +1414,33 @@ final class CallLowerer {
         let runtimeCallee: InternedString? = switch (calleeStr, receiverType, boundType) {
         case ("toInt", sema.types.uintType, sema.types.intType): interner.intern("kk_uint_to_int")
         case ("toInt", sema.types.ulongType, sema.types.intType): interner.intern("kk_ulong_to_int")
+        case ("toInt", sema.types.ubyteType, sema.types.intType): interner.intern("kk_ubyte_to_int")
+        case ("toInt", sema.types.ushortType, sema.types.intType): interner.intern("kk_ushort_to_int")
         case ("toInt", sema.types.doubleType, sema.types.intType): interner.intern("kk_double_to_int")
         case ("toInt", sema.types.floatType, sema.types.intType): interner.intern("kk_float_to_int")
-        case ("toInt", sema.types.charType, sema.types.intType): nil
+        case ("toInt", sema.types.charType, sema.types.intType): interner.intern("kk_char_to_int")
         case ("toInt", sema.types.intType, sema.types.intType), ("toInt", sema.types.longType, sema.types.intType): nil
         case ("toLong", sema.types.intType, sema.types.longType): interner.intern("kk_int_to_long")
         case ("toLong", sema.types.uintType, sema.types.longType): interner.intern("kk_uint_to_long")
+        case ("toLong", sema.types.ubyteType, sema.types.longType): interner.intern("kk_ubyte_to_long")
+        case ("toLong", sema.types.ushortType, sema.types.longType): interner.intern("kk_ushort_to_long")
         case ("toLong", sema.types.doubleType, sema.types.longType): interner.intern("kk_double_to_long")
         case ("toLong", sema.types.floatType, sema.types.longType): interner.intern("kk_float_to_long")
+        case ("toLong", sema.types.charType, sema.types.longType): interner.intern("kk_char_to_long")
         case ("toLong", sema.types.longType, sema.types.longType), ("toLong", sema.types.ulongType, sema.types.longType): nil
+        case ("toUInt", sema.types.intType, sema.types.uintType): interner.intern("kk_int_to_uint")
+        case ("toUInt", sema.types.longType, sema.types.uintType): interner.intern("kk_long_to_uint")
+        case ("toUInt", sema.types.ubyteType, sema.types.uintType): interner.intern("kk_ubyte_to_uint")
+        case ("toUInt", sema.types.ushortType, sema.types.uintType): interner.intern("kk_ushort_to_uint")
+        case ("toUInt", sema.types.charType, sema.types.uintType): interner.intern("kk_char_to_uint")
+        case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
+        case ("toULong", sema.types.intType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
+        case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
+        case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")
+        case ("toULong", sema.types.ushortType, sema.types.ulongType): interner.intern("kk_ushort_to_ulong")
+        case ("toULong", sema.types.charType, sema.types.ulongType): interner.intern("kk_char_to_ulong")
+        case ("toULong", sema.types.uintType, sema.types.ulongType): interner.intern("kk_uint_to_ulong")
+        case ("toULong", sema.types.ulongType, sema.types.ulongType): nil
         case ("toFloat", sema.types.intType, sema.types.floatType): interner.intern("kk_int_to_float")
         case ("toFloat", sema.types.longType, sema.types.floatType): interner.intern("kk_long_to_float")
         case ("toFloat", sema.types.doubleType, sema.types.floatType): interner.intern("kk_double_to_float")
@@ -1049,7 +1453,23 @@ final class CallLowerer {
         case ("toByte", sema.types.longType, sema.types.intType): interner.intern("kk_long_to_byte")
         case ("toShort", sema.types.intType, sema.types.intType): interner.intern("kk_int_to_short")
         case ("toShort", sema.types.longType, sema.types.intType): interner.intern("kk_long_to_short")
-        case ("toChar", sema.types.intType, sema.types.charType): nil
+        case ("toUByte", sema.types.intType, sema.types.ubyteType): interner.intern("kk_int_to_ubyte")
+        case ("toUByte", sema.types.longType, sema.types.ubyteType): interner.intern("kk_long_to_ubyte")
+        case ("toUByte", sema.types.uintType, sema.types.ubyteType): interner.intern("kk_uint_to_ubyte")
+        case ("toUByte", sema.types.ulongType, sema.types.ubyteType): interner.intern("kk_ulong_to_ubyte")
+        case ("toUByte", sema.types.ubyteType, sema.types.ubyteType): nil
+        case ("toUShort", sema.types.intType, sema.types.ushortType): interner.intern("kk_int_to_ushort")
+        case ("toUShort", sema.types.longType, sema.types.ushortType): interner.intern("kk_long_to_ushort")
+        case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")
+        case ("toUShort", sema.types.ulongType, sema.types.ushortType): interner.intern("kk_ulong_to_ushort")
+        case ("toUShort", sema.types.ushortType, sema.types.ushortType): nil
+        case ("toChar", sema.types.intType, sema.types.charType): interner.intern("kk_int_to_char")
+        case ("toChar", sema.types.longType, sema.types.charType): interner.intern("kk_long_to_char")
+        case ("toChar", sema.types.uintType, sema.types.charType): interner.intern("kk_uint_to_char")
+        case ("toChar", sema.types.ulongType, sema.types.charType): interner.intern("kk_ulong_to_char")
+        case ("toChar", sema.types.ubyteType, sema.types.charType): interner.intern("kk_ubyte_to_char")
+        case ("toChar", sema.types.ushortType, sema.types.charType): interner.intern("kk_ushort_to_char")
+        case ("toChar", sema.types.charType, sema.types.charType): nil
         default: nil
         }
 

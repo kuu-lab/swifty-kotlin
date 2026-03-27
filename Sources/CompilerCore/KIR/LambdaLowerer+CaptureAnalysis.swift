@@ -23,16 +23,23 @@ extension LambdaLowerer {
         guard let semanticSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
-        return semanticSymbol.kind == .valueParameter
+        return semanticSymbol.kind == .valueParameter || semanticSymbol.kind == .local
     }
 
     func captureValueExpr(
         for symbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID? {
-        captureValueExpr(for: symbol, sema: sema, arena: arena, instructions: &instructions.instructions)
+        captureValueExpr(
+            for: symbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions.instructions
+        )
     }
 
     func uniqueSymbolsPreservingOrder(_ symbols: [SymbolID]) -> [SymbolID] {

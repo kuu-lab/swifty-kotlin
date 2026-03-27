@@ -51,6 +51,17 @@ extension CallTypeChecker {
         let isUIntRange = receiverType == sema.types.uintType
         let isULongRange = sema.bindings.isULongRangeExpr(receiverID) || receiverType == sema.types.ulongType
 
+        if args.isEmpty,
+           memberName == "step",
+           let propertyResult = driver.helpers.lookupMemberProperty(
+               named: calleeName,
+               receiverType: sema.types.makeNonNullable(receiverType ?? sema.types.anyType),
+               sema: sema
+           )
+        {
+            sema.bindings.bindIdentifier(id, symbol: propertyResult.symbol)
+        }
+
         // Provide contextual function type for range HOF lambda inference.
         if let expectation = rangeMemberLambdaExpectation(
             memberName: memberName,
@@ -78,13 +89,13 @@ extension CallTypeChecker {
         if isRangeMemberReturningCollection(memberName) {
             sema.bindings.markCollectionExpr(id)
         }
-        if memberName == "reversed" {
+        if memberName == "reversed" || (memberName == "step" && args.count == 1) {
             sema.bindings.markRangeExpr(id)
-            // Propagate char range marker through reversed() (STDLIB-290)
+            // Propagate char range marker through range-preserving transforms.
             if sema.bindings.isCharRangeExpr(receiverID) {
                 sema.bindings.markCharRangeExpr(id)
             }
-            // Propagate ULong range marker through reversed() (STDLIB-524)
+            // Propagate ULong range marker through range-preserving transforms.
             if sema.bindings.isULongRangeExpr(receiverID) {
                 sema.bindings.markULongRangeExpr(id)
             }
@@ -92,6 +103,7 @@ extension CallTypeChecker {
 
         let resultType = rangeMemberResultType(
             memberName: memberName,
+            argCount: args.count,
             sema: sema,
             interner: interner,
             isCharRange: isCharRange,
@@ -107,25 +119,42 @@ extension CallTypeChecker {
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
         let rangeMembers: Set = [
             "first", "last", "count", "contains",
-            "toList", "forEach", "map",
-            "reversed", "isEmpty", "sum",
+            "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast", "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+            "chunked", "windowed",
+            "reversed", "step", "isEmpty", "sum",
         ]
         return rangeMembers.contains(memberName)
     }
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "first", "last", "count", "toList", "reversed", "isEmpty", "sum":
+        case "count", "toList", "reversed", "isEmpty", "sum":
             argCount == 0
-        case "contains", "forEach", "map":
+        case "step":
+            argCount == 0 || argCount == 1
+        case "first", "last":
+            argCount == 0 || argCount == 1
+        case "contains", "forEach", "map", "mapIndexed", "mapNotNull",
+             "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed",
+             "find", "findLast", "firstOrNull", "lastOrNull", "any", "all", "none":
             argCount == 1
+        case "fold", "foldIndexed":
+            argCount == 2
+        case "chunked":
+            argCount == 1
+        case "windowed":
+            argCount == 3
         default:
             true
         }
     }
 
     private func isRangeMemberReturningCollection(_ memberName: String) -> Bool {
-        ["toList", "map"].contains(memberName)
+        ["toList", "map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot", "chunked", "windowed"].contains(memberName)
     }
 
     /// Returns the element type for a range expression based on its range-kind markers.
@@ -153,6 +182,7 @@ extension CallTypeChecker {
 
     private func rangeMemberResultType(
         memberName: String,
+        argCount: Int,
         sema: SemaModule,
         interner: StringInterner,
         isCharRange: Bool = false,
@@ -170,20 +200,36 @@ extension CallTypeChecker {
         switch memberName {
         case "first", "last":
             return elementType
+        case "firstOrNull", "lastOrNull", "find", "findLast":
+            return sema.types.makeNullable(elementType)
         case "count":
             return sema.types.intType
         case "sum":
             return elementType
-        case "contains", "isEmpty":
+        case "contains", "isEmpty", "any", "all", "none":
             return sema.types.booleanType
         case "forEach":
             return sema.types.unitType
         case "toList":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "map":
+        case "filter", "filterIndexed", "filterNot":
+            return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
+        case "map", "mapIndexed", "mapNotNull":
             return rangeMemberListType(elementType: sema.types.anyType, sema: sema, interner: interner)
+        case "reduce", "reduceIndexed":
+            return elementType
+        case "fold", "foldIndexed":
+            return sema.types.anyType
+        case "chunked", "windowed":
+            return rangeMemberListType(
+                elementType: rangeMemberListType(elementType: elementType, sema: sema, interner: interner),
+                sema: sema,
+                interner: interner
+            )
         case "reversed":
             return elementType
+        case "step":
+            return argCount == 0 ? sema.types.intType : elementType
         default:
             return sema.types.anyType
         }
@@ -218,11 +264,6 @@ extension CallTypeChecker {
         isUIntRange: Bool = false,
         isULongRange: Bool = false
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
-        let oneParamMembers: Set = ["forEach", "map"]
-        guard oneParamMembers.contains(memberName), argCount == 1 else {
-            return nil
-        }
-        let lambdaReturnType = memberName == "forEach" ? sema.types.unitType : sema.types.anyType
         let elementType = rangeMemberElementType(
             sema: sema,
             isCharRange: isCharRange,
@@ -230,12 +271,48 @@ extension CallTypeChecker {
             isUIntRange: isUIntRange,
             isULongRange: isULongRange
         )
+        let expectation: (Int, [TypeID], TypeID)?
+        switch memberName {
+        case "forEach":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [elementType], sema.types.unitType)
+        case "map":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [elementType], sema.types.anyType)
+        case "mapNotNull":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [elementType], sema.types.nullableAnyType)
+        case "filter", "filterNot", "find", "findLast", "first", "firstOrNull", "last", "lastOrNull", "any", "all", "none":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [elementType], sema.types.booleanType)
+        case "mapIndexed":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [sema.types.intType, elementType], sema.types.anyType)
+        case "filterIndexed":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [sema.types.intType, elementType], sema.types.booleanType)
+        case "reduce":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [elementType, elementType], elementType)
+        case "reduceIndexed":
+            guard argCount == 1 else { return nil }
+            expectation = (0, [sema.types.intType, elementType, elementType], elementType)
+        case "fold":
+            guard argCount == 2 else { return nil }
+            expectation = (1, [sema.types.anyType, elementType], sema.types.anyType)
+        case "foldIndexed":
+            guard argCount == 2 else { return nil }
+            expectation = (1, [sema.types.intType, sema.types.anyType, elementType], sema.types.anyType)
+        default:
+            expectation = nil
+        }
+        guard let expectation else { return nil }
         let expectedType = sema.types.make(.functionType(FunctionType(
-            params: [elementType],
-            returnType: lambdaReturnType,
+            params: expectation.1,
+            returnType: expectation.2,
             isSuspend: false,
             nullability: .nonNull
         )))
-        return (argumentIndex: 0, expectedType: expectedType)
+        return (argumentIndex: expectation.0, expectedType: expectedType)
     }
 }

@@ -106,17 +106,7 @@ extension BuildASTPhase {
             // Strip only top-level semicolons; keep semicolons inside braces so
             // that nested block expressions (e.g. `if (c) { a; b }`) can still
             // split on them later in ExpressionParser.
-            let filtered: [Token] = {
-                var result: [Token] = []
-                var braceDepth = 0
-                for token in rawTokens {
-                    if token.kind == .symbol(.lBrace) { braceDepth += 1 }
-                    if token.kind == .symbol(.rBrace) { braceDepth = max(0, braceDepth - 1) }
-                    if token.kind == .symbol(.semicolon) && braceDepth == 0 { continue }
-                    result.append(token)
-                }
-                return result
-            }()
+            let filtered = filterTopLevelSemicolons(rawTokens)
             guard !filtered.isEmpty else { continue }
 
             // If the first token is `.` or `?.`, merge into the previous group.
@@ -127,12 +117,12 @@ extension BuildASTPhase {
             if !rawGroups.isEmpty {
                 let previousFiltered = filteredGroups[filteredGroups.count - 1]
                 let previousEndsWithContinuation = previousFiltered.last.map {
-                    isBinaryOperatorToken($0.kind)
+                    Self.isBinaryOperatorToken($0.kind)
                         || $0.kind == .symbol(.lParen)
                         || $0.kind == .symbol(.comma)
                 } ?? false
                 let currentStartsWithContinuation = filtered.first.map {
-                    isBinaryOperatorToken($0.kind)
+                    Self.isBinaryOperatorToken($0.kind)
                         || $0.kind == .symbol(.comma)
                         || $0.kind == .symbol(.rParen)
                         || $0.kind == .symbol(.rBracket)
@@ -140,6 +130,8 @@ extension BuildASTPhase {
                 shouldMergeWithPrevious = isDotContinuation
                     || previousEndsWithContinuation
                     || currentStartsWithContinuation
+                    || startsWithTrailingLambdaGroup(filtered)
+                        && Self.canAcceptTrailingLambda(on: previousFiltered)
                     || hasUnclosedStatementDelimiter(previousFiltered)
             } else {
                 shouldMergeWithPrevious = false
@@ -192,6 +184,30 @@ extension BuildASTPhase {
         return parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
     }
 
+    private func startsWithTrailingLambdaGroup(_ tokens: [Token]) -> Bool {
+        tokens.first?.kind == .symbol(.lBrace)
+    }
+
+    static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
+        guard let last = tokens.last else {
+            return false
+        }
+        if let first = tokens.first,
+           case let .keyword(keyword) = first.kind,
+           [.if, .for, .while, .do, .when, .try, .catch, .finally].contains(keyword)
+        {
+            return false
+        }
+        switch last.kind {
+        case .identifier, .backtickedIdentifier, .softKeyword, .keyword:
+            return true
+        case .symbol(.rParen), .symbol(.rBracket), .symbol(.greaterThan), .symbol(.bangBang):
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Parse a single (possibly merged) statement token group, trying local
     /// fun-decl, local-decl, local-assign, then generic expression.
     private func parseStatementGroup(
@@ -231,9 +247,10 @@ extension BuildASTPhase {
                     return false
                 }
                 if hasNewline, !current.isEmpty {
-                    let lastIsContinuation = current.last.map { isBinaryOperatorToken($0.kind) } ?? false
-                    let nextIsContinuation = isBinaryOperatorToken(token.kind)
-                    if !lastIsContinuation, !nextIsContinuation {
+                    let lastIsContinuation = current.last.map { Self.isBinaryOperatorToken($0.kind) } ?? false
+                    let nextIsContinuation = Self.isBinaryOperatorToken(token.kind)
+                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace) && Self.canAcceptTrailingLambda(on: current)
+                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
                         groups.append(current)
                         current = []
                     }
@@ -248,7 +265,7 @@ extension BuildASTPhase {
         return groups
     }
 
-    func isBinaryOperatorToken(_ kind: TokenKind) -> Bool {
+    static func isBinaryOperatorToken(_ kind: TokenKind) -> Bool {
         switch kind {
         case .symbol(.plus), .symbol(.minus), .symbol(.star), .symbol(.slash), .symbol(.percent),
              .symbol(.ampAmp), .symbol(.barBar),

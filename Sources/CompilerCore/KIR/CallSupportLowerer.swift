@@ -256,9 +256,10 @@ final class CallSupportLowerer {
         guard parameterCount > 0 else {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
-
+        let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let preserveArrayVarargs = externalLinkName == "kk_array_of" || externalLinkName == "kk_sequence_of"
 
         var argIndicesByParameter: [Int: [Int]] = [:]
         for (argIndex, paramIndex) in callBinding.parameterMapping {
@@ -285,6 +286,57 @@ final class CallSupportLowerer {
             }
         }
 
+        if externalLinkName == "kk_array_of",
+           parameterCount == 1,
+           isVararg.first == true
+        {
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let argIndices = argIndicesByParameter[0] ?? []
+            let packedArray: KIRExprID
+            if argIndices.isEmpty {
+                packedArray = emitArrayNew(
+                    count: 0,
+                    arena: arena,
+                    interner: interner,
+                    intType: intType,
+                    anyType: sema.types.anyType,
+                    instructions: &instructions
+                )
+            } else {
+                packedArray = packVarargArguments(
+                    argIndices: argIndices,
+                    providedArguments: providedArguments,
+                    spreadFlags: spreadFlags,
+                    listifyResult: false,
+                    arena: arena,
+                    interner: interner,
+                    intType: intType,
+                    anyType: sema.types.anyType,
+                    instructions: &instructions
+                )
+            }
+
+            let hasAnySpread = argIndices.contains { idx in
+                idx < spreadFlags.count && spreadFlags[idx]
+            }
+            let countExpr: KIRExprID
+            if hasAnySpread {
+                countExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_size"),
+                    arguments: [packedArray],
+                    result: countExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                countExpr = arena.appendExpr(.intLiteral(Int64(argIndices.count)), type: intType)
+                instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(argIndices.count))))
+            }
+            return NormalizedCallResult(arguments: [packedArray, countExpr], defaultMask: 0)
+        }
+
         var normalized: [KIRExprID] = []
         normalized.reserveCapacity(parameterCount)
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -297,6 +349,7 @@ final class CallSupportLowerer {
                         argIndices: argIndices,
                         providedArguments: providedArguments,
                         spreadFlags: spreadFlags,
+                        listifyResult: !preserveArrayVarargs,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -338,6 +391,7 @@ final class CallSupportLowerer {
         argIndices: [Int],
         providedArguments: [KIRExprID],
         spreadFlags: [Bool],
+        listifyResult: Bool = true,
         arena: KIRArena,
         interner: StringInterner,
         intType: TypeID,
@@ -352,10 +406,17 @@ final class CallSupportLowerer {
         }
 
         if argIndices.count == 1, allSpread {
-            // Single spread argument: pass the array directly, but convert to
-            // list since vararg parameters are typed as List<T>.
-            let arrayID = providedArguments[argIndices[0]]
-            return emitArrayToList(arrayID, arena: arena, interner: interner, anyType: anyType, instructions: &instructions)
+            let spreadValue = providedArguments[argIndices[0]]
+            if listifyResult {
+                return emitArrayToList(
+                    spreadValue,
+                    arena: arena,
+                    interner: interner,
+                    anyType: anyType,
+                    instructions: &instructions
+                )
+            }
+            return spreadValue
         }
 
         if hasAnySpread {
@@ -408,7 +469,16 @@ final class CallSupportLowerer {
             ))
             // Convert the concatenated array to a list since vararg parameters
             // are typed as List<T>.
-            return emitArrayToList(concatResult, arena: arena, interner: interner, anyType: anyType, instructions: &instructions)
+            if listifyResult {
+                return emitArrayToList(
+                    concatResult,
+                    arena: arena,
+                    interner: interner,
+                    anyType: anyType,
+                    instructions: &instructions
+                )
+            }
+            return concatResult
         }
 
         let count = argIndices.count
@@ -434,7 +504,16 @@ final class CallSupportLowerer {
         }
         // Convert the packed array to a list since vararg parameters are typed
         // as List<T> and the callee uses kk_list_* operations.
-        return emitArrayToList(arrayID, arena: arena, interner: interner, anyType: anyType, instructions: &instructions)
+        if listifyResult {
+            return emitArrayToList(
+                arrayID,
+                arena: arena,
+                interner: interner,
+                anyType: anyType,
+                instructions: &instructions
+            )
+        }
+        return arrayID
     }
 
     private func emitArrayToList(

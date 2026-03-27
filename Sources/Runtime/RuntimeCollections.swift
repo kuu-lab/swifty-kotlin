@@ -209,9 +209,9 @@ private func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
 @_cdecl("kk_list_iterator_hasPrevious")
 public func kk_list_iterator_hasPrevious(_ iterRaw: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
-    return kk_box_bool(listIteratorCanGoBack(iter) ? 1 : 0)
+    return listIteratorCanGoBack(iter) ? 1 : 0
 }
 
 @_cdecl("kk_list_iterator_previous")
@@ -222,6 +222,8 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     guard listIteratorCanGoBack(iter) else {
         return 0
     }
+    // Always decrement index and return the element at the new position
+    // This matches the standard ListIterator behavior
     iter.index -= 1
     return iter.elements[iter.index]
 }
@@ -808,6 +810,60 @@ public func kk_set_toList(_ setRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: set.elements))
 }
 
+@_cdecl("kk_set_first")
+public func kk_set_first(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let set = runtimeSetBox(from: setRaw),
+          let first = set.elements.first
+    else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        return 0
+    }
+    return first
+}
+
+@_cdecl("kk_set_firstOrNull")
+public func kk_set_firstOrNull(_ setRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: setRaw),
+          let first = set.elements.first
+    else {
+        return runtimeNullSentinelInt
+    }
+    return first
+}
+
+@_cdecl("kk_set_last")
+public func kk_set_last(_ setRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let set = runtimeSetBox(from: setRaw),
+          let last = set.elements.last
+    else {
+        runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: "Collection is empty."))
+        return 0
+    }
+    return last
+}
+
+@_cdecl("kk_set_lastOrNull")
+public func kk_set_lastOrNull(_ setRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: setRaw),
+          let last = set.elements.last
+    else {
+        return runtimeNullSentinelInt
+    }
+    return last
+}
+
+@_cdecl("kk_set_singleOrNull")
+public func kk_set_singleOrNull(_ setRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: setRaw),
+          set.elements.count == 1
+    else {
+        return runtimeNullSentinelInt
+    }
+    return set.elements[0]
+}
+
 @_cdecl("kk_collection_toList")
 public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let list = runtimeListBox(from: collRaw) {
@@ -1248,6 +1304,11 @@ public func kk_array_of(_ arrayRaw: Int, _: Int) -> Int {
     arrayRaw
 }
 
+@_cdecl("kk_empty_array")
+public func kk_empty_array() -> Int {
+    return kk_array_new(0)
+}
+
 @_cdecl("kk_array_size")
 public func kk_array_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
@@ -1589,6 +1650,44 @@ public func kk_array_fill(_ arrayRaw: Int, _ value: Int) -> Int {
         array.elements[i] = value
     }
     return 0
+}
+
+@_cdecl("kk_array_contentEquals")
+public func kk_array_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        return kk_box_bool(0)
+    }
+    guard let other = runtimeArrayBox(from: otherRaw) else {
+        return kk_box_bool(0)
+    }
+    
+    // Quick size check
+    if array.elements.count != other.elements.count {
+        return kk_box_bool(0)
+    }
+    
+    // Element-by-element comparison
+    for i in 0 ..< array.elements.count {
+        if !runtimeValuesEqual(array.elements[i], other.elements[i]) {
+            return kk_box_bool(0)
+        }
+    }
+    
+    return kk_box_bool(1)
+}
+
+@_cdecl("kk_array_contentHashCode")
+public func kk_array_contentHashCode(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        return 0
+    }
+    
+    var result: Int = 1
+    for element in array.elements {
+        result = 31 * result + kk_any_hashCode(element, 0)
+    }
+    
+    return result
 }
 
 // MARK: - asSequence (STDLIB-471)

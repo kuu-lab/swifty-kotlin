@@ -197,6 +197,13 @@ func maybeUnbox(_ value: Int) -> Int {
     return value
 }
 
+func runtimeNormalizeNullableCollectionValue(_ raw: Int) -> Int? {
+    if raw == runtimeNullSentinelInt || raw == 0 {
+        return nil
+    }
+    return maybeUnbox(raw)
+}
+
 func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if lhs == rhs {
         return true
@@ -359,7 +366,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         return String(doubleBox.value)
     }
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-        return UnicodeScalar(charBox.value).map(String.init) ?? "\u{FFFD}"
+        return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.elements.map { runtimeElementToString($0) }
@@ -380,6 +387,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         let second = runtimeElementToString(pairBox.second)
         if runtimeIsMapEntry(rawValue: elem) {
             return "\(first)=\(second)"
+        }
+        if runtimeObjectTypeID(rawValue: elem) == indexedValueRuntimeTypeID {
+            return "IndexedValue(index=\(first), value=\(second))"
         }
         return "(\(first), \(second))"
     }
@@ -466,7 +476,7 @@ func runtimeInvokeCollectionLambda1(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda1.self)
-    return fn(closureRaw, value, outThrown)
+    return fn(maybeUnbox(closureRaw), maybeUnbox(value), outThrown)
 }
 
 @inline(__always)
@@ -478,7 +488,7 @@ func runtimeInvokeCollectionLambda2(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda2.self)
-    return fn(closureRaw, lhs, rhs, outThrown)
+    return fn(maybeUnbox(closureRaw), maybeUnbox(lhs), maybeUnbox(rhs), outThrown)
 }
 
 @inline(__always)
@@ -491,7 +501,13 @@ func runtimeInvokeCollectionLambda3(
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda3.self)
-    return fn(closureRaw, arg1, arg2, arg3, outThrown)
+    return fn(
+        maybeUnbox(closureRaw),
+        maybeUnbox(arg1),
+        maybeUnbox(arg2),
+        maybeUnbox(arg3),
+        outThrown
+    )
 }
 
 @inline(__always)

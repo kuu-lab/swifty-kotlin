@@ -3,6 +3,63 @@ import Foundation
 import XCTest
 
 extension CompilerCoreTests {
+    func testNoArgLambdaInitializerBuildsLambdaLiteral() throws {
+        let source = """
+        fun host() {
+            val f0: () -> Int = { 42 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let ast = try XCTUnwrap(ctx.ast)
+        let localDeclExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            guard case .localDecl = expr else { return false }
+            return true
+        })
+        guard case let .localDecl(_, _, _, initializer, _, _) = try XCTUnwrap(ast.arena.expr(localDeclExprID)),
+              let initializerExprID = initializer,
+              let initializerExpr = ast.arena.expr(initializerExprID)
+        else {
+            XCTFail("Expected local declaration initializer.")
+            return
+        }
+
+        guard case .lambdaLiteral = initializerExpr else {
+            XCTFail("Expected zero-argument lambda initializer to parse as .lambdaLiteral.")
+            return
+        }
+    }
+
+    func testNoArgLambdaInitializerInfersExplicitFunctionType() throws {
+        let source = """
+        fun host() {
+            val f0: () -> Int = { 42 }
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        XCTAssertFalse(
+            ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }),
+            "Expected no sema errors, got: \(ctx.diagnostics.diagnostics.map { $0.message })"
+        )
+
+        let ast = try XCTUnwrap(ctx.ast)
+        let sema = try XCTUnwrap(ctx.sema)
+        let lambdaExprID = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            if case .lambdaLiteral = expr { return true }
+            return false
+        })
+        let lambdaType = try XCTUnwrap(sema.bindings.exprTypes[lambdaExprID])
+        guard case let .functionType(functionType) = sema.types.kind(of: lambdaType) else {
+            XCTFail("Expected lambda to infer a function type.")
+            return
+        }
+
+        XCTAssertTrue(functionType.params.isEmpty)
+        XCTAssertEqual(functionType.returnType, sema.types.intType)
+    }
+
     func testImportAliasBuildASTPreservesAliasField() throws {
         let sources = [
             """

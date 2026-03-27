@@ -22,7 +22,9 @@ public func kk_comparator_from_selector_trampoline(
           runtimeStorage.withLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let pairBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid comparator closure in kk_comparator_from_selector_trampoline")
+        // Return 0 instead of panic for invalid/null comparator closure
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
     }
     let selectorFn = pairBox.first
     let selectorClosure = pairBox.second
@@ -94,7 +96,9 @@ public func kk_comparator_from_multi_selectors_trampoline(
           runtimeStorage.withLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let listBox = tryCast(ptr, to: RuntimeListBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid comparator closure in kk_comparator_from_multi_selectors_trampoline")
+        // Return 0 instead of panic for invalid/null comparator closure
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
     }
     let elements = listBox.elements
     // Elements are packed as [fn1, closure1, fn2, closure2, ...]
@@ -149,14 +153,18 @@ public func kk_comparator_then_by_trampoline(
           runtimeStorage.withLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let outerBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid comparator closure in kk_comparator_then_by_trampoline")
+        // Return 0 instead of panic for invalid/null comparator closure
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
     }
     guard let ptr1 = UnsafeMutableRawPointer(bitPattern: outerBox.first),
           let ptr2 = UnsafeMutableRawPointer(bitPattern: outerBox.second),
           let inner1 = tryCast(ptr1, to: RuntimePairBox.self),
           let inner2 = tryCast(ptr2, to: RuntimePairBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid comparator inner closure in kk_comparator_then_by_trampoline")
+        // Return 0 instead of panic for invalid/null inner comparator closure
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator inner closure")
+        return 0
     }
     var thrown = 0
     let r1 = runtimeInvokeCollectionLambda2(fnPtr: inner1.first, closureRaw: inner1.second, lhs: a, rhs: b, outThrown: &thrown)
@@ -199,7 +207,9 @@ public func kk_comparator_reversed_trampoline(
           runtimeStorage.withLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
           let pairBox = tryCast(ptr, to: RuntimePairBox.self)
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid comparator closure in kk_comparator_reversed_trampoline")
+        // Return 0 instead of panic for invalid/null comparator closure
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator closure")
+        return 0
     }
     var thrown = 0
     let result = runtimeInvokeCollectionLambda2(fnPtr: pairBox.first, closureRaw: pairBox.second, lhs: a, rhs: b, outThrown: &thrown)
@@ -248,7 +258,7 @@ public func kk_comparator_reverse_order() -> Int {
 // MARK: - compareValues / compareValuesBy
 
 /// Internal helper for nullable value comparison. Nulls are less than non-nulls.
-private func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
+func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
     let aIsNull = (a == runtimeNullSentinelInt || a == 0)
     let bIsNull = (b == runtimeNullSentinelInt || b == 0)
     if aIsNull && bIsNull { return 0 }
@@ -262,7 +272,7 @@ private func runtimeCompareNullableValues(_ a: Int, _ b: Int) -> Int {
 @_cdecl("kk_compareValues")
 public func kk_compareValues(_ a: Int, _ b: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = outThrown
-    return runtimeCompareNullableValues(a, b)
+    return kk_box_int(runtimeCompareNullableValues(a, b))
 }
 
 @inline(__always)
@@ -300,7 +310,7 @@ public func kk_compareValuesBy1(
         outThrown: &thrown
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-    return runtimeCompareNullableValues(keyA, keyB)
+    return kk_box_int(runtimeCompareNullableValues(keyA, keyB))
 }
 
 /// compareValuesBy(a: T, b: T, selector1, selector2): Int — 2-selector variant.
@@ -332,7 +342,7 @@ public func kk_compareValuesBy(
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
     let cmp1 = runtimeCompareNullableValues(keyA1, keyB1)
-    if cmp1 != 0 { return cmp1 }
+    if cmp1 != 0 { return kk_box_int(cmp1) }
 
     let keyA2 = runtimeInvokeCompareValuesSelector(
         fnPtr: sel2Fn,
@@ -348,7 +358,7 @@ public func kk_compareValuesBy(
         outThrown: &thrown
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-    return runtimeCompareNullableValues(keyA2, keyB2)
+    return kk_box_int(runtimeCompareNullableValues(keyA2, keyB2))
 }
 
 /// compareValuesBy(a: T, b: T, selector1, selector2, selector3): Int — 3-selector variant.
@@ -383,7 +393,7 @@ public func kk_compareValuesBy3(
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
     let cmp1 = runtimeCompareNullableValues(keyA1, keyB1)
-    if cmp1 != 0 { return cmp1 }
+    if cmp1 != 0 { return kk_box_int(cmp1) }
 
     let keyA2 = runtimeInvokeCompareValuesSelector(
         fnPtr: sel2Fn,
@@ -400,7 +410,7 @@ public func kk_compareValuesBy3(
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
     let cmp2 = runtimeCompareNullableValues(keyA2, keyB2)
-    if cmp2 != 0 { return cmp2 }
+    if cmp2 != 0 { return kk_box_int(cmp2) }
 
     let keyA3 = runtimeInvokeCompareValuesSelector(
         fnPtr: sel3Fn,
@@ -416,5 +426,5 @@ public func kk_compareValuesBy3(
         outThrown: &thrown
     )
     if thrown != 0 { outThrown?.pointee = thrown; return 0 }
-    return runtimeCompareNullableValues(keyA3, keyB3)
+    return kk_box_int(runtimeCompareNullableValues(keyA3, keyB3))
 }

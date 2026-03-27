@@ -167,6 +167,12 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_measureTimedValue = ExternDecl(
+        name: "kk_measureTimedValue",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
     // MARK: - TimedValue (STDLIB-660)
 
     public static let kk_timedvalue_new = ExternDecl(
@@ -2106,6 +2112,48 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_ulong_range_contains = ExternDecl(
+        name: "kk_ulong_range_contains",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_first = ExternDecl(
+        name: "kk_ulong_range_first",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_last = ExternDecl(
+        name: "kk_ulong_range_last",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_step = ExternDecl(
+        name: "kk_ulong_range_step",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_isEmpty = ExternDecl(
+        name: "kk_ulong_range_isEmpty",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_reversed = ExternDecl(
+        name: "kk_ulong_range_reversed",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_range_toULongArray = ExternDecl(
+        name: "kk_ulong_range_toULongArray",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_range_forEach = ExternDecl(
         name: "kk_range_forEach",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
@@ -2118,9 +2166,213 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    public static let kk_range_step = ExternDecl(
+        name: "kk_range_step",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_mapIndexed = ExternDecl(
+        name: "kk_range_mapIndexed",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_mapNotNull = ExternDecl(
+        name: "kk_range_mapNotNull",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_filter = ExternDecl(
+        name: "kk_range_filter",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_filterIndexed = ExternDecl(
+        name: "kk_range_filterIndexed",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_filterNot = ExternDecl(
+        name: "kk_range_filterNot",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_reduce = ExternDecl(
+        name: "kk_range_reduce",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_reduceIndexed = ExternDecl(
+        name: "kk_range_reduceIndexed",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_fold = ExternDecl(
+        name: "kk_range_fold",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_foldIndexed = ExternDecl(
+        name: "kk_range_foldIndexed",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_find = ExternDecl(
+        name: "kk_range_find",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_findLast = ExternDecl(
+        name: "kk_range_findLast",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_first_predicate = ExternDecl(
+        name: "kk_range_first_predicate",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_firstOrNull_predicate = ExternDecl(
+        name: "kk_range_firstOrNull_predicate",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_last_predicate = ExternDecl(
+        name: "kk_range_last_predicate",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_lastOrNull_predicate = ExternDecl(
+        name: "kk_range_lastOrNull_predicate",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_any = ExternDecl(
+        name: "kk_range_any",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_all = ExternDecl(
+        name: "kk_range_all",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_none = ExternDecl(
+        name: "kk_range_none",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_chunked = ExternDecl(
+        name: "kk_range_chunked",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_range_windowed = ExternDecl(
+        name: "kk_range_windowed",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_range_reversed = ExternDecl(
         name: "kk_range_reversed",
         parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // MARK: - Progression fromClosedRange (STDLIB-RANGE-039)
+
+    public static let kk_int_progression_fromClosedRange = ExternDecl(
+        name: "kk_int_progression_fromClosedRange",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_progression_fromClosedRange = ExternDecl(
+        name: "kk_long_progression_fromClosedRange",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_uint_progression_fromClosedRange = ExternDecl(
+        name: "kk_uint_progression_fromClosedRange",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_progression_fromClosedRange = ExternDecl(
+        name: "kk_ulong_progression_fromClosedRange",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    // MARK: - UIntProgression operations (STDLIB-RANGE-039)
+
+    public static let kk_uint_rangeTo = ExternDecl(
+        name: "kk_uint_rangeTo",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_uint_downTo = ExternDecl(
+        name: "kk_uint_downTo",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_uint_step = ExternDecl(
+        name: "kk_uint_step",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_uint_range_reversed = ExternDecl(
+        name: "kk_uint_range_reversed",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_uint_range_toList = ExternDecl(
+        name: "kk_uint_range_toList",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // MARK: - ULongProgression operations (STDLIB-RANGE-039)
+
+    public static let kk_ulong_rangeTo = ExternDecl(
+        name: "kk_ulong_rangeTo",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_downTo = ExternDecl(
+        name: "kk_ulong_downTo",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_ulong_step = ExternDecl(
+        name: "kk_ulong_step",
+        parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
@@ -2305,6 +2557,82 @@ public enum RuntimeABIExterns {
 
     public static let kk_int_countTrailingZeroBits = ExternDecl(
         name: "kk_int_countTrailingZeroBits",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // MARK: - STDLIB-BIT-007: Additional bit manipulation functions
+
+    public static let kk_int_rotateLeft = ExternDecl(
+        name: "kk_int_rotateLeft",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_int_rotateRight = ExternDecl(
+        name: "kk_int_rotateRight",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_int_highestOneBit = ExternDecl(
+        name: "kk_int_highestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_int_lowestOneBit = ExternDecl(
+        name: "kk_int_lowestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_int_takeHighestOneBit = ExternDecl(
+        name: "kk_int_takeHighestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_int_takeLowestOneBit = ExternDecl(
+        name: "kk_int_takeLowestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // Long bit manipulation functions
+
+    public static let kk_long_rotateLeft = ExternDecl(
+        name: "kk_long_rotateLeft",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_rotateRight = ExternDecl(
+        name: "kk_long_rotateRight",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_highestOneBit = ExternDecl(
+        name: "kk_long_highestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_lowestOneBit = ExternDecl(
+        name: "kk_long_lowestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_takeHighestOneBit = ExternDecl(
+        name: "kk_long_takeHighestOneBit",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_long_takeLowestOneBit = ExternDecl(
+        name: "kk_long_takeLowestOneBit",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
@@ -2999,9 +3327,53 @@ public enum RuntimeABIExterns {
             kk_range_sum,
             kk_range_toList,
             kk_ulong_range_toList,
+            kk_ulong_range_contains,
+            kk_ulong_range_first,
+            kk_ulong_range_last,
+            kk_ulong_range_step,
+            kk_ulong_range_isEmpty,
+            kk_ulong_range_reversed,
+            kk_ulong_range_toULongArray,
             kk_range_forEach,
             kk_range_map,
+            kk_range_step,
+            kk_range_mapIndexed,
+            kk_range_mapNotNull,
+            kk_range_filter,
+            kk_range_filterIndexed,
+            kk_range_filterNot,
+            kk_range_reduce,
+            kk_range_reduceIndexed,
+            kk_range_fold,
+            kk_range_foldIndexed,
+            kk_range_find,
+            kk_range_findLast,
+            kk_range_first_predicate,
+            kk_range_firstOrNull_predicate,
+            kk_range_last_predicate,
+            kk_range_lastOrNull_predicate,
+            kk_range_any,
+            kk_range_all,
+            kk_range_none,
+            kk_range_chunked,
+            kk_range_windowed,
             kk_range_reversed,
+            // Progression fromClosedRange (STDLIB-RANGE-039)
+            kk_int_progression_fromClosedRange,
+            kk_long_progression_fromClosedRange,
+            kk_uint_progression_fromClosedRange,
+            kk_ulong_progression_fromClosedRange,
+            // UIntProgression operations (STDLIB-RANGE-039)
+            kk_uint_rangeTo,
+            kk_uint_downTo,
+            kk_uint_step,
+            kk_uint_range_reversed,
+            kk_uint_range_toList,
+            // ULongProgression operations (STDLIB-RANGE-039)
+            kk_ulong_rangeTo,
+            kk_ulong_downTo,
+            kk_ulong_step,
+            kk_ulong_range_reversed,
             // CharRange (STDLIB-290)
             kk_char_range_toList,
             kk_char_range_forEach,
@@ -3041,6 +3413,19 @@ public enum RuntimeABIExterns {
             kk_int_countOneBits,
             kk_int_countLeadingZeroBits,
             kk_int_countTrailingZeroBits,
+            // STDLIB-BIT-007: Additional bit manipulation functions
+            kk_int_rotateLeft,
+            kk_int_rotateRight,
+            kk_int_highestOneBit,
+            kk_int_lowestOneBit,
+            kk_int_takeHighestOneBit,
+            kk_int_takeLowestOneBit,
+            kk_long_rotateLeft,
+            kk_long_rotateRight,
+            kk_long_highestOneBit,
+            kk_long_lowestOneBit,
+            kk_long_takeHighestOneBit,
+            kk_long_takeLowestOneBit,
         ]
         all += mathExterns
         all += randomExterns
@@ -3056,6 +3441,7 @@ public enum RuntimeABIExterns {
         // Duration / measureTime / measureTimedValue (STDLIB-230/231/660)
         all += [
             kk_measureTime,
+            kk_measureTimedValue,
             kk_duration_inWholeMilliseconds,
             kk_duration_inWholeSeconds,
             kk_duration_inWholeMinutes,

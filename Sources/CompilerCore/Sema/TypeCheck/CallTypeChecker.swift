@@ -102,6 +102,144 @@ final class CallTypeChecker {
             }
         }
 
+        // --- sequence { ... } builder (STDLIB-330) ---
+        // Intercept before eager argument inference so the lambda is inferred
+        // with a SequenceScope<T> implicit receiver and T can be recovered from
+        // expected type or nested yield()/yieldAll() calls.
+        if let calleeName,
+           interner.resolve(calleeName) == "sequence",
+           args.count == 1,
+           shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
+        {
+            let argumentExprID = args[0].expr
+            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+
+            let returnType = sequenceBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            let receiverType = sequenceBuilderReceiverType(
+                sequenceType: returnType,
+                sema: sema,
+                interner: interner
+            )
+            let lambdaExpectedType = sequenceBuilderLambdaType(
+                receiverType: receiverType,
+                sema: sema
+            )
+            _ = driver.inferExpr(
+                argumentExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            let refinedReturnType = sequenceBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            if let chosen = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("sequence"),
+            ]) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            }
+            sema.bindings.markCollectionExpr(id)
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
+        }
+
+        // --- iterator { ... } builder (STDLIB-331/564) ---
+        if let calleeName,
+           interner.resolve(calleeName) == "iterator",
+           args.count == 1,
+           locals[calleeName] == nil
+        {
+            let argumentExprID = args[0].expr
+            guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0002",
+                    "No viable overload found for call.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+
+            let returnType = iteratorBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            let receiverType = sequenceBuilderReceiverType(
+                sequenceType: returnType,
+                sema: sema,
+                interner: interner
+            )
+            let lambdaExpectedType = sequenceBuilderLambdaType(
+                receiverType: receiverType,
+                sema: sema
+            )
+            _ = driver.inferExpr(
+                argumentExprID,
+                ctx: ctx.with(implicitReceiverType: receiverType),
+                locals: &locals,
+                expectedType: lambdaExpectedType
+            )
+            let refinedReturnType = iteratorBuilderReturnType(
+                lambdaExprID: argumentExprID,
+                expectedType: expectedType,
+                ctx: ctx,
+                locals: locals,
+                sema: sema,
+                interner: interner
+            )
+            if let chosen = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("sequences"),
+                interner.intern("iterator"),
+            ]) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            }
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
+        }
+
         // --- Scope function: with(receiver, block) (STDLIB-004, STDLIB-061) ---
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct implicit receiver type.
@@ -118,14 +256,6 @@ final class CallTypeChecker {
             let withReceiverType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             // Second arg is the lambda with receiver
             var receiverCtx = ctx.with(implicitReceiverType: withReceiverType)
-            let nonNullWithReceiverType = sema.types.makeNonNullable(withReceiverType)
-            if case let .classType(classType) = sema.types.kind(of: nonNullWithReceiverType),
-               let receiverSymbol = sema.symbols.symbol(classType.classSymbol),
-               knownNames.isStringBuilderSymbol(receiverSymbol)
-            {
-                receiverCtx.isBuilderLambdaScope = true
-                receiverCtx.builderKind = .buildString
-            }
             let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                 receiver: withReceiverType,
                 params: [],
@@ -333,7 +463,14 @@ final class CallTypeChecker {
            interner.resolve(calleeName) == "generateSequence",
            args.count == 2
         {
-            let seedType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+            let rawSeedType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+            let seedType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
+                                      functionType.params.isEmpty
+            {
+                sema.types.makeNonNullable(functionType.returnType)
+            } else {
+                rawSeedType
+            }
             let nextExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [seedType],
                 returnType: sema.types.makeNullable(seedType),
@@ -1133,41 +1270,19 @@ final class CallTypeChecker {
                     return symbol.kind == .typeAlias
                 }
                 if let aliasSym = aliasSymbols.first {
-                    // Expand the typealias to get the underlying class type
-                    let aliasTypeArgs = explicitTypeArgs.map { TypeArg.invariant($0) }
-                    if let expanded = driver.helpers.expandTypeAlias(
-                        aliasSym,
-                        typeArgs: aliasTypeArgs,
-                        sema: sema,
-                        visited: [],
-                        depth: 0,
-                        diagnostics: ctx.semaCtx.diagnostics
-                    ),
-                       case let .classType(classType) = sema.types.kind(of: expanded),
-                       let underlyingSymbol = ctx.cachedSymbol(classType.classSymbol)
+                    let aliasTypeParameters = sema.symbols.typeAliasTypeParameters(for: aliasSym)
+                    let aliasTypeArgs: [TypeArg] = if !explicitTypeArgs.isEmpty {
+                        explicitTypeArgs.map { TypeArg.invariant($0) }
+                    } else if !aliasTypeParameters.isEmpty,
+                              let expectedType,
+                              case let .classType(expectedClassType) = sema.types.kind(of: expectedType)
                     {
-                        let initName = interner.intern("<init>")
-                        let ctorFQName = underlyingSymbol.fqName + [initName]
-                        let ctorSymbols = sema.symbols.lookupAll(fqName: ctorFQName)
-                        if !ctorSymbols.isEmpty {
-                            let (vis, invis) = ctx.filterByVisibility(ctorSymbols)
-                            candidates = vis
-                            callInvisible.append(contentsOf: invis)
-                        }
+                        Array(expectedClassType.args.prefix(aliasTypeParameters.count))
+                    } else if !aliasTypeParameters.isEmpty {
+                        Array(repeating: TypeArg.invariant(sema.types.anyType), count: aliasTypeParameters.count)
+                    } else {
+                        []
                     }
-                }
-            }
-            // --- Typealias constructor calls ---
-            // If the callee is a typealias (e.g. `typealias IntPair = Pair<Int, Int>`),
-            // expand it to the underlying class and resolve its constructor.
-            if candidates.isEmpty {
-                let aliasSymbols = ctx.cachedScopeLookup(calleeName).filter { candidate in
-                    guard let symbol = ctx.cachedSymbol(candidate) else { return false }
-                    return symbol.kind == .typeAlias
-                }
-                if let aliasSym = aliasSymbols.first {
-                    // Expand the typealias to get the underlying class type
-                    let aliasTypeArgs = explicitTypeArgs.map { TypeArg.invariant($0) }
                     if let expanded = driver.helpers.expandTypeAlias(
                         aliasSym,
                         typeArgs: aliasTypeArgs,
@@ -1193,35 +1308,82 @@ final class CallTypeChecker {
         } else {
             candidates = []
         }
-        let contextualArgExpectedTypes: [TypeID?] = if candidates.count == 1,
-                                                       let signature = sema.symbols.functionSignature(for: candidates[0])
-        {
-            args.enumerated().map { index, argument in
-                if index == 0, let coroutineLauncherExpectedLambdaType {
-                    return coroutineLauncherExpectedLambdaType
+        var inferredNonLambdaArgTypes: [Int: TypeID] = [:]
+        for (index, argument) in args.enumerated() {
+            guard let argumentExpr = ast.arena.expr(argument.expr) else {
+                continue
+            }
+            switch argumentExpr {
+            case .lambdaLiteral, .callableRef:
+                continue
+            default:
+                inferredNonLambdaArgTypes[index] = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            }
+        }
+
+        let contextualArgExpectedTypes: [TypeID?] = args.enumerated().map { index, argument in
+            if index == 0, let coroutineLauncherExpectedLambdaType {
+                return coroutineLauncherExpectedLambdaType
+            }
+            if index == 1, let withContextExpectedLambdaType {
+                return withContextExpectedLambdaType
+            }
+
+            guard let argumentExpr = ast.arena.expr(argument.expr) else {
+                return nil
+            }
+            let isLambdaLike = switch argumentExpr {
+            case .lambdaLiteral, .callableRef:
+                true
+            default:
+                false
+            }
+            guard isLambdaLike else {
+                return nil
+            }
+
+            let narrowedCandidates = candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      isCallableArityCompatible(signature: signature, argCount: args.count)
+                else {
+                    return false
                 }
-                if index == 1, let withContextExpectedLambdaType {
-                    return withContextExpectedLambdaType
+                for (otherIndex, inferredType) in inferredNonLambdaArgTypes {
+                    guard let parameterType = parameterTypeForArgument(at: otherIndex, in: signature) else {
+                        return false
+                    }
+                    if !sema.types.isSubtype(inferredType, parameterType) {
+                        return false
+                    }
                 }
-                guard index < signature.parameterTypes.count else {
-                    return nil
+                return true
+            }
+            let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
+
+            if expectedTypeCandidates.count == 1,
+               let signature = sema.symbols.functionSignature(for: expectedTypeCandidates[0]),
+               index < signature.parameterTypes.count
+            {
+                return signature.parameterTypes[index]
+            }
+
+            var matchingParameterTypes: [TypeID] = []
+            for candidate in expectedTypeCandidates {
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      index < signature.parameterTypes.count
+                else {
+                    continue
                 }
                 let parameterType = signature.parameterTypes[index]
-                if case .lambdaLiteral = ast.arena.expr(argument.expr) {
-                    return parameterType
+                if driver.helpers.samFunctionType(for: parameterType, sema: sema) != nil {
+                    matchingParameterTypes.append(parameterType)
                 }
+            }
+            guard let firstType = matchingParameterTypes.first else {
                 return nil
             }
-        } else {
-            args.indices.map { index in
-                if index == 0, let coroutineLauncherExpectedLambdaType {
-                    return coroutineLauncherExpectedLambdaType
-                }
-                if index == 1, let withContextExpectedLambdaType {
-                    return withContextExpectedLambdaType
-                }
-                return nil
-            }
+            let allSame = matchingParameterTypes.dropFirst().allSatisfy { $0 == firstType }
+            return allSame ? firstType : nil
         }
         let argTypes = args.enumerated().map { index, argument in
             if let contextualExpectedType = contextualArgExpectedTypes[index] {
@@ -1291,6 +1453,19 @@ final class CallTypeChecker {
                 let resolvedName = interner.resolve(calleeName)
                 if KnownCompilerNames.stdlibCollectionFactoryNames.contains(resolvedName) {
                     sema.bindings.markCollectionExpr(id)
+                }
+            }
+            if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
+               [
+                   "kk_int_progression_fromClosedRange",
+                   "kk_long_progression_fromClosedRange",
+                   "kk_uint_progression_fromClosedRange",
+                   "kk_ulong_progression_fromClosedRange",
+               ].contains(externalLinkName)
+            {
+                sema.bindings.markRangeExpr(id)
+                if externalLinkName == "kk_ulong_progression_fromClosedRange" {
+                    sema.bindings.markULongRangeExpr(id)
                 }
             }
             sema.bindings.bindExprType(id, type: returnType)
@@ -1433,13 +1608,24 @@ final class CallTypeChecker {
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
         }
+        if let calleeName,
+           interner.resolve(calleeName) == "compareValuesBy",
+           args.count >= 3
+        {
+            for index in 2..<args.count {
+                sema.bindings.markCollectionHOFLambdaExpr(args[index].expr)
+            }
+        }
         // Builder DSL member functions (STDLIB-002).
         // Inside builder lambdas, unqualified `append`/`add`/`put` resolve as
         // implicit-receiver member calls that return Unit.
         if let calleeName, ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString: name == "append" && args.count == 1
+            case .buildString:
+                (name == "append" && args.count == 1)
+                    || (name == "appendLine" && args.count <= 1)
+                    || (name == "appendRange" && args.count == 3)
             case .buildList, .buildSet: name == "add" && args.count == 1
             case .buildMap: name == "put" && args.count == 2
             }
@@ -1447,6 +1633,7 @@ final class CallTypeChecker {
                 for argument in args {
                     _ = driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
                 }
+                sema.bindings.markBuilderDSLExpr(id, kind: activeBuilderKind)
                 sema.bindings.bindExprType(id, type: sema.types.unitType)
                 return sema.types.unitType
             }
@@ -1511,7 +1698,18 @@ final class CallTypeChecker {
                 } else if !argTypes.isEmpty,
                           name == "sequenceOf"
                 {
-                    let elementType = sema.types.lub(argTypes)
+                    let hasNullableElement = argTypes.contains { inferredType in
+                        inferredType == sema.types.nullableNothingType
+                            || sema.types.makeNonNullable(inferredType) != inferredType
+                    }
+                    let concreteTypes = argTypes.compactMap { inferredType -> TypeID? in
+                        if inferredType == sema.types.nullableNothingType {
+                            return nil
+                        }
+                        return sema.types.makeNonNullable(inferredType)
+                    }
+                    let baseType = concreteTypes.isEmpty ? sema.types.anyType : sema.types.lub(concreteTypes)
+                    let elementType = hasNullableElement ? sema.types.makeNullable(baseType) : baseType
                     collectionType = makeSyntheticSequenceType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -1744,7 +1942,14 @@ final class CallTypeChecker {
                         )
                     }
                 } else if name == "generateSequence", args.count == 2 {
-                    let seedType = argTypes.first ?? sema.types.anyType
+                    let rawSeedType = argTypes.first ?? sema.types.anyType
+                    let seedType: TypeID = if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(rawSeedType)),
+                                              functionType.params.isEmpty
+                    {
+                        sema.types.makeNonNullable(functionType.returnType)
+                    } else {
+                        rawSeedType
+                    }
                     let nextExpectedType = sema.types.make(.functionType(FunctionType(
                         params: [seedType],
                         returnType: sema.types.makeNullable(seedType),

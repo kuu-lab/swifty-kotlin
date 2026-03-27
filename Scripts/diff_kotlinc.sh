@@ -14,9 +14,13 @@ REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
 DIFF_WORKERS="${DIFF_WORKERS:-}"
 LAST_ARTIFACT_DIR=""
+ARTIFACT_ROOT="${DIFF_ARTIFACT_ROOT:-$ROOT_DIR/.artifacts/diff_kotlinc}"
+FORCE_RUN_SKIPPED=0
+CLEAN_RUNTIME_CACHE=0
 COMPILE_TIMEOUT="${DIFF_COMPILE_TIMEOUT:-30}"
 RUN_TIMEOUT="${DIFF_RUN_TIMEOUT:-10}"
 TIMEOUT_CMD="${TIMEOUT:-timeout}"
+LLDB_BIN="${LLDB_BIN:-lldb}"
 
 usage() {
   cat <<USAGE
@@ -37,6 +41,13 @@ Options:
                      Per-program timeout (default: \$DIFF_RUN_TIMEOUT or 30)
   --keep-temp        Keep per-test temporary directories
   --report <path>    Write TSV report (case, status, artifact_dir)
+  --artifact-root <path>
+                     Persist failing case artifacts under this directory
+                     (default: \$DIFF_ARTIFACT_ROOT or .artifacts/diff_kotlinc)
+  --force-run-skipped
+                     Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
+  --clean-runtime-cache
+                     Remove .runtime-build before running diff cases
   -h, --help         Show this help
 
 Examples:
@@ -125,6 +136,20 @@ while [[ $# -gt 0 ]]; do
       fi
       REPORT_PATH="$1"
       ;;
+    --artifact-root)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--artifact-root requires an argument" >&2
+        exit 1
+      fi
+      ARTIFACT_ROOT="$1"
+      ;;
+    --force-run-skipped)
+      FORCE_RUN_SKIPPED=1
+      ;;
+    --clean-runtime-cache)
+      CLEAN_RUNTIME_CACHE=1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -203,6 +228,10 @@ ensure_kotlinc_classpath() {
 if [[ -z "$TARGET" ]]; then
   usage
   exit 1
+fi
+
+if [[ $CLEAN_RUNTIME_CACHE -eq 1 ]]; then
+  rm -rf "$ROOT_DIR/.runtime-build"
 fi
 
 ensure_kotlinc_classpath
@@ -308,6 +337,8 @@ echo "=== diff_kotlinc Configuration ==="
 echo "Workers: $WORKER_COUNT"
 echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
+echo "Force run skipped: $FORCE_RUN_SKIPPED"
+echo "Clean runtime cache: $CLEAN_RUNTIME_CACHE"
 echo "Target: $TARGET"
 echo "=================================="
 
@@ -328,8 +359,109 @@ normalize_text() {
   tr -d '\r'
 }
 
+sanitize_case_name() {
+  local input="$1"
+  input="${input##*/}"
+  input="${input%.kt}"
+  input="${input//[^A-Za-z0-9._-]/_}"
+  printf '%s' "$input"
+}
+
+safe_diff_to_file() {
+  local left="$1"
+  local right="$2"
+  local output="$3"
+  if [[ ! -f "$left" || ! -f "$right" ]]; then
+    rm -f "$output"
+    return 0
+  fi
+  if ! diff -u "$left" "$right" >"$output"; then
+    return 0
+  fi
+  rm -f "$output"
+}
+
+save_runtime_backtrace() {
+  local candidate_bin="$1"
+  local output="$2"
+
+  if ! command -v "$LLDB_BIN" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  "$LLDB_BIN" -b -o run -o bt -- "$candidate_bin" >"$output" 2>&1 || true
+}
+
+persist_artifacts() {
+  local case_path="$1"
+  local tmp_dir="$2"
+  local result_label="$3"
+  local ref_compile_exit="$4"
+  local cand_compile_exit="$5"
+  local ref_run_exit="$6"
+  local cand_run_exit="$7"
+
+  mkdir -p "$ARTIFACT_ROOT"
+
+  local case_name
+  case_name="$(sanitize_case_name "$case_path")"
+  local destination="$ARTIFACT_ROOT/${case_name}"
+  local suffix=1
+  while [[ -e "$destination" ]]; do
+    destination="$ARTIFACT_ROOT/${case_name}_$suffix"
+    suffix=$((suffix + 1))
+  done
+
+  mv "$tmp_dir" "$destination"
+
+  cp "$case_path" "$destination/input.kt"
+
+  if [[ $cand_compile_exit -eq 0 ]]; then
+    "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --emit kir "$case_path" -o "$destination/candidate.kir" \
+      >"$destination/candidate_kir.stdout" \
+      2>"$destination/candidate_kir.stderr" || true
+  fi
+  if [[ $cand_compile_exit -eq 0 && $cand_run_exit -ge 128 ]]; then
+    save_runtime_backtrace "$destination/candidate.out" "$destination/backtrace.txt"
+  fi
+
+  cat >"$destination/summary.txt" <<EOF
+case: $case_path
+result: $result_label
+artifact_dir: $destination
+compile_timeout_seconds: $COMPILE_TIMEOUT
+run_timeout_seconds: $RUN_TIMEOUT
+ref_compile_exit: $ref_compile_exit
+candidate_compile_exit: $cand_compile_exit
+ref_run_exit: $ref_run_exit
+candidate_run_exit: $cand_run_exit
+kswiftc: $KSWIFTC
+kotlinc: $KOTLINC
+java: $JAVA_BIN
+force_run_skipped: $FORCE_RUN_SKIPPED
+clean_runtime_cache: $CLEAN_RUNTIME_CACHE
+EOF
+
+  cat >"$destination/repro.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$ROOT_DIR"
+bash Scripts/diff_kotlinc.sh --no-parallel --keep-temp --force-run-skipped "$case_path"
+EOF
+  chmod +x "$destination/repro.sh"
+
+  safe_diff_to_file "$destination/ref_compile_stderr.norm" "$destination/cand_compile_stderr.norm" "$destination/compile_stderr.diff"
+  safe_diff_to_file "$destination/ref_run_stdout.norm" "$destination/cand_run_stdout.norm" "$destination/stdout.diff"
+  safe_diff_to_file "$destination/ref_run.stderr" "$destination/cand_run.stderr" "$destination/stderr.diff"
+
+  LAST_ARTIFACT_DIR="$destination"
+}
+
 should_skip_case() {
   local kt_file="$1"
+  if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
+    return 1
+  fi
   grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$kt_file"
 }
 
@@ -461,6 +593,8 @@ run_case() {
   normalize_text <"$cand_compile_stderr" >"$tmp_dir/cand_compile_stderr.norm"
   normalize_text <"$ref_run_stdout" >"$tmp_dir/ref_run_stdout.norm" || true
   normalize_text <"$cand_run_stdout" >"$tmp_dir/cand_run_stdout.norm" || true
+  normalize_text <"$ref_run_stderr" >"$tmp_dir/ref_run_stderr.norm" || true
+  normalize_text <"$cand_run_stderr" >"$tmp_dir/cand_run_stderr.norm" || true
 
   local ok=1
 
@@ -524,7 +658,17 @@ run_case() {
     fi
   fi
 
-  if [[ $KEEP_TEMP -eq 0 && $ok -eq 1 ]]; then
+  if [[ $ok -eq 0 ]]; then
+    persist_artifacts \
+      "$kt_file" \
+      "$tmp_dir" \
+      "FAIL" \
+      "$ref_compile_exit" \
+      "$cand_compile_exit" \
+      "$ref_run_exit" \
+      "$cand_run_exit"
+    echo "  artifacts: $LAST_ARTIFACT_DIR"
+  elif [[ $KEEP_TEMP -eq 0 ]]; then
     rm -rf "$tmp_dir"
     LAST_ARTIFACT_DIR=""
   else

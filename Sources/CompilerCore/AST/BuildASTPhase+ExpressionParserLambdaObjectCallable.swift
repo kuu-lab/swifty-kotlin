@@ -62,18 +62,15 @@ extension BuildASTPhase.ExpressionParser {
             return astArena.appendExpr(.lambdaLiteral(params: params, body: bodyExpr, label: label, range: range))
         }
 
-        // No-arrow lambda: { body }.
-        // Accept either:
-        // - explicit implicit-it usage (`{ it * 2 }`), or
-        // - call-site trailing lambdas/labeled lambdas that omit parameters (`foo { 1 }`, `label@ { ... }`).
-        if containsImplicitItReference(in: bodyTokens) || allowImplicitEmptyParams {
-            let bodyExpr = parseLambdaBody(bodySlice: bodyTokens[...], fallbackStart: openBrace.range.end)
-            let range = SourceRange(start: start ?? openBrace.range.start, end: end)
-            return astArena.appendExpr(.lambdaLiteral(params: [], body: bodyExpr, label: label, range: range))
-        }
-
-        index = savedIndex
-        return nil
+        // No-arrow lambda: `{ body }`.
+        //
+        // In expression position Kotlin treats bare braces as lambda literals,
+        // including zero-argument lambdas like `{ 42 }`. Trailing-lambda call
+        // sites still pass `allowImplicitEmptyParams`, but plain expression
+        // contexts must also accept the same syntax.
+        let bodyExpr = parseLambdaBody(bodySlice: bodyTokens[...], fallbackStart: openBrace.range.end)
+        let range = SourceRange(start: start ?? openBrace.range.start, end: end)
+        return astArena.appendExpr(.lambdaLiteral(params: [], body: bodyExpr, label: label, range: range))
     }
 
     func parseObjectLiteral() -> ExprID? {

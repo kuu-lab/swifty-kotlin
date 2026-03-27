@@ -350,17 +350,17 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     }
     // List check
     if let list = runtimeListBox(from: container) {
-        return list.elements.contains(element) ? 1 : 0
+        return list.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
-        return set.elements.contains(element) ? 1 : 0
+        return set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
     }
     // Array check
     guard let array = runtimeArrayBox(from: container) else {
         return 0
     }
-    return array.elements.contains(element) ? 1 : 0
+    return array.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
 }
 
 @_cdecl("kk_array_new")

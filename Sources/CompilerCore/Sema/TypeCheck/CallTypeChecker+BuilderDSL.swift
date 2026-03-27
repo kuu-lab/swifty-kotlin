@@ -460,7 +460,7 @@ extension CallTypeChecker {
     private func isMatchingBuilderDSLFunctionName(_ name: String, kind: BuilderDSLKind) -> Bool {
         switch kind {
         case .buildString:
-            name == "append"
+            name == "append" || name == "appendLine" || name == "appendRange"
         case .buildList, .buildSet:
             name == "add"
         case .buildMap:
@@ -580,6 +580,113 @@ extension CallTypeChecker {
         )))
     }
 
+    func sequenceBuilderReturnType(
+        lambdaExprID: ExprID,
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let elementType = sequenceBuilderElementType(
+            lambdaExprID: lambdaExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let sequenceFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("Sequence"),
+        ]
+        guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
+            return sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: sequenceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    func sequenceBuilderReceiverType(
+        sequenceType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let scopeFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("sequences"),
+            interner.intern("SequenceScope"),
+        ]
+        guard let scopeSymbol = sema.symbols.lookup(fqName: scopeFQName) else {
+            return sema.types.anyType
+        }
+        let elementType: TypeID
+        if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(sequenceType)),
+           let firstArg = classType.args.first
+        {
+            switch firstArg {
+            case let .invariant(type), let .out(type), let .in(type):
+                elementType = type
+            case .star:
+                elementType = sema.types.anyType
+            }
+        } else {
+            elementType = sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: scopeSymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    func iteratorBuilderReturnType(
+        lambdaExprID: ExprID,
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let elementType = sequenceBuilderElementType(
+            lambdaExprID: lambdaExprID,
+            expectedType: expectedType,
+            ctx: ctx,
+            locals: locals,
+            sema: sema,
+            interner: interner
+        )
+        let iteratorFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterator"),
+        ]
+        guard let iteratorSymbol = sema.symbols.lookup(fqName: iteratorFQName) else {
+            return sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: iteratorSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    func sequenceBuilderLambdaType(
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> TypeID {
+        sema.types.make(.functionType(FunctionType(
+            receiver: receiverType,
+            params: [],
+            returnType: sema.types.unitType,
+            isSuspend: true
+        )))
+    }
+
     func ensureSyntheticStringBuilderType(
         sema: SemaModule,
         interner: StringInterner
@@ -629,5 +736,238 @@ extension CallTypeChecker {
             visibility: .public,
             flags: [.synthetic]
         )
+        }
     }
-}
+
+    private func sequenceBuilderElementType(
+        lambdaExprID: ExprID,
+        expectedType: TypeID?,
+        ctx: TypeInferenceContext,
+        locals: LocalBindings,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        if let expectedElementType = sequenceBuilderExpectedElementType(
+            expectedType,
+            sema: sema,
+            interner: interner
+        ) {
+            return expectedElementType
+        }
+        guard case let .lambdaLiteral(_, bodyExprID, _, _) = ctx.ast.arena.expr(lambdaExprID) else {
+            return sema.types.anyType
+        }
+        var yieldedExprs: [ExprID] = []
+        var yieldedCollectionExprs: [ExprID] = []
+        collectSequenceBuilderYieldExprs(
+            in: bodyExprID,
+            ast: ctx.ast,
+            interner: interner,
+            yielded: &yieldedExprs,
+            yieldedCollections: &yieldedCollectionExprs
+        )
+        var elementTypes: [TypeID] = yieldedExprs.compactMap { exprID in
+            let inferredType = sema.bindings.exprType(for: exprID)
+            guard let inferredType, inferredType != sema.types.errorType else {
+                return nil
+            }
+            return inferredType
+        }
+        for exprID in yieldedCollectionExprs {
+            guard let inferredType = sema.bindings.exprType(for: exprID),
+                  inferredType != sema.types.errorType
+            else {
+                continue
+            }
+            if let elementType = sequenceBuilderCollectionElementType(
+                inferredType,
+                sema: sema,
+                interner: interner
+            ) {
+                elementTypes.append(elementType)
+            }
+        }
+        guard !elementTypes.isEmpty else {
+            return sema.types.anyType
+        }
+        return sema.types.lub(elementTypes)
+    }
+
+    private func sequenceBuilderExpectedElementType(
+        _ expectedType: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let expectedType,
+              case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(expectedType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol),
+              symbol.fqName == [
+                  interner.intern("kotlin"),
+                  interner.intern("sequences"),
+                  interner.intern("Sequence"),
+              ],
+              let firstArg = classType.args.first
+        else {
+            return nil
+        }
+        switch firstArg {
+        case let .invariant(type), let .out(type), let .in(type):
+            return type
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
+    private func sequenceBuilderCollectionElementType(
+        _ collectionType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let nonNullType = sema.types.makeNonNullable(collectionType)
+        if case let .classType(classType) = sema.types.kind(of: nonNullType),
+           let symbol = sema.symbols.symbol(classType.classSymbol),
+           let simpleName = symbol.fqName.last
+        {
+            let resolved = interner.resolve(simpleName)
+            switch resolved {
+            case "List", "MutableList", "Set", "MutableSet", "Collection", "Iterable", "Sequence", "Array":
+                guard let firstArg = classType.args.first else {
+                    return sema.types.anyType
+                }
+                switch firstArg {
+                case let .invariant(type), let .out(type), let .in(type):
+                    return type
+                case .star:
+                    return sema.types.anyType
+                }
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
+    private func collectSequenceBuilderYieldExprs(
+        in exprID: ExprID,
+        ast: ASTModule,
+        interner: StringInterner,
+        yielded: inout [ExprID],
+        yieldedCollections: inout [ExprID]
+    ) {
+        guard let expr = ast.arena.expr(exprID) else {
+            return
+        }
+        switch expr {
+        case let .call(callee, _, args, _):
+            if case let .nameRef(name, _) = ast.arena.expr(callee) {
+                let resolved = interner.resolve(name)
+                if resolved == "yield", let first = args.first {
+                    yielded.append(first.expr)
+                } else if resolved == "yieldAll", let first = args.first {
+                    yieldedCollections.append(first.expr)
+                }
+            }
+            collectSequenceBuilderYieldExprs(
+                in: callee,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+            for argument in args {
+                collectSequenceBuilderYieldExprs(
+                    in: argument.expr,
+                    ast: ast,
+                    interner: interner,
+                    yielded: &yielded,
+                    yieldedCollections: &yieldedCollections
+                )
+            }
+        case let .memberCall(receiver, callee, _, args, _):
+            let resolved = interner.resolve(callee)
+            if case .thisRef = ast.arena.expr(receiver) {
+                if resolved == "yield", let first = args.first {
+                    yielded.append(first.expr)
+                } else if resolved == "yieldAll", let first = args.first {
+                    yieldedCollections.append(first.expr)
+                }
+            }
+            collectSequenceBuilderYieldExprs(
+                in: receiver,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+            for argument in args {
+                collectSequenceBuilderYieldExprs(
+                    in: argument.expr,
+                    ast: ast,
+                    interner: interner,
+                    yielded: &yielded,
+                    yieldedCollections: &yieldedCollections
+                )
+            }
+        case let .blockExpr(statements, trailingExpr, _):
+            for statementExprID in statements {
+                collectSequenceBuilderYieldExprs(
+                    in: statementExprID,
+                    ast: ast,
+                    interner: interner,
+                    yielded: &yielded,
+                    yieldedCollections: &yieldedCollections
+                )
+            }
+            if let trailingExpr {
+                collectSequenceBuilderYieldExprs(
+                    in: trailingExpr,
+                    ast: ast,
+                    interner: interner,
+                    yielded: &yielded,
+                    yieldedCollections: &yieldedCollections
+                )
+            }
+        case let .ifExpr(condition, thenExpr, elseExpr, _):
+            collectSequenceBuilderYieldExprs(
+                in: condition,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+            collectSequenceBuilderYieldExprs(
+                in: thenExpr,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+            if let elseExpr {
+                collectSequenceBuilderYieldExprs(
+                    in: elseExpr,
+                    ast: ast,
+                    interner: interner,
+                    yielded: &yielded,
+                    yieldedCollections: &yieldedCollections
+                )
+            }
+        case let .forExpr(_, iterableExpr, bodyExpr, _, _),
+            let .forDestructuringExpr(_, iterableExpr, bodyExpr, _):
+            collectSequenceBuilderYieldExprs(
+                in: iterableExpr,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+            collectSequenceBuilderYieldExprs(
+                in: bodyExpr,
+                ast: ast,
+                interner: interner,
+                yielded: &yielded,
+                yieldedCollections: &yieldedCollections
+            )
+        default:
+            break
+        }
+    }

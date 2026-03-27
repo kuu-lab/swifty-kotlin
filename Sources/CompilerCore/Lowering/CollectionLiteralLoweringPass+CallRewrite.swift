@@ -3,6 +3,63 @@ import Foundation
 
 extension CollectionLiteralLoweringPass {
 
+    private func primitiveBoxCalleeName(
+        for type: TypeID,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> InternedString? {
+        switch types.kind(of: type) {
+        case .primitive(.int, _), .primitive(.uint, _), .primitive(.ubyte, _), .primitive(.ushort, _):
+            return interner.intern("kk_box_int")
+        case .primitive(.boolean, _):
+            return interner.intern("kk_box_bool")
+        case .primitive(.long, _), .primitive(.ulong, _):
+            return interner.intern("kk_box_long")
+        case .primitive(.float, _):
+            return interner.intern("kk_box_float")
+        case .primitive(.double, _):
+            return interner.intern("kk_box_double")
+        case .primitive(.char, _):
+            return interner.intern("kk_box_char")
+        default:
+            return nil
+        }
+    }
+
+    private func collectionFactoryElementType(
+        symbol: SymbolID?,
+        result: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext
+    ) -> TypeID? {
+        if let symbol,
+           let returnType = ctx.sema?.symbols.functionSignature(for: symbol)?.returnType
+        {
+            return collectionElementType(from: returnType, ctx: ctx)
+        }
+        if let result,
+           let resultType = module.arena.exprType(result)
+        {
+            return collectionElementType(from: resultType, ctx: ctx)
+        }
+        return nil
+    }
+
+    private func collectionElementType(from type: TypeID, ctx: KIRContext) -> TypeID? {
+        guard let types = ctx.sema?.types else { return nil }
+        guard case let .classType(classType) = types.kind(of: type),
+              let firstArg = classType.args.first
+        else {
+            return nil
+        }
+        switch firstArg {
+        case let .invariant(elementType), let .out(elementType), let .in(elementType):
+            return elementType
+        case .star:
+            return types.nullableAnyType
+        }
+    }
+
     /// Returns true when the resolved symbol's FQN matches one of the known
     /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
     /// we conservatively allow the rewrite – the name check already passed and
@@ -24,6 +81,7 @@ extension CollectionLiteralLoweringPass {
         let fqName = resolved.fqName
         // Match against known stdlib collection factory FQNs
         return fqName == lookup.emptyListFQName
+            || fqName == lookup.emptyArrayFQName
             || fqName == lookup.listOfFQName
             || fqName == lookup.mutableListOfFQName
             || fqName == lookup.listOfNotNullFQName
@@ -33,6 +91,18 @@ extension CollectionLiteralLoweringPass {
             || fqName == lookup.emptyMapFQName
             || fqName == lookup.mapOfFQName
             || fqName == lookup.mutableMapOfFQName
+    }
+
+    private func isStdlibArrayFactoryCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        guard lookup.arrayOfFactoryNames.contains(callee) else {
+            return false
+        }
+        return isStdlibCollectionFactory(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx)
     }
 
     private func isJavaIOFileMember(
@@ -63,8 +133,8 @@ extension CollectionLiteralLoweringPass {
             interner: ctx.interner
         )
 
-        module.arena.transformFunctions { function in
-            var updated = function
+        func transformFunction(_ function: KIRFunction) -> KIRFunction {
+            var updated: KIRFunction = function
 
             // Phase 1: Identify collection-typed expression IDs
             var listExprIDs: Set<Int32> = []
@@ -108,8 +178,9 @@ extension CollectionLiteralLoweringPass {
 
             for instruction in function.body {
                 switch instruction {
-                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _):
-                    // --- Rewrite listOf/mutableListOf/emptyList → kk_list_of / kk_emptyList ---
+                case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _, _):
+                    // --- Rewrite listOf/mutableListOf/emptyList/emptyArray → kk_list_of / kk_emptyList / kk_empty_array ---
+                    // --- Rewrite arrayOf/intArrayOf/... → kk_array_of ---
                     // Only rewrite calls whose symbol resolves to a known
                     // kotlin.collections.* factory to avoid accidentally
                     // lowering user-defined functions with the same name.
@@ -117,15 +188,37 @@ extension CollectionLiteralLoweringPass {
                        isStdlibCollectionFactory(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
                         let count = arguments.count
                         if count == 0 && callee != lookup.mutableListOfName {
-                            // emptyList() / listOf() → kk_emptyList()
-                            loweredBody.append(.call(
-                                symbol: nil,
-                                callee: lookup.kkEmptyListName,
-                                arguments: [],
-                                result: result,
-                                canThrow: false,
-                                thrownResult: nil
-                            ))
+                            if callee == lookup.emptyListName {
+                                // emptyList() → kk_emptyList()
+                                loweredBody.append(.call(
+                                    symbol: nil,
+                                    callee: lookup.kkEmptyListName,
+                                    arguments: [],
+                                    result: result,
+                                    canThrow: false,
+                                    thrownResult: nil
+                                ))
+                            } else if callee == lookup.emptyArrayName {
+                                // emptyArray() → kk_empty_array()
+                                loweredBody.append(.call(
+                                    symbol: nil,
+                                    callee: lookup.kkEmptyArrayName,
+                                    arguments: [],
+                                    result: result,
+                                    canThrow: false,
+                                    thrownResult: nil
+                                ))
+                            } else {
+                                // listOf() → kk_emptyList()
+                                loweredBody.append(.call(
+                                    symbol: nil,
+                                    callee: lookup.kkEmptyListName,
+                                    arguments: [],
+                                    result: result,
+                                    canThrow: false,
+                                    thrownResult: nil
+                                ))
+                            }
                         } else if count == 0 {
                             // mutableListOf() → fresh instance via kk_list_of(null, 0)
                             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -159,13 +252,38 @@ extension CollectionLiteralLoweringPass {
                             for (i, arg) in arguments.enumerated() {
                                 let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                                 loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
+                                let storedArg: KIRExprID
+                                if let types = ctx.sema?.types,
+                                   let argType = module.arena.exprType(arg),
+                                   let boxCallee = primitiveBoxCalleeName(
+                                       for: argType,
+                                       types: types,
+                                       interner: ctx.interner
+                                   )
+                                {
+                                    let boxedArg = module.arena.appendExpr(
+                                        .temporary(Int32(module.arena.expressions.count)),
+                                        type: types.anyType
+                                    )
+                                    loweredBody.append(.call(
+                                        symbol: nil,
+                                        callee: boxCallee,
+                                        arguments: [arg],
+                                        result: boxedArg,
+                                        canThrow: false,
+                                        thrownResult: nil
+                                    ))
+                                    storedArg = boxedArg
+                                } else {
+                                    storedArg = arg
+                                }
                                 let setResult = module.arena.appendExpr(
                                     .temporary(Int32(module.arena.expressions.count)), type: nil
                                 )
                                 loweredBody.append(.call(
                                     symbol: nil,
                                     callee: lookup.kkArraySetName,
-                                    arguments: [arrayExpr, idxExpr, arg],
+                                    arguments: [arrayExpr, idxExpr, storedArg],
                                     result: setResult,
                                     canThrow: false,
                                     thrownResult: nil
@@ -344,13 +462,38 @@ extension CollectionLiteralLoweringPass {
                             for (i, arg) in arguments.enumerated() {
                                 let idxExpr = module.arena.appendExpr(.intLiteral(Int64(i)), type: nil)
                                 loweredBody.append(.constValue(result: idxExpr, value: .intLiteral(Int64(i))))
+                                let storedArg: KIRExprID
+                                if let types = ctx.sema?.types,
+                                   let argType = module.arena.exprType(arg),
+                                   let boxCallee = primitiveBoxCalleeName(
+                                       for: argType,
+                                       types: types,
+                                       interner: ctx.interner
+                                   )
+                                {
+                                    let boxedArg = module.arena.appendExpr(
+                                        .temporary(Int32(module.arena.expressions.count)),
+                                        type: types.anyType
+                                    )
+                                    loweredBody.append(.call(
+                                        symbol: nil,
+                                        callee: boxCallee,
+                                        arguments: [arg],
+                                        result: boxedArg,
+                                        canThrow: false,
+                                        thrownResult: nil
+                                    ))
+                                    storedArg = boxedArg
+                                } else {
+                                    storedArg = arg
+                                }
                                 let setResult = module.arena.appendExpr(
                                     .temporary(Int32(module.arena.expressions.count)), type: nil
                                 )
                                 loweredBody.append(.call(
                                     symbol: nil,
                                     callee: lookup.kkArraySetName,
-                                    arguments: [arrayExpr, idxExpr, arg],
+                                    arguments: [arrayExpr, idxExpr, storedArg],
                                     result: setResult,
                                     canThrow: false,
                                     thrownResult: nil
@@ -857,7 +1000,7 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // --- Rewrite arrayOf → kk_array_of ---
-                    if lookup.arrayOfFactoryNames.contains(callee) {
+                    if isStdlibArrayFactoryCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
                         let count = arguments.count
                         let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                         loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
@@ -1908,9 +2051,10 @@ extension CollectionLiteralLoweringPass {
                             let transformResult = module.arena.appendExpr(
                                 .temporary(Int32(module.arena.expressions.count)), type: nil
                             )
+                            let reversedName = ulongRangeExprIDs.contains(receiverID.rawValue) ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
                             loweredBody.append(.call(
                                 symbol: nil,
-                                callee: lookup.kkRangeReversedName,
+                                callee: reversedName,
                                 arguments: [receiverID],
                                 result: transformResult,
                                 canThrow: false,
@@ -2211,14 +2355,12 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // iterator { ... } builder → kk_iterator_builder_build (STDLIB-331)
-                    // Only rewrite calls whose symbol resolves to kotlin.sequences.iterator
-                    // (FQN check) to avoid accidentally lowering user-defined iterator(...)
-                    // calls in other scopes.
-                    // The runtime ABI function is non-throwing, so force canThrow=false.
-                    if callee == lookup.iteratorBuilderName, arguments.count == 1,
-                       let sym = symbol,
-                       ctx.sema?.symbols.symbol(sym)?.fqName == lookup.iteratorBuilderFQName
-                    {
+                    // Mirror the sequence {} builder rewrite. The sema layer
+                    // already special-cases the synthetic stdlib builder, so
+                    // by this point plain `iterator { ... }` should refer to
+                    // kotlin.sequences.iterator rather than a user-defined
+                    // overload. Keep the runtime call non-throwing.
+                    if callee == lookup.iteratorBuilderName, arguments.count == 1 {
                         loweredBody.append(.call(
                             symbol: nil,
                             callee: lookup.kkIteratorBuilderBuildName,
@@ -3221,7 +3363,7 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     // foldIndexed: args = [receiver, initial, lambda, closureRaw?]
-                    if (callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName), (arguments.count == 3 || arguments.count == 4) {
+                    if (callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName || callee == lookup.kkSequenceFoldIndexedName), (arguments.count == 3 || arguments.count == 4) {
                         let receiverID = arguments[0]
                         if listExprIDs.contains(receiverID.rawValue) || sequenceExprIDs.contains(receiverID.rawValue) {
                             let initialID = arguments[1]
@@ -3236,7 +3378,7 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
                     // reduceIndexed: args = [receiver, lambda, closureRaw?]
-                    if (callee == lookup.reduceIndexedName || callee == lookup.kkListReduceIndexedName), (arguments.count == 2 || arguments.count == 3) {
+                    if (callee == lookup.reduceIndexedName || callee == lookup.kkListReduceIndexedName || callee == lookup.kkSequenceReduceIndexedName), (arguments.count == 2 || arguments.count == 3) {
                         let receiverID = arguments[0]
                         if listExprIDs.contains(receiverID.rawValue) || sequenceExprIDs.contains(receiverID.rawValue) {
                             let lambdaID = arguments[1]
@@ -3845,6 +3987,7 @@ extension CollectionLiteralLoweringPass {
             updated.replaceBody(loweredBody)
             return updated
         }
+        module.arena.transformFunctions(transformFunction)
         module.recordLowering(Self.name)
     }
 }

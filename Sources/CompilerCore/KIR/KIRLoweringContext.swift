@@ -8,6 +8,7 @@ final class KIRLoweringContext {
     // MARK: - Scope State (saved/restored per function/lambda)
 
     var localValuesBySymbol: [SymbolID: KIRExprID] = [:]
+    var localDeclaredTypesBySymbol: [SymbolID: TypeID] = [:]
     var mutableCaptureCellsBySymbol: [SymbolID: KIRExprID] = [:]
     /// Lambda param name → symbol for resolving nameRef when identifierSymbols is unbound
     /// (e.g. collection HOF lambdas inferred via fallback).
@@ -40,7 +41,7 @@ final class KIRLoweringContext {
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
     var syntheticObjectLiteralSymbolsByExprID: [ExprID: (nominalSymbol: SymbolID, constructorSymbol: SymbolID, constructorName: InternedString)] = [:]
     var emittedObjectLiteralExprIDs: Set<ExprID> = []
-    var nextSyntheticLambdaSymbolRawValue: Int32 = 1
+    var nextSyntheticLambdaSymbolRawValue: Int32 = -60_000_000
 
     /// Companion object initializer functions registered during class lowering.
     /// These are called in order during module initialization.
@@ -50,6 +51,7 @@ final class KIRLoweringContext {
 
     struct ScopeSnapshot {
         let localValuesBySymbol: [SymbolID: KIRExprID]
+        let localDeclaredTypesBySymbol: [SymbolID: TypeID]
         let mutableCaptureCellsBySymbol: [SymbolID: KIRExprID]
         let lambdaParamNameToSymbol: [InternedString: SymbolID]
         let currentImplicitReceiverExprID: KIRExprID?
@@ -63,6 +65,7 @@ final class KIRLoweringContext {
     func saveScope() -> ScopeSnapshot {
         ScopeSnapshot(
             localValuesBySymbol: localValuesBySymbol,
+            localDeclaredTypesBySymbol: localDeclaredTypesBySymbol,
             mutableCaptureCellsBySymbol: mutableCaptureCellsBySymbol,
             lambdaParamNameToSymbol: lambdaParamNameToSymbol,
             currentImplicitReceiverExprID: currentImplicitReceiverExprID,
@@ -76,6 +79,7 @@ final class KIRLoweringContext {
 
     func restoreScope(_ snapshot: ScopeSnapshot) {
         localValuesBySymbol = snapshot.localValuesBySymbol
+        localDeclaredTypesBySymbol = snapshot.localDeclaredTypesBySymbol
         mutableCaptureCellsBySymbol = snapshot.mutableCaptureCellsBySymbol
         lambdaParamNameToSymbol = snapshot.lambdaParamNameToSymbol
         currentImplicitReceiverExprID = snapshot.currentImplicitReceiverExprID
@@ -97,6 +101,7 @@ final class KIRLoweringContext {
 
     func resetScopeForFunction() {
         localValuesBySymbol.removeAll(keepingCapacity: true)
+        localDeclaredTypesBySymbol.removeAll(keepingCapacity: true)
         mutableCaptureCellsBySymbol.removeAll(keepingCapacity: true)
         lambdaParamNameToSymbol.removeAll(keepingCapacity: true)
         currentImplicitReceiverExprID = nil
@@ -117,7 +122,16 @@ final class KIRLoweringContext {
 
     func clearLocalValue(for symbol: SymbolID) {
         localValuesBySymbol.removeValue(forKey: symbol)
+        localDeclaredTypesBySymbol.removeValue(forKey: symbol)
         mutableCaptureCellsBySymbol.removeValue(forKey: symbol)
+    }
+
+    func localDeclaredType(for symbol: SymbolID) -> TypeID? {
+        localDeclaredTypesBySymbol[symbol]
+    }
+
+    func setLocalDeclaredType(_ typeID: TypeID, for symbol: SymbolID) {
+        localDeclaredTypesBySymbol[symbol] = typeID
     }
 
     func mutableCaptureCell(for symbol: SymbolID) -> KIRExprID? {
@@ -332,12 +346,8 @@ final class KIRLoweringContext {
     // MARK: - Synthetic Symbol Management
 
     func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule) {
-        let base = max(Int64(1), Int64(sema.symbols.count))
-        if base > Int64(Int32.max) {
-            nextSyntheticLambdaSymbolRawValue = Int32.max
-        } else {
-            nextSyntheticLambdaSymbolRawValue = Int32(base)
-        }
+        _ = sema
+        nextSyntheticLambdaSymbolRawValue = -60_000_000
     }
 
     func syntheticLambdaSymbol(for exprID: ExprID) -> SymbolID {
@@ -373,11 +383,11 @@ final class KIRLoweringContext {
 
     private func nextSyntheticLambdaSymbolRawID() -> Int32 {
         precondition(
-            nextSyntheticLambdaSymbolRawValue < Int32.max,
+            nextSyntheticLambdaSymbolRawValue > Int32.min + 1,
             "Exhausted synthetic symbol IDs for lambda lowering."
         )
         let allocated = nextSyntheticLambdaSymbolRawValue
-        nextSyntheticLambdaSymbolRawValue += 1
+        nextSyntheticLambdaSymbolRawValue -= 1
         return allocated
     }
 

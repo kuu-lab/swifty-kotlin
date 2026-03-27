@@ -6,7 +6,7 @@ import Foundation
 private let binarySearchCompareFQSuffix = "binarySearch$compare"
 
 extension DataFlowSemaPhase {
-    /// Register `kotlin.Comparable<T>` interface stub with `operator fun compareTo(other: T): Int`.
+    /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
     func registerSyntheticComparableStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -42,7 +42,7 @@ extension DataFlowSemaPhase {
         // Store in TypeSystem for use in isSubtype
         types.comparableInterfaceSymbol = comparableSymbol
 
-        // Define type parameter T for Comparable<T>
+        // Define type parameter T for Comparable<in T>.
         let tParamName = interner.intern("T")
         let tParamFQName = comparableFQName + [tParamName]
         let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
@@ -70,7 +70,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface.
+    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface with null-safe comparison support.
     private func registerComparableCompareToOperator(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -85,7 +85,7 @@ extension DataFlowSemaPhase {
         guard symbols.lookup(fqName: compareToFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
-            args: [.invariant(tParamType)],
+            args: [.in(tParamType)],
             nullability: .nonNull
         )))
         let compareToSymbol = symbols.define(
@@ -106,6 +106,112 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 1
             ),
             for: compareToSymbol
+        )
+
+        // Register null-safe comparison extensions
+        registerNullSafeComparisonExtensions(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparableSymbol: comparableSymbol,
+            tParamType: tParamType
+        )
+    }
+
+    /// Register null-safe comparison extensions for Comparable types.
+    private func registerNullSafeComparisonExtensions(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparableSymbol: SymbolID,
+        tParamType: TypeID
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let extensionsPkg = kotlinPkg + [interner.intern("comparisons")]
+
+        // Ensure comparisons package exists
+        if symbols.lookup(fqName: extensionsPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("comparisons"),
+                fqName: extensionsPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+
+        // Register null-safe compareTo for nullable types
+        registerNullSafeCompareTo(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            extensionsPkg: extensionsPkg,
+            comparableSymbol: comparableSymbol,
+            tParamType: tParamType
+        )
+    }
+
+    /// Register null-safe compareTo extension for nullable Comparable types.
+    private func registerNullSafeCompareTo(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        extensionsPkg: [InternedString],
+        comparableSymbol: SymbolID,
+        tParamType: TypeID
+    ) {
+        let functionName = interner.intern("compareToOrNull")
+        let functionFQName = extensionsPkg + [functionName]
+
+        guard symbols.lookup(fqName: functionFQName) == nil else { return }
+
+        let nullableTParamType = types.makeNullable(tParamType)
+        let nullableIntType = types.makeNullable(types.intType)
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+
+        // Define type parameter T for the extension function
+        let tParamName = interner.intern("T")
+        let tParamFQName = functionFQName + [tParamName]
+        let tParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: tParamName,
+            fqName: tParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        let functionTParamType = types.make(.typeParam(TypeParamType(
+            symbol: tParamSymbol,
+            nullability: .nonNull
+        )))
+        let nullableFunctionTParamType = types.makeNullable(functionTParamType)
+
+        // Create upper bound: T : Comparable<T>
+        let comparableUpperBounds: [TypeID] = [types.make(.classType(ClassType(
+            classSymbol: comparableSymbol,
+            args: [.in(functionTParamType)],
+            nullability: .nonNull
+        )))]
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: [nullableFunctionTParamType, nullableFunctionTParamType],
+                returnType: nullableIntType,
+                typeParameterSymbols: [tParamSymbol],
+                typeParameterUpperBoundsList: [comparableUpperBounds],
+                classTypeParameterCount: 0
+            ),
+            for: functionSymbol
         )
     }
 
@@ -163,6 +269,36 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             collectionInterfaceSymbol: collectionInterfaceSymbol
+        )
+
+        // --- STDLIB-533: List?.orEmpty() ---
+        let listTypeParamSymbols = types.nominalTypeParameterSymbols(for: listInterfaceSymbol)
+        let listTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: listTypeParamSymbols.first!,
+            nullability: .nonNull
+        )))
+        let nullableListType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(listTypeParamType)],
+            nullability: .nullable
+        )))
+        let nonNullListType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(listTypeParamType)],
+            nullability: .nonNull
+        )))
+
+        registerSyntheticListExtensionFunction(
+            named: "orEmpty",
+            externalLinkName: "kk_list_orEmpty",
+            receiverType: nullableListType,
+            parameters: [],
+            returnType: nonNullListType,
+            typeParameterSymbols: listTypeParamSymbols,
+            packageFQName: kotlinCollectionsPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
         )
 
         // Now that List is registered, patch Pair.toList() and Triple.toList()
@@ -2708,12 +2844,20 @@ extension DataFlowSemaPhase {
 
         // maxWith / maxWithOrNull / minWith / minWithOrNull (comparator-based) (STDLIB-301c)
         do {
-            let comparatorType = types.make(.functionType(FunctionType(
-                params: [listTypeParamType, listTypeParamType],
-                returnType: types.intType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
+            let comparatorType = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
+                types.make(.classType(ClassType(
+                    classSymbol: comparatorSymbol,
+                    args: [.invariant(listTypeParamType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.make(.functionType(FunctionType(
+                    params: [listTypeParamType, listTypeParamType],
+                    returnType: types.intType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+            }
 
             func registerWithComparator(
                 name: String,
@@ -2774,12 +2918,20 @@ extension DataFlowSemaPhase {
                 )
                 let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
 
-                let comparatorType = types.make(.functionType(FunctionType(
-                    params: [rType, rType],
-                    returnType: types.intType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
+                let comparatorType = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
+                    types.make(.classType(ClassType(
+                        classSymbol: comparatorSymbol,
+                        args: [.invariant(rType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    types.make(.functionType(FunctionType(
+                        params: [rType, rType],
+                        returnType: types.intType,
+                        isSuspend: false,
+                        nullability: .nonNull
+                    )))
+                }
                 let selectorType = types.make(.functionType(FunctionType(
                     params: [listTypeParamType],
                     returnType: rType,
@@ -3709,6 +3861,13 @@ extension DataFlowSemaPhase {
             mlTypeParamSymbol: mlTypeParamSymbol,
             mlTypeParamType: mlTypeParamType
         )
+        registerMutableListSortDescendingMember(
+            symbols: symbols, types: types, interner: interner,
+            mutableListFQName: mutableListFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            mlTypeParamSymbol: mlTypeParamSymbol,
+            mlTypeParamType: mlTypeParamType
+        )
         registerMutableListAddAllMember(
             symbols: symbols, types: types, interner: interner,
             mutableListFQName: mutableListFQName,
@@ -4225,6 +4384,46 @@ extension DataFlowSemaPhase {
         )
     }
 
+    private func registerMutableListSortDescendingMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        mutableListFQName: [InternedString],
+        mutableListInterfaceSymbol: SymbolID,
+        mlTypeParamSymbol: SymbolID,
+        mlTypeParamType: TypeID
+    ) {
+        let memberName = interner.intern("sortDescending")
+        let memberFQName = mutableListFQName + [memberName]
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: mutableListInterfaceSymbol,
+            args: [.invariant(mlTypeParamType)],
+            nullability: .nonNull
+        )))
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
+        symbols.setExternalLinkName("kk_mutable_list_sortDescending", for: memberSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: types.unitType,
+                typeParameterSymbols: [mlTypeParamSymbol],
+                typeParameterUpperBoundsList: [[]],
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
+    }
+
     private func registerMutableListAddAllMember(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -4313,6 +4512,94 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+    }
+
+    /// Helper function for registering List extension functions.
+    private func registerSyntheticListExtensionFunction(
+        named name: String,
+        externalLinkName: String,
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
+        returnType: TypeID,
+        typeParameterSymbols: [SymbolID] = [],
+        flags: SymbolFlags = [.synthetic],
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return existingSignature.receiverType == receiverType
+                && existingSignature.parameterTypes == parameters.map { $0.type }
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: flags
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        var parameterTypes: [TypeID] = []
+        var parameterSymbols: [SymbolID] = []
+        var parameterDefaults: [Bool] = []
+        var parameterVarargs: [Bool] = []
+        parameterTypes.reserveCapacity(parameters.count)
+        parameterSymbols.reserveCapacity(parameters.count)
+        parameterDefaults.reserveCapacity(parameters.count)
+        parameterVarargs.reserveCapacity(parameters.count)
+
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            parameterTypes.append(parameter.type)
+            parameterSymbols.append(parameterSymbol)
+            parameterDefaults.append(parameter.hasDefault)
+            parameterVarargs.append(parameter.isVararg)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: parameterSymbols,
+                valueParameterHasDefaultValues: parameterDefaults,
+                valueParameterIsVararg: parameterVarargs,
+                typeParameterSymbols: typeParameterSymbols
+            ),
+            for: functionSymbol
+        )
+
+        symbols.setPropertyType(types.make(.functionType(FunctionType(
+            params: parameterTypes,
+            returnType: returnType,
+            isSuspend: false,
+            nullability: .nonNull
+        ))), for: functionSymbol)
     }
 
     private func registerSyntheticSetStub(
@@ -6449,6 +6736,176 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(sizeReturnType, for: sizeSym)
         }
 
+        // --- STDLIB-410: arrayOf / emptyArray<T>() ---
+        let emptyArrayName = interner.intern("emptyArray")
+        let emptyArrayFQName = kotlinPkg + [emptyArrayName]
+        if symbols.lookup(fqName: emptyArrayFQName) == nil {
+            let emptyArraySymbol = symbols.define(
+                kind: .function,
+                name: emptyArrayName,
+                fqName: emptyArrayFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(packageSymbol, for: emptyArraySymbol)
+            }
+            symbols.setExternalLinkName("kk_empty_array", for: emptyArraySymbol)
+            let fnTypeParamName = interner.intern("T")
+            let fnTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: fnTypeParamName,
+                fqName: emptyArrayFQName + [fnTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(emptyArraySymbol, for: fnTypeParamSymbol)
+            let elementType = types.make(.typeParam(TypeParamType(
+                symbol: fnTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(elementType)],
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [],
+                    returnType: returnType,
+                    isSuspend: false,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [],
+                    valueParameterIsVararg: [],
+                    typeParameterSymbols: [fnTypeParamSymbol]
+                ),
+                for: emptyArraySymbol
+            )
+        }
+
+        let arrayOfName = interner.intern("arrayOf")
+        let arrayOfFQName = kotlinPkg + [arrayOfName]
+        if symbols.lookup(fqName: arrayOfFQName) == nil {
+            let arrayOfSymbol = symbols.define(
+                kind: .function,
+                name: arrayOfName,
+                fqName: arrayOfFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(packageSymbol, for: arrayOfSymbol)
+            }
+            symbols.setExternalLinkName("kk_array_of", for: arrayOfSymbol)
+            let fnTypeParamName = interner.intern("T")
+            let fnTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: fnTypeParamName,
+                fqName: arrayOfFQName + [fnTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arrayOfSymbol, for: fnTypeParamSymbol)
+            let elementType = types.make(.typeParam(TypeParamType(
+                symbol: fnTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(elementType)],
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [elementType],
+                    returnType: returnType,
+                    isSuspend: false,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [true],
+                    typeParameterSymbols: [fnTypeParamSymbol]
+                ),
+                for: arrayOfSymbol
+            )
+        }
+
+        // --- Array extension functions: contentEquals, contentHashCode ---
+
+        // contentEquals(other: Array<T>): Boolean
+        let contentEqualsName = interner.intern("contentEquals")
+        let contentEqualsFQName = arrayFQName + [contentEqualsName]
+        if symbols.lookup(fqName: contentEqualsFQName) == nil {
+            let contentEqualsSymbol = symbols.define(
+                kind: .function,
+                name: contentEqualsName,
+                fqName: contentEqualsFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arraySymbol, for: contentEqualsSymbol)
+            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+            let receiverType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(arrayTypeParam)],
+                nullability: .nonNull
+            )))
+            let otherArrayType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(arrayTypeParam)],
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [otherArrayType],
+                    returnType: types.booleanType,
+                    typeParameterSymbols: [tParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: contentEqualsSymbol
+            )
+            symbols.setExternalLinkName("kk_array_contentEquals", for: contentEqualsSymbol)
+        }
+
+        // contentHashCode(): Int
+        let contentHashCodeName = interner.intern("contentHashCode")
+        let contentHashCodeFQName = arrayFQName + [contentHashCodeName]
+        if symbols.lookup(fqName: contentHashCodeFQName) == nil {
+            let contentHashCodeSymbol = symbols.define(
+                kind: .function,
+                name: contentHashCodeName,
+                fqName: contentHashCodeFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arraySymbol, for: contentHashCodeSymbol)
+            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+            let receiverType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(arrayTypeParam)],
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: [],
+                    returnType: types.intType,
+                    typeParameterSymbols: [tParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: contentHashCodeSymbol
+            )
+            symbols.setExternalLinkName("kk_array_contentHashCode", for: contentHashCodeSymbol)
+        }
+
         // --- Primitive array types: IntArray, LongArray, etc. ---
         let primitiveArrayNames = [
             "IntArray",
@@ -6493,5 +6950,95 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(sizeReturnType, for: primSizeSym)
             }
         }
+
+        let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [
+            ("intArrayOf", "IntArray", types.intType),
+            ("longArrayOf", "LongArray", types.longType),
+            ("doubleArrayOf", "DoubleArray", types.doubleType),
+            ("floatArrayOf", "FloatArray", types.floatType),
+            ("booleanArrayOf", "BooleanArray", types.booleanType),
+            ("charArrayOf", "CharArray", types.charType),
+            ("byteArrayOf", "ByteArray", types.intType),
+            ("shortArrayOf", "ShortArray", types.intType),
+        ]
+        for (factoryName, arrayName, elementType) in primitiveArrayFactoryTypes {
+            guard let primitiveArraySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern(arrayName)]) else {
+                continue
+            }
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: primitiveArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            registerSyntheticArrayFactoryFunction(
+                named: factoryName,
+                packageFQName: kotlinPkg,
+                returnType: returnType,
+                valueParameterTypes: [elementType],
+                valueParameterIsVararg: [true],
+                typeParamNames: [],
+                externalLinkName: "kk_array_of",
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    private func registerSyntheticArrayFactoryFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        returnType: TypeID,
+        valueParameterTypes: [TypeID],
+        valueParameterIsVararg: [Bool],
+        typeParamNames: [String],
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        guard symbols.lookup(fqName: functionFQName) == nil else { return }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        var typeParameterSymbols: [SymbolID] = []
+        for paramName in typeParamNames {
+            let typeParamName = interner.intern(paramName)
+            let typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: functionFQName + [typeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
+            typeParameterSymbols.append(typeParamSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: valueParameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterTypes.count),
+                valueParameterIsVararg: valueParameterIsVararg,
+                typeParameterSymbols: typeParameterSymbols
+            ),
+            for: functionSymbol
+        )
     }
 }

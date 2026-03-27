@@ -264,6 +264,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             for: localSymbol,
             sema: fixture.sema,
             arena: fixture.kirArena,
+            interner: fixture.interner,
             emit: &emit
         )
         XCTAssertEqual(captured, localExpr)
@@ -280,6 +281,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             for: classSymbol,
             sema: fixture.sema,
             arena: fixture.kirArena,
+            interner: fixture.interner,
             emit: &emit
         )
         XCTAssertEqual(receiverCaptured, receiverExpr)
@@ -288,6 +290,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             for: parameterSymbol,
             sema: fixture.sema,
             arena: fixture.kirArena,
+            interner: fixture.interner,
             emit: &emit
         )
         XCTAssertFalse(emit.instructions.isEmpty)
@@ -296,6 +299,7 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
             for: SymbolID(rawValue: 7777),
             sema: fixture.sema,
             arena: fixture.kirArena,
+            interner: fixture.interner,
             emit: &emit
         )
         XCTAssertNil(nonCapturable)

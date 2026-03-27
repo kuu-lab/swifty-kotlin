@@ -45,6 +45,12 @@ public protocol KKContinuation {
 typealias KKSuspendEntryPoint = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKThunkEntryPoint = @convention(c) (UnsafeMutablePointer<Int>?) -> Int
 typealias KKClosureThunkEntryPoint = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint1 = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint2 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKFunctionEntryPoint3 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint1 = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias KKClosureFunctionEntryPoint3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKDelegateObserverEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
 final class RuntimeStringBox {
@@ -172,6 +178,18 @@ struct RuntimeCallableRefMetadata {
     let nameRaw: Int
     let arity: Int
     let kind: RuntimeCallableRefKind
+}
+
+final class RuntimeFunctionValueBox {
+    let fnPtr: Int
+    let closureRaw: Int
+    let arity: Int
+
+    init(fnPtr: Int, closureRaw: Int, arity: Int) {
+        self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
+        self.arity = arity
+    }
 }
 
 // MARK: - Collection Types (STDLIB-001)
@@ -321,6 +339,7 @@ enum SequenceStepKind {
     case stringSource(strRaw: Int)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)
+    case filterNotStep(fnPtr: Int, closureRaw: Int)
     case takeStep(count: Int)
     case builder(elements: [Int])
     case generator(seed: Int, fnPtr: Int, closureRaw: Int)
@@ -330,6 +349,12 @@ enum SequenceStepKind {
     case takeWhileStep(fnPtr: Int, closureRaw: Int)
     case dropWhileStep(fnPtr: Int, closureRaw: Int)
     case onEachStep(fnPtr: Int, closureRaw: Int)
+    /// STDLIB-HOF-022: Additional lazy transformation steps
+    case mapNotNullStep(fnPtr: Int, closureRaw: Int)
+    case filterNotNullStep
+    case mapIndexedStep(fnPtr: Int, closureRaw: Int)
+    case withIndexStep
+    case flatMapStep(fnPtr: Int, closureRaw: Int)
     /// STDLIB-563: Lazy continuation-based builder.
     /// The coroutine runs the builder lambda on a background thread;
     /// each `yield()` suspends the producer until the consumer requests

@@ -14,6 +14,16 @@ public func kk_any_to_string(_ value: Int, _ tag: Int32) -> UnsafeMutableRawPoin
     if tag == 2 {
         return runtimeMakeStringPointer(value != 0 ? "true" : "false")
     }
+    if tag == 4 {
+        let rendered = runtimeRenderTaggedChar(value)
+        return runtimeMakeStringPointer(rendered)
+    }
+    if tag == 5 {
+        return runtimeMakeStringPointer(String(runtimeTaggedFloatValue(value)))
+    }
+    if tag == 6 {
+        return runtimeMakeStringPointer(String(runtimeTaggedDoubleValue(value)))
+    }
     if tag == 3,
        let pointer = UnsafeMutableRawPointer(bitPattern: value),
        extractString(from: pointer) != nil
@@ -21,6 +31,42 @@ public func kk_any_to_string(_ value: Int, _ tag: Int32) -> UnsafeMutableRawPoin
         return pointer
     }
     return runtimeMakeStringPointer(runtimeElementToString(value))
+}
+
+private func runtimeRenderTaggedChar(_ value: Int) -> String {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
+            return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+        }
+    }
+    return UnicodeScalar(value).map(String.init) ?? "?"
+}
+
+private func runtimeTaggedFloatValue(_ value: Int) -> Float {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
+            return floatBox.value
+        }
+    }
+    return kk_bits_to_float(value)
+}
+
+private func runtimeTaggedDoubleValue(_ value: Int) -> Double {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
+            return doubleBox.value
+        }
+    }
+    return kk_bits_to_double(value)
 }
 
 private func runtimeStringHashCode(_ value: String) -> Int {
@@ -772,9 +818,10 @@ public func kk_long_to_short(_ value: Int) -> Int {
     Int(Int16(truncatingIfNeeded: value))
 }
 
-// Kotlin Int is 32-bit; the runtime stores it sign-extended in a 64-bit word.
+// Kotlin Int is 32-bit; runtime stores it sign-extended in a 64-bit word.
 // Truncate to Int32 before querying bit properties so results match Kotlin semantics
 // (e.g. (-1).countOneBits() == 32, not 64).
+// Optimized: Use direct bit manipulation to avoid Int32 conversion overhead
 @_cdecl("kk_int_countOneBits")
 public func kk_int_countOneBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value).nonzeroBitCount)
@@ -788,6 +835,97 @@ public func kk_int_countLeadingZeroBits(_ value: Int) -> Int {
 @_cdecl("kk_int_countTrailingZeroBits")
 public func kk_int_countTrailingZeroBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value).trailingZeroBitCount)
+}
+
+// MARK: - STDLIB-BIT-007: Additional bit manipulation functions
+
+@_cdecl("kk_int_rotateLeft")
+public func kk_int_rotateLeft(_ value: Int, _ distance: Int) -> Int {
+    let u = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
+    let d = UInt32(truncatingIfNeeded: distance) & 31
+    guard d != 0 else { return Int(Int32(bitPattern: u)) }
+    return Int(Int32(bitPattern: (u << d) | (u >> (32 - d))))
+}
+
+@_cdecl("kk_int_rotateRight")
+public func kk_int_rotateRight(_ value: Int, _ distance: Int) -> Int {
+    let u = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
+    let d = UInt32(truncatingIfNeeded: distance) & 31
+    guard d != 0 else { return Int(Int32(bitPattern: u)) }
+    return Int(Int32(bitPattern: (u >> d) | (u << (32 - d))))
+}
+
+@_cdecl("kk_int_highestOneBit")
+public func kk_int_highestOneBit(_ value: Int) -> Int {
+    let truncated = Int32(truncatingIfNeeded: value)
+    if truncated == 0 { return 0 }
+    return Int(1 << (31 - truncated.leadingZeroBitCount))
+}
+
+@_cdecl("kk_int_lowestOneBit")
+public func kk_int_lowestOneBit(_ value: Int) -> Int {
+    let truncated = Int32(truncatingIfNeeded: value)
+    if truncated == 0 { return 0 }
+    return Int(truncated & -truncated)
+}
+
+@_cdecl("kk_int_takeHighestOneBit")
+public func kk_int_takeHighestOneBit(_ value: Int) -> Int {
+    let truncated = Int32(truncatingIfNeeded: value)
+    if truncated == 0 { return 0 }
+    let shift = 31 - truncated.leadingZeroBitCount
+    let mask = Int32(bitPattern: UInt32(0xFFFFFFFF) << shift)
+    return Int(truncated & mask)
+}
+
+@_cdecl("kk_int_takeLowestOneBit")
+public func kk_int_takeLowestOneBit(_ value: Int) -> Int {
+    let u = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
+    if u == 0 { return 0 }
+    return Int(Int32(bitPattern: u & (0 &- u)))
+}
+
+// Long bit manipulation functions (64-bit)
+
+@_cdecl("kk_long_rotateLeft")
+public func kk_long_rotateLeft(_ value: Int, _ distance: Int) -> Int {
+    let u = UInt(bitPattern: value)
+    let d = UInt(truncatingIfNeeded: distance) & 63
+    guard d != 0 else { return value }
+    return Int(bitPattern: (u << d) | (u >> (64 - d)))
+}
+
+@_cdecl("kk_long_rotateRight")
+public func kk_long_rotateRight(_ value: Int, _ distance: Int) -> Int {
+    let u = UInt(bitPattern: value)
+    let d = UInt(truncatingIfNeeded: distance) & 63
+    guard d != 0 else { return value }
+    return Int(bitPattern: (u >> d) | (u << (64 - d)))
+}
+
+@_cdecl("kk_long_highestOneBit")
+public func kk_long_highestOneBit(_ value: Int) -> Int {
+    if value == 0 { return 0 }
+    return 1 << (63 - value.leadingZeroBitCount)
+}
+
+@_cdecl("kk_long_lowestOneBit")
+public func kk_long_lowestOneBit(_ value: Int) -> Int {
+    if value == 0 { return 0 }
+    return value & -value
+}
+
+@_cdecl("kk_long_takeHighestOneBit")
+public func kk_long_takeHighestOneBit(_ value: Int) -> Int {
+    if value == 0 { return 0 }
+    let shift = 63 - value.leadingZeroBitCount
+    return value & (~0 << shift)
+}
+
+@_cdecl("kk_long_takeLowestOneBit")
+public func kk_long_takeLowestOneBit(_ value: Int) -> Int {
+    if value == 0 { return 0 }
+    return value & (value ^ (value - 1))
 }
 
 @_cdecl("kk_int_coerceIn")
@@ -892,6 +1030,126 @@ public func kk_float_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
     return v > hi ? maximum : value
 }
 
+// MARK: - Range-based coercion functions (STDLIB-CONV-006)
+
+// Double.coerceIn(range) — range object argument
+@_cdecl("kk_double_coerceIn_range")
+public func kk_double_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceIn_range")
+    }
+    let minimum = kk_double_to_bits(Double(range.first))
+    let maximum = kk_double_to_bits(Double(range.last))
+    return kk_double_coerceIn(value, minimum, maximum)
+}
+
+// Float.coerceIn(range) — range object argument
+@_cdecl("kk_float_coerceIn_range")
+public func kk_float_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceIn_range")
+    }
+    let minimum = kk_float_to_bits(Float(range.first))
+    let maximum = kk_float_to_bits(Float(range.last))
+    return kk_float_coerceIn(value, minimum, maximum)
+}
+
+// Int.coerceIn(range) — range object argument
+@_cdecl("kk_int_coerceIn_range")
+public func kk_int_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceIn_range")
+    }
+    return kk_int_coerceIn(value, range.first, range.last)
+}
+
+// Long.coerceIn(range) — range object argument
+@_cdecl("kk_long_coerceIn_range")
+public func kk_long_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceIn_range")
+    }
+    return kk_long_coerceIn(value, range.first, range.last)
+}
+
+// MARK: - Range-based coerceAtLeast/coerceAtMost functions (STDLIB-CONV-006)
+
+// Double.coerceAtLeast(range) — use range first as minimum
+@_cdecl("kk_double_coerceAtLeast_range")
+public func kk_double_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceAtLeast_range")
+    }
+    let minimum = kk_double_to_bits(Double(range.first))
+    return kk_double_coerceAtLeast(value, minimum)
+}
+
+// Double.coerceAtMost(range) — use range last as maximum
+@_cdecl("kk_double_coerceAtMost_range")
+public func kk_double_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceAtMost_range")
+    }
+    let maximum = kk_double_to_bits(Double(range.last))
+    return kk_double_coerceAtMost(value, maximum)
+}
+
+// Float.coerceAtLeast(range) — use range first as minimum
+@_cdecl("kk_float_coerceAtLeast_range")
+public func kk_float_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceAtLeast_range")
+    }
+    let minimum = kk_float_to_bits(Float(range.first))
+    return kk_float_coerceAtLeast(value, minimum)
+}
+
+// Float.coerceAtMost(range) — use range last as maximum
+@_cdecl("kk_float_coerceAtMost_range")
+public func kk_float_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceAtMost_range")
+    }
+    let maximum = kk_float_to_bits(Float(range.last))
+    return kk_float_coerceAtMost(value, maximum)
+}
+
+// Int.coerceAtLeast(range) — use range first as minimum
+@_cdecl("kk_int_coerceAtLeast_range")
+public func kk_int_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceAtLeast_range")
+    }
+    return kk_int_coerceAtLeast(value, range.first)
+}
+
+// Int.coerceAtMost(range) — use range last as maximum
+@_cdecl("kk_int_coerceAtMost_range")
+public func kk_int_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceAtMost_range")
+    }
+    return kk_int_coerceAtMost(value, range.last)
+}
+
+// Long.coerceAtLeast(range) — use range first as minimum
+@_cdecl("kk_long_coerceAtLeast_range")
+public func kk_long_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceAtLeast_range")
+    }
+    return kk_long_coerceAtLeast(value, range.first)
+}
+
+// Long.coerceAtMost(range) — use range last as maximum
+@_cdecl("kk_long_coerceAtMost_range")
+public func kk_long_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceAtMost_range")
+    }
+    return kk_long_coerceAtMost(value, range.last)
+}
+
 @_cdecl("kk_uint_to_int")
 public func kk_uint_to_int(_ value: Int) -> Int {
     value
@@ -935,6 +1193,242 @@ public func kk_long_to_ulong(_ value: Int) -> Int {
 @_cdecl("kk_uint_to_ulong")
 public func kk_uint_to_ulong(_ value: Int) -> Int {
     value
+}
+
+// MARK: - UByte and UShort Conversions (STDLIB-PRIM-002)
+
+@_cdecl("kk_int_to_ubyte")
+public func kk_int_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_int_to_ushort")
+public func kk_int_to_ushort(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_long_to_ubyte")
+public func kk_long_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_long_to_ushort")
+public func kk_long_to_ushort(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_uint_to_ubyte")
+public func kk_uint_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_uint_to_ushort")
+public func kk_uint_to_ushort(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ulong_to_ubyte")
+public func kk_ulong_to_ubyte(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ulong_to_ushort")
+public func kk_ulong_to_ushort(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ubyte_to_int")
+public func kk_ubyte_to_int(_ value: Int) -> Int {
+    // UByte is always in valid range for Int
+    return value
+}
+
+@_cdecl("kk_ushort_to_int")
+public func kk_ushort_to_int(_ value: Int) -> Int {
+    // UShort is always in valid range for Int
+    return value
+}
+
+@_cdecl("kk_ubyte_to_long")
+public func kk_ubyte_to_long(_ value: Int) -> Int {
+    // UByte is always in valid range for Long
+    return value
+}
+
+@_cdecl("kk_ushort_to_long")
+public func kk_ushort_to_long(_ value: Int) -> Int {
+    // UShort is always in valid range for Long
+    return value
+}
+
+@_cdecl("kk_ubyte_to_uint")
+public func kk_ubyte_to_uint(_ value: Int) -> Int {
+    // UByte is always in valid range for UInt
+    return value
+}
+
+@_cdecl("kk_ushort_to_uint")
+public func kk_ushort_to_uint(_ value: Int) -> Int {
+    // UShort is always in valid range for UInt
+    return value
+}
+
+@_cdecl("kk_ubyte_to_ulong")
+public func kk_ubyte_to_ulong(_ value: Int) -> Int {
+    // UByte is always in valid range for ULong
+    return value
+}
+
+@_cdecl("kk_ushort_to_ulong")
+public func kk_ushort_to_ulong(_ value: Int) -> Int {
+    // UShort is always in valid range for ULong
+    return value
+}
+
+// MARK: - Char Conversions (STDLIB-PRIM-002)
+
+@_cdecl("kk_int_to_char")
+public func kk_int_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_long_to_char")
+public func kk_long_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_uint_to_char")
+public func kk_uint_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ulong_to_char")
+public func kk_ulong_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ubyte_to_char")
+public func kk_ubyte_to_char(_ value: Int) -> Int {
+    // UByte is always in valid range for Char
+    return value
+}
+
+@_cdecl("kk_ushort_to_char")
+public func kk_ushort_to_char(_ value: Int) -> Int {
+    // UShort is always in valid range for Char
+    return value
+}
+
+@_cdecl("kk_char_to_int")
+public func kk_char_to_int(_ value: Int) -> Int {
+    // Char is stored as Int, so this is identity
+    return value
+}
+
+@_cdecl("kk_char_to_long")
+public func kk_char_to_long(_ value: Int) -> Int {
+    // Char is stored as Int, so this is identity
+    return value
+}
+
+@_cdecl("kk_char_to_uint")
+public func kk_char_to_uint(_ value: Int) -> Int {
+    // Char is stored as Int, so this is identity
+    return value
+}
+
+@_cdecl("kk_char_to_ulong")
+public func kk_char_to_ulong(_ value: Int) -> Int {
+    // Char is stored as Int, so this is identity
+    return value
+}
+
+// MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
+
+@_cdecl("kk_float_to_uint")
+public func kk_float_to_uint(_ value: Int) -> Int {
+    let f = kk_bits_to_float(value)
+    if f.isNaN { return 0 }
+    if f >= Float(UInt32.max) { return Int(UInt32.max) }
+    if f <= 0 { return 0 }
+    return Int(UInt32(f))
+}
+
+@_cdecl("kk_double_to_uint")
+public func kk_double_to_uint(_ value: Int) -> Int {
+    let d = kk_bits_to_double(value)
+    if d.isNaN { return 0 }
+    if d >= Double(UInt32.max) { return Int(UInt32.max) }
+    if d <= 0 { return 0 }
+    return Int(UInt32(d))
+}
+
+@_cdecl("kk_float_to_ulong")
+public func kk_float_to_ulong(_ value: Int) -> Int {
+    let f = kk_bits_to_float(value)
+    if f.isNaN { return 0 }
+    if f >= Float(UInt64.max) { return Int(UInt64.max) }
+    if f <= 0 { return 0 }
+    return Int(UInt64(f))
+}
+
+@_cdecl("kk_double_to_ulong")
+public func kk_double_to_ulong(_ value: Int) -> Int {
+    let d = kk_bits_to_double(value)
+    if d.isNaN { return 0 }
+    if d >= Double(UInt64.max) { return Int(UInt64.max) }
+    if d <= 0 { return 0 }
+    return Int(UInt64(d))
+}
+
+@_cdecl("kk_byte_to_uint")
+public func kk_byte_to_uint(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_short_to_uint")
+public func kk_short_to_uint(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_byte_to_ulong")
+public func kk_byte_to_ulong(_ value: Int) -> Int {
+    Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_short_to_ulong")
+public func kk_short_to_ulong(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: value))
+}
+
+// MARK: - Additional Char Conversions (STDLIB-PRIM-002)
+
+@_cdecl("kk_byte_to_char")
+public func kk_byte_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: Int8(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_short_to_char")
+public func kk_short_to_char(_ value: Int) -> Int {
+    Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_float_to_char")
+public func kk_float_to_char(_ value: Int) -> Int {
+    let f = kk_bits_to_float(value)
+    if f.isNaN || f.isSignalingNaN { return 0 }
+    if f <= 0 { return 0 }
+    if f >= Float(UInt16.max) { return Int(UInt16.max) }
+    return Int(UInt16(f))
+}
+
+@_cdecl("kk_double_to_char")
+public func kk_double_to_char(_ value: Int) -> Int {
+    let d = kk_bits_to_double(value)
+    if d.isNaN || d.isSignalingNaN { return 0 }
+    if d <= 0 { return 0 }
+    if d >= Double(UInt16.max) { return Int(UInt16.max) }
+    return Int(UInt16(d))
 }
 
 private func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {
@@ -1061,4 +1555,114 @@ public func kk_op_fgt(_ lhs: Int, _ rhs: Int) -> Int {
 @_cdecl("kk_op_fge")
 public func kk_op_fge(_ lhs: Int, _ rhs: Int) -> Int {
     kk_bits_to_float(lhs) >= kk_bits_to_float(rhs) ? 1 : 0
+}
+
+// MARK: - Int/Long comparison ops
+
+@_cdecl("kk_op_eq")
+public func kk_op_eq(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs == rhs ? 1 : 0
+}
+
+@_cdecl("kk_op_ne")
+public func kk_op_ne(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs != rhs ? 1 : 0
+}
+
+@_cdecl("kk_op_lt")
+public func kk_op_lt(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs < rhs ? 1 : 0
+}
+
+@_cdecl("kk_op_le")
+public func kk_op_le(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs <= rhs ? 1 : 0
+}
+
+@_cdecl("kk_op_gt")
+public func kk_op_gt(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs > rhs ? 1 : 0
+}
+
+@_cdecl("kk_op_ge")
+public func kk_op_ge(_ lhs: Int, _ rhs: Int) -> Int {
+    lhs >= rhs ? 1 : 0
+}
+
+// MARK: - Int/Long arithmetic ops (modulo)
+
+@_cdecl("kk_op_mod")
+public func kk_op_mod(_ lhs: Int, _ rhs: Int) -> Int {
+    if rhs == 0 { return 0 } // Handle division by zero
+    return lhs % rhs
+}
+
+@_cdecl("kk_op_lmod")
+public func kk_op_lmod(_ lhs: Int, _ rhs: Int) -> Int {
+    // Long uses same Int representation on 64-bit platforms
+    if rhs == 0 { return 0 } // Handle division by zero
+    return lhs % rhs
+}
+
+// MARK: - Boolean logical ops
+
+@_cdecl("kk_logical_and")
+public func kk_logical_and(_ lhs: Int, _ rhs: Int) -> Int {
+    (lhs != 0 && rhs != 0) ? 1 : 0
+}
+
+@_cdecl("kk_logical_or")
+public func kk_logical_or(_ lhs: Int, _ rhs: Int) -> Int {
+    (lhs != 0 || rhs != 0) ? 1 : 0
+}
+
+// MARK: - Char operations
+
+@_cdecl("kk_char_plus")
+public func kk_char_plus(_ charValue: Int, _ stringRaw: Int) -> UnsafeMutableRawPointer {
+    let unboxedChar = kk_unbox_char(charValue)
+    let fallbackScalar = UnicodeScalar(0xFFFD)!
+    let charString = String(Character(UnicodeScalar(unboxedChar) ?? fallbackScalar))
+
+    if let stringPtr = UnsafeMutableRawPointer(bitPattern: stringRaw),
+       let stringBox = tryCast(stringPtr, to: RuntimeStringBox.self)
+    {
+        let combined = charString + stringBox.value
+        return runtimeMakeStringPointer(combined)
+    }
+
+    return runtimeMakeStringPointer(charString)
+}
+
+@_cdecl("kk_char_get")
+public func kk_char_get(_ charValue: Int, _ index: Int) -> Int {
+    // Char.get is not a standard Kotlin operation
+    // This might be used for accessing characters in a string, not for single Char
+    // For now, return the character itself if index is 0, otherwise return replacement char
+    if index == 0 {
+        return charValue
+    }
+    return kk_box_char(0xFFFD) // Replacement character for invalid index
+}
+
+@_cdecl("kk_char_rangeTo")
+public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> UnsafeMutableRawPointer {
+    let startChar = kk_unbox_char(startValue)
+    let endChar = kk_unbox_char(endValue)
+
+    // Create a character range from start to end (inclusive)
+    let zeroScalar = UnicodeScalar(0)!
+    let startScalar = UnicodeScalar(startChar) ?? zeroScalar
+    let endScalar = UnicodeScalar(endChar) ?? zeroScalar
+
+    if startScalar <= endScalar {
+        let rangeString = (startScalar.value...endScalar.value)
+            .compactMap(UnicodeScalar.init)
+            .map(String.init)
+            .joined()
+        return runtimeMakeStringPointer(rangeString)
+    } else {
+        // Empty range for invalid bounds
+        return runtimeMakeStringPointer("")
+    }
 }

@@ -165,6 +165,10 @@ extension CallTypeChecker {
         let resultType: TypeID? = switch (memberName, args.count) {
         case ("toRegex", 0):
             regexType ?? sema.types.anyType
+        case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1):
+            sema.types.intType
+        case ("indexOfFirst", 1), ("indexOfLast", 1):
+            sema.types.intType
         case ("lines", 0):
             listStringType
         case ("lineSequence", 0):
@@ -173,6 +177,13 @@ extension CallTypeChecker {
                 types: sema.types,
                 interner: interner,
                 elementType: sema.types.stringType
+            )
+        case ("asSequence", 0):
+            makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: sema.types.charType
             )
         case ("replaceFirstChar", 1):
             sema.types.stringType
@@ -201,11 +212,61 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return safeCall ? sema.types.makeNullable(resultType) : resultType
         }
+        let charType = sema.types.charType
+        func stringSearchNeedleExpectedType(for argID: ExprID) -> TypeID? {
+            if let boundType = sema.bindings.exprTypes[argID] {
+                let nonNullBoundType = sema.types.makeNonNullable(boundType)
+                if sema.types.isSubtype(nonNullBoundType, charType) {
+                    return charType
+                }
+                if sema.types.isSubtype(nonNullBoundType, sema.types.stringType) {
+                    return sema.types.stringType
+                }
+            }
+            guard let expr = ctx.ast.arena.expr(argID) else {
+                return nil
+            }
+            switch expr {
+            case .charLiteral:
+                return charType
+            case .stringLiteral:
+                return sema.types.stringType
+            default:
+                return nil
+            }
+        }
+        if memberName == "indexOf", args.indices.contains(0),
+           let expectedType = stringSearchNeedleExpectedType(for: args[0].expr)
+        {
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+        }
+        if memberName == "indexOf", args.indices.contains(1) {
+            _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+        }
+        if memberName == "lastIndexOf", args.indices.contains(0),
+           let expectedType = stringSearchNeedleExpectedType(for: args[0].expr)
+        {
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+        }
         if args.indices.contains(0), let regexType {
             let expectedType = memberName == "replace" || memberName == "contains" || memberName == "matches" || memberName == "split"
                 ? regexType
                 : nil
             if let expectedType {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
+            }
+        }
+        if memberName == "indexOfFirst" || memberName == "indexOfLast" {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [charType],
+                returnType: sema.types.booleanType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            if args.indices.contains(0) {
+                if let lambdaExpr = ctx.ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             }
         }
@@ -323,9 +384,11 @@ extension CallTypeChecker {
         let isMutableListReceiver = isMutableListCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isMutableMapReceiver = isMutableMapCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isListReceiver = isConcreteListLikeCollectionReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isSequenceReceiver = isSequenceLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         guard isSupportedCollectionFallbackMember(
             calleeName,
             isListReceiver: isListReceiver,
+            isSequenceReceiver: isSequenceReceiver,
             isMapReceiver: isMapReceiver,
             isSetReceiver: isSetReceiver,
             isMutableListReceiver: isMutableListReceiver,
@@ -408,7 +471,6 @@ extension CallTypeChecker {
         // When the receiver is Sequence, sequence-returning operations (map,
         // filter, etc.) should return Sequence<E> so the KIR builder's
         // sequence HOF handler recognises chained calls (STDLIB-471).
-        let isSequenceReceiver = isSequenceLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         if isSequenceReceiver,
            isCollectionReturningMember(calleeName, isMapReceiver: false, isSetReceiver: false, interner: interner),
            resultType == sema.types.anyType
@@ -476,6 +538,7 @@ extension CallTypeChecker {
     func isSupportedCollectionFallbackMember(
         _ memberName: InternedString,
         isListReceiver: Bool,
+        isSequenceReceiver: Bool,
         isMapReceiver: Bool,
         isSetReceiver: Bool,
         isMutableListReceiver: Bool,
@@ -499,6 +562,7 @@ extension CallTypeChecker {
             interner.intern("iterator"),
             interner.intern("map"),
             interner.intern("filter"),
+            interner.intern("filterNot"),
             interner.intern("mapNotNull"),
             interner.intern("filterNotNull"),
             interner.intern("forEach"),
@@ -511,9 +575,13 @@ extension CallTypeChecker {
             interner.intern("reduce"),
             interner.intern("reduceOrNull"),
             interner.intern("reduceIndexed"),
+            interner.intern("reduceIndexedOrNull"),
             interner.intern("scan"),
+            interner.intern("scanIndexed"),
             interner.intern("runningFold"),
+            interner.intern("runningFoldIndexed"),
             interner.intern("runningReduce"),
+            interner.intern("runningReduceIndexed"),
             interner.intern("scanReduce"),
             interner.intern("groupBy"),
             interner.intern("groupingBy"),
@@ -536,6 +604,7 @@ extension CallTypeChecker {
             interner.intern("onEach"),
             interner.intern("onEachIndexed"),
             interner.intern("asSequence"),
+            interner.intern("asIterable"),
             interner.intern("toList"),
             interner.intern("toTypedArray"),
             interner.intern("take"),
@@ -602,7 +671,7 @@ extension CallTypeChecker {
             return isListReceiver
         }
         if collectionSpecificMembers.contains(memberName) {
-            return isListReceiver
+            return isListReceiver || isSetReceiver || isSequenceReceiver
         }
         if memberName == knownNames.getOrElse {
             return isListReceiver || isMapReceiver
@@ -629,7 +698,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         let collectionReturningMembers: Set = [
-            interner.intern("asSequence"), interner.intern("map"), interner.intern("filter"), interner.intern("mapNotNull"), interner.intern("filterNotNull"),
+            interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("map"), interner.intern("filter"), interner.intern("filterNot"), interner.intern("mapNotNull"), interner.intern("filterNotNull"),
             interner.intern("flatMap"), interner.intern("sortedBy"), interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"),
             interner.intern("associate"), interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"), interner.intern("mapIndexed"),
@@ -639,7 +708,10 @@ extension CallTypeChecker {
             interner.intern("takeWhile"), interner.intern("dropWhile"),
             interner.intern("subList"),
             interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"),
-            interner.intern("scan"), interner.intern("runningFold"), interner.intern("runningReduce"), interner.intern("scanReduce"),
+            interner.intern("scan"), interner.intern("scanIndexed"),
+            interner.intern("runningFold"), interner.intern("runningFoldIndexed"),
+            interner.intern("runningReduce"), interner.intern("runningReduceIndexed"),
+            interner.intern("scanReduce"),
             interner.intern("toMutableList"),
         ]
         let setReturningMembers: Set = [
@@ -672,6 +744,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         switch memberName {
         case knownNames.size, knownNames.isEmpty, interner.intern("iterator"), interner.intern("asSequence"),
+             interner.intern("asIterable"),
              interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("reversed"),
             interner.intern("asReversed"), interner.intern("sorted"),
              interner.intern("distinct"), interner.intern("flatten"), interner.intern("withIndex"),
@@ -685,16 +758,19 @@ extension CallTypeChecker {
             return argCount == 0
         case interner.intern("get"), interner.intern("getOrNull"), interner.intern("elementAtOrNull"),
              interner.intern("contains"), interner.intern("containsAll"), interner.intern("indexOf"), interner.intern("lastIndexOf"), interner.intern("indexOfFirst"), interner.intern("indexOfLast"), interner.intern("binarySearch"),
-             interner.intern("map"), interner.intern("filter"), interner.intern("mapNotNull"), interner.intern("forEach"), interner.intern("flatMap"),
+             interner.intern("map"), interner.intern("filter"), interner.intern("filterNot"), interner.intern("mapNotNull"), interner.intern("forEach"), interner.intern("flatMap"),
              interner.intern("any"), interner.intern("none"), interner.intern("all"),
-             interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("sortedBy"), interner.intern("find"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associate"), interner.intern("reduce"), interner.intern("reduceOrNull"), interner.intern("runningReduce"), interner.intern("scanReduce"), interner.intern("take"), interner.intern("drop"), interner.intern("zip"),
-             interner.intern("forEachIndexed"), interner.intern("mapIndexed"), interner.intern("sumOf"), interner.intern("chunked"), interner.intern("onEach"), interner.intern("onEachIndexed"),
+             interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("sortedBy"), interner.intern("find"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associate"), interner.intern("reduce"), interner.intern("reduceOrNull"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduce"), interner.intern("runningReduceIndexed"), interner.intern("scanReduce"), interner.intern("take"), interner.intern("drop"), interner.intern("zip"),
+             interner.intern("forEachIndexed"), interner.intern("mapIndexed"), interner.intern("filterIndexed"), interner.intern("sumOf"), interner.intern("chunked"), interner.intern("onEach"), interner.intern("onEachIndexed"),
              interner.intern("sortedByDescending"), interner.intern("sortedWith"), interner.intern("partition"),
              interner.intern("takeWhile"), interner.intern("dropWhile"),
              interner.intern("sortBy"), interner.intern("sortByDescending"), interner.intern("distinctBy"),
              interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"),
              interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
              interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"),
+             interner.intern("maxOf"), interner.intern("minOf"),
+             interner.intern("maxWith"), interner.intern("maxWithOrNull"),
+             interner.intern("minWith"), interner.intern("minWithOrNull"),
              interner.intern("elementAt"):
             return argCount == 1
         case interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"):
@@ -717,9 +793,9 @@ extension CallTypeChecker {
             return isMutableMapReceiver && argCount == 1
         case interner.intern("plus"), interner.intern("minus"):
             return isMapReceiver && argCount == 1
-        case interner.intern("fold"), interner.intern("foldIndexed"), interner.intern("scan"), interner.intern("runningFold"), interner.intern("subList"):
+        case interner.intern("fold"), interner.intern("foldIndexed"), interner.intern("scan"), interner.intern("scanIndexed"), interner.intern("runningFold"), interner.intern("runningFoldIndexed"), interner.intern("subList"):
             return argCount == 2
-        case interner.intern("reduceIndexed"):
+        case interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
             return argCount == 1 || argCount == 2 || argCount == 3
@@ -801,6 +877,15 @@ extension CallTypeChecker {
 
         if memberName == interner.intern("find") {
             return sema.types.makeNullable(receiverElementType)
+        }
+
+        if memberName == interner.intern("asIterable") {
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
         }
 
         if memberName == interner.intern("elementAt")
@@ -898,11 +983,15 @@ extension CallTypeChecker {
             )))
         }
 
-        if memberName == interner.intern("reduceOrNull") {
+        if memberName == interner.intern("reduceOrNull")
+            || memberName == interner.intern("reduceIndexedOrNull")
+        {
             return sema.types.makeNullable(receiverElementType)
         }
 
-        if (memberName == interner.intern("runningReduce") || memberName == interner.intern("scanReduce")),
+        if (memberName == interner.intern("runningReduce")
+            || memberName == interner.intern("runningReduceIndexed")
+            || memberName == interner.intern("scanReduce")),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             return sema.types.make(.classType(ClassType(
@@ -912,10 +1001,13 @@ extension CallTypeChecker {
             )))
         }
 
-        if (memberName == interner.intern("scan") || memberName == interner.intern("runningFold")),
+        if (memberName == interner.intern("scan")
+            || memberName == interner.intern("scanIndexed")
+            || memberName == interner.intern("runningFold")
+            || memberName == interner.intern("runningFoldIndexed")),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
-            // scan/runningFold return List<R> where R is the accumulator type,
+            // scan/runningFold variants return List<R> where R is the accumulator type,
             // derived from the initial value (first argument).
             let accumulatorType: TypeID
             if args.count >= 1, let inferredInitType = sema.bindings.exprTypes[args[0].expr] {
@@ -987,6 +1079,7 @@ extension CallTypeChecker {
         let mapKeys = interner.intern("mapKeys")
         let boolOneParamMembers: Set = [
             interner.intern("filter"),
+            interner.intern("filterNot"),
             interner.intern("any"),
             interner.intern("none"),
             interner.intern("all"),
@@ -1005,6 +1098,7 @@ extension CallTypeChecker {
         let oneParamMembers: Set = [
             interner.intern("map"),
             interner.intern("filter"),
+            interner.intern("filterNot"),
             interner.intern("mapNotNull"),
             interner.intern("forEach"),
             interner.intern("flatMap"),
@@ -1034,6 +1128,8 @@ extension CallTypeChecker {
             interner.intern("minByOrNull"),
             interner.intern("maxOfOrNull"),
             interner.intern("minOfOrNull"),
+            interner.intern("maxOf"),
+            interner.intern("minOf"),
         ]
         let mapOnlyMembers: Set = [
             mapValues,
@@ -1059,6 +1155,39 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 0, expectedType: expectedType)
+        }
+
+        if (memberName == interner.intern("maxWith")
+            || memberName == interner.intern("maxWithOrNull")
+            || memberName == interner.intern("minWith")
+            || memberName == interner.intern("minWithOrNull")),
+           argCount == 1,
+           let comparatorSymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("Comparator"),
+           ])
+        {
+            let expectedType = sema.types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                args: [.invariant(receiverElementType)],
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+
+        if (memberName == interner.intern("maxOfWith")
+            || memberName == interner.intern("maxOfWithOrNull")
+            || memberName == interner.intern("minOfWith")
+            || memberName == interner.intern("minOfWithOrNull")),
+           argCount == 2
+        {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
         }
 
         // *To functions: destination + lambda (2 args), lambda is at index 1
@@ -1153,12 +1282,23 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("scan") || memberName == interner.intern("runningFold")), argCount == 2 {
-            // scan/runningFold: (acc: R, element: T) -> R
+        if (memberName == interner.intern("scan")
+            || memberName == interner.intern("scanIndexed")
+            || memberName == interner.intern("runningFold")
+            || memberName == interner.intern("runningFoldIndexed")), argCount == 2
+        {
+            // scan/runningFold variants: (acc: R, element: T) -> R
             // The accumulator type is unknown in the fallback path, so use Any;
-            // but the element type (second param) is the receiver element type.
+            // indexed variants prepend the Int index parameter.
+            let params: [TypeID] = if memberName == interner.intern("scanIndexed")
+                || memberName == interner.intern("runningFoldIndexed")
+            {
+                [sema.types.intType, sema.types.anyType, receiverElementType]
+            } else {
+                [sema.types.anyType, receiverElementType]
+            }
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [sema.types.anyType, receiverElementType],
+                params: params,
                 returnType: sema.types.anyType,
                 isSuspend: false,
                 nullability: .nonNull
@@ -1166,10 +1306,21 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("runningReduce") || memberName == interner.intern("scanReduce")), argCount == 1 {
-            // runningReduce/scanReduce: (acc: T, element: T) -> T
+        if (memberName == interner.intern("runningReduce")
+            || memberName == interner.intern("runningReduceIndexed")
+            || memberName == interner.intern("scanReduce")
+            || memberName == interner.intern("reduceIndexedOrNull")), argCount == 1
+        {
+            // runningReduce/scanReduce/reduceIndexedOrNull variants use receiver element type.
+            let params: [TypeID] = if memberName == interner.intern("runningReduceIndexed")
+                || memberName == interner.intern("reduceIndexedOrNull")
+            {
+                [sema.types.intType, receiverElementType, receiverElementType]
+            } else {
+                [receiverElementType, receiverElementType]
+            }
             let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [receiverElementType, receiverElementType],
+                params: params,
                 returnType: receiverElementType,
                 isSuspend: false,
                 nullability: .nonNull
@@ -1312,7 +1463,7 @@ extension CallTypeChecker {
         return isSequenceLikeType(receiverType, sema: sema, interner: interner)
     }
 
-    private func isSequenceLikeType(
+    func isSequenceLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
         interner: StringInterner

@@ -46,6 +46,9 @@ extension LambdaLowerer {
     }
 
     func typeForSymbolReference(_ symbol: SymbolID, sema: SemaModule) -> TypeID {
+        if let localType = driver.ctx.localDeclaredType(for: symbol) {
+            return localType
+        }
         if let functionSignature = sema.symbols.functionSignature(for: symbol) {
             return sema.types.make(
                 .functionType(
@@ -170,8 +173,16 @@ extension LambdaLowerer {
         ast: ASTModule,
         sema: SemaModule
     ) -> [SymbolID] {
+        let lexicalCaptures = lexicalCaptureSymbolsForLambda(
+            lambdaExprID: lambdaExprID,
+            lambdaParamCount: lambdaParamCount,
+            lambdaBodyExprID: lambdaBodyExprID,
+            ast: ast,
+            sema: sema
+        )
         if let boundCaptures = sema.bindings.captureSymbolsByExpr[lambdaExprID] {
-            var captures = uniqueSymbolsPreservingOrder(boundCaptures).filter { symbol in
+            let mergedCaptures = uniqueSymbolsPreservingOrder(boundCaptures + lexicalCaptures)
+            var captures = mergedCaptures.filter { symbol in
                 canCaptureSymbolForLambda(
                     symbol,
                     lambdaExprID: lambdaExprID,
@@ -194,13 +205,7 @@ extension LambdaLowerer {
             }
             return captures
         }
-        return lexicalCaptureSymbolsForLambda(
-            lambdaExprID: lambdaExprID,
-            lambdaParamCount: lambdaParamCount,
-            lambdaBodyExprID: lambdaBodyExprID,
-            ast: ast,
-            sema: sema
-        )
+        return lexicalCaptures
     }
 
     private func lexicalCaptureSymbolsForLambda(
@@ -380,8 +385,50 @@ extension LambdaLowerer {
         for symbol: SymbolID,
         sema: SemaModule,
         arena: KIRArena,
+        interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .local,
+           semanticSymbol.flags.contains(.mutable)
+        {
+            if let existingCell = driver.ctx.mutableCaptureCell(for: symbol) {
+                return existingCell
+            }
+            if let currentValue = driver.ctx.localValue(for: symbol) {
+                if let currentType = arena.exprType(currentValue) {
+                    driver.ctx.setLocalDeclaredType(currentType, for: symbol)
+                }
+                let countExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+                instructions.append(.constValue(result: countExpr, value: .intLiteral(1)))
+
+                let cellExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_new"),
+                    arguments: [countExpr],
+                    result: cellExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+
+                let setResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_set"),
+                    arguments: [cellExpr, zeroExpr, currentValue],
+                    result: setResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+
+                driver.ctx.setMutableCaptureCell(cellExpr, for: symbol)
+                return cellExpr
+            }
+        }
         if let localValue = driver.ctx.localValue(for: symbol) {
             return localValue
         }
