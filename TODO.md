@@ -640,18 +640,6 @@
   - **関連ファイル**: `RuntimeUuid.swift`
   - **テストケース**: `Scripts/diff_cases/uuid_basic.kt`
 
-- [ ] STDLIB-UUID-103: UUID高度機能完全実装
-  - **仕様**: UUIDクラスの高度な機能
-  - **実装内容**:
-    - UUIDバリアント: RFC 4122, DCE, Microsoft, NCS
-    - UUIDバージョン: time-based, DCE, name-based, random
-    - UUID文字列表現: 標準フォーマットと短縮フォーマット
-    - UUID名前空間: DNS, URL, OID, X.500
-    - UUID検証: 有効性チェックと形式検証
-  - **現状**: 基本的なUUIDは実装済み、バリアントは未実装
-  - **関連ファイル**: `RuntimeUuid.swift`
-  - **テストケース**: `Scripts/diff_cases/uuid_advanced.kt`
-
 #### Phase 3: エラー処理 (低優先度)
 
 - [ ] STDLIB-EXCEPT-105: 例外高度機能完全実装
