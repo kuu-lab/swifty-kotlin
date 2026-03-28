@@ -1011,7 +1011,7 @@
 
 ## 実装計画のまとめ
 
-### 総タスク数: 116件
+### 総タスク数: 115件
 
 - **Phase 1 (高優先度)**: 39タスク
   - 基本型と配列: 9タスク (STDLIB-PRIM-001 ~ STDLIB-PRIM-009)
@@ -1025,7 +1025,7 @@
   - リフレクション: 8タスク (STDLIB-REFLECT-060 ~ STDLIB-REFLECT-067)
   - 範囲操作: 13タスク (STDLIB-RANGE-034 ~ STDLIB-RANGE-040)
 
-- **Phase 3 (低優先度)**: 39タスク
+- **Phase 3 (低優先度)**: 38タスク
   - コルーチンと並行処理: 13タスク (STDLIB-CORO-068 ~ STDLIB-CORO-080)
   - 時間と期間: 6タスク (STDLIB-TIME-081 ~ STDLIB-TIME-086)
   - I/Oとファイルシステム: 7タスク (STDLIB-IO-087 ~ STDLIB-IO-093)
@@ -1033,7 +1033,7 @@
   - 乱数とUUID: 5タスク (STDLIB-RANDOM-099 ~ STDLIB-UUID-103)
   - エラー処理: 5タスク (STDLIB-EXCEPT-104 ~ STDLIB-RUNCATCH-108)
   - 数学関数: 4タスク (STDLIB-MATH-109 ~ STDLIB-MATH-112)
-  - アノテーションとメタプログラミング: 4タスク (STDLIB-ANNO-113 ~ STDLIB-METAPROG-116)
+  - アノテーションとメタプログラミング: 3タスク (STDLIB-ANNO-114 ~ STDLIB-METAPROG-116)
 
 ### 実装方針
 
