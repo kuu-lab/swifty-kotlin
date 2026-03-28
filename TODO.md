@@ -211,18 +211,6 @@
 #### Phase 2: プロパティデリゲート (中優先度)
 
 
-- [ ] STDLIB-DELEG-045: vetoableデリゲート完全実装
-  - **仕様**: vetoableプロパティデリゲートの完全サポート
-  - **実装内容**:
-    - 変更拒否: 条件による値変更の拒否
-    - 古い値と新しい値の検証
-    - 拒否時の値維持
-    - 複数のvetoableプロパティ
-    - vetoableと他のデリゲートの組み合わせ
-  - **現状**: vetoableは未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/delegate_vetoable.kt`
-
 - [ ] STDLIB-DELEG-046: カスタムデリゲート基本完全実装
   - **仕様**: カスタムプロパティデリゲートの基本機能
   - **実装内容**:
