@@ -3023,6 +3023,17 @@ public enum RuntimeABIExterns {
         returnType: intptr
     )
 
+    public static let kk_uri_new = ExternDecl(name: "kk_uri_new", parameterTypes: [intptr, nullableIntptrPtr], returnType: intptr)
+    public static let kk_uri_toString = ExternDecl(name: "kk_uri_toString", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_scheme = ExternDecl(name: "kk_uri_scheme", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_authority = ExternDecl(name: "kk_uri_authority", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_path = ExternDecl(name: "kk_uri_path", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_query = ExternDecl(name: "kk_uri_query", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_fragment = ExternDecl(name: "kk_uri_fragment", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_normalize = ExternDecl(name: "kk_uri_normalize", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_uri_resolve = ExternDecl(name: "kk_uri_resolve", parameterTypes: [intptr, intptr, nullableIntptrPtr], returnType: intptr)
+    public static let kk_uri_relativize = ExternDecl(name: "kk_uri_relativize", parameterTypes: [intptr, intptr], returnType: intptr)
+
     public static let fileIOExterns: [ExternDecl] = [
         kk_file_new,
         kk_file_readText,
@@ -3056,6 +3067,16 @@ public enum RuntimeABIExterns {
         kk_output_stream_flush,
         kk_output_stream_close,
         kk_file_useLines,
+        kk_uri_new,
+        kk_uri_toString,
+        kk_uri_scheme,
+        kk_uri_authority,
+        kk_uri_path,
+        kk_uri_query,
+        kk_uri_fragment,
+        kk_uri_normalize,
+        kk_uri_resolve,
+        kk_uri_relativize,
     ]
 
     public static let regexExterns: [ExternDecl] = [
