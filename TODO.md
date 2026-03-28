@@ -942,18 +942,6 @@
   - **関連ファイル**: `RuntimeNetwork.swift`
   - **テストケース**: `Scripts/diff_cases/url_basic.kt`
 
-- [ ] STDLIB-NET-137: URI完全実装
-  - **仕様**: URIクラスの完全サポート
-  - **実装内容**:
-    - URI作成: URI(String), URI(scheme, host, path, fragment)
-    - URI分解: scheme, schemeSpecificPart, authority, path, query, fragment
-    - URI操作: normalize(), resolve(), relativize()
-    - URI比較: equals(), hashCode()
-    - URIエスケープ: エスケープ/アンエスケープ
-  - **現状**: URIは未実装
-  - **関連ファイル**: `RuntimeNetwork.swift`
-  - **テストケース**: `Scripts/diff_cases/uri_basic.kt`
-
 - [ ] STDLIB-NET-138: HTTPクライアント基本実装
   - **仕様**: HTTPクライアントの基本的な機能
   - **実装内容**:
