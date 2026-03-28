@@ -1043,9 +1043,9 @@
   - 関数型プログラミング: 9タスク (STDLIB-HOF-021 ~ STDLIB-HOF-029)
   - 演算子と特殊構文: 10タスク (STDLIB-OP-030 ~ STDLIB-COMP-042)
 
-- **Phase 2 (中優先度)**: 38タスク
+- **Phase 2 (中優先度)**: 37タスク
   - プロパティデリゲート: 8タスク (STDLIB-DELEG-043 ~ STDLIB-LATEINIT-050)
-  - ジェネリクスと型システム: 9タスク (STDLIB-GEN-051 ~ STDLIB-GEN-059)
+  - ジェネリクスと型システム: 8タスク (STDLIB-GEN-051 ~ STDLIB-GEN-058)
   - リフレクション: 8タスク (STDLIB-REFLECT-060 ~ STDLIB-REFLECT-067)
   - 範囲操作: 13タスク (STDLIB-RANGE-034 ~ STDLIB-RANGE-040)
 
