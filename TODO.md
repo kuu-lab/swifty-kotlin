@@ -73,18 +73,6 @@
 
 #### Phase 2: 演算子と特殊構文 (中優先度)
 
-- [ ] STDLIB-RANGE-035: LongRange完全実装
-  - **仕様**: LongRangeの完全な機能サポート
-  - **実装内容**:
-    - コンストラクタ: LongRange(start, end), startL..endL
-    - プロパティ: start, end, first, last, step
-    - 包含判定: contains(), isEmpty()
-    - 反復: iterator(), reversed()
-    - 変換: toList(), toLongArray()
-  - **現状**: 基本的なLongRangeは実装済み、IntRangeとの相互運用は未実装
-  - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
-  - **テストケース**: `Scripts/diff_cases/long_range.kt`
-
 - [ ] STDLIB-RANGE-036: UIntRange完全実装
   - **仕様**: UIntRangeの完全な機能サポート
   - **実装内容**:
