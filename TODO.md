@@ -655,18 +655,6 @@
   - **関連ファイル**: `RuntimeThrowableBox`
   - **テストケース**: `Scripts/diff_cases/exception_basic.kt`
 
-- [ ] STDLIB-EXCEPT-105: 例外高度機能完全実装
-  - **仕様**: 例外処理の高度な機能
-  - **実装内容**:
-    - 例外再スロー: throw, rethrow
-    - 例外チェーン: initCause(), getCause()
-    - 例外抑制: addSuppressed(), getSuppressed()
-    - try-with-resources: use()関数
-    - 例外フィルタリング: catchの条件付き
-  - **現状**: 基本的な例外は実装済み、抑制は未実装
-  - **関連ファイル**: `RuntimeThrowableBox`
-  - **テストケース**: `Scripts/diff_cases/exception_advanced.kt`
-
 - [ ] STDLIB-RESULT-106: Result基本実装
   - **仕様**: Result<T>クラスの基本的な機能
   - **実装内容**:
