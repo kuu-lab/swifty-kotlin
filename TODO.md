@@ -208,19 +208,6 @@
   - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
   - **テストケース**: `Scripts/diff_cases/range_hof.kt`
 
-- [ ] STDLIB-COMP-042: Comparator完全実装
-  - **仕様**: Comparator<T>の完全サポート
-  - **実装内容**:
-    - compare()メソッドの実装
-    - compareBy(), compareByDescending()
-    - thenBy(), thenDescending()
-    - nullsFirst(), nullsLast()
-    - naturalOrder(), reverseOrder()
-    - Comparatorの合成
-  - **現状**: 基本的なComparatorは実装済み、合成は未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticComparatorStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/comparator_basic.kt`
-
 #### Phase 2: プロパティデリゲート (中優先度)
 
 
