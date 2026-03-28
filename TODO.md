@@ -594,17 +594,17 @@
   - **関連ファイル**: `RuntimeThrowableBox`
   - **テストケース**: `Scripts/diff_cases/exception_advanced.kt`
 
-- [ ] STDLIB-RESULT-106: Result基本実装
-  - **仕様**: Result<T>クラスの基本的な機能
+- [ ] STDLIB-EXCEPT-105: 例外高度機能完全実装
+  - **仕様**: 例外処理の高度な機能
   - **実装内容**:
-    - Result作成: Result.success(value), Result.failure(exception)
-    - 状態チェック: isSuccess, isFailure
-    - 値取得: getOrThrow(), getOrElse()
-    - マッピング: map(), mapCatching()
-    - フラットマッピング: flatMap(), flatMapCatching()
-  - **現状**: 基本的なResultは実装済み (STDLIB-280/281/282/283)、詳細は未実装
-  - **関連ファイル**: `RuntimeResult.swift`
-  - **テストケース**: `Scripts/diff_cases/result_basic.kt`
+    - 例外再スロー: throw, rethrow
+    - 例外チェーン: initCause(), getCause()
+    - 例外抑制: addSuppressed(), getSuppressed()
+    - try-with-resources: use()関数
+    - 例外フィルタリング: catchの条件付き
+  - **現状**: 基本的な例外は実装済み、抑制は未実装
+  - **関連ファイル**: `RuntimeThrowableBox`
+  - **テストケース**: `Scripts/diff_cases/exception_advanced.kt`
 
 - [ ] STDLIB-RUNCATCH-108: runCatching完全実装
   - **仕様**: runCatching関数の完全サポート
