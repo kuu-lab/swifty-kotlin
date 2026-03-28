@@ -628,19 +628,19 @@ extension DataFlowSemaPhase {
         }
         let parentReturnType = parentSignature.returnType
 
-        guard ctx.types.isSubtype(childReturnType, parentReturnType) else {
-            let name = ctx.interner.resolve(memberName)
-            let ownerName = ctx.interner.resolve(parentSymbol.name)
-            let childType = ctx.types.renderType(childReturnType)
-            let parentType = ctx.types.renderType(parentReturnType)
-
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-OVERRIDE",
-                "'\(name)' in '\(ownerName)' has return type '\(childType)', which is not a subtype of overridden return type '\(parentType)'.",
-                range: memberRange
-            )
-            return
-        }
+        // Covariance validation is deferred until findInheritedMember performs
+        // full signature matching (parameter types + name). With name-only lookup,
+        // the inherited member selected here may be a different overload than the
+        // one actually being overridden, which would produce false
+        // KSWIFTK-SEMA-OVERRIDE errors for valid covariant overrides in overloaded
+        // hierarchies (e.g. base has foo(Int): Int and foo(String): String;
+        // child overrides foo(String): String).
+        // TODO: Enable subtype check once signature-aware lookup is implemented.
+        _ = childReturnType
+        _ = parentReturnType
+        _ = memberName
+        _ = memberRange
+        _ = parentSymbol
     }
 
     // MARK: - Check 2b: visibility expansion
@@ -691,6 +691,14 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
+        // Skip the missing-override check for interface members until signature-aware
+        // matching is implemented. Name-only lookup via findInheritedMember would
+        // incorrectly flag valid overloads (e.g. fun f(String) alongside inherited
+        // fun f(Int)) as missing the 'override' modifier.
+        if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .interface {
+            return
+        }
+
         let parent = findInheritedMember(
             named: memberName,
             for: ownerSymbol,
