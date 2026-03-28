@@ -211,18 +211,6 @@
 #### Phase 2: プロパティデリゲート (中優先度)
 
 
-- [ ] STDLIB-DELEG-044: observableデリゲート完全実装
-  - **仕様**: observableプロパティデリゲートの完全サポート
-  - **実装内容**:
-    - 変更通知: 値変更時のコールバック
-    - 古い値と新しい値の通知
-    - 初期化時の通知制御
-    - 複数のobservableプロパティ
-    - observableと他のデリゲートの組み合わせ
-  - **現状**: observableは未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/delegate_observable.kt`
-
 - [ ] STDLIB-DELEG-045: vetoableデリゲート完全実装
   - **仕様**: vetoableプロパティデリゲートの完全サポート
   - **実装内容**:
