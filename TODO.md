@@ -827,17 +827,17 @@
   - **関連ファイル**: `HeaderHelpers+SyntheticCollectionStubs.swift`
   - **テストケース**: `Scripts/diff_cases/collection_factories.kt`
 
-- [ ] STDLIB-COL-122: コレクション変換完全実装
-  - **仕様**: コレクション間の完全な相互変換
+- [ ] STDLIB-COL-121: コレクションビルダー完全実装
+  - **仕様**: コレクションビルダーの完全サポート
   - **実装内容**:
-    - 型変換: List<Number>をList<Int>に変換
-    - 構造変換: ListをMapに変換（groupBy）
-    - フラット化: List<List<T>>をList<T>に変換
-    - 圧縮: zip()とunzip()操作
-    - 分割: partition()とchunked()操作
-  - **現状**: 基本的な変換は実装済み、高度な変換は未実装
-  - **関連ファイル**: `RuntimeCollectionHOF.swift`
-  - **テストケース**: `Scripts/diff_cases/collection_transformations.kt`
+    - buildList(): Listビルダー
+    - buildSet(): Setビルダー
+    - buildMap(): Mapビルダー
+    - ビルダー操作: add(), addAll(), put(), putAll()
+    - ビルダースコープ: this参照とreturn値
+  - **現状**: buildMapは一部実装済み、他は未実装
+  - **関連ファイル**: `HeaderHelpers+SyntheticCollectionStubs.swift`
+  - **テストケース**: `Scripts/diff_cases/collection_builders.kt`
 
 #### Phase 4: 高度文字列処理 (低優先度)
 
