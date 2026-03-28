@@ -65,6 +65,12 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // DATA-CTOR: Validate that data class primary constructor params are all val/var.
+        if case let .classDecl(classDecl) = decl,
+           classDecl.modifiers.contains(.data) {
+            validateDataClassConstructorParams(classDecl: classDecl, ctx: ctx)
+        }
+
         validateMemberOverrides(
             info.memberFunctions,
             symbol: symbol,
@@ -75,6 +81,23 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
+    }
+
+    // MARK: - DATA-CTOR: data class primary constructor parameter validation
+
+    private func validateDataClassConstructorParams(
+        classDecl: ClassDecl,
+        ctx: OpenFinalOverrideContext
+    ) {
+        for param in classDecl.primaryConstructorParams {
+            guard !param.isProperty else { continue }
+            // This parameter lacks val/var; emit error.
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-DATA-CTOR",
+                "Primary constructor of data class must only have property ('val' / 'var') parameters.",
+                range: classDecl.range
+            )
+        }
     }
 
     // MARK: - Declaration info extraction
