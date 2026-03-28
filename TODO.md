@@ -596,18 +596,6 @@
   - **関連ファイル**: `RuntimeDuration.swift`
   - **テストケース**: `Scripts/diff_cases/instant_basic.kt`
 
-- [ ] STDLIB-TIME-084: 時間測定完全実装
-  - **仕様**: 時間測定関数の完全サポート
-  - **実装内容**:
-    - measureTime: 実行時間測定
-    - measureTimedValue: 値と実行時間の測定
-    - TimeSource: 時間ソースの抽象化
-    - Monotonic: 単調増加時間ソース
-    - TimeMark: 時間マークと差分計算
-  - **現状**: measureTime等は一部実装済み、詳細は未実装
-  - **関連ファイル**: `RuntimeDuration.swift`
-  - **テストケース**: `Scripts/diff_cases/measure_time.kt`
-
 - [ ] STDLIB-TIME-085: システム時刻完全実装
   - **仕様**: システム時刻アクセスの完全サポート
   - **実装内容**:
