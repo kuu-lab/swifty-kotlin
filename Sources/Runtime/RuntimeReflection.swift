@@ -357,10 +357,18 @@ public func kk_kfunction_call_vararg(
     }
     // Unpack the argument list.
     var args: [Int] = []
-    if argsListRaw != 0, argsListRaw != runtimeNullSentinelInt,
-       let listPtr = UnsafeMutableRawPointer(bitPattern: argsListRaw),
-       let listBox = tryCast(listPtr, to: RuntimeListBox.self)
-    {
+    if argsListRaw != 0, argsListRaw != runtimeNullSentinelInt {
+        let isValidPtr = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: argsListRaw))
+        }
+        guard isValidPtr,
+              let listPtr = UnsafeMutableRawPointer(bitPattern: argsListRaw),
+              let listBox = tryCast(listPtr, to: RuntimeListBox.self)
+        else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "IllegalArgumentException: Invalid argument list handle in KFunction.call().")
+            return runtimeNullSentinelInt
+        }
         args = listBox.elements
     }
     guard args.count == box.arity else {

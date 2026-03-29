@@ -4925,6 +4925,7 @@ public enum RuntimeABISpec {
             + uuidFunctions
             + durationFunctions
             + atomicFunctions
+            + kFunctionFunctions
             + securityFunctions
             + parallelFunctions
 
