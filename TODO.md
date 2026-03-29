@@ -498,7 +498,7 @@
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/channel_backpressure.kt`
 
-- [ ] STDLIB-CORO-077: withContext完全実装
+- [x] STDLIB-CORO-077: withContext完全実装
   - **仕様**: withContextの完全サポート
   - **実装内容**:
     - コンテキスト切り替え: withContext(Dispatchers.IO)
@@ -506,7 +506,7 @@
     - コンテキスト要素: Job, CoroutineName, CoroutineExceptionHandler
     - コンテキストの合成: +演算子
     - コンテキストのキャンセル伝播
-  - **現状**: withContextは一部実装済み、ディスパッチャは未実装
+  - **現状**: 完了 — CoroutineName, CoroutineExceptionHandler, コンテキスト合成(+演算子), kk_with_context_full ABI追加
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/with_context.kt`
 
