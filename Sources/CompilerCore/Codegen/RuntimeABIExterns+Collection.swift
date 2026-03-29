@@ -76,6 +76,7 @@ public extension RuntimeABIExterns {
         kk_list_first,
         kk_list_last,
         kk_list_find,
+        kk_list_findLast,
         kk_list_associateBy,
         kk_list_associateWith,
         kk_list_associate,
@@ -1242,6 +1243,12 @@ public extension RuntimeABIExterns {
 
     static let kk_list_find = ExternDecl(
         name: "kk_list_find",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_list_findLast = ExternDecl(
+        name: "kk_list_findLast",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
         returnType: "intptr_t"
     )
