@@ -1420,6 +1420,29 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // CORO-071: async/await exception handling, cancellation, and dispatcher support
+
+    /// Exception-aware await: writes thrown exception to outThrown, returns 0 on exception.
+    public static let kk_kxmini_async_await_throwing = ExternDecl(
+        name: "kk_kxmini_async_await_throwing",
+        parameterTypes: ["intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    /// Cancel an async task (Deferred.cancel()).
+    public static let kk_async_task_cancel = ExternDecl(
+        name: "kk_async_task_cancel",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    /// Async builder with dispatcher specification — async(dispatcher) { body }.
+    public static let kk_kxmini_async_with_dispatcher = ExternDecl(
+        name: "kk_kxmini_async_with_dispatcher",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
     // Flow (P5-88)
 
     public static let kk_flow_create = ExternDecl(
@@ -3199,6 +3222,10 @@ public enum RuntimeABIExterns {
             kk_kxmini_run_blocking_with_cont,
             kk_kxmini_launch_with_cont,
             kk_kxmini_async_with_cont,
+            // CORO-071: async exception handling, cancellation, dispatcher
+            kk_kxmini_async_await_throwing,
+            kk_async_task_cancel,
+            kk_kxmini_async_with_dispatcher,
             // Flow (CORO-003)
             kk_flow_create,
             kk_flow_emit,
