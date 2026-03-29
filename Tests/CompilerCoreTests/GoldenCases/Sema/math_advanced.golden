@@ -1,4 +1,4 @@
-symbol s0 kind=package fq=_root_ vis=public flags=_
+symbol s0 kind=package fq=golden.sema vis=public flags=_
 symbol s1 kind=package fq=kotlin vis=public flags=synthetic
 symbol s2 kind=package fq=kotlin.properties vis=public flags=synthetic
 symbol s3 kind=interface fq=kotlin.properties.Lazy vis=public flags=synthetic
@@ -2292,58 +2292,55 @@ symbol s2290 kind=annotationClass fq=kotlin.jvm.JvmField vis=public flags=synthe
 symbol s2291 kind=annotationClass fq=kotlin.jvm.JvmOverloads vis=public flags=synthetic
 symbol s2292 kind=annotationClass fq=kotlin.jvm.JvmName vis=public flags=synthetic
 symbol s2293 kind=annotationClass fq=kotlin.Suppress vis=public flags=synthetic
-symbol s2294 kind=function fq=charPlusInt vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s2295 kind=function fq=charMinusInt vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s2296 kind=function fq=charMinusChar vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s2297 kind=function fq=charComparison vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s2298 kind=local fq=__local_1.c vis=private flags=_ type=Char
-symbol s2299 kind=local fq=__local_5.next vis=private flags=_ type=Char
-symbol s2300 kind=local fq=__local_10.c vis=private flags=_ type=Char
-symbol s2301 kind=local fq=__local_14.prev vis=private flags=_ type=Char
-symbol s2302 kind=local fq=__local_21.diff vis=private flags=_ type=Int
-symbol s2303 kind=local fq=__local_28.lt vis=private flags=_ type=Boolean
-symbol s2304 kind=local fq=__local_32.eq vis=private flags=_ type=Boolean
-file f0 package=_
-  decl d0 fun charPlusInt suspend=0 inline=0 sym=s2294
-  decl d1 fun charMinusInt suspend=0 inline=0 sym=s2295
-  decl d2 fun charMinusChar suspend=0 inline=0 sym=s2296
-  decl d3 fun charComparison suspend=0 inline=0 sym=s2297
-expr e0 char(97) type=Char
-expr e1 localDecl c mutable=0 type=t0 init=e0 type=Unit ref=s2298
-expr e2 name(c) type=Char ref=s2298
-expr e3 int(1) type=Int
-expr e4 binary(add) lhs=e2 rhs=e3 type=Char
-expr e5 localDecl next mutable=0 type=_ init=e4 type=Unit ref=s2299
-expr e6 name(println) type=_
-expr e7 name(next) type=Char ref=s2299
-expr e8 call callee=e6 args=[_:e7] type=Unit call=s1255 map=[0->0] targs=[]
-expr e9 char(122) type=Char
-expr e10 localDecl c mutable=0 type=t1 init=e9 type=Unit ref=s2300
-expr e11 name(c) type=Char ref=s2300
-expr e12 int(1) type=Int
-expr e13 binary(subtract) lhs=e11 rhs=e12 type=Char
-expr e14 localDecl prev mutable=0 type=_ init=e13 type=Unit ref=s2301
-expr e15 name(println) type=_
-expr e16 name(prev) type=Char ref=s2301
-expr e17 call callee=e15 args=[_:e16] type=Unit call=s1255 map=[0->0] targs=[]
-expr e18 char(122) type=Char
-expr e19 char(97) type=Char
-expr e20 binary(subtract) lhs=e18 rhs=e19 type=Int
-expr e21 localDecl diff mutable=0 type=_ init=e20 type=Unit ref=s2302
-expr e22 name(println) type=_
-expr e23 name(diff) type=Int ref=s2302
-expr e24 call callee=e22 args=[_:e23] type=Unit call=s1255 map=[0->0] targs=[]
-expr e25 char(97) type=Char
-expr e26 char(122) type=Char
-expr e27 binary(lessThan) lhs=e25 rhs=e26 type=Boolean
-expr e28 localDecl lt mutable=0 type=_ init=e27 type=Unit ref=s2303
-expr e29 char(97) type=Char
-expr e30 char(97) type=Char
-expr e31 binary(equal) lhs=e29 rhs=e30 type=Boolean
-expr e32 localDecl eq mutable=0 type=_ init=e31 type=Unit ref=s2304
-expr e33 name(println) type=_
-expr e34 name(lt) type=Boolean ref=s2303
-expr e35 call callee=e33 args=[_:e34] type=Unit call=s1255 map=[0->0] targs=[]
-expr e36 name(println) type=_
-expr e37 name(eq) type=Boolean ref=s2304
-expr e38 call callee=e36 args=[_:e37] type=Unit call=s1255 map=[0->0] targs=[]
+symbol s2294 kind=function fq=golden.sema.testAtan2 vis=public flags=_ sig=recv=_ params=[] ret=Double suspend=0 defaults=[] vararg=[]
+symbol s2295 kind=function fq=golden.sema.testHypot vis=public flags=_ sig=recv=_ params=[] ret=Double suspend=0 defaults=[] vararg=[]
+symbol s2296 kind=function fq=golden.sema.testCoerceIn vis=public flags=_ sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s2297 kind=valueParameter fq=golden.sema.testCoerceIn.$2296.x vis=private flags=_
+symbol s2298 kind=function fq=golden.sema.testCoerceAtLeast vis=public flags=_ sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s2299 kind=valueParameter fq=golden.sema.testCoerceAtLeast.$2298.x vis=private flags=_
+symbol s2300 kind=function fq=golden.sema.testCoerceAtMost vis=public flags=_ sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s2301 kind=valueParameter fq=golden.sema.testCoerceAtMost.$2300.x vis=private flags=_
+symbol s2302 kind=function fq=golden.sema.testMaxOf3 vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s2303 kind=valueParameter fq=golden.sema.testMaxOf3.$2302.a vis=private flags=_
+symbol s2304 kind=valueParameter fq=golden.sema.testMaxOf3.$2302.b vis=private flags=_
+symbol s2305 kind=valueParameter fq=golden.sema.testMaxOf3.$2302.c vis=private flags=_
+symbol s2306 kind=function fq=golden.sema.testMinOf3 vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s2307 kind=valueParameter fq=golden.sema.testMinOf3.$2306.a vis=private flags=_
+symbol s2308 kind=valueParameter fq=golden.sema.testMinOf3.$2306.b vis=private flags=_
+symbol s2309 kind=valueParameter fq=golden.sema.testMinOf3.$2306.c vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun testAtan2 suspend=0 inline=0 sym=s2294
+  decl d1 fun testHypot suspend=0 inline=0 sym=s2295
+  decl d2 fun testCoerceIn suspend=0 inline=0 sym=s2296
+  decl d3 fun testCoerceAtLeast suspend=0 inline=0 sym=s2298
+  decl d4 fun testCoerceAtMost suspend=0 inline=0 sym=s2300
+  decl d5 fun testMaxOf3 suspend=0 inline=0 sym=s2302
+  decl d6 fun testMinOf3 suspend=0 inline=0 sym=s2306
+expr e0 name(atan2) type=_
+expr e1 double(1.0) type=Double
+expr e2 double(1.0) type=Double
+expr e3 call callee=e0 args=[_:e1,_:e2] type=Double call=s840 map=[0->0,1->1] targs=[]
+expr e4 name(hypot) type=_
+expr e5 double(3.0) type=Double
+expr e6 double(4.0) type=Double
+expr e7 call callee=e4 args=[_:e5,_:e6] type=Double call=s847 map=[0->0,1->1] targs=[]
+expr e8 name(x) type=Int ref=s2297
+expr e9 int(1) type=Int
+expr e10 int(10) type=Int
+expr e11 memberCall recv=e8 callee=coerceIn args=[_:e9,_:e10] type=Int
+expr e12 name(x) type=Int ref=s2299
+expr e13 int(0) type=Int
+expr e14 memberCall recv=e12 callee=coerceAtLeast args=[_:e13] type=Int
+expr e15 name(x) type=Int ref=s2301
+expr e16 int(100) type=Int
+expr e17 memberCall recv=e15 callee=coerceAtMost args=[_:e16] type=Int
+expr e18 name(maxOf) type=_
+expr e19 name(a) type=Int ref=s2303
+expr e20 name(b) type=Int ref=s2304
+expr e21 name(c) type=Int ref=s2305
+expr e22 call callee=e18 args=[_:e19,_:e20,_:e21] type=Int call=s449 map=[0->0,1->1,2->2] targs=[]
+expr e23 name(minOf) type=_
+expr e24 name(a) type=Int ref=s2307
+expr e25 name(b) type=Int ref=s2308
+expr e26 name(c) type=Int ref=s2309
+expr e27 call callee=e23 args=[_:e24,_:e25,_:e26] type=Int call=s451 map=[0->0,1->1,2->2] targs=[]
