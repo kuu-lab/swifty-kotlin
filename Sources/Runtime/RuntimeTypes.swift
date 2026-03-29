@@ -857,9 +857,11 @@ final class RuntimeKCallableBox {
 }
 
 /// Runtime box for `kotlin.reflect.KFunction<T>`.
-/// Represents a constructor or function member.
+/// Represents a constructor or function member with full reflection metadata (STDLIB-REFLECT-063).
 final class RuntimeKFunctionBox {
+    /// Interned KKString raw pointer for the function name.
     let nameRaw: Int
+    /// Number of value parameters (not counting the dispatch receiver).
     let arity: Int
     let returnTypeRaw: Int
     let isSuspend: Bool
@@ -869,6 +871,23 @@ final class RuntimeKFunctionBox {
     let closureRaw: Int
 
     init(nameRaw: Int, arity: Int, returnTypeRaw: Int = 0, isSuspend: Bool = false, fnPtr: Int = 0, closureRaw: Int = 0) {
+    /// Interned KKString raw pointer for the return type descriptor, or 0 if unknown.
+    let returnTypeRaw: Int
+    /// Whether this function is declared `suspend`.
+    let isSuspend: Bool
+    /// Raw function pointer used by `call()` dispatch.  Zero when not callable.
+    let fnPtr: Int
+    /// Closure environment for the callable reference (zero for top-level functions).
+    let closureRaw: Int
+
+    init(
+        nameRaw: Int,
+        arity: Int,
+        returnTypeRaw: Int = 0,
+        isSuspend: Bool = false,
+        fnPtr: Int = 0,
+        closureRaw: Int = 0
+    ) {
         self.nameRaw = nameRaw
         self.arity = arity
         self.returnTypeRaw = returnTypeRaw
