@@ -535,7 +535,7 @@
 
 #### Phase 3: 時間と期間 (低優先度)
 
-- [ ] STDLIB-TIME-082: Duration高度操作完全実装
+- [x] STDLIB-TIME-082: Duration高度操作完全実装
   - **仕様**: Durationの高度な操作
   - **実装内容**:
     - 時間単位変換: toInt(Duration), toLong(Duration)
