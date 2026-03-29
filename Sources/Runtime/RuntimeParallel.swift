@@ -3,6 +3,11 @@ import Foundation
 
 // MARK: - Parallel Processing (STDLIB-PERF-155)
 
+private final class UnsafeSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
 private extension NSLock {
     @inline(__always)
     func withLock<T>(_ body: () throws -> T) rethrows -> T {
@@ -98,7 +103,7 @@ private func runtimeParallelChunkPlan(count: Int, chunkSize: Int) -> [Range<Int>
     return chunks
 }
 
-private final class RuntimeParallelChunkQueue {
+private final class RuntimeParallelChunkQueue: @unchecked Sendable {
     private let lock = NSLock()
     private var nextChunkIndex = 0
     private var thrown = 0
@@ -232,6 +237,7 @@ private func runtimeParallelMapElements(
         resultBuffer.deinitialize(count: elements.count)
         resultBuffer.deallocate()
     }
+    let resultBox = UnsafeSendableBox(resultBuffer)
 
     let queue = RuntimeParallelChunkQueue(chunks: chunks)
     let group = DispatchGroup()
@@ -259,7 +265,7 @@ private func runtimeParallelMapElements(
                         queue.recordThrow(thrown)
                         return
                     }
-                    resultBuffer[index] = maybeUnbox(result)
+                    resultBox.value[index] = maybeUnbox(result)
                 }
             }
         }
@@ -373,6 +379,7 @@ private func runtimeParallelReduceElements(
         partials.deinitialize(count: chunks.count)
         partials.deallocate()
     }
+    let partialsBox = UnsafeSendableBox(partials)
 
     let queue = RuntimeParallelChunkQueue(chunks: chunks)
     let group = DispatchGroup()
@@ -408,7 +415,7 @@ private func runtimeParallelReduceElements(
                         }
                     }
                 }
-                partials[job.index] = acc
+                partialsBox.value[job.index] = acc
             }
         }
     }
