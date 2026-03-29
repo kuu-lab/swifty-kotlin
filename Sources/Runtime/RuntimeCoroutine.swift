@@ -127,6 +127,11 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// CORO-003: The coroutine scope is carried in the continuation context instead
     /// of Thread Local Storage, so it survives suspend/resume across threads.
     var scope: RuntimeCoroutineScope?
+    /// Stores a thrown exception pointer when the coroutine body throws.
+    /// Zero means no exception was thrown.  Set by runSuspendEntryLoopWithContinuation
+    /// and consumed by kk_kxmini_launch_with_exception_handler to reliably
+    /// distinguish exception returns from normal (possibly non-zero) return values.
+    var thrownException: Int = 0
     private let stateLock = NSLock()
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
 
@@ -1096,6 +1101,10 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
         }
     }
 
+    // Capture the continuation state so the launch closure can read the
+    // thrownException flag set by runSuspendEntryLoopWithContinuation.
+    let capturedContState = runtimeContinuationState(from: continuation)
+
     KxMiniRuntime.launch {
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(
@@ -1103,18 +1112,17 @@ public func kk_kxmini_launch_with_exception_handler(_ entryPointRaw: Int, _ func
             continuation: continuation
         )
         RuntimeCoroutineScope.current = nil
-        // If result is a throwable (non-zero and an exception, not a normal value),
-        // invoke the exception handler for uncaught exceptions
-        if result != 0, let handler = exceptionHandler {
-            let isObjPointer = runtimeStorage.withLock { state in
-                state.objectPointers.contains(UInt(bitPattern: result))
-            }
-            if isObjPointer {
-                handler.handler(result)
-                // Don't complete job with exception; fire-and-forget with handler
-                job.complete(with: 0)
-                return
-            }
+        // Reliably detect a thrown exception using the flag set inside
+        // runSuspendEntryLoopWithContinuation rather than inspecting the
+        // object-pointer registry.  The registry check is unreliable because
+        // any non-zero boxed value (string, integer box, etc.) that happens to
+        // be registered would otherwise be misidentified as an exception.
+        let thrownException = capturedContState?.thrownException ?? 0
+        if thrownException != 0, let handler = exceptionHandler {
+            handler.handler(thrownException)
+            // Fire-and-forget with handler; do not propagate the exception.
+            job.complete(with: 0)
+            return
         }
         job.complete(with: result)
     }
@@ -3113,6 +3121,11 @@ func runSuspendEntryLoopWithContinuation(entryPointRaw: Int, continuation: Int) 
             RuntimeCoroutineScope.removeScope(forTask: taskKeyBox.key)
             RuntimeCoroutineScopeTaskKey.removeKey()
             _ = kk_coroutine_state_exit(continuation, 0)
+            // Record the thrown exception in the continuation state so callers
+            // such as kk_kxmini_launch_with_exception_handler can reliably
+            // distinguish a thrown exception from a normal (possibly non-zero)
+            // return value without inspecting the object-pointer registry.
+            contState?.thrownException = outThrown
             resultBox.value = outThrown
             completionGate.signal()
             return

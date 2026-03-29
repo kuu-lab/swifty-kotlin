@@ -127,7 +127,7 @@ final class ABIMismatchTests: XCTestCase {
         // Keep this in sync with RuntimeABISpec.coroutineFunctions entries.
         // Includes CORO-001 channel suspend, CORO-002 cancellation and CORO-003 flow ownership helpers.
         // STDLIB-CORO-072: +4 for dispatcher-aware launch and CoroutineExceptionHandler.
-        XCTAssertEqual(RuntimeABISpec.coroutineFunctions.count, 67)
+        XCTAssertEqual(RuntimeABISpec.coroutineFunctions.count, 74)
     }
 
     func testBoxingFunctionCount() {
