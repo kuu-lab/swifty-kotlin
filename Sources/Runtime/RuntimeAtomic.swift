@@ -66,13 +66,17 @@ final class AtomicIntBox {
         return storage
     }
 
-    func getAndUpdate(transform: (Int) -> Int) -> (old: Int, new: Int) {
-        lock.lock()
-        let old = storage
-        let new = transform(old)
-        storage = new
-        lock.unlock()
-        return (old, new)
+    func getAndUpdate(transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
+        while true {
+            let old = load()
+            let new = transform(old)
+            if let thrown = outThrown, thrown.pointee != 0 {
+                return (old, old)
+            }
+            if compareAndSet(expect: old, update: new) {
+                return (old, new)
+            }
+        }
     }
 }
 
@@ -161,9 +165,9 @@ public func kk_atomic_int_getAndUpdate(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate { old in
+    let result = box.getAndUpdate(transform: { old in
         kk_function_invoke(updateFn, old, outThrown)
-    }
+    }, outThrown: outThrown)
     return result.old
 }
 
@@ -174,9 +178,9 @@ public func kk_atomic_int_updateAndGet(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate { old in
+    let result = box.getAndUpdate(transform: { old in
         kk_function_invoke(updateFn, old, outThrown)
-    }
+    }, outThrown: outThrown)
     return result.new
 }
 
@@ -246,13 +250,17 @@ final class AtomicLongBox {
         return storage
     }
 
-    func getAndUpdate(transform: (Int) -> Int) -> (old: Int, new: Int) {
-        lock.lock()
-        let old = storage
-        let new = transform(old)
-        storage = new
-        lock.unlock()
-        return (old, new)
+    func getAndUpdate(transform: (Int) -> Int, outThrown: UnsafeMutablePointer<Int>?) -> (old: Int, new: Int) {
+        while true {
+            let old = load()
+            let new = transform(old)
+            if let thrown = outThrown, thrown.pointee != 0 {
+                return (old, old)
+            }
+            if compareAndSet(expect: old, update: new) {
+                return (old, new)
+            }
+        }
     }
 }
 
@@ -341,9 +349,9 @@ public func kk_atomic_long_getAndUpdate(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = atomicLongBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate { old in
+    let result = box.getAndUpdate(transform: { old in
         kk_function_invoke(updateFn, old, outThrown)
-    }
+    }, outThrown: outThrown)
     return result.old
 }
 
@@ -354,9 +362,9 @@ public func kk_atomic_long_updateAndGet(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     guard let box = atomicLongBox(from: receiver) else { return 0 }
-    let result = box.getAndUpdate { old in
+    let result = box.getAndUpdate(transform: { old in
         kk_function_invoke(updateFn, old, outThrown)
-    }
+    }, outThrown: outThrown)
     return result.new
 }
 

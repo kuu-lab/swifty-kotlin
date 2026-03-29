@@ -202,7 +202,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -212,7 +212,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -223,7 +223,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -233,7 +233,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -298,7 +298,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -308,7 +308,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -319,7 +319,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -329,7 +329,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "updateFn", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Atomic"
