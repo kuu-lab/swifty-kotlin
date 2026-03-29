@@ -89,11 +89,11 @@ public enum CompoundAssignOp: Equatable {
     /// The Kotlin operator function name for the augmented-assignment convention.
     public var kotlinFunctionName: String {
         switch self {
-        case .plusAssign: return "plusAssign"
-        case .minusAssign: return "minusAssign"
-        case .timesAssign: return "timesAssign"
-        case .divAssign: return "divAssign"
-        case .modAssign: return "modAssign"
+        case .plusAssign: "plusAssign"
+        case .minusAssign: "minusAssign"
+        case .timesAssign: "timesAssign"
+        case .divAssign: "divAssign"
+        case .modAssign: "remAssign"
         }
     }
 }
