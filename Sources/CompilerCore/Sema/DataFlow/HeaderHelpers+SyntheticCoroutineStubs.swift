@@ -472,6 +472,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // Mutex.withLock(action: suspend () -> T): T
+        // Suspend extension that acquires the lock, runs action, then releases.
+        registerSyntheticCoroutineMember(
+            ownerSymbol: mutexSymbol,
+            ownerType: mutexType,
+            name: "withLock",
+            externalLinkName: "kk_mutex_withLock",
+            returnType: types.anyType,
+            parameters: [(
+                name: "action",
+                type: types.make(.functionType(FunctionType(
+                    params: [],
+                    returnType: types.anyType,
+                    isSuspend: true,
+                    nullability: .nonNull
+                )))
+            )],
+            symbols: symbols,
+            interner: interner
+        )
+
         // Semaphore (kotlinx.coroutines.sync.Semaphore)
         let semaphoreSymbol = ensureInterfaceSymbol(
             named: "Semaphore",
