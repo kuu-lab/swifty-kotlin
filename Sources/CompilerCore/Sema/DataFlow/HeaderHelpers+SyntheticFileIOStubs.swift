@@ -366,6 +366,95 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // Register BufferedReader as a Closeable subtype (STDLIB-IO-093)
+        // so that .use {} pattern works: `file.bufferedReader().use { reader -> ... }`
+        if let closeableSymbol = types.closeableInterfaceSymbol {
+            symbols.setDirectSupertypes([closeableSymbol], for: bufferedReaderSymbol)
+            types.setNominalDirectSupertypes([closeableSymbol], for: bufferedReaderSymbol)
+        }
+
+        // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091)
+
+        let bufferedWriterSymbol = ensureClassSymbol(
+            named: "BufferedWriter",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaIOPkgSymbol {
+            symbols.setParentSymbol(javaIOPkgSymbol, for: bufferedWriterSymbol)
+        }
+        let bufferedWriterType = types.make(.classType(ClassType(
+            classSymbol: bufferedWriterSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
+
+        // Register BufferedWriter as a Closeable subtype (STDLIB-IO-093)
+        if let closeableSymbol = types.closeableInterfaceSymbol {
+            symbols.setDirectSupertypes([closeableSymbol], for: bufferedWriterSymbol)
+            types.setNominalDirectSupertypes([closeableSymbol], for: bufferedWriterSymbol)
+        }
+
+        // File.bufferedWriter() -> BufferedWriter
+        registerFileMemberFunction(
+            named: "bufferedWriter",
+            externalLinkName: "kk_file_bufferedWriter",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [],
+            returnType: bufferedWriterType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // BufferedWriter.write(text: String) -> Unit
+        registerFileMemberFunction(
+            named: "write",
+            externalLinkName: "kk_buffered_writer_write",
+            ownerSymbol: bufferedWriterSymbol,
+            ownerType: bufferedWriterType,
+            parameters: [("text", types.stringType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // BufferedWriter.newLine() -> Unit
+        registerFileMemberFunction(
+            named: "newLine",
+            externalLinkName: "kk_buffered_writer_new_line",
+            ownerSymbol: bufferedWriterSymbol,
+            ownerType: bufferedWriterType,
+            parameters: [],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // BufferedWriter.flush() -> Unit
+        registerFileMemberFunction(
+            named: "flush",
+            externalLinkName: "kk_buffered_writer_flush",
+            ownerSymbol: bufferedWriterSymbol,
+            ownerType: bufferedWriterType,
+            parameters: [],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // BufferedWriter.close() -> Unit
+        registerFileMemberFunction(
+            named: "close",
+            externalLinkName: "kk_buffered_writer_close",
+            ownerSymbol: bufferedWriterSymbol,
+            ownerType: bufferedWriterType,
+            parameters: [],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // MARK: - InputStream / OutputStream (STDLIB-IO-092)
 
         // MARK: - Resource access (STDLIB-IO-093)
@@ -415,6 +504,15 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(inputStreamType, for: inputStreamSymbol)
         symbols.setPropertyType(outputStreamType, for: outputStreamSymbol)
+
+        // Register InputStream/OutputStream as Closeable subtypes (STDLIB-IO-093)
+        // so that .use {} works with stream resources.
+        if let closeableSymbol = types.closeableInterfaceSymbol {
+            symbols.setDirectSupertypes([closeableSymbol], for: inputStreamSymbol)
+            types.setNominalDirectSupertypes([closeableSymbol], for: inputStreamSymbol)
+            symbols.setDirectSupertypes([closeableSymbol], for: outputStreamSymbol)
+            types.setNominalDirectSupertypes([closeableSymbol], for: outputStreamSymbol)
+        }
 
         let nullableInputStreamType = types.makeNullable(inputStreamType)
 

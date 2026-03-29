@@ -330,7 +330,7 @@ extension CallTypeChecker {
             case "run": .scopeRun
             case "apply": .scopeApply
             case "also": .scopeAlso
-            case "use" where isCloseableReceiver(receiverType, sema: sema): .scopeUse
+            case "use" where isCloseableReceiver(receiverType, sema: sema, interner: interner): .scopeUse
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -5231,12 +5231,38 @@ extension CallTypeChecker {
     /// Note: AutoCloseable is registered as a typealias to Closeable (see
     /// HeaderHelpers+SyntheticCloseableStubs.swift), so checking Closeable alone
     /// covers both Closeable and AutoCloseable receivers.
-    private func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
+    ///
+    /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
+    /// OutputStream) that implement Closeable through the nominal supertype chain registered
+    /// by registerSyntheticFileIOStubs, we also accept any class type whose class symbol
+    /// has a `close()` member function registered with no parameters — this ensures that
+    /// `file.bufferedReader().use { }` and similar patterns resolve correctly.
+    private func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         guard let closeableType = sema.types.closeableTypeID else {
             return false
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        return sema.types.isSubtype(nonNullReceiver, closeableType)
+        if sema.types.isSubtype(nonNullReceiver, closeableType) {
+            return true
+        }
+        // Fallback: check if the class has a `close()` member function.
+        // This handles synthetic IO types (BufferedReader, BufferedWriter, InputStream,
+        // OutputStream) registered via registerSyntheticFileIOStubs.
+        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiver),
+              let classInfo = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        let closeFQName = classInfo.fqName + [interner.intern("close")]
+        return sema.symbols.lookupAll(fqName: closeFQName).contains { symbolID in
+            guard let sym = sema.symbols.symbol(symbolID),
+                  sym.kind == .function,
+                  let sig = sema.symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return sig.parameterTypes.isEmpty
+        }
     }
 
     // MARK: - Result helpers (STDLIB-590)

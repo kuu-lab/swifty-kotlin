@@ -2111,18 +2111,53 @@ symbol s2109 kind=function fq=java.net.URI.toString vis=public flags=synthetic s
 symbol s2110 kind=function fq=java.net.URI.normalize vis=public flags=synthetic sig=recv=Class#2101 params=[] ret=Class#2101 suspend=0 defaults=[] vararg=[]
 symbol s2111 kind=function fq=java.net.URI.resolve vis=public flags=synthetic sig=recv=Class#2101 params=[String] ret=Class#2101 suspend=0 defaults=[] vararg=[]
 symbol s2112 kind=function fq=java.net.URI.relativize vis=public flags=synthetic sig=recv=Class#2101 params=[Class#2101] ret=Class#2101 suspend=0 defaults=[] vararg=[]
-symbol s2113 kind=class fq=golden.sema.Meter vis=public flags=valueType
-symbol s2114 kind=constructor fq=golden.sema.Meter.<init> vis=public flags=_ sig=recv=Class#2113 params=[Int] ret=Class#2113 suspend=0 defaults=[0] vararg=[0]
-symbol s2115 kind=valueParameter fq=golden.sema.Meter.<init>.$2114.amount vis=private flags=_
-symbol s2116 kind=property fq=golden.sema.Meter.amount vis=public flags=_ type=Int
-symbol s2117 kind=function fq=golden.sema.measure vis=public flags=_ sig=recv=_ params=[Class#2113] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s2118 kind=valueParameter fq=golden.sema.measure.$2117.m vis=private flags=_
-symbol s2119 kind=function fq=golden.sema.toAny vis=public flags=_ sig=recv=_ params=[Class#2113] ret=Any suspend=0 defaults=[0] vararg=[0]
-symbol s2120 kind=valueParameter fq=golden.sema.toAny.$2119.m vis=private flags=_
+symbol s2113 kind=interface fq=golden.sema.InterfaceProperties vis=public flags=_
+symbol s2114 kind=property fq=golden.sema.InterfaceProperties.abstractVal vis=public flags=abstractType type=String
+symbol s2115 kind=property fq=golden.sema.InterfaceProperties.abstractVar vis=public flags=mutable|abstractType type=Int
+symbol s2116 kind=property fq=golden.sema.InterfaceProperties.concreteVal vis=public flags=_ type=String
+symbol s2117 kind=property fq=golden.sema.InterfaceProperties.concreteVar vis=public flags=mutable type=Int
+symbol s2118 kind=property fq=golden.sema.InterfaceProperties.computedVal vis=public flags=_ type=String
+symbol s2119 kind=property fq=golden.sema.InterfaceProperties.computedVar vis=public flags=mutable type=String
+symbol s2120 kind=backingField fq=golden.sema.InterfaceProperties.$backing_computedVar vis=private flags=mutable type=String
+symbol s2121 kind=interface fq=golden.sema.InterfaceSuperCalls vis=public flags=_
+symbol s2122 kind=function fq=golden.sema.InterfaceSuperCalls.greet vis=public flags=_ sig=recv=Class#2121 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2123 kind=interface fq=golden.sema.LeftSuper vis=public flags=_
+symbol s2124 kind=function fq=golden.sema.LeftSuper.greet vis=public flags=overrideMember sig=recv=Class#2123 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2125 kind=interface fq=golden.sema.RightSuper vis=public flags=_
+symbol s2126 kind=function fq=golden.sema.RightSuper.greet vis=public flags=overrideMember sig=recv=Class#2125 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2127 kind=class fq=golden.sema.WithSuperCall vis=public flags=_
+symbol s2128 kind=constructor fq=golden.sema.WithSuperCall.<init> vis=public flags=_ sig=recv=Class#2127 params=[] ret=Class#2127 suspend=0 defaults=[] vararg=[]
+symbol s2129 kind=function fq=golden.sema.WithSuperCall.greet vis=public flags=overrideMember sig=recv=Class#2127 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2130 kind=interface fq=golden.sema.WithCompanion vis=public flags=_
+symbol s2131 kind=function fq=golden.sema.WithCompanion.doSomething vis=public flags=abstractType sig=recv=Class#2130 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2132 kind=object fq=golden.sema.WithCompanion.Companion vis=public flags=_
+symbol s2133 kind=function fq=golden.sema.WithCompanion.Companion.helper vis=public flags=_ sig=recv=Class#2132 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s2134 kind=property fq=golden.sema.WithCompanion.Companion.CONSTANT vis=public flags=_ type=String
+symbol s2135 kind=class fq=golden.sema.CompanionImpl vis=public flags=_
+symbol s2136 kind=constructor fq=golden.sema.CompanionImpl.<init> vis=public flags=_ sig=recv=Class#2135 params=[] ret=Class#2135 suspend=0 defaults=[] vararg=[]
+symbol s2137 kind=function fq=golden.sema.CompanionImpl.doSomething vis=public flags=overrideMember sig=recv=Class#2135 params=[] ret=String suspend=0 defaults=[] vararg=[]
 file f0 package=golden.sema
-  decl d1 class Meter sym=s2113
-  decl d2 fun measure suspend=0 inline=0 sym=s2117
-  decl d3 fun toAny suspend=0 inline=0 sym=s2119
-expr e0 name(m) type=Class#2113 ref=s2118
-expr e1 memberCall recv=e0 callee=amount args=[] type=Int ref=s2116
-expr e2 name(m) type=Class#2113 ref=s2120
+  decl d6 interface InterfaceProperties sym=s2113
+  decl d8 interface InterfaceSuperCalls sym=s2121
+  decl d10 interface LeftSuper sym=s2123
+  decl d12 interface RightSuper sym=s2125
+  decl d14 class WithSuperCall sym=s2127
+  decl d19 interface WithCompanion sym=s2130
+  decl d21 class CompanionImpl sym=s2135
+expr e0 string(default) type=String
+expr e1 int(42) type=Int
+expr e2 string(computed) type=String
+expr e3 string(get) type=String
+expr e4 string(Hello) type=String
+expr e5 string(Left) type=String
+expr e6 string(Right) type=String
+expr e7 super<LeftSuper> type=Class#2123
+expr e8 memberCall recv=e7 callee=greet args=[] type=String call=s2124 map=[] targs=[]
+expr e9 string( and ) type=String
+expr e10 binary(add) lhs=e8 rhs=e9 type=String
+expr e11 super<RightSuper> type=Class#2125
+expr e12 memberCall recv=e11 callee=greet args=[] type=String call=s2126 map=[] targs=[]
+expr e13 binary(add) lhs=e10 rhs=e12 type=String
+expr e14 string(test) type=String
+expr e15 string(helper) type=String
+expr e16 string(done) type=String
