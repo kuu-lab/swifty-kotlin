@@ -4992,6 +4992,7 @@ public enum RuntimeABISpec {
             + uuidFunctions
             + durationFunctions
             + atomicFunctions
+            + bigIntegerFunctions
 
     public static func generateCHeader() -> String {
         var lines: [String] = []
