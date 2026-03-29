@@ -141,6 +141,8 @@ public func kk_test_assertNull_message(
         return runtimeTestFailure(message: message, outThrown)
     }
     return 0
+}
+
 enum RuntimeMockMatcher: Hashable, Sendable {
     case any
     case eq(Int)
