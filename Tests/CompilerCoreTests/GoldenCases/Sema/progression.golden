@@ -1,4 +1,4 @@
-symbol s0 kind=package fq=golden.sema vis=public flags=_
+symbol s0 kind=package fq=_root_ vis=public flags=_
 symbol s1 kind=package fq=kotlin vis=public flags=synthetic
 symbol s2 kind=package fq=kotlin.properties vis=public flags=synthetic
 symbol s3 kind=interface fq=kotlin.properties.Lazy vis=public flags=synthetic
@@ -2244,23 +2244,53 @@ symbol s2242 kind=annotationClass fq=kotlin.jvm.JvmField vis=public flags=synthe
 symbol s2243 kind=annotationClass fq=kotlin.jvm.JvmOverloads vis=public flags=synthetic
 symbol s2244 kind=annotationClass fq=kotlin.jvm.JvmName vis=public flags=synthetic
 symbol s2245 kind=annotationClass fq=kotlin.Suppress vis=public flags=synthetic
-symbol s2246 kind=function fq=golden.sema.publicFun vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s2247 kind=function fq=golden.sema.internalFun vis=internal flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s2248 kind=function fq=golden.sema.privateFun vis=private flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s2249 kind=function fq=golden.sema.useAll vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-file f0 package=golden.sema
-  decl d0 fun publicFun suspend=0 inline=0 sym=s2246
-  decl d1 fun internalFun suspend=0 inline=0 sym=s2247
-  decl d2 fun privateFun suspend=0 inline=0 sym=s2248
-  decl d3 fun useAll suspend=0 inline=0 sym=s2249
-expr e0 int(1) type=Int
-expr e1 int(2) type=Int
-expr e2 int(3) type=Int
-expr e3 name(publicFun) type=_
-expr e4 call callee=e3 args=[] type=Int call=s2246 map=[] targs=[]
-expr e5 name(internalFun) type=_
-expr e6 call callee=e5 args=[] type=Int call=s2247 map=[] targs=[]
-expr e7 binary(add) lhs=e4 rhs=e6 type=Int
-expr e8 name(privateFun) type=_
-expr e9 call callee=e8 args=[] type=Int call=s2248 map=[] targs=[]
-expr e10 binary(add) lhs=e7 rhs=e9 type=Int
+symbol s2246 kind=function fq=testIntProgression vis=public flags=_ sig=recv=_ params=[] ret=Class#105<Int> suspend=0 defaults=[] vararg=[]
+symbol s2247 kind=function fq=testLongProgression vis=public flags=_ sig=recv=_ params=[] ret=Class#105<Long> suspend=0 defaults=[] vararg=[]
+symbol s2248 kind=function fq=testUIntProgression vis=public flags=_ sig=recv=_ params=[] ret=Class#105<UInt> suspend=0 defaults=[] vararg=[]
+symbol s2249 kind=function fq=testULongProgression vis=public flags=_ sig=recv=_ params=[] ret=Class#105<ULong> suspend=0 defaults=[] vararg=[]
+symbol s2250 kind=function fq=testIntProgressionReversed vis=public flags=_ sig=recv=_ params=[] ret=Class#105<Int> suspend=0 defaults=[] vararg=[]
+symbol s2251 kind=function fq=testIntProgressionIsEmpty vis=public flags=_ sig=recv=_ params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
+file f0 package=_
+  decl d0 fun testIntProgression suspend=0 inline=0 sym=s2246
+  decl d1 fun testLongProgression suspend=0 inline=0 sym=s2247
+  decl d2 fun testUIntProgression suspend=0 inline=0 sym=s2248
+  decl d3 fun testULongProgression suspend=0 inline=0 sym=s2249
+  decl d4 fun testIntProgressionReversed suspend=0 inline=0 sym=s2250
+  decl d5 fun testIntProgressionIsEmpty suspend=0 inline=0 sym=s2251
+expr e0 name(IntProgression) type=Class#364 ref=s363
+expr e1 int(1) type=Int
+expr e2 int(10) type=Int
+expr e3 int(2) type=Int
+expr e4 memberCall recv=e0 callee=fromClosedRange args=[_:e1,_:e2,_:e3] type=Class#363 call=s368 map=[0->0,1->1,2->2] targs=[]
+expr e5 memberCall recv=e4 callee=toList args=[] type=Class#105<out Int> call=s372 map=[] targs=[]
+expr e6 name(LongProgression) type=Class#377 ref=s376
+expr e7 long(1) type=Long
+expr e8 long(10) type=Long
+expr e9 int(3) type=Int
+expr e10 memberCall recv=e6 callee=fromClosedRange args=[_:e7,_:e8,_:e9] type=Class#376 call=s381 map=[0->0,1->1,2->2] targs=[]
+expr e11 memberCall recv=e10 callee=toList args=[] type=Class#105<out Long> call=s385 map=[] targs=[]
+expr e12 name(UIntProgression) type=Class#390 ref=s389
+expr e13 uint(1) type=UInt
+expr e14 uint(10) type=UInt
+expr e15 int(2) type=Int
+expr e16 memberCall recv=e12 callee=fromClosedRange args=[_:e13,_:e14,_:e15] type=Class#389 call=s394 map=[0->0,1->1,2->2] targs=[]
+expr e17 memberCall recv=e16 callee=toList args=[] type=Class#105<out UInt> call=s398 map=[] targs=[]
+expr e18 name(ULongProgression) type=Class#403 ref=s402
+expr e19 ulong(1) type=ULong
+expr e20 ulong(10) type=ULong
+expr e21 int(3) type=Int
+expr e22 memberCall recv=e18 callee=fromClosedRange args=[_:e19,_:e20,_:e21] type=Class#402 call=s407 map=[0->0,1->1,2->2] targs=[]
+expr e23 memberCall recv=e22 callee=toList args=[] type=Class#105<out ULong> call=s411 map=[] targs=[]
+expr e24 name(IntProgression) type=Class#364 ref=s363
+expr e25 int(1) type=Int
+expr e26 int(9) type=Int
+expr e27 int(2) type=Int
+expr e28 memberCall recv=e24 callee=fromClosedRange args=[_:e25,_:e26,_:e27] type=Class#363 call=s368 map=[0->0,1->1,2->2] targs=[]
+expr e29 memberCall recv=e28 callee=reversed args=[] type=Class#363 call=s373 map=[] targs=[]
+expr e30 memberCall recv=e29 callee=toList args=[] type=Class#105<out Int> call=s372 map=[] targs=[]
+expr e31 name(IntProgression) type=Class#364 ref=s363
+expr e32 int(10) type=Int
+expr e33 int(1) type=Int
+expr e34 int(1) type=Int
+expr e35 memberCall recv=e31 callee=fromClosedRange args=[_:e32,_:e33,_:e34] type=Class#363 call=s368 map=[0->0,1->1,2->2] targs=[]
+expr e36 memberCall recv=e35 callee=isEmpty args=[] type=Boolean call=s374 map=[] targs=[]
