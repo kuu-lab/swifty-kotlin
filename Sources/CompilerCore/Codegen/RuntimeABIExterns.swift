@@ -3949,6 +3949,7 @@ public enum RuntimeABIExterns {
             kk_duration_compareTo,
         ]
         all += atomicExterns
+        all += securityExterns
         return all
     }()
 
