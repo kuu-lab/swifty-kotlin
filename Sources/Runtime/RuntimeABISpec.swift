@@ -2060,6 +2060,17 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
+        // Dispatcher-aware launch (STDLIB-CORO-072)
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_with_dispatcher",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+                RuntimeABIParameter(name: "dispatcherRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_async_task_cancel",
             parameters: [
@@ -2074,6 +2085,33 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "dispatcherTag", type: .intptr),
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_with_dispatcher_and_cont",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "dispatcherRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        // CoroutineExceptionHandler (STDLIB-CORO-072)
+        RuntimeABIFunctionSpec(
+            name: "kk_exception_handler_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_launch_with_exception_handler",
+            parameters: [
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionID", type: .intptr),
+                RuntimeABIParameter(name: "handlerRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
