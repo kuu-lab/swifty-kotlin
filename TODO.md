@@ -992,14 +992,14 @@
 - [ ] STDLIB-NUM-129: BigInteger完全実装
   - **仕様**: BigIntegerの完全サポート
   - **実装内容**:
-    - 精度情報: ulp(), nextUp(), nextDown()
-    - 特殊値: POSITIVE_INFINITY, NEGATIVE_INFINITY, NaN
-    - 比較: isNaN(), isInfinite()
-    - ビット表現: toBits(), fromBits()
-    - 丸め: IEEE 754丸めの完全サポート
-  - **現状**: 基本的な浮動小数点は実装済み、精度制御は未実装
-  - **関連ファイル**: `RuntimeNumericCompat.swift`
-  - **テストケース**: `Scripts/diff_cases/float_precision.kt`
+    - 任意精度整数: 無制限の整数サイズ
+    - 基本演算: add(), subtract(), multiply(), divide()
+    - ビット演算: and(), or(), xor(), not(), shiftLeft(), shiftRight()
+    - 数学関数: gcd(), abs(), modInverse(), modPow()
+    - 変換: toInt(), toLong(), toByteArray()
+  - **現状**: 基本的なString.toBigInteger()は実装済み、演算は未実装
+  - **関連ファイル**: `RuntimeBigInteger.swift`
+  - **テストケース**: `Scripts/diff_cases/big_integer.kt`
 
 - [ ] STDLIB-NUM-130: 浮動小数点精度完全実装
   - **仕様**: 浮動小数点数の精度制御
