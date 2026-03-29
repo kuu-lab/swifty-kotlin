@@ -6,6 +6,7 @@ final class RuntimeMessageDigestBox {
     let algorithm: String
 
     init(algorithm: String) {
+#if canImport(CommonCrypto)
 import CommonCrypto
 import Foundation
 
@@ -643,3 +644,64 @@ public func kk_cipher_doFinal_noarg(
     }
     return runtimeMakeByteArrayRaw(output)
 }
+#else
+// MARK: - Platform stubs: CommonCrypto not available on Linux
+
+@_cdecl("kk_secretkeyspec_new")
+public func kk_secretkeyspec_new(_ keyRaw: Int, _ algorithmRaw: Int) -> Int {
+    return runtimeAllocateThrowable(message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+}
+
+@_cdecl("kk_ivparameterspec_new")
+public func kk_ivparameterspec_new(_ ivRaw: Int) -> Int {
+    return runtimeAllocateThrowable(message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+}
+
+@_cdecl("kk_cipher_getInstance")
+public func kk_cipher_getInstance(_ transformationRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    runtimeSetThrown(outThrown, message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+    return 0
+}
+
+@_cdecl("kk_cipher_init")
+public func kk_cipher_init(
+    _ cipherRaw: Int,
+    _ opmodeRaw: Int,
+    _ keyRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSetThrown(outThrown, message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+    return 0
+}
+
+@_cdecl("kk_cipher_init_with_iv")
+public func kk_cipher_init_with_iv(
+    _ cipherRaw: Int,
+    _ opmodeRaw: Int,
+    _ keyRaw: Int,
+    _ ivRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSetThrown(outThrown, message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+    return 0
+}
+
+@_cdecl("kk_cipher_doFinal")
+public func kk_cipher_doFinal(
+    _ cipherRaw: Int,
+    _ dataRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSetThrown(outThrown, message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+    return 0
+}
+
+@_cdecl("kk_cipher_doFinal_noarg")
+public func kk_cipher_doFinal_noarg(
+    _ cipherRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSetThrown(outThrown, message: "UnsupportedOperationException: symmetric crypto not available on this platform")
+    return 0
+}
+#endif
