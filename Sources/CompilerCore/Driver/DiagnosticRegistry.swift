@@ -457,7 +457,7 @@ public enum DiagnosticRegistry {
             summary: "Function marked 'tailrec' but last expression is not a self-recursive call."
         ),
         DiagnosticDescriptor(
-            code: "KSWIFTK-SEMA-DIAMOND",
+            code: "KSWIFTK-SEMA-0171",
             pass: "SEMA",
             defaultSeverity: .error,
             summary: "Diamond inheritance conflict requires explicit override.",

@@ -9,7 +9,7 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-DIAMOND",
+      "code": "KSWIFTK-SEMA-0171",
       "source": "kswiftk",
       "message": "Class 'golden.diagnostics.MissingOverride' must override 'method' because it is inherited from multiple interfaces: golden.diagnostics.Left, golden.diagnostics.Right.",
       "codeActions": [{ "title": "Add explicit override to resolve diamond conflict", "kind": "quickfix" }]
