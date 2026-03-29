@@ -101,6 +101,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "duration", type: durationType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
+            isOperator: true,
             symbols: symbols,
             interner: interner
         )
@@ -113,6 +114,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "duration", type: durationType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
+            isOperator: true,
             symbols: symbols,
             interner: interner
         )
@@ -125,6 +127,7 @@ extension DataFlowSemaPhase {
             parameters: [(name: "other", type: instantType)],
             ownerSymbol: instantSymbol,
             ownerType: instantType,
+            isOperator: true,
             symbols: symbols,
             interner: interner
         )
@@ -188,7 +191,7 @@ extension DataFlowSemaPhase {
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            return existingSignature.parameterTypes == parameters.map(\.type) &&
+            return existingSignature.parameterTypes == parameters.map { $0.type } &&
                 existingSignature.returnType == returnType
         }) == nil else {
             return
@@ -226,7 +229,7 @@ extension DataFlowSemaPhase {
 
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: parameters.map(\.type),
+                parameterTypes: parameters.map { $0.type },
                 returnType: returnType,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
@@ -277,6 +280,7 @@ extension DataFlowSemaPhase {
         parameters: [(name: String, type: TypeID)],
         ownerSymbol: SymbolID,
         ownerType: TypeID,
+        isOperator: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -289,18 +293,19 @@ extension DataFlowSemaPhase {
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            return existingSignature.parameterTypes == parameters.map(\.type) &&
+            return existingSignature.parameterTypes == parameters.map { $0.type } &&
                 existingSignature.returnType == returnType
         }) == nil else {
             return
         }
+        let memberFlags: SymbolFlags = isOperator ? [.synthetic, .operatorFunction] : [.synthetic]
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
             fqName: memberFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: memberFlags
         )
         symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
         symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
@@ -323,7 +328,7 @@ extension DataFlowSemaPhase {
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: ownerType,
-                parameterTypes: parameters.map(\.type),
+                parameterTypes: parameters.map { $0.type },
                 returnType: returnType,
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
