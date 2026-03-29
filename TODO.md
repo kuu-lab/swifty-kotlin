@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-03-25
+最終更新: 2026-03-29
 
 ## 実装サマリー
 
@@ -1325,7 +1325,7 @@
   - **関連ファイル**: `RuntimeTest.swift`
   - **テストケース**: `Scripts/diff_cases/mock_objects.kt`
 
-- [ ] STDLIB-TEST-159: プロパティベーステスト完全実装
+- [x] STDLIB-TEST-159: プロパティベーステスト完全実装
   - **仕様**: プロパティベーステストの完全サポート
   - **実装内容**:
     - 乱数生成: テストデータの自動生成
