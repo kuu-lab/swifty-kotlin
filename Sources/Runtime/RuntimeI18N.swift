@@ -43,11 +43,6 @@ private func i18nMakeStringRaw(_ value: String) -> Int {
     })
 }
 
-@_cdecl("kk_locale_new")
-public func kk_locale_new(_ identifierRaw: Int) -> Int {
-    let identifier = i18nString(from: identifierRaw, caller: #function).replacingOccurrences(of: "_", with: "-")
-    return registerRuntimeObject(RuntimeLocaleBox(locale: Locale(identifier: identifier)))
-}
 
 private func resourceRootDirectory() -> URL {
     if let env = ProcessInfo.processInfo.environment["KSWIFTK_RESOURCE_ROOT"], !env.isEmpty {
