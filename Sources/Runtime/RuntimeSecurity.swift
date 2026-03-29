@@ -1674,7 +1674,7 @@ public func kk_certpathvalidator_validate(
 // MARK: - Platform stubs: CommonCrypto/Security not available on Linux
 
 private func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, message: String) {
-    outThrown?.pointee = runtimeAllocateThrowable(message: message)
+    runtimeSetThrown(outThrown, runtimeAllocateThrowable(message: message))
 }
 
 @_cdecl("kk_secretkeyspec_new")
