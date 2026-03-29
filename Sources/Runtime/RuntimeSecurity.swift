@@ -1,3 +1,4 @@
+#if canImport(CryptoKit)
 import Foundation
 import CryptoKit
 
@@ -65,3 +66,18 @@ public func kk_message_digest_digest(_ digestRaw: Int, _ dataRaw: Int, _ outThro
     }
     return registerRuntimeObject(RuntimeListBox(elements: output.map { Int(Int8(bitPattern: $0)) }))
 }
+#else
+// MARK: - Platform stubs: CryptoKit not available on Linux
+
+@_cdecl("kk_message_digest_getInstance")
+public func kk_message_digest_getInstance(_ algorithmRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = runtimeAllocateThrowable(message: "UnsupportedOperationException: MessageDigest not available on this platform")
+    return 0
+}
+
+@_cdecl("kk_message_digest_digest")
+public func kk_message_digest_digest(_ digestRaw: Int, _ dataRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = runtimeAllocateThrowable(message: "UnsupportedOperationException: MessageDigest not available on this platform")
+    return 0
+}
+#endif
