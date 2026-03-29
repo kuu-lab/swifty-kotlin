@@ -278,6 +278,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     private var isCompleted = false
     private(set) var isCancelled = false
     private var result: Int = 0
+    /// Stores a thrown exception (as a raw pointer Int) when the async body fails.
+    /// Zero means no exception was thrown. Used by kk_kxmini_async_await_throwing.
+    private(set) var thrownException: Int = 0
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
@@ -307,6 +310,19 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         ready.signal()
     }
 
+    /// Complete the task with an exception (CORO-071: async exception handling).
+    func completeExceptionally(with exception: Int) {
+        lock.lock()
+        guard !isCompleted else {
+            lock.unlock()
+            return
+        }
+        self.thrownException = exception
+        isCompleted = true
+        lock.unlock()
+        ready.signal()
+    }
+
     func cancel() {
         lock.lock()
         isCancelled = true
@@ -330,7 +346,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             lock.unlock()
             return value
         }
-        
+
         // If continuation is provided and we're in a suspend-aware context,
         // install for async completion instead of blocking
         if continuation != 0 {
@@ -341,7 +357,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             //     return result
             // }
         }
-        
+
         lock.unlock()
         // Fallback to semaphore blocking for non-suspend-aware contexts
         ready.wait()
@@ -350,6 +366,35 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         lock.lock()
         let value = result
         lock.unlock()
+        return value
+    }
+
+    /// Await the result and propagate any exception (CORO-071: exception-aware await).
+    /// Writes the thrown exception (if any) to `outThrown` and returns 0 if an
+    /// exception occurred, otherwise returns the normal result.
+    func awaitResultThrowing(outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        lock.lock()
+        if isCompleted {
+            let exc = thrownException
+            let value = result
+            lock.unlock()
+            if exc != 0 {
+                outThrown?.pointee = exc
+                return 0
+            }
+            return value
+        }
+        lock.unlock()
+        ready.wait()
+        ready.signal()
+        lock.lock()
+        let exc = thrownException
+        let value = result
+        lock.unlock()
+        if exc != 0 {
+            outThrown?.pointee = exc
+            return 0
+        }
         return value
     }
 }
@@ -912,6 +957,67 @@ public func kk_kxmini_async_await(_ handle: Int) -> Int {
     // Now consume the passRetained
     let consumed = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
     return consumed.awaitResult()
+}
+
+/// CORO-071: Exception-aware await for async tasks.
+/// Waits for the task to complete. If the task threw an exception, writes the
+/// exception pointer to `outThrown` and returns 0. Otherwise returns the result.
+/// Also propagates CancellationException when the task was cancelled.
+@_cdecl("kk_kxmini_async_await_throwing")
+public func kk_kxmini_async_await_throwing(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return 0
+    }
+    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
+    task.markConsumedByUserCode()
+    let consumed = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
+
+    // If the task was cancelled, synthesize a CancellationException
+    if consumed.isCancelled && consumed.thrownException == 0 {
+        let cancellation = runtimeAllocateCancellationException()
+        outThrown?.pointee = cancellation
+        return 0
+    }
+
+    return consumed.awaitResultThrowing(outThrown: outThrown)
+}
+
+/// CORO-071: Cancel an async task (Deferred.cancel()).
+/// Safe to call even after the task has completed (no-op in that case).
+@_cdecl("kk_async_task_cancel")
+public func kk_async_task_cancel(_ handle: Int) -> Int {
+    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return 0
+    }
+    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
+    task.cancel()
+    return 0
+}
+
+/// CORO-071: Async builder with dispatcher specification — async(dispatcher) { body }.
+/// Launches the coroutine on the given dispatcher's queue rather than the default queue.
+@_cdecl("kk_kxmini_async_with_dispatcher")
+public func kk_kxmini_async_with_dispatcher(_ dispatcherTag: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
+    let task = RuntimeAsyncTask()
+    let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
+
+    let callerScope = RuntimeCoroutineScope.current
+    if let callerScope {
+        callerScope.registerChild(Int(bitPattern: taskPtr))
+    }
+    if let contState = runtimeContinuationState(from: continuation) {
+        contState.scope = callerScope
+    }
+
+    let queue = dispatchQueue(for: dispatcherTag)
+
+    queue.async {
+        RuntimeCoroutineScope.current = callerScope
+        let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
+        RuntimeCoroutineScope.current = nil
+        task.complete(with: result)
+    }
+    return Int(bitPattern: taskPtr)
 }
 
 @_cdecl("kk_kxmini_delay")

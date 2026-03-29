@@ -414,17 +414,16 @@
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/suspend_functions.kt`
 
-- [ ] STDLIB-CORO-070: Job完全実装
-  - **仕様**: Jobインターフェースの完全サポート
+- [x] STDLIB-CORO-071: async/await完全実装
+  - **仕様**: async/awaitの完全サポート
   - **実装内容**:
-    - ジョブの状態: New, Active, Completing, Completed, Cancelling, Cancelled, Failed
-    - キャンセル: cancel(), cancel(CauseException)
-    - ジョブの階層: parent-child関係
-    - ジョブの完了: complete(), completeExceptionally()
-    - ジョブの待機: join(), awaitCompletion()
-  - **現状**: 基本的なJobは実装済み、状態管理は未実装
-  - **関連ファイル**: `RuntimeCoroutine.swift`
-  - **テストケース**: `Scripts/diff_cases/job_basic.kt`
+    - asyncビルダー: async { return value }
+    - await式: val result = asyncFunction()
+    - asyncの例外処理: try-catch in async (kk_kxmini_async_await_throwing)
+    - awaitのキャンセル: awaitのキャンセル対応 (kk_async_task_cancel)
+    - asyncのディスパッチャ指定: async(Dispatchers.Default) (kk_kxmini_async_with_dispatcher)
+  - **関連ファイル**: `RuntimeCoroutine.swift`, `RuntimeABIExterns.swift`
+  - **テストケース**: `Scripts/diff_cases/async_await.kt`
 
 - [ ] STDLIB-CORO-070: Job完全実装
   - **仕様**: Jobインターフェースの完全サポート
