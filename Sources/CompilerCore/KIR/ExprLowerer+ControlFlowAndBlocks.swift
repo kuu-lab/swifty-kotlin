@@ -1894,14 +1894,39 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
             let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? boolType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_op_contains"),
-                arguments: [rhsID, lhsID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // If sema resolved a user-defined operator fun contains, dispatch to it (STDLIB-OP-032)
+            if let callBinding = sema.bindings.callBindings[exprID],
+               callBinding.chosenCallee != .invalid,
+               let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
+               signature.receiverType != nil
+            {
+                let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+                                                    !linkName.isEmpty
+                {
+                    interner.intern(linkName)
+                } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
+                    sym.name
+                } else {
+                    interner.intern("contains")
+                }
+                instructions.append(.call(
+                    symbol: callBinding.chosenCallee,
+                    callee: calleeName,
+                    arguments: [rhsID, lhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_contains"),
+                    arguments: [rhsID, lhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
             return result
 
         case let .notInExpr(lhsExpr, rhsExpr, _):
@@ -1914,14 +1939,39 @@ extension ExprLowerer {
                 propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
             )
             let containsResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_op_contains"),
-                arguments: [rhsID, lhsID],
-                result: containsResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            // If sema resolved a user-defined operator fun contains, dispatch to it (STDLIB-OP-032)
+            if let callBinding = sema.bindings.callBindings[exprID],
+               callBinding.chosenCallee != .invalid,
+               let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
+               signature.receiverType != nil
+            {
+                let calleeName: InternedString = if let linkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+                                                    !linkName.isEmpty
+                {
+                    interner.intern(linkName)
+                } else if let sym = sema.symbols.symbol(callBinding.chosenCallee) {
+                    sym.name
+                } else {
+                    interner.intern("contains")
+                }
+                instructions.append(.call(
+                    symbol: callBinding.chosenCallee,
+                    callee: calleeName,
+                    arguments: [rhsID, lhsID],
+                    result: containsResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_contains"),
+                    arguments: [rhsID, lhsID],
+                    result: containsResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
             let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? boolType)
             let falseValue = arena.appendExpr(.boolLiteral(false), type: boolType)
             instructions.append(.constValue(result: falseValue, value: .boolLiteral(false)))
