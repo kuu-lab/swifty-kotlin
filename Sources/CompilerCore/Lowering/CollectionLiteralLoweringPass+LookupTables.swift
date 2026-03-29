@@ -353,6 +353,7 @@ struct CollectionLiteralLookupTables {
     let kkRangeReversedName: InternedString
     let kkRangeIsEmptyName: InternedString
     let kkRangeSumName: InternedString
+    let kkRangeToIntArrayName: InternedString
     let kkOpContainsName: InternedString
 
     // Member names (STDLIB-637)
@@ -498,6 +499,7 @@ struct CollectionLiteralLookupTables {
     let asSequenceName: InternedString
     let toListName: InternedString
     let toULongArrayName: InternedString
+    let toIntArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
@@ -987,6 +989,7 @@ struct CollectionLiteralLookupTables {
         kkRangeReversedName = interner.intern("kk_range_reversed")
         kkRangeIsEmptyName = interner.intern("kk_range_isEmpty")
         kkRangeSumName = interner.intern("kk_range_sum")
+        kkRangeToIntArrayName = interner.intern("kk_range_toIntArray")
         kkOpContainsName = interner.intern("kk_op_contains")
 
         sumName = interner.intern("sum")
@@ -1126,6 +1129,7 @@ struct CollectionLiteralLookupTables {
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
         toULongArrayName = interner.intern("toULongArray")
+        toIntArrayName = interner.intern("toIntArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")

@@ -1432,6 +1432,33 @@ public func kk_ulong_range_toULongArray(_ rangeRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
+// MARK: - IntRange toIntArray (STDLIB-RANGE-034)
+
+@_cdecl("kk_range_toIntArray")
+public func kk_range_toIntArray(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_toIntArray")
+    }
+    var current = range.first
+    var elements: [Int] = []
+    if range.step > 0 {
+        while current <= range.last {
+            elements.append(current)
+            current &+= range.step
+        }
+    } else if range.step < 0 {
+        while current >= range.last {
+            elements.append(current)
+            current &+= range.step
+        }
+    }
+    let box = RuntimeArrayBox(length: elements.count)
+    for (i, elem) in elements.enumerated() {
+        box.elements[i] = elem
+    }
+    return registerRuntimeObject(box)
+}
+
 // MARK: - IntRange reversed (STDLIB-093)
 
 @_cdecl("kk_range_reversed")
