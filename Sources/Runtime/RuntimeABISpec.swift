@@ -4204,22 +4204,6 @@ public enum RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_resource_stream_read",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_resource_stream_close",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_file_useLines",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),

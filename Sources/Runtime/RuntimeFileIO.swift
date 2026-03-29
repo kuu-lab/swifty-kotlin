@@ -9,34 +9,9 @@ final class RuntimeFileBox {
 
 final class RuntimeClassLoaderBox {}
 
-final class RuntimeResourceInputStreamBox {
-    private let data: Data
-    private var offset: Int = 0
-    private var closed = false
-
-    init(data: Data) {
-        self.data = data
-    }
-
-    func readByte() -> Int {
-        guard !closed, offset < data.count else { return -1 }
-        defer { offset += 1 }
-        return Int(data[offset])
-    }
-
-    func close() {
-        closed = true
-    }
-}
-
 private func runtimeFileBox(from raw: Int) -> RuntimeFileBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeFileBox.self)
-}
-
-private func runtimeResourceInputStreamBox(from raw: Int) -> RuntimeResourceInputStreamBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeResourceInputStreamBox.self)
 }
 
 private func resourceRootDirectory() -> URL {
@@ -127,7 +102,7 @@ public func kk_classloader_getResourceAsStream(_ loaderRaw: Int, _ nameRaw: Int)
     else {
         return runtimeNullSentinelInt
     }
-    return registerRuntimeObject(RuntimeResourceInputStreamBox(data: data))
+    return registerRuntimeObject(RuntimeInputStreamBox(data: data))
 }
 
 @_cdecl("kk_resource_exists")
@@ -158,23 +133,6 @@ public func kk_readResourceAsText(_ nameRaw: Int, _ outThrown: UnsafeMutablePoin
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
         return fileMakeStringRaw("")
     }
-}
-
-@_cdecl("kk_resource_stream_read")
-public func kk_resource_stream_read(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeResourceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_resource_stream_read received invalid InputStream handle")
-    }
-    return stream.readByte()
-}
-
-@_cdecl("kk_resource_stream_close")
-public func kk_resource_stream_close(_ streamRaw: Int) -> Int {
-    guard let stream = runtimeResourceInputStreamBox(from: streamRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_resource_stream_close received invalid InputStream handle")
-    }
-    stream.close()
-    return 0
 }
 
 @_cdecl("kk_file_writeText")

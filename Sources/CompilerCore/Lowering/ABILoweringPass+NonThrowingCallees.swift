@@ -655,8 +655,6 @@ extension ABILoweringPass {
             interner.intern("kk_classloader_getResource"),
             interner.intern("kk_classloader_getResourceAsStream"),
             interner.intern("kk_resource_exists"),
-            interner.intern("kk_resource_stream_read"),
-            interner.intern("kk_resource_stream_close"),
             interner.intern("kk_file_delete"),
             interner.intern("kk_file_mkdirs"),
             interner.intern("kk_file_listFiles"),
