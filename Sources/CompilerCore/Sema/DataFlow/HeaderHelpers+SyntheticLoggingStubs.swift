@@ -45,7 +45,13 @@ extension DataFlowSemaPhase {
     private func registerLoggingTopLevel(packageFQName: [InternedString], name: String, parameterTypes: [TypeID], returnType: TypeID, externalLinkName: String, symbols: SymbolTable, interner: StringInterner) {
         let fn = interner.intern(name)
         let fq = packageFQName + [fn]
-        guard symbols.lookupAll(fqName: fq).isEmpty else { return }
+        guard symbols.lookupAll(fqName: fq).first(where: { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == .function,
+                  let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes && signature.returnType == returnType
+        }) == nil else { return }
         let sym = symbols.define(kind: .function, name: fn, fqName: fq, declSite: nil, visibility: .public, flags: [.synthetic])
         if let pkg = symbols.lookup(fqName: packageFQName) { symbols.setParentSymbol(pkg, for: sym) }
         symbols.setExternalLinkName(externalLinkName, for: sym)
@@ -56,6 +62,13 @@ extension DataFlowSemaPhase {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let initName = interner.intern("<init>")
         let fq = ownerInfo.fqName + [initName]
+        guard symbols.lookupAll(fqName: fq).first(where: { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes && signature.returnType == ownerType
+        }) == nil else { return }
         let ctor = symbols.define(kind: .constructor, name: initName, fqName: fq, declSite: nil, visibility: .public, flags: [.synthetic])
         symbols.setParentSymbol(ownerSymbol, for: ctor)
         symbols.setExternalLinkName(externalLinkName, for: ctor)
