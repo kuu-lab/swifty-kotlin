@@ -32,6 +32,39 @@ fun main() {
     val resolved = dir.resolve(Path("sub"))
     println(resolved.toString())
 
+    // normalize
+    val p = Path("/foo/bar/../baz")
+    println(p.normalize().toString())  // /foo/baz
+
+    // fileName property (returns Path)
+    val fileNamePath = file.fileName
+    println(fileNamePath.toString())  // hello.txt
+
+    // root property
+    val absPath = Path("/usr/local/bin")
+    val root = absPath.root
+    if (root != null) {
+        println(root.toString())  // /
+    }
+
+    // nameCount
+    println(absPath.nameCount)  // 3
+
+    // startsWith / endsWith
+    val base = Path("/usr/local")
+    println(absPath.startsWith(base))              // true
+    println(absPath.startsWith("/usr/local"))       // true
+    println(absPath.endsWith(Path("local/bin")))    // true
+    println(absPath.endsWith("bin"))                // true
+
+    // relativize
+    val rel = base.relativize(absPath)
+    println(rel.toString())  // bin
+
+    // toFile
+    val javaFile = file.toFile()
+    println(javaFile.exists())  // true
+
     // cleanup
     file.deleteIfExists()
     println(file.exists())  // false

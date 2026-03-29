@@ -91,6 +91,66 @@ public extension RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    static let kk_path_normalize = ExternDecl(
+        name: "kk_path_normalize",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_relativize = ExternDecl(
+        name: "kk_path_relativize",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_fileName = ExternDecl(
+        name: "kk_path_fileName",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_root = ExternDecl(
+        name: "kk_path_root",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_nameCount = ExternDecl(
+        name: "kk_path_nameCount",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_startsWith_path = ExternDecl(
+        name: "kk_path_startsWith_path",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_startsWith_string = ExternDecl(
+        name: "kk_path_startsWith_string",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_endsWith_path = ExternDecl(
+        name: "kk_path_endsWith_path",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_endsWith_string = ExternDecl(
+        name: "kk_path_endsWith_string",
+        parameterTypes: ["intptr_t", "intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_path_toFile = ExternDecl(
+        name: "kk_path_toFile",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     static let pathExterns: [ExternDecl] = [
         kk_path_new,
         kk_path_name,
@@ -107,5 +167,15 @@ public extension RuntimeABIExterns {
         kk_path_createDirectories,
         kk_path_deleteIfExists,
         kk_path_listDirectoryEntries,
+        kk_path_normalize,
+        kk_path_relativize,
+        kk_path_fileName,
+        kk_path_root,
+        kk_path_nameCount,
+        kk_path_startsWith_path,
+        kk_path_startsWith_string,
+        kk_path_endsWith_path,
+        kk_path_endsWith_string,
+        kk_path_toFile,
     ]
 }

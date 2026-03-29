@@ -2,13 +2,17 @@
 ///
 /// Covers:
 /// - `Path(pathString: String)` constructor
-/// - `name: String`, `parent: Path?` properties
+/// - `name: String`, `parent: Path?`, `fileName: Path`, `root: Path?`, `nameCount: Int` properties
 /// - `toString(): String`
 /// - `resolve(other: String): Path`, `resolve(other: Path): Path`
+/// - `relativize(other: Path): Path`, `normalize(): Path`
+/// - `startsWith(other: Path): Boolean`, `startsWith(other: String): Boolean`
+/// - `endsWith(other: Path): Boolean`, `endsWith(other: String): Boolean`
 /// - `exists(): Boolean`, `isDirectory(): Boolean`, `isRegularFile(): Boolean`
 /// - `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
 /// - `createDirectories(): Path`, `deleteIfExists(): Boolean`
 /// - `listDirectoryEntries(): List<Path>`
+/// - `toFile(): File`
 ///
 /// Each stub registers the kotlin.io.path.Path class, its constructor, member
 /// properties, and member functions in the symbol table so that name resolution
@@ -236,6 +240,127 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // MARK: - Path.normalize()
+
+        registerPathMemberFunction(
+            named: "normalize",
+            externalLinkName: "kk_path_normalize",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [],
+            returnType: pathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.relativize(other: Path)
+
+        registerPathMemberFunction(
+            named: "relativize",
+            externalLinkName: "kk_path_relativize",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [("other", pathType)],
+            returnType: pathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.fileName property (Path wrapping last component)
+
+        registerPathMemberProperty(
+            named: "fileName",
+            externalLinkName: "kk_path_fileName",
+            ownerSymbol: pathSymbol,
+            returnType: pathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.root property
+
+        registerPathMemberProperty(
+            named: "root",
+            externalLinkName: "kk_path_root",
+            ownerSymbol: pathSymbol,
+            returnType: nullablePathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.nameCount property
+
+        registerPathMemberProperty(
+            named: "nameCount",
+            externalLinkName: "kk_path_nameCount",
+            ownerSymbol: pathSymbol,
+            returnType: types.intType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.startsWith()
+
+        registerPathMemberFunction(
+            named: "startsWith",
+            externalLinkName: "kk_path_startsWith_path",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [("other", pathType)],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathMemberFunction(
+            named: "startsWith",
+            externalLinkName: "kk_path_startsWith_string",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [("other", types.stringType)],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.endsWith()
+
+        registerPathMemberFunction(
+            named: "endsWith",
+            externalLinkName: "kk_path_endsWith_path",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [("other", pathType)],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathMemberFunction(
+            named: "endsWith",
+            externalLinkName: "kk_path_endsWith_string",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [("other", types.stringType)],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MARK: - Path.toFile(): File
+
+        let fileType = resolvePathFileType(symbols: symbols, types: types, interner: interner)
+        registerPathMemberFunction(
+            named: "toFile",
+            externalLinkName: "kk_path_toFile",
+            ownerSymbol: pathSymbol,
+            ownerType: pathType,
+            parameters: [],
+            returnType: fileType,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Private Helpers
@@ -250,6 +375,45 @@ extension DataFlowSemaPhase {
             interner.intern("List"),
         ]
         return symbols.lookup(fqName: listFQName)
+    }
+
+    /// Resolves or creates the `java.io.File` type for use as the return type of `Path.toFile()`.
+    private func resolvePathFileType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let javaPkg: [InternedString] = [interner.intern("java")]
+        if symbols.lookup(fqName: javaPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("java"),
+                fqName: javaPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let javaIOPkg: [InternedString] = javaPkg + [interner.intern("io")]
+        if symbols.lookup(fqName: javaIOPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("io"),
+                fqName: javaIOPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        let fileSymbol = ensureClassSymbol(
+            named: "File",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        return types.make(.classType(ClassType(
+            classSymbol: fileSymbol, args: [], nullability: .nonNull
+        )))
     }
 
     private func ensureKotlinIOPathPackage(
