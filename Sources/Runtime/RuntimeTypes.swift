@@ -863,14 +863,6 @@ final class RuntimeKFunctionBox {
     let nameRaw: Int
     /// Number of value parameters (not counting the dispatch receiver).
     let arity: Int
-    let returnTypeRaw: Int
-    let isSuspend: Bool
-    /// C function pointer for the underlying implementation (0 if unknown).
-    let fnPtr: Int
-    /// Closure environment pointer (0 for top-level functions).
-    let closureRaw: Int
-
-    init(nameRaw: Int, arity: Int, returnTypeRaw: Int = 0, isSuspend: Bool = false, fnPtr: Int = 0, closureRaw: Int = 0) {
     /// Interned KKString raw pointer for the return type descriptor, or 0 if unknown.
     let returnTypeRaw: Int
     /// Whether this function is declared `suspend`.
