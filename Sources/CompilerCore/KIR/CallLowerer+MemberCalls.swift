@@ -4264,20 +4264,23 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
-        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr): split the lambda
+        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation): split the lambda
         // argument at index 1 into a function pointer and environment pointer,
         // following the standard closure-conversion ABI used by collection HOFs.
+        // A zero continuation placeholder is appended as the 4th argument so the
+        // coroutine runtime can suspend and resume the caller when the mutex is contended.
         if loweredCallee == interner.intern("kk_mutex_withLock"),
            finalArguments.count == 2
         {
             let lambdaID = finalArguments[1]
+            let fnPtrExpr: KIRExprID
+            let envPtrExpr: KIRExprID
             if let callableInfo = driver.ctx.callableValueInfo(for: lambdaID) {
-                let fnPtrExpr = arena.appendExpr(
+                fnPtrExpr = arena.appendExpr(
                     .symbolRef(callableInfo.symbol),
                     type: sema.types.anyType
                 )
                 instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
-                let envPtrExpr: KIRExprID
                 if callableInfo.captureArguments.count >= 2 {
                     // Multi-capture: pack captures into a closure object.
                     let intType = sema.types.intType
@@ -4322,8 +4325,19 @@ extension CallLowerer {
                     instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                     envPtrExpr = zeroExpr
                 }
-                finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
+            } else {
+                // Fallback when callableValueInfo is unavailable (e.g. stored lambda /
+                // function reference): treat lambdaID as the function pointer and pass
+                // zero as the environment pointer so the argument count always matches
+                // the 4-parameter ABI (handle, actionFnPtr, actionEnvPtr, continuation).
+                fnPtrExpr = lambdaID
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                envPtrExpr = zeroExpr
             }
+            let continuationExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr, continuationExpr]
         }
         if let inst = tryEmitVirtualDispatch(
             chosenCallee: chosenCallee, calleeName: loweredCallee,

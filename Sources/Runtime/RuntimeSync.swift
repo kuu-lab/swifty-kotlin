@@ -285,20 +285,28 @@ public func kk_semaphore_availablePermits(_ handle: Int) -> Int {
 
 /// Runtime backing for `Mutex.withLock { }`.
 ///
-/// Acquires the mutex, invokes `action` synchronously (non-suspend path),
-/// then releases the mutex.
+/// Attempts to acquire the mutex using the coroutine suspension mechanism.
+/// If the mutex is free, acquires it, invokes `action`, releases the mutex,
+/// and returns the action result.  If the mutex is already held, enqueues the
+/// continuation and returns `COROUTINE_SUSPENDED` so the coroutine runtime
+/// can release the thread and resume when the lock becomes available.
 /// The action is passed as a Swift function pointer (`actionFnPtr`) and an
 /// opaque environment pointer (`actionEnvPtr`) following the standard closure-
 /// conversion ABI used throughout KSwiftK.
 @_cdecl("kk_mutex_withLock")
-public func kk_mutex_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int) -> Int {
+public func kk_mutex_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int, _ continuation: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_withLock received invalid mutex handle")
     }
     let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
 
-    // Acquire the mutex, blocking the calling thread until it is available.
-    mutex.lockBlocking()
+    // Attempt to acquire the mutex via the coroutine suspension mechanism.
+    // If contended, lockSync enqueues the continuation and returns COROUTINE_SUSPENDED.
+    let lockResult = mutex.lockSync(continuation: continuation)
+    if lockResult != 0 {
+        // Mutex is contended — caller will be resumed once the lock is available.
+        return lockResult
+    }
     defer { mutex.unlock() }
 
     // Invoke the action closure: fn(envPtr) -> intptr_t.

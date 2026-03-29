@@ -1868,7 +1868,7 @@ public enum RuntimeABIExterns {
 
     public static let kk_mutex_withLock = ExternDecl(
         name: "kk_mutex_withLock",
-        parameterTypes: ["intptr_t", "intptr_t", "intptr_t"],
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
