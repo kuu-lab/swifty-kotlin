@@ -227,7 +227,7 @@ public func kk_kconstructor_call_0(
     }
     guard box.parameterCount == 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "KConstructor call arity mismatch: expected 0, got \(box.parameterCount)")
+            message: "KConstructor call arity mismatch: expected \(box.parameterCount), got 0")
         return 0
     }
     let fn = unsafeBitCast(box.fnPtr, to: KKThunkEntryPoint.self)
@@ -251,7 +251,7 @@ public func kk_kconstructor_call_1(
     }
     guard box.parameterCount == 1 else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "KConstructor call arity mismatch: expected 1, got \(box.parameterCount)")
+            message: "KConstructor call arity mismatch: expected \(box.parameterCount), got 1")
         return 0
     }
     let fn = unsafeBitCast(box.fnPtr, to: KKFunctionEntryPoint1.self)
@@ -276,7 +276,7 @@ public func kk_kconstructor_call_2(
     }
     guard box.parameterCount == 2 else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "KConstructor call arity mismatch: expected 2, got \(box.parameterCount)")
+            message: "KConstructor call arity mismatch: expected \(box.parameterCount), got 2")
         return 0
     }
     let fn = unsafeBitCast(box.fnPtr, to: KKFunctionEntryPoint2.self)

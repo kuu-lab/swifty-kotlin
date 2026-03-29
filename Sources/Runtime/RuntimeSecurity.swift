@@ -800,10 +800,11 @@ private func runtimeSignatureTransform(
         }
         var error: Unmanaged<CFError>?
         let verified = SecKeyVerifySignature(publicKey.secKey, secAlgorithm, messageData as CFData, runtimeMakeData(signatureBytes) as CFData, &error)
-        if error != nil {
-            runtimeSetThrown(outThrown, message: runtimeSecurityErrorMessage("SignatureException", error: error))
-            return nil
-        }
+        // SecKeyVerifySignature sets error both on operational failures *and* on signature mismatch
+        // (e.g. errSSLCrypto). A signature mismatch is not an error — Signature.verify() should
+        // return false in that case. Only treat the error as fatal when the key operation itself
+        // failed but verified is still true (which would be contradictory); in practice we just
+        // ignore the error and rely on the bool result, matching the Java Signature.verify() contract.
         return verified ? 1 : 0
     }
 }
@@ -1279,7 +1280,7 @@ public func kk_signature_verify(
     guard let verified = runtimeSignatureTransform(signature: signature, outThrown: outThrown, verifySignatureBytes: signatureBytes) else {
         return 0
     }
-    return verified
+    return kk_box_bool(verified)
 }
 
 @_cdecl("kk_cipher_getInstance")
@@ -1521,7 +1522,24 @@ public func kk_x509certificate_getPublicKey(_ certificateRaw: Int, _ outThrown: 
         runtimeSetThrown(outThrown, message: "CertificateException: unable to extract public key")
         return 0
     }
-    return registerRuntimeObject(RuntimePublicKeyBox(secKey: publicKey, algorithm: .rsa))
+    // Detect the actual key algorithm from the SecKey attributes rather than
+    // hardcoding RSA, so that EC/DSA certificates work correctly downstream.
+    let detectedAlgorithm: RuntimeCipherAlgorithm
+    if let attrs = SecKeyCopyAttributes(publicKey) as? [String: Any],
+       let keyType = attrs[kSecAttrKeyType as String] as? String {
+        if keyType == (kSecAttrKeyTypeRSA as String) {
+            detectedAlgorithm = .rsa
+        } else if keyType == (kSecAttrKeyTypeECSECPrimeRandom as String) || keyType == (kSecAttrKeyTypeEC as String) {
+            detectedAlgorithm = .ec
+        } else if keyType == (kSecAttrKeyTypeDSA as String) {
+            detectedAlgorithm = .dsa
+        } else {
+            detectedAlgorithm = .rsa
+        }
+    } else {
+        detectedAlgorithm = .rsa
+    }
+    return registerRuntimeObject(RuntimePublicKeyBox(secKey: publicKey, algorithm: detectedAlgorithm))
 }
 
 @_cdecl("kk_x509certificate_getEncoded")
