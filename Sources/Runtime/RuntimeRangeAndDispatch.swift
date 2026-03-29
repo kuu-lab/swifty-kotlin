@@ -1444,12 +1444,16 @@ public func kk_range_toIntArray(_ rangeRaw: Int) -> Int {
     if range.step > 0 {
         while current <= range.last {
             elements.append(current)
-            current &+= range.step
+            let (next, overflow) = current.addingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
         }
     } else if range.step < 0 {
         while current >= range.last {
             elements.append(current)
-            current &+= range.step
+            let (next, overflow) = current.addingReportingOverflow(range.step)
+            if overflow { break }
+            current = next
         }
     }
     let box = RuntimeArrayBox(length: elements.count)

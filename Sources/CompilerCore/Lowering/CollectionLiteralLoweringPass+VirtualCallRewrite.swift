@@ -2137,7 +2137,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         // toIntArray — returns an IntArray (STDLIB-RANGE-034)
-        if callee == lookup.toIntArrayName, arguments.isEmpty {
+        if callee == lookup.toIntArrayName, arguments.isEmpty, !isCharRange, !isULongRange {
             loweredBody.append(.call(
                 symbol: nil, callee: lookup.kkRangeToIntArrayName,
                 arguments: [receiver], result: result,
