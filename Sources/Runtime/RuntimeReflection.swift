@@ -510,7 +510,13 @@ public func kk_kclass_find_annotation(_ kclassRaw: Int, _ fqNameRaw: Int) -> Int
 /// whose fully-qualified class name equals `fqNameRaw`, 0 otherwise.
 @_cdecl("kk_kclass_has_annotation")
 public func kk_kclass_has_annotation(_ kclassRaw: Int, _ fqNameRaw: Int) -> Int {
-    kk_kclass_find_annotation(kclassRaw, fqNameRaw) != runtimeNullSentinelInt ? 1 : 0
+    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw),
+          let targetName = extractString(from: UnsafeMutableRawPointer(bitPattern: fqNameRaw))
+    else {
+        return 0
+    }
+    let annBoxes = runtimeAnnotationRegistry.annotations(for: kclass.typeToken)
+    return annBoxes.contains(where: { $0.annotationFQName == targetName }) ? 1 : 0
 }
 
 // MARK: - KProperty Dynamic Access (STDLIB-REFLECT-067)

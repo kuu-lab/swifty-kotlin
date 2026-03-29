@@ -4389,6 +4389,8 @@ public enum RuntimeABIExterns {
         all += parallelExterns
         all += bigIntegerExterns
         all += kFunctionExterns
+        all += securityExterns
+        all += parallelExterns
         // STDLIB-REFLECT-065: Annotation reflection
         all += [
             kk_kclass_register_annotation,
