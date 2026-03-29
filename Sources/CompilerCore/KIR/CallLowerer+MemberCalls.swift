@@ -212,8 +212,17 @@ extension CallLowerer {
             return nil
         }
 
-        let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.make(.primitive(.string, .nonNull))
+        let resultType = sema.bindings.exprTypes[exprID] ?? {
+            switch calleeStr {
+            case "name", "returnType", "visibility":
+                return sema.types.make(.primitive(.string, .nonNull))
+            case "isLateinit", "isConst":
+                return sema.types.booleanType
+            default:
+                // getter, setter, get, set and any future members
+                return sema.types.anyType
+            }
+        }()
         let result = arena.appendExpr(
             .temporary(Int32(arena.expressions.count)),
             type: resultType

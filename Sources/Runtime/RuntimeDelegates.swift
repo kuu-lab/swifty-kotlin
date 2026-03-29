@@ -30,13 +30,6 @@ final class RuntimeCustomDelegateBox {
 final class RuntimeKPropertyStub {
     let name: Int // intptr_t to a KKString (property name)
     let returnType: Int // intptr_t to a KKString (return type signature)
-    let getterFnPtr: Int
-    let setterFnPtr: Int
-    let receiverPtr: Int
-
-    init(name: Int, returnType: Int, getterFnPtr: Int = 0, setterFnPtr: Int = 0, receiverPtr: Int = 0) {
-        self.name = name
-        self.returnType = returnType
     // STDLIB-REFLECT-062: extended KProperty fields
     let visibility: Int // intptr_t to a KKString (e.g. "PUBLIC", "INTERNAL", etc.)
     let isLateinit: Bool
