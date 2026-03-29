@@ -150,6 +150,13 @@ struct KnownCompilerNames {
     let isInstanceName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
+    // STDLIB-REFLECT-061: KClass member access
+    let propertiesName: InternedString
+    let memberPropertiesName: InternedString
+    let declaredMemberPropertiesName: InternedString
+    let functionsName: InternedString
+    let memberFunctionsName: InternedString
+    let declaredMemberFunctionsName: InternedString
     let size: InternedString
     let isEmpty: InternedString
     let getValue: InternedString
@@ -289,6 +296,13 @@ struct KnownCompilerNames {
         isInstanceName = interner.intern("isInstance")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
+        // STDLIB-REFLECT-061: KClass member access
+        propertiesName = interner.intern("properties")
+        memberPropertiesName = interner.intern("memberProperties")
+        declaredMemberPropertiesName = interner.intern("declaredMemberProperties")
+        functionsName = interner.intern("functions")
+        memberFunctionsName = interner.intern("memberFunctions")
+        declaredMemberFunctionsName = interner.intern("declaredMemberFunctions")
         size = interner.intern("size")
         isEmpty = interner.intern("isEmpty")
         getValue = interner.intern("getValue")

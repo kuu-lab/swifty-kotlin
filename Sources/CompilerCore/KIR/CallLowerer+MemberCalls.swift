@@ -256,7 +256,13 @@ extension CallLowerer {
                 )
             }
             // REFL-005: KClass.isInstance(value), members, constructors
-            if callee == "isInstance" || callee == "members" || callee == "constructors" {
+            // STDLIB-REFLECT-061: properties, memberProperties, functions, memberFunctions, declaredMemberProperties, declaredMemberFunctions
+            let kclassCallees: Set<String> = [
+                "isInstance", "members", "constructors",
+                "properties", "memberProperties", "declaredMemberProperties",
+                "functions", "memberFunctions", "declaredMemberFunctions",
+            ]
+            if kclassCallees.contains(callee) {
                 return lowerKClassReflectMemberCall(
                     exprID,
                     classRefTargetType: classRefTargetType,
@@ -273,11 +279,17 @@ extension CallLowerer {
         }
 
         // REFL-005: KClass-typed variable receiver — dogClass.isInstance(dog) / dogClass.members / dogClass.constructors
+        // STDLIB-REFLECT-061: properties, memberProperties, functions, memberFunctions, declaredMemberProperties, declaredMemberFunctions
         if let receiverType = sema.bindings.exprTypes[receiverExpr],
            case .kClassType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
         {
             let callee = interner.resolve(calleeName)
-            if callee == "isInstance" || callee == "members" || callee == "constructors" {
+            let kclassVarCallees: Set<String> = [
+                "isInstance", "members", "constructors",
+                "properties", "memberProperties", "declaredMemberProperties",
+                "functions", "memberFunctions", "declaredMemberFunctions",
+            ]
+            if kclassVarCallees.contains(callee) {
                 return lowerKClassVarReflectMemberCall(
                     exprID,
                     receiverExpr: receiverExpr,
@@ -5501,6 +5513,85 @@ extension CallLowerer {
             ))
             return result
 
+        // STDLIB-REFLECT-061: KClass member access — properties/functions variants
+        case "properties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "memberProperties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_member_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "declaredMemberProperties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_declared_member_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "functions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_functions"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "memberFunctions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_member_functions"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "declaredMemberFunctions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_declared_member_functions"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
         default:
             // Fallback — should not happen.
             let result = arena.appendExpr(.intLiteral(0), type: intType)
@@ -5582,6 +5673,85 @@ extension CallLowerer {
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_kclass_constructors"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        // STDLIB-REFLECT-061: KClass member access — properties/functions variants
+        case "properties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "memberProperties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_member_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "declaredMemberProperties":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_declared_member_properties"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "functions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_functions"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "memberFunctions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_member_functions"),
+                arguments: [kclassExpr],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+
+        case "declaredMemberFunctions":
+            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+            let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_kclass_declared_member_functions"),
                 arguments: [kclassExpr],
                 result: result,
                 canThrow: false,

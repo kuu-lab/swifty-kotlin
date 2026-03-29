@@ -2282,6 +2282,44 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // STDLIB-REFLECT-061: KClass member access
+
+    public static let kk_kclass_properties = ExternDecl(
+        name: "kk_kclass_properties",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_member_properties = ExternDecl(
+        name: "kk_kclass_member_properties",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_declared_member_properties = ExternDecl(
+        name: "kk_kclass_declared_member_properties",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_functions = ExternDecl(
+        name: "kk_kclass_functions",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_member_functions = ExternDecl(
+        name: "kk_kclass_member_functions",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_kclass_declared_member_functions = ExternDecl(
+        name: "kk_kclass_declared_member_functions",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     // REFL-005: KType and typeOf<T>()
 
     public static let kk_ktype_create = ExternDecl(
@@ -3970,6 +4008,13 @@ public enum RuntimeABIExterns {
             kk_kclass_isInstance,
             kk_kclass_members,
             kk_kclass_constructors,
+            // STDLIB-REFLECT-061: KClass member access
+            kk_kclass_properties,
+            kk_kclass_member_properties,
+            kk_kclass_declared_member_properties,
+            kk_kclass_functions,
+            kk_kclass_member_functions,
+            kk_kclass_declared_member_functions,
             kk_ktype_create,
             kk_ktype_classifier,
             kk_ktype_arguments,
