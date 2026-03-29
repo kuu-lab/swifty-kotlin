@@ -3599,7 +3599,6 @@ public enum RuntimeABIExterns {
         kk_cache_put,
         kk_cache_get,
         kk_cache_size,
-        kk_locale_new,
         kk_resource_bundle_getBundle,
         kk_resource_bundle_getString,
         kk_resource_bundle_getKeys,

@@ -56,12 +56,19 @@ private func parseProperties(_ text: String) -> [String: String] {
     for line in text.split(whereSeparator: \.isNewline) {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, !trimmed.hasPrefix("#"), !trimmed.hasPrefix("!") else { continue }
-        let parts = trimmed.split(separator: "=", maxSplits: 1).map(String.init)
+        let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
         if parts.count == 2 {
             result[parts[0].trimmingCharacters(in: .whitespaces)] = parts[1].trimmingCharacters(in: .whitespaces)
         }
     }
     return result
+}
+
+@_cdecl("kk_locale_new")
+public func kk_locale_new(_ identifierRaw: Int) -> Int {
+    let identifier = i18nString(from: identifierRaw, caller: #function)
+        .replacingOccurrences(of: "_", with: "-")
+    return registerRuntimeObject(RuntimeLocaleBox(locale: Locale(identifier: identifier)))
 }
 
 private func bundleURL(name: String, localeIdentifier: String?) -> URL? {
