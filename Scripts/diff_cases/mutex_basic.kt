@@ -13,6 +13,14 @@ fun main() = runBlocking {
     println(mutex.tryLock())  // true
     mutex.unlock()
 
+    // withLock: acquire lock, run block, then auto-release
+    var counter = 0
+    mutex.withLock {
+        counter++
+    }
+    println(counter)          // 1
+    println(mutex.isLocked)   // false
+
     val sem = Semaphore(2)
     println(sem.availablePermits)  // 2
     sem.acquire()

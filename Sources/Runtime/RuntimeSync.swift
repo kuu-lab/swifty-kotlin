@@ -256,3 +256,38 @@ public func kk_semaphore_availablePermits(_ handle: Int) -> Int {
     let semaphore = Unmanaged<RuntimeSemaphoreHandle>.fromOpaque(ptr).takeUnretainedValue()
     return semaphore.availablePermits
 }
+
+// MARK: - Mutex.withLock { } (kotlinx.coroutines.sync.Mutex.withLock)
+
+/// Runtime backing for `Mutex.withLock { }`.
+///
+/// Acquires the mutex, invokes `action` synchronously (non-suspend path),
+/// then releases the mutex.
+/// The action is passed as a Swift function pointer (`actionFnPtr`) and an
+/// opaque environment pointer (`actionEnvPtr`) following the standard closure-
+/// conversion ABI used throughout KSwiftK.
+@_cdecl("kk_mutex_withLock")
+public func kk_mutex_withLock(_ handle: Int, _ actionFnPtr: Int, _ actionEnvPtr: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mutex_withLock received invalid mutex handle")
+    }
+    let mutex = Unmanaged<RuntimeMutexHandle>.fromOpaque(ptr).takeUnretainedValue()
+
+    // Acquire the lock (blocking spin-wait).
+    while !mutex.tryLock() {
+        Thread.sleep(forTimeInterval: 0.000_001)
+    }
+
+    // Invoke the action closure: fn(envPtr) -> intptr_t.
+    var result: Int = 0
+    if actionFnPtr != 0,
+       let fnRaw = UnsafeRawPointer(bitPattern: actionFnPtr)
+    {
+        typealias ActionFn = @convention(c) (Int) -> Int
+        let fn = unsafeBitCast(fnRaw, to: ActionFn.self)
+        result = fn(actionEnvPtr)
+    }
+
+    mutex.unlock()
+    return result
+}
