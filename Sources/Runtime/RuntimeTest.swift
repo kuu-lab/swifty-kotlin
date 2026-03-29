@@ -91,7 +91,7 @@ public func kk_test_assertTrue(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard condition != 0 else {
+    guard runtimeCollectionBool(condition) else {
         return runtimeTestFailure(message: "Expected value to be true.", outThrown)
     }
     return 0
@@ -104,7 +104,7 @@ public func kk_test_assertTrue_message(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    guard condition != 0 else {
+    guard runtimeCollectionBool(condition) else {
         return runtimeTestFailure(
             message: runtimeTestNullableMessage(messageRaw) ?? "Expected value to be true.",
             outThrown

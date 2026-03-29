@@ -4165,6 +4165,8 @@ public enum RuntimeABIExterns {
         ]
         all += atomicExterns
         all += kFunctionExterns
+        all += securityExterns
+        all += parallelExterns
         // STDLIB-REFLECT-064: KConstructor reflection
         all += kConstructorExterns
         return all
