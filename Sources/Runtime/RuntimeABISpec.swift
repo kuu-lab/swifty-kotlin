@@ -4503,6 +4503,19 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "baseRaw", type: .intptr),
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uri_relativize",
+            parameters: [
+                RuntimeABIParameter(name: "baseRaw", type: .intptr),
+                RuntimeABIParameter(name: "otherRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
         // STDLIB-IO-087: Additional File operations
         RuntimeABIFunctionSpec(
             name: "kk_file_new_parent_child",
@@ -4514,10 +4527,6 @@ public enum RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uri_relativize",
-            parameters: [
-                RuntimeABIParameter(name: "baseRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
             name: "kk_file_absolutePath",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
