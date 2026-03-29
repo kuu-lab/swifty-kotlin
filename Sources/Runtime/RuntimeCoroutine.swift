@@ -1052,7 +1052,7 @@ public func kk_exception_handler_new() -> Int {
                 message = cancellation.message
             }
         }
-        fputs("CoroutineExceptionHandler: \(message)\n", stderr)
+        FileHandle.standardError.write(Data("CoroutineExceptionHandler: \(message)\n".utf8))
     }
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withLock { state in
