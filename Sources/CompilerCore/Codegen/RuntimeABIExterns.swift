@@ -1986,6 +1986,26 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // MARK: - Job State Queries (STDLIB-CORO-070)
+
+    public static let kk_job_is_active = ExternDecl(
+        name: "kk_job_is_active",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_job_is_completed = ExternDecl(
+        name: "kk_job_is_completed",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_job_is_cancelled = ExternDecl(
+        name: "kk_job_is_cancelled",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     public static let kk_coroutine_cancel = ExternDecl(
         name: "kk_coroutine_cancel",
         parameterTypes: ["intptr_t"],
@@ -4091,6 +4111,10 @@ public enum RuntimeABIExterns {
             kk_is_cancellation_exception,
             kk_job_cancel,
             kk_coroutine_cancel,
+            // Job State Queries (STDLIB-CORO-070)
+            kk_job_is_active,
+            kk_job_is_completed,
+            kk_job_is_cancelled,
             // Mutex / Semaphore (sync primitives)
             kk_mutex_create,
             kk_mutex_lock,

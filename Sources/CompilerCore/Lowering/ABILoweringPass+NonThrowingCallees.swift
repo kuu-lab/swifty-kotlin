@@ -782,6 +782,10 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_is_sealed"),
             interner.intern("kk_kclass_is_value"),
             interner.intern("kk_kclass_members_count"),
+            // Job State Queries (STDLIB-CORO-070)
+            interner.intern("kk_job_is_active"),
+            interner.intern("kk_job_is_completed"),
+            interner.intern("kk_job_is_cancelled"),
         ]).union(Self.kPropertyStubCallees(interner))
     }
 }

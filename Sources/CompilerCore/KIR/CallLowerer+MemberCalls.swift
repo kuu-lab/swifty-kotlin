@@ -7,7 +7,7 @@ struct MemberCallReceiver {
 }
 
 extension CallLowerer {
-    static let unresolvedCoroutineHandleMemberNames: Set<String> = ["await", "join", "cancel"]
+    static let unresolvedCoroutineHandleMemberNames: Set<String> = ["await", "join", "cancel", "isActive", "isCompleted", "isCancelled"]
     private static let unresolvedChannelMemberNames: Set<String> = ["send", "receive", "close"]
 
     func anyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
@@ -4608,6 +4608,12 @@ extension CallLowerer {
                 return interner.intern("kk_job_join")
             case "cancel":
                 return interner.intern("kk_job_cancel")
+            case "isActive":
+                return interner.intern("kk_job_is_active")
+            case "isCompleted":
+                return interner.intern("kk_job_is_completed")
+            case "isCancelled":
+                return interner.intern("kk_job_is_cancelled")
             default:
                 break
             }

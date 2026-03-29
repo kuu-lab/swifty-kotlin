@@ -308,6 +308,13 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isConsumedByUserCode
     }
 
+    /// Thread-safe snapshot of the completion state.
+    func isCompletedSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCompleted
+    }
+
     func complete(with result: Int) {
         lock.lock()
         guard !isCompleted else {
@@ -3000,6 +3007,58 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
         job.cancel()
     } else if let task = obj as? RuntimeAsyncTask {
         task.cancel()
+    }
+    return 0
+}
+
+// MARK: - Job State Queries (STDLIB-CORO-070)
+
+/// Returns 1 if the job is active (started but not yet completed and not cancelled).
+/// A job is active when it has been launched and neither completed nor cancelled.
+/// ABI backing for `job.isActive` in Kotlin.
+@_cdecl("kk_job_is_active")
+public func kk_job_is_active(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 0
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        // isActive = not completed AND not cancelled
+        return (!job.isCompleted && !job.isCancelled) ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return (!task.isCompletedSnapshot() && !task.isCancelled) ? 1 : 0
+    }
+    return 0
+}
+
+/// Returns 1 if the job has completed (either normally or by cancellation).
+/// ABI backing for `job.isCompleted` in Kotlin.
+@_cdecl("kk_job_is_completed")
+public func kk_job_is_completed(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 1 // invalid handle → treat as completed
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        return job.isCompleted ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return task.isCompletedSnapshot() ? 1 : 0
+    }
+    return 1
+}
+
+/// Returns 1 if the job has been cancelled.
+/// ABI backing for `job.isCancelled` in Kotlin.
+@_cdecl("kk_job_is_cancelled")
+public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 1 // invalid handle → treat as cancelled
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        return job.isCancelled ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return task.isCancelled ? 1 : 0
     }
     return 0
 }

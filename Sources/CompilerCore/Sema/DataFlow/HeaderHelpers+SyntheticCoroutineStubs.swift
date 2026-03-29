@@ -377,6 +377,35 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // STDLIB-CORO-070: Job state properties
+        registerSyntheticObjectProperty(
+            ownerSymbol: jobSymbol,
+            ownerType: jobType,
+            name: "isActive",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_job_is_active",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticObjectProperty(
+            ownerSymbol: jobSymbol,
+            ownerType: jobType,
+            name: "isCompleted",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_job_is_completed",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticObjectProperty(
+            ownerSymbol: jobSymbol,
+            ownerType: jobType,
+            name: "isCancelled",
+            propertyType: types.booleanType,
+            externalLinkName: "kk_job_is_cancelled",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCoroutineMember(
             ownerSymbol: deferredSymbol,
             ownerType: deferredType,
