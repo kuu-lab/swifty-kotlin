@@ -13,7 +13,7 @@ extension DataFlowSemaPhase {
         let intType = types.intType
         let stringType = types.stringType
         let unitType = types.unitType
-        let byteArrayType = makeSecurityByteArrayType(symbols: symbols, types: types, interner: interner)
+        let securityByteArrayType = makeSecurityByteArrayType(symbols: symbols, types: types, interner: interner)
 
         let secretKeySpecSymbol = ensureClassSymbol(
             named: "SecretKeySpec",
@@ -33,7 +33,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: secretKeySpecSymbol,
             ownerType: secretKeySpecType,
             parameters: [
-                ("key", byteArrayType),
+                ("key", securityByteArrayType),
                 ("algorithm", stringType),
             ],
             symbols: symbols,
@@ -58,7 +58,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: ivParameterSpecSymbol,
             ownerType: ivParameterSpecType,
             parameters: [
-                ("iv", byteArrayType),
+                ("iv", securityByteArrayType),
             ],
             symbols: symbols,
             interner: interner
@@ -164,8 +164,8 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_cipher_doFinal",
             ownerSymbol: cipherSymbol,
             ownerType: cipherType,
-            parameters: [("data", byteArrayType)],
-            returnType: byteArrayType,
+            parameters: [("data", securityByteArrayType)],
+            returnType: securityByteArrayType,
             symbols: symbols,
             interner: interner
         )
@@ -176,7 +176,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: cipherSymbol,
             ownerType: cipherType,
             parameters: [],
-            returnType: byteArrayType,
+            returnType: securityByteArrayType,
             symbols: symbols,
             interner: interner
         )
