@@ -188,8 +188,8 @@ extension DataFlowSemaPhase {
         let anyType = types.anyType
         let boolType = types.make(.primitive(.boolean, .nonNull))
 
-        // Register kotlin.reflect.KType class stub
-        let kTypeSymbol = ensureClassSymbol(
+        // Register kotlin.reflect.KType interface stub
+        let kTypeSymbol = ensureInterfaceSymbol(
             named: "KType", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
         let kTypeType = types.make(.classType(ClassType(
