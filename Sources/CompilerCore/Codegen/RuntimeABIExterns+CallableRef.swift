@@ -80,6 +80,14 @@ public extension RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    /// Invokes a callable ref with three arguments (STDLIB-REFLECT-063).
+    /// Signature: kk_callable_ref_call_3(tagged, arg1, arg2, arg3, outThrown) -> result
+    static let kk_callable_ref_call_3 = ExternDecl(
+        name: "kk_callable_ref_call_3",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t*"],
+        returnType: "intptr_t"
+    )
+
     /// Combined array for use in `allExterns` concatenation.
     static let callableRefExterns: [ExternDecl] = [
         kk_callable_ref_tag_kfunction,
@@ -91,5 +99,6 @@ public extension RuntimeABIExterns {
         kk_callable_ref_call_0,
         kk_callable_ref_call_1,
         kk_callable_ref_call_2,
+        kk_callable_ref_call_3,
     ]
 }

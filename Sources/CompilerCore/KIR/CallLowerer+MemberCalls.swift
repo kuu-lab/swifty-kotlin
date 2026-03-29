@@ -235,9 +235,22 @@ extension CallLowerer {
             case 1:
                 callCallee = "kk_callable_ref_call_1"
                 callArguments.append(contentsOf: loweredArgs)
-            default:
+            case 2:
                 callCallee = "kk_callable_ref_call_2"
-                callArguments.append(contentsOf: loweredArgs.prefix(2))
+                callArguments.append(contentsOf: loweredArgs)
+            case 3:
+                callCallee = "kk_callable_ref_call_3"
+                callArguments.append(contentsOf: loweredArgs)
+            default:
+                // KFunction.call() with more than 3 arguments is not supported by the
+                // direct callable-ref dispatch path. Emit a diagnostic error rather
+                // than silently truncating arguments.
+                sema.diagnostics.error(
+                    "KSWIFTK-KIR-0001",
+                    "KFunction.call() with \(loweredArgs.count) arguments is not supported (maximum 3)",
+                    range: ast.arena.exprRange(exprID)
+                )
+                return nil
             }
             instructions.append(.call(
                 symbol: nil,
