@@ -31,6 +31,7 @@ final class AtomicIntBox {
         return old
     }
 
+    @discardableResult
     func compareAndSet(expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -176,6 +177,7 @@ final class AtomicLongBox {
         return old
     }
 
+    @discardableResult
     func compareAndSet(expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -322,6 +324,7 @@ final class AtomicRefBox {
         return old
     }
 
+    @discardableResult
     func compareAndSet(expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
