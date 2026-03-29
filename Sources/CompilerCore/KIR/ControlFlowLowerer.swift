@@ -656,6 +656,7 @@ final class ControlFlowLowerer {
                     instructions: &instructions
                 )
                 instructions.append(.jump(finallyAfterLabel))
+                instructions.append(.endFinallyGuard)
 
                 // Finally body itself threw — rethrow that exception (replaces
                 // the original in-flight exception per Kotlin semantics).
@@ -663,7 +664,6 @@ final class ControlFlowLowerer {
                 instructions.append(.rethrow(value: finallyExSlot))
 
                 instructions.append(.label(finallyAfterLabel))
-                instructions.append(.endFinallyGuard)
             } else {
                 // No throwable calls — append the finally body directly.
                 instructions.append(contentsOf: finallyInstructions)
