@@ -1255,14 +1255,18 @@ public func kk_uint_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     let first = UInt32(bitPattern: Int32(truncatingIfNeeded: range.first))
     let last = UInt32(bitPattern: Int32(truncatingIfNeeded: range.last))
     let uValue = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
-    if range.step > 0 {
-        let uStep = UInt32(range.step)
+    let rawStep = range.step
+    if rawStep > 0 {
+        // Step is a positive UInt32 value stored as a raw Int bit pattern
+        let uStep = UInt32(bitPattern: Int32(truncatingIfNeeded: rawStep))
         guard first <= uValue && uValue <= last else { return 0 }
-        return (uValue - first) % uStep == 0 ? 1 : 0
-    } else if range.step < 0 {
-        let uStep = Int32(truncatingIfNeeded: range.step).magnitude
+        return UInt64(uValue - first) % UInt64(uStep) == 0 ? 1 : 0
+    } else if rawStep < 0 {
+        // Step is a negative UInt32 value stored as a raw Int bit pattern
+        let uStep = UInt32(bitPattern: Int32(truncatingIfNeeded: rawStep))
         guard last <= uValue && uValue <= first else { return 0 }
-        return (first - uValue) % uStep == 0 ? 1 : 0
+        let absStep = UInt64(UInt32(bitPattern: -Int32(bitPattern: uStep)))
+        return UInt64(first - uValue) % absStep == 0 ? 1 : 0
     }
     return 0
 }
