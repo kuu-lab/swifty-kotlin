@@ -139,8 +139,8 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
 
 /// Convert a JSONSerialization-parsed Any into a runtime raw value.
 /// Strings → RuntimeStringBox (intptr_t)
-/// Numbers → Int (unboxed, for simplicity)
-/// Booleans → 1/0 (unboxed)
+/// Numbers → boxed Int/RuntimeDoubleBox (integer 0 is boxed to avoid null confusion)
+/// Booleans → RuntimeBoolBox (boxed to distinguish false from null)
 /// Arrays → RuntimeListBox
 /// Dicts → RuntimeMapBox
 /// Null → runtimeNullSentinelInt
@@ -152,10 +152,14 @@ private func jsonToRuntimeValue(_ value: Any) -> Int {
         return jsonMakeStringRaw(str)
     }
     if let bool = value as? Bool {
-        return bool ? 1 : 0
+        // Box booleans so that false (raw 0) is distinguishable from null (raw 0).
+        let box = RuntimeBoolBox(bool)
+        return registerRuntimeObject(box)
     }
     if let num = value as? Int {
-        return num
+        // Box integer 0 so it is distinguishable from the null sentinel (raw 0).
+        let box = RuntimeIntBox(num)
+        return registerRuntimeObject(box)
     }
     if let num = value as? Double {
         let box = RuntimeDoubleBox(num)
@@ -164,7 +168,8 @@ private func jsonToRuntimeValue(_ value: Any) -> Int {
     if let num = value as? NSNumber {
         // Could be int or double depending on JSON value
         if num.doubleValue == Double(num.intValue) {
-            return num.intValue
+            let box = RuntimeIntBox(num.intValue)
+            return registerRuntimeObject(box)
         }
         let box = RuntimeDoubleBox(num.doubleValue)
         return registerRuntimeObject(box)
