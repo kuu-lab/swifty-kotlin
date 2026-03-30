@@ -279,12 +279,9 @@ private func runtimeSequenceTransformElement(
             yield: yield
         )
     case let .mapNotNullStep(fnPtr, closureRaw):
-        guard let input = runtimeNormalizeNullableCollectionValue(element) else {
-            return
-        }
         let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
         var thrown = 0
-        let mapped = lambda(closureRaw, input, &thrown)
+        let mapped = lambda(closureRaw, element, &thrown)
         if thrown != 0 {
             outThrown?.pointee = thrown
             state.stop = true
@@ -516,11 +513,8 @@ private func applyMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThr
     var mapped: [Int] = []
     mapped.reserveCapacity(elements.count)
     for elem in elements {
-        guard let input = runtimeNormalizeNullableCollectionValue(elem) else {
-            continue
-        }
         var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: input, outThrown: &thrown)
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 {
             if let outThrown = outThrown {
                 outThrown.pointee = thrown

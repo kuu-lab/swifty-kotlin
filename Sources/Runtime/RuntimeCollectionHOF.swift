@@ -147,11 +147,8 @@ public func kk_list_mapNotNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
     }
     var mapped: [Int] = []
     for elem in list.elements {
-        guard let input = runtimeNormalizeNullableCollectionValue(elem) else {
-            continue
-        }
         var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: input, outThrown: &thrown)
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if let normalized = runtimeNormalizeNullableCollectionValue(result) {
             mapped.append(normalized)
@@ -2315,11 +2312,8 @@ public func kk_set_mapNotNull(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ 
     }
     var mapped: [Int] = []
     for elem in set.elements {
-        guard let input = runtimeNormalizeNullableCollectionValue(elem) else {
-            continue
-        }
         var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: input, outThrown: &thrown)
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if let normalized = runtimeNormalizeNullableCollectionValue(result) {
             mapped.append(normalized)
@@ -2446,11 +2440,8 @@ public func kk_array_mapNotNull(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     }
     var mapped: [Int] = []
     for elem in array.elements {
-        guard let input = runtimeNormalizeNullableCollectionValue(elem) else {
-            continue
-        }
         var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: input, outThrown: &thrown)
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
         if let normalized = runtimeNormalizeNullableCollectionValue(result) {
             mapped.append(normalized)
