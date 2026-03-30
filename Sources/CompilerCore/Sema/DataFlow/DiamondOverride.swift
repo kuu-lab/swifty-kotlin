@@ -192,7 +192,7 @@ extension DataFlowSemaPhase {
                 .joined(separator: ", ")
             let msg = "Class '\(className)' must override '\(memberName)' "
                 + "because it is inherited from multiple interfaces: \(ifaceNames)."
-            diagnostics.error("KSWIFTK-SEMA-DIAMOND", msg, range: declRange)
+            diagnostics.error("KSWIFTK-SEMA-0171", msg, range: declRange)
         }
     }
 
