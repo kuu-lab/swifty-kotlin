@@ -348,7 +348,6 @@ extension DataFlowSemaPhase {
 
         symbols.setFunctionSignature(
             FunctionSignature(
-                receiverType: ownerType,
                 parameterTypes: parameters.map(\.type),
                 returnType: ownerType,
                 valueParameterSymbols: valueParameterSymbols,
