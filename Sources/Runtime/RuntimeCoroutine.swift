@@ -308,6 +308,28 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isConsumedByUserCode
     }
 
+    /// Thread-safe snapshot of the completion state.
+    func isCompletedSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCompleted
+    }
+
+    /// Thread-safe snapshot of the cancellation flag.
+    func isCancelledSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelled
+    }
+
+    /// Thread-safe snapshot of the active state (not completed AND not cancelled).
+    /// Reads both flags under a single lock acquisition to avoid TOCTOU races.
+    func isActiveSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !isCompleted && !isCancelled
+    }
+
     func complete(with result: Int) {
         lock.lock()
         guard !isCompleted else {
@@ -495,6 +517,21 @@ final class RuntimeJobHandle: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return isCancelled
+    }
+
+    /// Thread-safe snapshot of the completion flag.
+    func completedSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCompleted
+    }
+
+    /// Thread-safe snapshot of the active state (not completed AND not cancelled).
+    /// Reads both flags under a single lock acquisition to avoid TOCTOU races.
+    func isActiveSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return !isCompleted && !isCancelled
     }
 }
 
@@ -3000,6 +3037,58 @@ public func kk_job_cancel(_ jobHandle: Int) -> Int {
         job.cancel()
     } else if let task = obj as? RuntimeAsyncTask {
         task.cancel()
+    }
+    return 0
+}
+
+// MARK: - Job State Queries (STDLIB-CORO-070)
+
+/// Returns 1 if the job is active (started but not yet completed and not cancelled).
+/// A job is active when it has been launched and neither completed nor cancelled.
+/// ABI backing for `job.isActive` in Kotlin.
+@_cdecl("kk_job_is_active")
+public func kk_job_is_active(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 0
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        // isActive = not completed AND not cancelled, read atomically under one lock
+        return job.isActiveSnapshot() ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return task.isActiveSnapshot() ? 1 : 0
+    }
+    return 0
+}
+
+/// Returns 1 if the job has completed (either normally or by cancellation).
+/// ABI backing for `job.isCompleted` in Kotlin.
+@_cdecl("kk_job_is_completed")
+public func kk_job_is_completed(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 1 // invalid handle → treat as completed
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        return job.completedSnapshot() ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return task.isCompletedSnapshot() ? 1 : 0
+    }
+    return 1
+}
+
+/// Returns 1 if the job has been cancelled.
+/// ABI backing for `job.isCancelled` in Kotlin.
+@_cdecl("kk_job_is_cancelled")
+public func kk_job_is_cancelled(_ jobHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 1 // invalid handle → treat as cancelled
+    }
+    let obj = Unmanaged<AnyObject>.fromOpaque(ptr).takeUnretainedValue()
+    if let job = obj as? RuntimeJobHandle {
+        return job.cancellationSnapshot() ? 1 : 0
+    } else if let task = obj as? RuntimeAsyncTask {
+        return task.isCancelledSnapshot() ? 1 : 0
     }
     return 0
 }
