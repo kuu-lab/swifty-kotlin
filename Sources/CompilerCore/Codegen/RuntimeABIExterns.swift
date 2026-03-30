@@ -395,19 +395,7 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    // MARK: - Instant (STDLIB-TIME-083)
-
-    public static let kk_instant_now = ExternDecl(
-        name: "kk_instant_now",
-        parameterTypes: [],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_from_epoch_millis = ExternDecl(
-        name: "kk_instant_from_epoch_millis",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
+    // MARK: - Duration advanced operations (STDLIB-TIME-082, continued)
 
     public static let kk_duration_isNegative = ExternDecl(
         name: "kk_duration_isNegative",
@@ -415,20 +403,8 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    public static let kk_instant_epoch_seconds = ExternDecl(
-        name: "kk_instant_epoch_seconds",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
     public static let kk_duration_isPositive = ExternDecl(
         name: "kk_duration_isPositive",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_nano_of_second = ExternDecl(
-        name: "kk_instant_nano_of_second",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
@@ -451,32 +427,14 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    public static let kk_instant_plus_duration = ExternDecl(
-        name: "kk_instant_plus_duration",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
     public static let kk_duration_minus = ExternDecl(
         name: "kk_duration_minus",
         parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
 
-    public static let kk_instant_minus_duration = ExternDecl(
-        name: "kk_instant_minus_duration",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
     public static let kk_duration_times_int = ExternDecl(
         name: "kk_duration_times_int",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_compare = ExternDecl(
-        name: "kk_instant_compare",
         parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
@@ -495,12 +453,6 @@ public enum RuntimeABIExterns {
 
     public static let kk_duration_compareTo = ExternDecl(
         name: "kk_duration_compareTo",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_until = ExternDecl(
-        name: "kk_instant_until",
         parameterTypes: ["intptr_t", "intptr_t"],
         returnType: "intptr_t"
     )
