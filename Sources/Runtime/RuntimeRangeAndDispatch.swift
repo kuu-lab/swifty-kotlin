@@ -1615,7 +1615,6 @@ public func kk_ulong_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
     }
     return registerRuntimeObject(RuntimeListBox(elements: mapped))
 }
-}
 
 // MARK: - IntRange reversed (STDLIB-093)
 
