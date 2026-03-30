@@ -6,7 +6,6 @@ public extension RuntimeABISpec {
             name: "kk_secretkeyspec_new",
             parameters: [
                 RuntimeABIParameter(name: "keyRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
                 RuntimeABIParameter(name: "algorithmRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
