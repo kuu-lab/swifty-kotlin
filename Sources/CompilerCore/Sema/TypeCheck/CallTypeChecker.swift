@@ -1442,9 +1442,12 @@ final class CallTypeChecker {
                     expectedType: contextualExpectedType
                 )
             }
-            // Reuse the type already inferred in inferredNonLambdaArgTypes to avoid
-            // re-evaluating non-lambda arguments a second time, which would emit
-            // duplicate diagnostics (e.g. "Unresolved reference") for each argument.
+            // Reuse already-inferred type for non-lambda args to avoid emitting
+            // duplicate diagnostics (e.g. "Unresolved reference") for the same
+            // expression. Non-lambda args are pre-evaluated in the
+            // inferredNonLambdaArgTypes pass above to determine contextual
+            // expected types for lambda args; re-inferring them here would cause
+            // every diagnostic to fire twice.
             if let cached = inferredNonLambdaArgTypes[index] {
                 return cached
             }
