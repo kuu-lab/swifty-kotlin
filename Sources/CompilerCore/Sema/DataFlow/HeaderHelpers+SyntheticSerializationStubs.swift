@@ -45,6 +45,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_json_encodeToString",
             returnType: stringType,
             parameters: [(name: "value", type: anyType)],
+            receiverType: jsonType,
             companionFQName: companionFQName,
             symbols: symbols,
             interner: interner
@@ -56,6 +57,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_json_decodeFromString",
             returnType: anyType,
             parameters: [(name: "string", type: stringType)],
+            receiverType: jsonType,
             companionFQName: companionFQName,
             symbols: symbols,
             interner: interner
@@ -142,6 +144,7 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)],
+        receiverType: TypeID,
         companionFQName: [InternedString],
         symbols: SymbolTable,
         interner: StringInterner
@@ -153,7 +156,8 @@ extension DataFlowSemaPhase {
                 return false
             }
             return existingSignature.parameterTypes == parameters.map(\.type) &&
-                existingSignature.returnType == returnType
+                existingSignature.returnType == returnType &&
+                existingSignature.receiverType == receiverType
         }) == nil else {
             return
         }
@@ -190,6 +194,7 @@ extension DataFlowSemaPhase {
 
         symbols.setFunctionSignature(
             FunctionSignature(
+                receiverType: receiverType,
                 parameterTypes: parameters.map(\.type),
                 returnType: returnType,
                 valueParameterSymbols: valueParameterSymbols,
