@@ -258,7 +258,7 @@ private func lexicalNormalize(_ pathString: String) -> String {
     if isAbsolute {
         return "/" + joined
     } else if joined.isEmpty {
-        return "."
+        return ""
     } else {
         return joined
     }
