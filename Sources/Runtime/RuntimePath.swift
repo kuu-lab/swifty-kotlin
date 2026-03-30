@@ -294,7 +294,7 @@ public func kk_path_relativize(_ pathRaw: Int, _ otherRaw: Int) -> Int {
     // Build relative path: ".." for each remaining base component + remaining other components
     var relComponents: [String] = Array(repeating: "..", count: baseComponents.count - commonLength)
     relComponents += otherComponents[commonLength...]
-    let relative = relComponents.isEmpty ? "." : relComponents.joined(separator: "/")
+    let relative = relComponents.isEmpty ? "" : relComponents.joined(separator: "/")
     return registerRuntimeObject(RuntimePathBox(relative))
 }
 
@@ -390,10 +390,10 @@ public func kk_path_endsWith_path(_ pathRaw: Int, _ otherRaw: Int) -> Int {
     guard let other = runtimePathBox(from: otherRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_endsWith_path received invalid other Path handle")
     }
-    // When other is absolute, both paths must agree on absolute vs relative.
+    // When other is absolute, the entire path must equal `path` exactly (Kotlin semantics).
     let otherIsAbsolute = other.pathString.hasPrefix("/")
     if otherIsAbsolute {
-        guard path.pathString.hasPrefix("/") else { return kk_box_bool(0) }
+        return kk_box_bool(path.pathString == other.pathString ? 1 : 0)
     }
     let pathComponents = path.pathString.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
     let otherComponents = other.pathString.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
@@ -412,10 +412,10 @@ public func kk_path_endsWith_string(_ pathRaw: Int, _ otherRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_endsWith_string received invalid other string")
     }
-    // When other is absolute, both paths must agree on absolute vs relative.
+    // When other is absolute, the entire path must equal `path` exactly (Kotlin semantics).
     let otherIsAbsolute = other.hasPrefix("/")
     if otherIsAbsolute {
-        guard path.pathString.hasPrefix("/") else { return kk_box_bool(0) }
+        return kk_box_bool(path.pathString == other ? 1 : 0)
     }
     let pathComponents = path.pathString.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
     let otherComponents = other.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
