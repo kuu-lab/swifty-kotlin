@@ -723,7 +723,7 @@ public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
     let rawInput = regexStringFromRaw(inputRaw) ?? ""
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
-    let anchoredPattern = "\\A(?:\(regexBox.pattern))\\z"
+    let anchoredPattern = "\\A(?:\(regexBox.regex.pattern))\\z"
     // Remove .anchorsMatchLines so that \A/\z always bind to string boundaries,
     // not line boundaries.
     let anchoredOptions = regexBox.regex.options.subtracting(.anchorsMatchLines)
