@@ -257,6 +257,42 @@ extension CoroutineLoweringPass {
                     continue
                 }
 
+                if callee == names.kkFlowToList,
+                   !arguments.isEmpty,
+                   flowExprIDs.contains(arguments[0].rawValue)
+                {
+                    let consume = prepareFlowHandleForConsume(arguments[0])
+                    loweredBody.append(.call(
+                        symbol: symbol,
+                        callee: names.kkFlowToList,
+                        arguments: [consume.callArg, appendIntConstantInBody(0)],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil,
+                        isSuperCall: isSuperCall
+                    ))
+                    if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
+                    continue
+                }
+
+                if callee == names.kkFlowFirst,
+                   !arguments.isEmpty,
+                   flowExprIDs.contains(arguments[0].rawValue)
+                {
+                    let consume = prepareFlowHandleForConsume(arguments[0])
+                    loweredBody.append(.call(
+                        symbol: symbol,
+                        callee: names.kkFlowFirst,
+                        arguments: [consume.callArg, appendIntConstantInBody(0)],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil,
+                        isSuperCall: isSuperCall
+                    ))
+                    if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
+                    continue
+                }
+
                 if callee == names.kkFlowCollect,
                    arguments.count == 2,
                    flowExprIDs.contains(arguments[0].rawValue)

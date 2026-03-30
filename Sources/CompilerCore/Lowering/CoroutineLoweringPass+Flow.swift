@@ -201,7 +201,8 @@ extension CoroutineLoweringPass {
                     callee == flowName || callee == emitName || callee == collectName ||
                         callee == mapName || callee == filterName || callee == takeName ||
                         callee == toListName || callee == firstName ||
-                        callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName
+                        callee == kkFlowCreateName || callee == kkFlowEmitName || callee == kkFlowCollectName ||
+                        callee == kkFlowToListName || callee == kkFlowFirstName
                 case let .virtualCall(_, callee, _, _, _, _, _, _):
                     callee == mapName || callee == filterName || callee == takeName || callee == collectName ||
                         callee == toListName || callee == firstName
@@ -236,7 +237,8 @@ extension CoroutineLoweringPass {
                         markConsume(arguments[0])
                         continue
                     }
-                    if (callee == toListName || callee == firstName), !arguments.isEmpty {
+                    if (callee == toListName || callee == firstName ||
+                        callee == kkFlowToListName || callee == kkFlowFirstName), !arguments.isEmpty {
                         markConsume(arguments[0])
                         continue
                     }
