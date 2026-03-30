@@ -222,9 +222,14 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: boolType)
                     return boolType
                 }
-                if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
-                   args.isEmpty
-                {
+                let kclassMemberCollectionCallees: Set<InternedString> = [
+                    knownNames.membersName, knownNames.constructorsName,
+                    knownNames.propertiesName, knownNames.memberPropertiesName,
+                    knownNames.declaredMemberPropertiesName,
+                    knownNames.functionsName, knownNames.memberFunctionsName,
+                    knownNames.declaredMemberFunctionsName,
+                ]
+                if kclassMemberCollectionCallees.contains(calleeName), args.isEmpty {
                     let listType = makeSyntheticListType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -291,9 +296,14 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: boolType)
                 return boolType
             }
-            if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
-               args.isEmpty
-            {
+            let kclassVarMemberCollectionCallees: Set<InternedString> = [
+                knownNames.membersName, knownNames.constructorsName,
+                knownNames.propertiesName, knownNames.memberPropertiesName,
+                knownNames.declaredMemberPropertiesName,
+                knownNames.functionsName, knownNames.memberFunctionsName,
+                knownNames.declaredMemberFunctionsName,
+            ]
+            if kclassVarMemberCollectionCallees.contains(calleeName), args.isEmpty {
                 let listType = makeSyntheticListType(
                     symbols: sema.symbols,
                     types: sema.types,
