@@ -124,6 +124,7 @@ public func kk_callable_ref_parameters(_ tagged: Int) -> Int {
 }
 
 /// Invokes a callable ref (tagged function pointer) with zero arguments (STDLIB-REFLECT-063).
+/// For bound member references (closures), prepends the closure environment before calling.
 @_cdecl("kk_callable_ref_call_0")
 public func kk_callable_ref_call_0(
     _ tagged: Int,
@@ -133,11 +134,16 @@ public func kk_callable_ref_call_0(
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
     }
+    if let box = runtimeFunctionValueBox(from: tagged) {
+        let fn = unsafeBitCast(box.fnPtr, to: KKClosureThunkEntryPoint.self)
+        return fn(box.closureRaw, outThrown)
+    }
     let fn = unsafeBitCast(tagged, to: KKThunkEntryPoint.self)
     return fn(outThrown)
 }
 
 /// Invokes a callable ref (tagged function pointer) with one argument (STDLIB-REFLECT-063).
+/// For bound member references (closures), prepends the closure environment before calling.
 @_cdecl("kk_callable_ref_call_1")
 public func kk_callable_ref_call_1(
     _ tagged: Int,
@@ -148,11 +154,16 @@ public func kk_callable_ref_call_1(
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
     }
+    if let box = runtimeFunctionValueBox(from: tagged) {
+        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint1.self)
+        return fn(box.closureRaw, arg, outThrown)
+    }
     let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint1.self)
     return fn(arg, outThrown)
 }
 
 /// Invokes a callable ref (tagged function pointer) with two arguments (STDLIB-REFLECT-063).
+/// For bound member references (closures), prepends the closure environment before calling.
 @_cdecl("kk_callable_ref_call_2")
 public func kk_callable_ref_call_2(
     _ tagged: Int,
@@ -164,11 +175,16 @@ public func kk_callable_ref_call_2(
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
     }
+    if let box = runtimeFunctionValueBox(from: tagged) {
+        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint2.self)
+        return fn(box.closureRaw, arg1, arg2, outThrown)
+    }
     let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint2.self)
     return fn(arg1, arg2, outThrown)
 }
 
 /// Invokes a callable ref (tagged function pointer) with three arguments (STDLIB-REFLECT-063).
+/// For bound member references (closures), prepends the closure environment before calling.
 @_cdecl("kk_callable_ref_call_3")
 public func kk_callable_ref_call_3(
     _ tagged: Int,
@@ -180,6 +196,10 @@ public func kk_callable_ref_call_3(
     guard tagged != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
+    }
+    if let box = runtimeFunctionValueBox(from: tagged) {
+        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint3.self)
+        return fn(box.closureRaw, arg1, arg2, arg3, outThrown)
     }
     let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint3.self)
     return fn(arg1, arg2, arg3, outThrown)
