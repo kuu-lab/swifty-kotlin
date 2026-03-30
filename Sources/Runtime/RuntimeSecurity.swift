@@ -587,8 +587,10 @@ private func runtimeCipherRSAAlgorithm(for padding: RuntimeCipherPadding) -> Sec
     switch padding {
     case .pkcs1:
         .rsaEncryptionPKCS1
-    case .pkcs5, .pkcs7, .none:
+    case .pkcs5, .pkcs7:
         .rsaEncryptionPKCS1
+    case .none:
+        .rsaEncryptionRaw
     }
 }
 

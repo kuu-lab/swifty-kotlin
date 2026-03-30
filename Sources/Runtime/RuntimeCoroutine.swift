@@ -2885,6 +2885,7 @@ final class RuntimeBroadcastChannelHandle: @unchecked Sendable {
         }
         closed = true
         let snapshot = subscribers
+        subscribers.removeAll()
         lock.unlock()
         for ch in snapshot {
             _ = ch.close()
