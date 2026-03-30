@@ -464,10 +464,13 @@ private func runtimeSecurityString(from raw: Int, caller: StaticString) -> Strin
 }
 
 private func runtimeSecurityBytes(from raw: Int, caller: StaticString) -> [UInt8]? {
-    guard let box = runtimeArrayBox(from: raw) else {
-        return nil
+    if let box = runtimeArrayBox(from: raw) {
+        return box.elements.map { UInt8(truncatingIfNeeded: $0) }
     }
-    return box.elements.map { UInt8(truncatingIfNeeded: $0) }
+    if let list = runtimeListBox(from: raw) {
+        return list.elements.map { UInt8(truncatingIfNeeded: $0) }
+    }
+    return nil
 }
 
 private func runtimeMakeByteArrayRaw(_ bytes: [UInt8]) -> Int {
