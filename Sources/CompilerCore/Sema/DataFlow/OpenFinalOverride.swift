@@ -11,6 +11,7 @@ struct OpenFinalOverrideContext {
     let ast: ASTModule
     let symbols: SymbolTable
     let bindings: BindingTable
+    let types: TypeSystem
     let diagnostics: DiagnosticEngine
     let interner: StringInterner
 }
@@ -20,6 +21,7 @@ extension DataFlowSemaPhase {
         ast: ASTModule,
         symbols: SymbolTable,
         bindings: BindingTable,
+        types: TypeSystem,
         diagnostics: DiagnosticEngine,
         interner: StringInterner
     ) {
@@ -27,6 +29,7 @@ extension DataFlowSemaPhase {
             ast: ast,
             symbols: symbols,
             bindings: bindings,
+            types: types,
             diagnostics: diagnostics,
             interner: interner
         )
@@ -65,6 +68,12 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // DATA-CTOR: Validate that data class primary constructor params are all val/var.
+        if case let .classDecl(classDecl) = decl,
+           classDecl.modifiers.contains(.data) {
+            validateDataClassConstructorParams(classDecl: classDecl, ctx: ctx)
+        }
+
         validateMemberOverrides(
             info.memberFunctions,
             symbol: symbol,
@@ -75,6 +84,23 @@ extension DataFlowSemaPhase {
             symbol: symbol,
             ctx: ctx
         )
+    }
+
+    // MARK: - DATA-CTOR: data class primary constructor parameter validation
+
+    private func validateDataClassConstructorParams(
+        classDecl: ClassDecl,
+        ctx: OpenFinalOverrideContext
+    ) {
+        for param in classDecl.primaryConstructorParams {
+            guard !param.isProperty else { continue }
+            // This parameter lacks val/var; emit error.
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-DATA-CTOR",
+                "Primary constructor of data class must only have property ('val' / 'var') parameters.",
+                range: classDecl.range
+            )
+        }
     }
 
     // MARK: - Declaration info extraction
@@ -106,10 +132,10 @@ extension DataFlowSemaPhase {
             )
         case let .interfaceDecl(iface):
             OFODeclInfo(
-                memberFunctions: [],
-                memberProperties: [],
+                memberFunctions: iface.memberFunctions,
+                memberProperties: iface.memberProperties,
                 nestedClasses: iface.nestedClasses,
-                declRange: nil
+                declRange: iface.range
             )
         default:
             nil
@@ -177,6 +203,12 @@ extension DataFlowSemaPhase {
             let memberMeta = extractMemberMeta(memberDecl, declID: memberDeclID, ctx: ctx)
             guard let memberMeta else { continue }
 
+            validateModifierCombinations(
+                memberMeta: memberMeta,
+                ownerSymbol: symbol,
+                ctx: ctx
+            )
+
             if memberMeta.hasOverride {
                 validateOverrideTarget(
                     memberName: memberMeta.name,
@@ -192,11 +224,6 @@ extension DataFlowSemaPhase {
                     ctx: ctx
                 )
                 validateOverrideOpenness(
-                    memberMeta: memberMeta,
-                    ownerSymbol: symbol,
-                    ctx: ctx
-                )
-                validateModifierCombinations(
                     memberMeta: memberMeta,
                     ownerSymbol: symbol,
                     ctx: ctx
@@ -221,6 +248,7 @@ extension DataFlowSemaPhase {
         let name: InternedString
         let range: SourceRange
         let hasOverride: Bool
+        let hasOpen: Bool
         let returnType: TypeID?
         let hasAbstract: Bool
         let hasFinal: Bool
@@ -234,12 +262,25 @@ extension DataFlowSemaPhase {
     ) -> MemberMeta? {
         switch decl {
         case let .funDecl(fun):
-            let returnType = ctx.bindings.declSymbols[declID]
-                .flatMap { ctx.symbols.functionSignature(for: $0)?.returnType }
+            // Only read the return type from the function signature when there
+            // is an explicit return type annotation in the source. Expression-body
+            // functions without an explicit annotation store `anyType` as a
+            // placeholder at header-collection time (before type checking runs).
+            // Using that placeholder would produce false KSWIFTK-SEMA-OVERRIDE-RETURN
+            // diagnostics because `Any` is not a subtype of the parent's specific
+            // return type (e.g. Unit, String). Covariance of such functions is
+            // deferred until explicit annotations are present.
+            let returnType: TypeID? = if fun.returnType != nil {
+                ctx.bindings.declSymbols[declID]
+                    .flatMap { ctx.symbols.functionSignature(for: $0)?.returnType }
+            } else {
+                nil
+            }
             return MemberMeta(
                 name: fun.name,
                 range: fun.range,
                 hasOverride: fun.modifiers.contains(.override),
+                hasOpen: fun.modifiers.contains(.open),
                 returnType: returnType,
                 hasAbstract: fun.modifiers.contains(.abstract),
                 hasFinal: fun.modifiers.contains(.final),
@@ -250,6 +291,7 @@ extension DataFlowSemaPhase {
                 name: prop.name,
                 range: prop.range,
                 hasOverride: prop.modifiers.contains(.override),
+                hasOpen: prop.modifiers.contains(.open),
                 returnType: nil,
                 hasAbstract: prop.modifiers.contains(.abstract),
                 hasFinal: prop.modifiers.contains(.final),
@@ -414,8 +456,8 @@ extension DataFlowSemaPhase {
             }
         }
         
-        // Rule 3d: Check data class constraints (data classes cannot be open)
-        if ownerSym.flags.contains(.dataType) && memberMeta.hasOverride {
+        // Rule 3d: Data classes cannot declare open members.
+        if ownerSym.flags.contains(.dataType) && memberMeta.hasOpen {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-MODIFIER-CONFLICT",
@@ -503,22 +545,18 @@ extension DataFlowSemaPhase {
                 return
             }
             
-            // Check 2: abstract override must have a concrete implementation in parent
+            // Check 2: abstract override must reference an inherited declaration.
             let parent = findInheritedMember(
                 named: memberMeta.name,
                 for: ownerSymbol,
                 symbols: ctx.symbols
             )
-            guard let parent else { return }
-            guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
-            
-            // Parent must not be abstract (we're re-abstracting a concrete method)
-            if parentSym.flags.contains(.abstractType) {
+            if parent == nil {
                 let memberName = ctx.interner.resolve(memberMeta.name)
-                let parentName = ctx.interner.resolve(parent.ownerName)
+                let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
                 ctx.diagnostics.error(
                     "KSWIFTK-SEMA-ABSTRACT-OVERRIDE",
-                    "'\(memberName)' cannot be abstract override of abstract member from '\(parentName)'. Only concrete members can be re-abstracted.",
+                    "'\(memberName)' in '\(ownerName)' is marked 'abstract override' but no inherited member was found to override.",
                     range: memberMeta.range
                 )
             }
@@ -555,7 +593,7 @@ extension DataFlowSemaPhase {
             return
         }
 
-        if isMemberOverridable(parentSym, parent: parent) { 
+        if isMemberOverridable(parentSym, parent: parent) {
             // Check return type covariance
             if let returnType = returnType {
                 validateReturnTypeCovariance(
@@ -563,6 +601,7 @@ extension DataFlowSemaPhase {
                     parentSymbol: parentSym,
                     memberName: memberName,
                     memberRange: memberRange,
+                    ownerSymbol: ownerSymbol,
                     ctx: ctx
                 )
             }
@@ -595,6 +634,7 @@ extension DataFlowSemaPhase {
         parentSymbol: SemanticSymbol,
         memberName: InternedString,
         memberRange: SourceRange,
+        ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
         guard let parentSignature = ctx.symbols.functionSignature(for: parentSymbol.id) else {
@@ -602,24 +642,48 @@ extension DataFlowSemaPhase {
         }
         let parentReturnType = parentSignature.returnType
 
-        // Check if child return type is a subtype of parent return type
-        // Note: This requires access to the type system for subtype checking
-        // For now, we'll implement a basic check - this can be enhanced with proper subtype relations
-        
-        let childReturnStr = getTypeString(childReturnType, ctx: ctx)
-        let parentReturnStr = getTypeString(parentReturnType, ctx: ctx)
-        
-        // Simple equality check for now - proper covariance checking would require
-        // integration with the type system's subtype checking
-        if childReturnType != parentReturnType {
-            // This is actually allowed in Kotlin (covariant returns), but we need proper subtype checking
-            // For now, we'll allow it but log a note for future enhancement
-            let name = ctx.interner.resolve(memberName)
-            let ownerName = ctx.interner.resolve(parentSymbol.name)
-            
-            // TODO: Implement proper subtype checking instead of allowing all different types
-            // For now, we assume covariance is allowed as per Kotlin spec
+        // Skip check if this member is overloaded in the parent hierarchy.
+        // With name-only lookup, findInheritedMember may match a different overload
+        // than the one actually being overridden, producing false positives for valid
+        // covariant overrides (e.g. base has foo(Int): Int and foo(String): String;
+        // child overrides foo(String): String with return type String).
+        let allParentMembers = findAllInheritedMembers(
+            named: memberName,
+            for: ownerSymbol,
+            symbols: ctx.symbols
+        )
+        guard allParentMembers.count == 1 else {
+            // Multiple overloads with this name: skip covariance check to avoid
+            // false positives. A future signature-aware lookup will handle this.
+            return
         }
+
+        // Skip covariance check when the parent or child return type involves type parameters
+        // (including type parameters nested inside generic type arguments, e.g. List<T>).
+        // Type parameter substitution (e.g. T -> String for Producer<String>) is not
+        // performed here; such cases require full generic instantiation which is out of
+        // scope for this lightweight check.
+        if typeContainsAnyTypeParam(parentReturnType, types: ctx.types) {
+            return
+        }
+        if typeContainsAnyTypeParam(childReturnType, types: ctx.types) {
+            return
+        }
+
+        // Child return type must be a subtype of parent return type (covariant return).
+        guard !ctx.types.isSubtype(childReturnType, parentReturnType) else {
+            return // Valid: child return type is a subtype of parent return type
+        }
+
+        let name = ctx.interner.resolve(memberName)
+        let parentReturnTypeStr = ctx.types.renderType(parentReturnType)
+        let childReturnTypeStr = ctx.types.renderType(childReturnType)
+        ctx.diagnostics.error(
+            "KSWIFTK-SEMA-OVERRIDE-RETURN",
+            "Override of '\(name)' has incompatible return type. "
+                + "Expected subtype of '\(parentReturnTypeStr)' but found '\(childReturnTypeStr)'.",
+            range: memberRange
+        )
     }
 
     // MARK: - Check 2b: visibility expansion
@@ -662,12 +726,6 @@ extension DataFlowSemaPhase {
         return childIndex >= parentIndex
     }
 
-    private func getTypeString(_ type: TypeID, ctx: OpenFinalOverrideContext) -> String {
-        // This is a simplified implementation - proper type string conversion
-        // would require access to the type system
-        return "Type_\(type.rawValue)"
-    }
-
     // MARK: - Check 3: missing override modifier
 
     private func validateMissingOverride(
@@ -676,6 +734,14 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
+        // Skip the missing-override check for interface members until signature-aware
+        // matching is implemented. Name-only lookup via findInheritedMember would
+        // incorrectly flag valid overloads (e.g. fun f(String) alongside inherited
+        // fun f(Int)) as missing the 'override' modifier.
+        if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .interface {
+            return
+        }
+
         let parent = findInheritedMember(
             named: memberName,
             for: ownerSymbol,
@@ -761,5 +827,76 @@ extension DataFlowSemaPhase {
             )
         }
         return nil
+    }
+
+    // MARK: - Type parameter detection helper
+
+    /// Returns true if the type (or any of its generic type arguments) contains
+    /// a type parameter. Used to skip covariance checks that require substitution.
+    private func typeContainsAnyTypeParam(_ typeID: TypeID, types: TypeSystem) -> Bool {
+        switch types.kind(of: typeID) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                switch arg {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    return typeContainsAnyTypeParam(inner, types: types)
+                case .star:
+                    return false
+                }
+            }
+        case let .functionType(ft):
+            if let receiver = ft.receiver, typeContainsAnyTypeParam(receiver, types: types) { return true }
+            if ft.params.contains(where: { typeContainsAnyTypeParam($0, types: types) }) { return true }
+            return typeContainsAnyTypeParam(ft.returnType, types: types)
+        case let .intersection(parts):
+            return parts.contains { typeContainsAnyTypeParam($0, types: types) }
+        case let .kClassType(kct):
+            return typeContainsAnyTypeParam(kct.argument, types: types)
+        default:
+            return false
+        }
+    }
+
+    /// Returns all inherited members with the given name across the entire supertype
+    /// hierarchy. Used for overload count detection in covariance checking.
+    private func findAllInheritedMembers(
+        named memberName: InternedString,
+        for classSymbol: SymbolID,
+        symbols: SymbolTable
+    ) -> [OFOInheritedMember] {
+        var visited: Set<SymbolID> = [classSymbol]
+        var queue = symbols.directSupertypes(for: classSymbol)
+        var results: [OFOInheritedMember] = []
+
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            guard visited.insert(current).inserted else { continue }
+            guard let sym = symbols.symbol(current) else { continue }
+
+            var foundAtThisLevel = false
+            for childID in symbols.children(ofFQName: sym.fqName) {
+                guard let child = symbols.symbol(childID) else { continue }
+                let isMatch = child.kind == .function || child.kind == .property
+                if isMatch, child.name == memberName {
+                    results.append(OFOInheritedMember(
+                        memberID: childID,
+                        ownerName: sym.name,
+                        ownerIsInterface: sym.kind == .interface
+                    ))
+                    foundAtThisLevel = true
+                }
+            }
+
+            // If this class defines the member, do not traverse its ancestors:
+            // ancestor definitions are earlier overrides of the same logical member,
+            // not separate overloads.  Continuing upward would inflate the count
+            // and cause the guard at the call-site to skip the covariance check.
+            if !foundAtThisLevel {
+                queue.append(contentsOf: symbols.directSupertypes(for: current))
+            }
+        }
+        return results
     }
 }

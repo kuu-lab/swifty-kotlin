@@ -512,6 +512,28 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_map_filterKeys",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_map_filterValues",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_map_mapValues",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
@@ -1049,9 +1071,25 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_builder_list_addAll",
+            parameters: [
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_builder_set_add",
             parameters: [
                 RuntimeABIParameter(name: "elem", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_builder_set_addAll",
+            parameters: [
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection"
@@ -1229,6 +1267,24 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_mutable_set_addAll",
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_mutable_set_removeAll",
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_mutable_set_retainAll",
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),

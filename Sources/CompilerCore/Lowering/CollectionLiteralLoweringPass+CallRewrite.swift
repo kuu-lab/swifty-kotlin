@@ -770,8 +770,12 @@ extension CollectionLiteralLoweringPass {
                             rewrittenCallee = lookup.kkStringBuilderAppendRangeName
                         } else if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
                             rewrittenCallee = lookup.kkBuilderListAddName
+                        } else if builderCallee == lookup.buildListName, callee == lookup.addAllName, arguments.count == 1 {
+                            rewrittenCallee = lookup.kkBuilderListAddAllName
                         } else if builderCallee == lookup.buildSetName, callee == lookup.addName, arguments.count == 1 {
                             rewrittenCallee = lookup.kkBuilderSetAddName
+                        } else if builderCallee == lookup.buildSetName, callee == lookup.addAllName, arguments.count == 1 {
+                            rewrittenCallee = lookup.kkBuilderSetAddAllName
                         } else if builderCallee == lookup.buildMapName, callee == lookup.putName, arguments.count == 2 {
                             rewrittenCallee = lookup.kkBuilderMapPutName
                         }
@@ -822,11 +826,15 @@ extension CollectionLiteralLoweringPass {
                         continue
                     }
 
-                    // --- Rewrite File(path) → kk_file_new(path) (STDLIB-565) ---
+                    // --- Rewrite File(path) → kk_file_new(path) (STDLIB-565)
+                    //     Rewrite File(parent, child) → kk_file_new_parent_child(parent, child) (STDLIB-IO-087) ---
                     if callee == lookup.fileConstructorName {
+                        let fileCallee = arguments.count == 2
+                            ? lookup.kkFileNewParentChildName
+                            : lookup.kkFileNewName
                         loweredBody.append(.call(
                             symbol: nil,
-                            callee: lookup.kkFileNewName,
+                            callee: fileCallee,
                             arguments: arguments,
                             result: result,
                             canThrow: false,
@@ -935,6 +943,9 @@ extension CollectionLiteralLoweringPass {
                             // Only rewrite argument-less bufferedReader(); the runtime
                             // function kk_file_bufferedReader does not accept charset/bufferSize.
                             kkCallee = arguments.count == 1 ? lookup.kkFileBufferedReaderName : nil
+                        case lookup.bufferedWriterName:
+                            // Only rewrite argument-less bufferedWriter()
+                            kkCallee = arguments.count == 1 ? lookup.kkFileBufferedWriterName : nil
                         case lookup.walkName:
                             kkCallee = lookup.kkFileWalkName
                         case lookup.listFilesName:
@@ -947,6 +958,25 @@ extension CollectionLiteralLoweringPass {
                             kkCallee = lookup.kkFileReadBytesName
                         case lookup.appendTextName:
                             kkCallee = lookup.kkFileAppendTextName
+                        // STDLIB-IO-087: Additional File operations
+                        case lookup.absolutePathName:
+                            kkCallee = lookup.kkFileAbsolutePathName
+                        case lookup.canonicalPathName:
+                            kkCallee = lookup.kkFileCanonicalPathName
+                        case lookup.parentName:
+                            kkCallee = lookup.kkFileParentName
+                        case lookup.lengthName:
+                            kkCallee = lookup.kkFileLengthName
+                        case lookup.lastModifiedName:
+                            kkCallee = lookup.kkFileLastModifiedName
+                        case lookup.createNewFileName:
+                            kkCallee = lookup.kkFileCreateNewFileName
+                        case lookup.canReadName:
+                            kkCallee = lookup.kkFileCanReadName
+                        case lookup.canWriteName:
+                            kkCallee = lookup.kkFileCanWriteName
+                        case lookup.canExecuteName:
+                            kkCallee = lookup.kkFileCanExecuteName
                         default:
                             kkCallee = nil
                         }
@@ -973,8 +1003,10 @@ extension CollectionLiteralLoweringPass {
                             {
                                 listExprIDs.insert(result.rawValue)
                             }
-                            // Track bufferedReader() result as a file-like expr for chained member calls
-                            if let result, callee == lookup.bufferedReaderName {
+                            // Track bufferedReader()/bufferedWriter() results as file-like exprs for chained member calls
+                            if let result,
+                               callee == lookup.bufferedReaderName || callee == lookup.bufferedWriterName
+                            {
                                 fileExprIDs.insert(result.rawValue)
                             }
                             continue
@@ -2499,6 +2531,7 @@ extension CollectionLiteralLoweringPass {
                             if mapExprIDs.contains(receiverID.rawValue),
                                callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
                                || callee == lookup.mapValuesName || callee == lookup.mapKeysName
+                               || callee == lookup.filterKeysName || callee == lookup.filterValuesName
                                || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
                                || callee == lookup.anyName || callee == lookup.allName
                                || callee == lookup.noneName
@@ -2515,6 +2548,8 @@ extension CollectionLiteralLoweringPass {
                                 let kkName: InternedString = switch callee {
                                 case lookup.mapName: lookup.kkMapMapName
                                 case lookup.filterName: lookup.kkMapFilterName
+                                case lookup.filterKeysName: lookup.kkMapFilterKeysName
+                                case lookup.filterValuesName: lookup.kkMapFilterValuesName
                                 case lookup.forEachName: lookup.kkMapForEachName
                                 case lookup.mapValuesName: lookup.kkMapMapValuesName
                                 case lookup.mapKeysName: lookup.kkMapMapKeysName
@@ -2548,7 +2583,7 @@ extension CollectionLiteralLoweringPass {
                                     mapExprIDs.insert(result.rawValue)
                                     mapExprIDs.insert(hofResult.rawValue)
                                 }
-                                if callee == lookup.filterName, let result {
+                                if callee == lookup.filterName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
                                     mapExprIDs.insert(result.rawValue)
                                     mapExprIDs.insert(hofResult.rawValue)
                                 }

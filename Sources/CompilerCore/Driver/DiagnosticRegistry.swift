@@ -88,6 +88,7 @@ public enum DiagnosticRegistry {
     private static let suppressionAliases: [String: [String]] = [
         "UNCHECKED_CAST": ["KSWIFTK-SEMA-UNCHECKED-CAST"],
         "DEPRECATION": ["KSWIFTK-SEMA-DEPRECATED"],
+        "UNCHECKED_IS": ["KSWIFTK-SEMA-ERASED-TYPE"],
     ]
 
     // MARK: - Lexer pass (LEX)
@@ -335,6 +336,12 @@ public enum DiagnosticRegistry {
             summary: "Unchecked cast to a generic type."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-ERASED-TYPE",
+            pass: "SEMA",
+            defaultSeverity: .warning,
+            summary: "Cannot check for instance of erased generic type; type arguments are not available at runtime."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-DEPRECATED",
             pass: "SEMA",
             defaultSeverity: .warning,
@@ -489,6 +496,12 @@ public enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "Cannot inherit from data class.",
             codeActions: [DiagnosticCodeAction(title: "Remove inheritance from data class")]
+        ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-DATA-CTOR",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Primary constructor of data class must only have property ('val' / 'var') parameters."
         ),
         DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-REIFIED",
