@@ -187,6 +187,9 @@ struct BigIntValue: Equatable {
         var quotient: [UInt64] = [UInt64](repeating: 0, count: a.count)
         for i in stride(from: a.count - 1, through: 0, by: -1) {
             remainder.insert(a[i], at: 0)
+            while remainder.count > 1 && remainder.last == 0 {
+                remainder.removeLast()
+            }
             // Find q such that q * b <= remainder < (q+1) * b
             var lo: UInt64 = 0
             var hi: UInt64 = base - 1
