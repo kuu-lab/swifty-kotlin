@@ -365,13 +365,13 @@ public func kk_random_nextBoolean(_ receiver: Int) -> Int {
 @_cdecl("kk_random_nextBits")
 public func kk_random_nextBits(_ receiver: Int, _ bitCount: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    if bitCount == 0 { return 0 }
-    guard bitCount >= 1, bitCount <= 32 else {
+    guard bitCount >= 0, bitCount <= 32 else {
         outThrown?.pointee = runtimeAllocateThrowable(
-            message: "IllegalArgumentException: bitCount (\(bitCount)) must be in 1..32."
+            message: "IllegalArgumentException: bitCount (\(bitCount)) must be in 0..32."
         )
         return 0
     }
+    if bitCount == 0 { return 0 }
     let raw: UInt64
     if let box = seededBox(from: receiver) {
         raw = box.nextBits()
