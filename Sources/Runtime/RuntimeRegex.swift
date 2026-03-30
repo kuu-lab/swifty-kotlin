@@ -710,19 +710,26 @@ public func kk_regex_group_names(_ regexRaw: Int) -> Int {
 /// Regex.matches(input): Boolean
 /// Returns true if the entire input string is matched by this regex.
 ///
-/// Uses an anchored pattern `^(?:ORIGINAL_PATTERN)$` to force a full-string
+/// Uses an anchored pattern `\A(?:ORIGINAL_PATTERN)\z` to force a full-string
 /// match check. This correctly handles alternation patterns like `a|ab` where
 /// `firstMatch` would find the first alternative "a" (partial match) and
 /// incorrectly return false for input "ab".
+///
+/// `\A` and `\z` are used instead of `^` and `$` to avoid MULTILINE mode
+/// causing false positives: when `.anchorsMatchLines` is set, `^`/`$` match
+/// line boundaries rather than string boundaries.
 @_cdecl("kk_regex_matches")
 public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
     let rawInput = regexStringFromRaw(inputRaw) ?? ""
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return kk_box_bool(0) }
     let input = regexBox.normalizeIfNeeded(rawInput)
-    let anchoredPattern = "^(?:\(regexBox.pattern))$"
+    let anchoredPattern = "\\A(?:\(regexBox.pattern))\\z"
+    // Remove .anchorsMatchLines so that \A/\z always bind to string boundaries,
+    // not line boundaries.
+    let anchoredOptions = regexBox.regex.options.subtracting(.anchorsMatchLines)
     guard let anchoredRegex = try? NSRegularExpression(
         pattern: anchoredPattern,
-        options: regexBox.regex.options
+        options: anchoredOptions
     ) else { return kk_box_bool(0) }
     let range = NSRange(input.startIndex..., in: input)
     let matched = anchoredRegex.firstMatch(in: input, options: [], range: range) != nil
