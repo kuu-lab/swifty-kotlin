@@ -145,6 +145,65 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let normalizationFormSymbol = ensureClassSymbol(
+            named: "NormalizationForm",
+            in: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let normalizationFormType = types.make(.classType(ClassType(
+            classSymbol: normalizationFormSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(normalizationFormType, for: normalizationFormSymbol)
+
+        let normalizationFormsSymbol = ensureSyntheticObjectSymbol(
+            named: "NormalizationForms",
+            in: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let normalizationFormsType = types.make(.classType(ClassType(
+            classSymbol: normalizationFormsSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(normalizationFormsType, for: normalizationFormsSymbol)
+
+        for formName in ["NFC", "NFD", "NFKC", "NFKD"] {
+            registerSyntheticObjectProperty(
+                ownerSymbol: normalizationFormsSymbol,
+                ownerType: normalizationFormsType,
+                name: formName,
+                propertyType: normalizationFormType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerSyntheticStringExtensionFunction(
+            named: "normalize",
+            externalLinkName: "kk_string_normalize",
+            receiverType: stringType,
+            parameters: [
+                ("form", normalizationFormType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "isNormalized",
+            externalLinkName: "kk_string_isNormalized",
+            receiverType: stringType,
+            parameters: [
+                ("form", normalizationFormType, false, false),
+            ],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "split",
             externalLinkName: "kk_string_split",
@@ -1502,6 +1561,79 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let javaMathPkg = ensurePackage(
+            path: ["java", "math"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaMathPkgSymbol = symbols.lookup(fqName: javaMathPkg)
+        let bigDecimalSymbol = ensureClassSymbol(
+            named: "BigDecimal",
+            in: javaMathPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let bigIntegerSymbol = ensureClassSymbol(
+            named: "BigInteger",
+            in: javaMathPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaMathPkgSymbol {
+            symbols.setParentSymbol(javaMathPkgSymbol, for: bigDecimalSymbol)
+            symbols.setParentSymbol(javaMathPkgSymbol, for: bigIntegerSymbol)
+        }
+        let bigDecimalType = types.make(.classType(ClassType(
+            classSymbol: bigDecimalSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(bigDecimalType, for: bigDecimalSymbol)
+        let bigIntegerType = types.make(.classType(ClassType(
+            classSymbol: bigIntegerSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
+
+        registerSyntheticStringExtensionFunction(
+            named: "toBigDecimal",
+            externalLinkName: "kk_string_toBigDecimal",
+            receiverType: stringType,
+            parameters: [],
+            returnType: bigDecimalType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toBigInteger",
+            externalLinkName: "kk_string_toBigInteger",
+            receiverType: stringType,
+            parameters: [],
+            returnType: bigIntegerType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticBigNumberMemberFunction(
+            ownerSymbol: bigDecimalSymbol,
+            ownerType: bigDecimalType,
+            name: "toString",
+            returnType: stringType,
+            externalLinkName: "kk_bignum_toString",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticBigNumberMemberFunction(
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            name: "toString",
+            returnType: stringType,
+            externalLinkName: "kk_bignum_toString",
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-574: ByteArray.decodeToString()
         let byteArrayType = makeNominalType(
             symbols: symbols,
@@ -2146,6 +2278,46 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setPropertyType(propertyType, for: propertySymbol)
+    }
+
+    private func registerSyntheticBigNumberMemberFunction(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        name: String,
+        returnType: TypeID,
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let memberName = interner.intern(name)
+        let memberFQName = ownerInfo.fqName + [memberName]
+        guard symbols.lookupAll(fqName: memberFQName).isEmpty else {
+            return
+        }
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: returnType,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: functionSymbol
+        )
     }
 
     private func registerSyntheticLocaleConstructor(

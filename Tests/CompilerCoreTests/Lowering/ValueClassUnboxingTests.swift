@@ -47,6 +47,46 @@ final class ValueClassUnboxingTests: XCTestCase {
         }
     }
 
+    func testJvmInlineValueClassSetsValueTypeFlag() throws {
+        let source = """
+        @JvmInline
+        value class UserId(val raw: Int)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let sema = try XCTUnwrap(ctx.sema)
+        let interner = ctx.interner
+
+        let userIdSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            symbol.kind == .class && interner.resolve(symbol.name) == "UserId"
+        }))
+        XCTAssertTrue(userIdSymbol.flags.contains(.valueType), "@JvmInline value class should have valueType flag")
+
+        let underlyingType = sema.symbols.valueClassUnderlyingType(for: userIdSymbol.id)
+        XCTAssertNotNil(underlyingType, "@JvmInline value class should record an underlying type")
+    }
+
+    func testInlineClassSetsValueTypeFlag() throws {
+        let source = """
+        inline class LegacyCount(val raw: Int)
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let sema = try XCTUnwrap(ctx.sema)
+        let interner = ctx.interner
+
+        let legacyCountSymbol = try XCTUnwrap(sema.symbols.allSymbols().first(where: { symbol in
+            symbol.kind == .class && interner.resolve(symbol.name) == "LegacyCount"
+        }))
+        XCTAssertTrue(legacyCountSymbol.flags.contains(.valueType), "inline class should have valueType flag")
+        XCTAssertFalse(legacyCountSymbol.flags.contains(.inlineFunction), "inline class should not be marked as inline function")
+
+        let underlyingType = sema.symbols.valueClassUnderlyingType(for: legacyCountSymbol.id)
+        XCTAssertNotNil(underlyingType, "inline class should record an underlying type")
+    }
+
     // MARK: - Value class unboxing lowering
 
     func testValueClassConstructorRewrittenToCopy() throws {

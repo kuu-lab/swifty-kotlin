@@ -9,10 +9,16 @@ public extension RuntimeABIExterns {
         kk_result_getOrThrow,
         kk_result_exceptionOrNull,
         kk_result_map,
+        kk_result_mapCatching,
+        kk_result_flatMap,
+        kk_result_flatMapCatching,
         kk_result_fold,
         kk_result_onSuccess,
         kk_result_onFailure,
         kk_result_recover,
+        kk_result_recoverCatching,
+        kk_result_component1,
+        kk_result_component2,
     ]
 
     // STDLIB-280: runCatching
@@ -73,6 +79,24 @@ public extension RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    static let kk_result_mapCatching = ExternDecl(
+        name: "kk_result_mapCatching",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_result_flatMap = ExternDecl(
+        name: "kk_result_flatMap",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_result_flatMapCatching = ExternDecl(
+        name: "kk_result_flatMapCatching",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
     static let kk_result_fold = ExternDecl(
         name: "kk_result_fold",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
@@ -95,6 +119,25 @@ public extension RuntimeABIExterns {
     static let kk_result_recover = ExternDecl(
         name: "kk_result_recover",
         parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    // STDLIB-RESULT-107: Result advanced operations
+    static let kk_result_recoverCatching = ExternDecl(
+        name: "kk_result_recoverCatching",
+        parameterTypes: ["intptr_t", "intptr_t", "intptr_t", "intptr_t * _Nullable"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_result_component1 = ExternDecl(
+        name: "kk_result_component1",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    static let kk_result_component2 = ExternDecl(
+        name: "kk_result_component2",
+        parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
 }

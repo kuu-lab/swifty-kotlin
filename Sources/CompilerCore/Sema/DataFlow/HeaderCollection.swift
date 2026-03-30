@@ -1,6 +1,10 @@
 import Foundation
 
 extension DataFlowSemaPhase {
+    private func isValueClassDeclaration(_ classDecl: ClassDecl) -> Bool {
+        classDecl.modifiers.contains(.value) || classDecl.modifiers.contains(.inline)
+    }
+
     func registerFileAnnotations(
         file: ASTFile,
         symbols: SymbolTable,
@@ -59,7 +63,8 @@ extension DataFlowSemaPhase {
         switch decl {
         case let .classDecl(classDecl):
             var classFlags = flags(from: classDecl.modifiers)
-            if classDecl.modifiers.contains(.value) {
+            classFlags.remove(.inlineFunction)
+            if isValueClassDeclaration(classDecl) {
                 classFlags.insert(.valueType)
             }
             
@@ -324,7 +329,7 @@ extension DataFlowSemaPhase {
             }
 
             // Value class validation: must have exactly one primary constructor parameter
-            if classDecl.modifiers.contains(.value) {
+            if isValueClassDeclaration(classDecl) {
                 let valParams = classDecl.primaryConstructorParams
                 if valParams.count != 1 {
                     diagnostics.error(

@@ -272,6 +272,8 @@ struct CollectionLiteralLookupTables {
     let kkMapForEachName: InternedString
     let kkMapMapName: InternedString
     let kkMapFilterName: InternedString
+    let kkMapFilterKeysName: InternedString
+    let kkMapFilterValuesName: InternedString
     let kkMapMapValuesName: InternedString
     let kkMapMapKeysName: InternedString
     let kkMapCountName: InternedString
@@ -422,6 +424,8 @@ struct CollectionLiteralLookupTables {
     let groupByToName: InternedString
     let mapValuesName: InternedString
     let mapKeysName: InternedString
+    let filterKeysName: InternedString
+    let filterValuesName: InternedString
     let zipName: InternedString
     let zipWithNextName: InternedString
     let unzipName: InternedString
@@ -550,10 +554,13 @@ struct CollectionLiteralLookupTables {
 
     // Builder member function names (STDLIB-002)
     let appendName: InternedString
+    let addAllName: InternedString
     let putName: InternedString
     let kkStringBuilderAppendName: InternedString
     let kkBuilderListAddName: InternedString
+    let kkBuilderListAddAllName: InternedString
     let kkBuilderSetAddName: InternedString
+    let kkBuilderSetAddAllName: InternedString
     let kkBuilderMapPutName: InternedString
     let kkMutableSetAddName: InternedString
     let kkMutableSetRemoveName: InternedString
@@ -599,6 +606,12 @@ struct CollectionLiteralLookupTables {
     let kkFileUseLinesName: InternedString
     let bufferedReaderName: InternedString
     let kkFileBufferedReaderName: InternedString
+    let bufferedWriterName: InternedString
+    let kkFileBufferedWriterName: InternedString
+    let kkBufferedWriterWriteName: InternedString
+    let kkBufferedWriterNewLineName: InternedString
+    let kkBufferedWriterFlushName: InternedString
+    let kkBufferedWriterCloseName: InternedString
     let kkFileDeleteName: InternedString
     let mkdirsName: InternedString
     let kkFileMkdirsName: InternedString
@@ -608,6 +621,26 @@ struct CollectionLiteralLookupTables {
     let kkFileWalkName: InternedString
     let readBytesName: InternedString
     let kkFileReadBytesName: InternedString
+    // STDLIB-IO-087: Additional File operations
+    let absolutePathName: InternedString
+    let kkFileAbsolutePathName: InternedString
+    let canonicalPathName: InternedString
+    let kkFileCanonicalPathName: InternedString
+    let parentName: InternedString
+    let kkFileParentName: InternedString
+    // Note: lengthName is shared with StringBuilder section (defined above)
+    let kkFileLengthName: InternedString
+    let lastModifiedName: InternedString
+    let kkFileLastModifiedName: InternedString
+    let createNewFileName: InternedString
+    let kkFileCreateNewFileName: InternedString
+    let canReadName: InternedString
+    let kkFileCanReadName: InternedString
+    let canWriteName: InternedString
+    let kkFileCanWriteName: InternedString
+    let canExecuteName: InternedString
+    let kkFileCanExecuteName: InternedString
+    let kkFileNewParentChildName: InternedString
 
     // Common lookup sets
     let listFactoryNames: Set<InternedString>
@@ -879,6 +912,8 @@ struct CollectionLiteralLookupTables {
         kkMapForEachName = interner.intern("kk_map_forEach")
         kkMapMapName = interner.intern("kk_map_map")
         kkMapFilterName = interner.intern("kk_map_filter")
+        kkMapFilterKeysName = interner.intern("kk_map_filterKeys")
+        kkMapFilterValuesName = interner.intern("kk_map_filterValues")
         kkMapMapValuesName = interner.intern("kk_map_mapValues")
         kkMapMapKeysName = interner.intern("kk_map_mapKeys")
         kkMapCountName = interner.intern("kk_map_count")
@@ -1023,6 +1058,8 @@ struct CollectionLiteralLookupTables {
         groupByToName = interner.intern("groupByTo")
         mapValuesName = interner.intern("mapValues")
         mapKeysName = interner.intern("mapKeys")
+        filterKeysName = interner.intern("filterKeys")
+        filterValuesName = interner.intern("filterValues")
         zipName = interner.intern("zip")
         zipWithNextName = interner.intern("zipWithNext")
         unzipName = interner.intern("unzip")
@@ -1142,10 +1179,13 @@ struct CollectionLiteralLookupTables {
         kkBuildMapName = interner.intern("kk_build_map")
 
         appendName = interner.intern("append")
+        addAllName = interner.intern("addAll")
         putName = interner.intern("put")
         kkStringBuilderAppendName = interner.intern("kk_string_builder_append")
         kkBuilderListAddName = interner.intern("kk_builder_list_add")
+        kkBuilderListAddAllName = interner.intern("kk_builder_list_addAll")
         kkBuilderSetAddName = interner.intern("kk_builder_set_add")
+        kkBuilderSetAddAllName = interner.intern("kk_builder_set_addAll")
         kkBuilderMapPutName = interner.intern("kk_builder_map_put")
         kkMutableSetAddName = interner.intern("kk_mutable_set_add")
         kkMutableSetRemoveName = interner.intern("kk_mutable_set_remove")
@@ -1191,6 +1231,12 @@ struct CollectionLiteralLookupTables {
         kkFileUseLinesName = interner.intern("kk_file_useLines")
         bufferedReaderName = interner.intern("bufferedReader")
         kkFileBufferedReaderName = interner.intern("kk_file_bufferedReader")
+        bufferedWriterName = interner.intern("bufferedWriter")
+        kkFileBufferedWriterName = interner.intern("kk_file_bufferedWriter")
+        kkBufferedWriterWriteName = interner.intern("kk_buffered_writer_write")
+        kkBufferedWriterNewLineName = interner.intern("kk_buffered_writer_new_line")
+        kkBufferedWriterFlushName = interner.intern("kk_buffered_writer_flush")
+        kkBufferedWriterCloseName = interner.intern("kk_buffered_writer_close")
         kkFileDeleteName = interner.intern("kk_file_delete")
         mkdirsName = interner.intern("mkdirs")
         kkFileMkdirsName = interner.intern("kk_file_mkdirs")
@@ -1200,6 +1246,26 @@ struct CollectionLiteralLookupTables {
         kkFileWalkName = interner.intern("kk_file_walk")
         readBytesName = interner.intern("readBytes")
         kkFileReadBytesName = interner.intern("kk_file_readBytes")
+        // STDLIB-IO-087: Additional File operations
+        absolutePathName = interner.intern("absolutePath")
+        kkFileAbsolutePathName = interner.intern("kk_file_absolutePath")
+        canonicalPathName = interner.intern("canonicalPath")
+        kkFileCanonicalPathName = interner.intern("kk_file_canonicalPath")
+        parentName = interner.intern("parent")
+        kkFileParentName = interner.intern("kk_file_parent")
+        // lengthName already initialized in StringBuilder section above
+        kkFileLengthName = interner.intern("kk_file_length")
+        lastModifiedName = interner.intern("lastModified")
+        kkFileLastModifiedName = interner.intern("kk_file_lastModified")
+        createNewFileName = interner.intern("createNewFile")
+        kkFileCreateNewFileName = interner.intern("kk_file_createNewFile")
+        canReadName = interner.intern("canRead")
+        kkFileCanReadName = interner.intern("kk_file_canRead")
+        canWriteName = interner.intern("canWrite")
+        kkFileCanWriteName = interner.intern("kk_file_canWrite")
+        canExecuteName = interner.intern("canExecute")
+        kkFileCanExecuteName = interner.intern("kk_file_canExecute")
+        kkFileNewParentChildName = interner.intern("kk_file_new_parent_child")
 
         listFactoryNames = [listOfName, mutableListOfName, emptyListName, listOfNotNullName]
         setFactoryNames = [setOfName, mutableSetOfName, emptySetName]

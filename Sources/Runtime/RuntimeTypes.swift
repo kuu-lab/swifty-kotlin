@@ -861,10 +861,18 @@ final class RuntimeKCallableBox {
 final class RuntimeKFunctionBox {
     let nameRaw: Int
     let arity: Int
+    let returnTypeRaw: Int
+    let isSuspend: Bool
+    let fnPtr: Int
+    let closureRaw: Int
 
-    init(nameRaw: Int, arity: Int) {
+    init(nameRaw: Int, arity: Int, returnTypeRaw: Int = 0, isSuspend: Bool = false, fnPtr: Int = 0, closureRaw: Int = 0) {
         self.nameRaw = nameRaw
         self.arity = arity
+        self.returnTypeRaw = returnTypeRaw
+        self.isSuspend = isSuspend
+        self.fnPtr = fnPtr
+        self.closureRaw = closureRaw
     }
 }
 
@@ -921,6 +929,57 @@ final class RuntimeBufferedReaderBox {
         return remaining
     }
 
+    /// Reads a single character, returning its Unicode scalar value, or -1 on EOF.
+    func read() -> Int {
+        guard !closed else { return -1 }
+
+        while true {
+            if !pendingData.isEmpty {
+                let byte = pendingData.removeFirst()
+                // Fast path: ASCII byte
+                if byte & 0x80 == 0 {
+                    return Int(byte)
+                }
+                // Multi-byte UTF-8: put back and decode
+                var codePoint: UInt32 = 0
+                let totalBytes: Int
+                if byte & 0xE0 == 0xC0 {
+                    totalBytes = 2
+                    codePoint = UInt32(byte & 0x1F)
+                } else if byte & 0xF0 == 0xE0 {
+                    totalBytes = 3
+                    codePoint = UInt32(byte & 0x0F)
+                } else if byte & 0xF8 == 0xF0 {
+                    totalBytes = 4
+                    codePoint = UInt32(byte & 0x07)
+                } else {
+                    // Continuation byte or invalid — return as-is
+                    return Int(byte)
+                }
+                // Ensure we have enough continuation bytes
+                while pendingData.count < totalBytes - 1 {
+                    if reachedEOF { return Int(byte) }
+                    if !readNextChunk() { reachedEOF = true }
+                }
+                if pendingData.count < totalBytes - 1 { return Int(byte) }
+                for _ in 1 ..< totalBytes {
+                    let cont = pendingData.removeFirst()
+                    codePoint = (codePoint << 6) | UInt32(cont & 0x3F)
+                }
+                return Int(codePoint)
+            }
+
+            if reachedEOF { return -1 }
+            if !readNextChunk() { reachedEOF = true }
+        }
+    }
+
+    /// Returns true if data is available to be read without blocking (buffered bytes exist or not EOF).
+    func ready() -> Bool {
+        guard !closed else { return false }
+        return !pendingData.isEmpty || !reachedEOF
+    }
+
     func close() {
         guard !closed else { return }
         try? fileHandle?.close()
@@ -972,11 +1031,15 @@ final class RuntimeInputStreamBox {
     private let data: Data
     private var offset: Int
     private var closed: Bool
+    private var markOffset: Int
+    private var markLimit: Int
 
     init(data: Data) {
         self.data = data
         self.offset = 0
         self.closed = false
+        self.markOffset = 0
+        self.markLimit = 0
     }
 
     func readByte() -> Int {
@@ -1011,7 +1074,56 @@ final class RuntimeInputStreamBox {
         return writableCount
     }
 
+    func mark(readLimit: Int) {
+        // FileInputStream does not support mark/reset; this is a no-op.
+    }
+
+    func markSupported() -> Bool { false }
+
+    /// Attempts a reset.  Returns `false` when mark/reset is not supported
+    /// (matching JVM FileInputStream behaviour — callers must raise IOException).
+    func reset() -> Bool { false }
+
     func close() {
+        closed = true
+    }
+}
+
+/// Runtime box for `java.io.SequenceInputStream` — chains two InputStreams.
+final class RuntimeSequenceInputStreamBox {
+    private var first: RuntimeInputStreamBox?
+    private var second: RuntimeInputStreamBox?
+    private var closed: Bool
+
+    init(first: RuntimeInputStreamBox, second: RuntimeInputStreamBox) {
+        self.first = first
+        self.second = second
+        self.closed = false
+    }
+
+    func readByte() -> Int {
+        guard !closed else { return -1 }
+        if let s1 = first {
+            let b = s1.readByte()
+            if b != -1 { return b }
+            // first stream exhausted — move to second
+            s1.close()
+            first = nil
+        }
+        return second?.readByte() ?? -1
+    }
+
+    func available() -> Int {
+        guard !closed else { return 0 }
+        return first?.available() ?? 0
+    }
+
+    func close() {
+        guard !closed else { return }
+        first?.close()
+        second?.close()
+        first = nil
+        second = nil
         closed = true
     }
 }
@@ -1049,8 +1161,10 @@ final class RuntimeOutputStreamBox {
     }
 }
 
-// MARK: - BufferedWriter (STDLIB-IO-093)
+// MARK: - BufferedWriter (STDLIB-IO-091/093)
 
+/// Runtime box for `java.io.BufferedWriter` returned by `File.bufferedWriter()`.
+/// Wraps a streaming file writer, supporting `write()`, `newLine()`, `flush()`, and `close()`.
 final class RuntimeBufferedWriterBox {
     private let fileHandle: FileHandle
     private var buffer: Data

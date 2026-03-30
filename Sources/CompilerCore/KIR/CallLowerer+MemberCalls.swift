@@ -103,7 +103,7 @@ extension CallLowerer {
         "runningReduce", "runningReduceIndexed",
         "groupBy", "groupingBy", "sortedBy", "find", "associateBy", "associateWith", "associate", "zip", "zipWithNext", "unzip",
         "eachCount",
-        "withIndex", "forEachIndexed", "mapIndexed", "filterIndexed", "mapValues", "mapKeys",
+        "withIndex", "forEachIndexed", "mapIndexed", "filterIndexed", "mapValues", "mapKeys", "filterKeys", "filterValues",
         "getValue", "getOrDefault", "getOrElse", "getOrPut", "getOrNull", "elementAtOrNull",
         "putAll", "addAll",
         "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull", "maxOrNull", "minOrNull",
@@ -892,6 +892,20 @@ extension CallLowerer {
         }
         return symbol.name == knownNames.mutableList
             || symbol.fqName == knownNames.kotlinCollectionsMutableListFQName
+    }
+
+    private func isMutableSetLikeType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let knownNames = KnownCompilerNames(interner: interner)
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return knownNames.isMutableSetSymbol(symbol)
     }
 
     private func isMapLikeType(
@@ -3201,7 +3215,7 @@ extension CallLowerer {
             "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "groupBy", "groupingBy",
             "sortedBy", "count", "first", "last", "find",
             "associateBy", "associateWith", "associate",
-            "forEachIndexed", "mapIndexed", "filterIndexed", "sumOf", "mapValues", "mapKeys",
+            "forEachIndexed", "mapIndexed", "filterIndexed", "sumOf", "mapValues", "mapKeys", "filterKeys", "filterValues",
             "getOrElse", "getOrPut",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
             "maxOf", "minOf",
@@ -3679,6 +3693,26 @@ extension CallLowerer {
            parentInfo.name == knownNames.charsets
         {
             let runtimeCallee = interner.intern("kk_charset_\(interner.resolve(info.name).lowercased())")
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: sema.bindings.exprTypes[exprID]
+                    ?? sema.symbols.propertyType(for: valueSym)
+                    ?? sema.types.anyType
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: runtimeCallee,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
+        if let parentInfo = sema.symbols.symbol(parent),
+           interner.resolve(parentInfo.name) == "NormalizationForms"
+        {
+            let runtimeCallee = interner.intern("kk_normalization_form_\(interner.resolve(info.name).lowercased())")
             let result = arena.appendExpr(
                 .temporary(Int32(arena.expressions.count)),
                 type: sema.bindings.exprTypes[exprID]
@@ -4244,6 +4278,81 @@ extension CallLowerer {
             instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
             finalArguments.append(continuationExpr)
         }
+        // kk_mutex_withLock(handle, actionFnPtr, actionEnvPtr, continuation): split the lambda
+        // argument at index 1 into a function pointer and environment pointer,
+        // following the standard closure-conversion ABI used by collection HOFs.
+        // A zero continuation placeholder is appended as the 4th argument so the
+        // coroutine runtime can suspend and resume the caller when the mutex is contended.
+        if loweredCallee == interner.intern("kk_mutex_withLock"),
+           finalArguments.count == 2
+        {
+            let lambdaID = finalArguments[1]
+            let fnPtrExpr: KIRExprID
+            let envPtrExpr: KIRExprID
+            if let callableInfo = driver.ctx.callableValueInfo(for: lambdaID) {
+                fnPtrExpr = arena.appendExpr(
+                    .symbolRef(callableInfo.symbol),
+                    type: sema.types.anyType
+                )
+                instructions.append(.constValue(result: fnPtrExpr, value: .symbolRef(callableInfo.symbol)))
+                if callableInfo.captureArguments.count >= 2 {
+                    // Multi-capture: pack captures into a closure object.
+                    let intType = sema.types.intType
+                    let anyType = sema.types.anyType
+                    let kkObjectNew = interner.intern("kk_object_new")
+                    let kkArraySet = interner.intern("kk_array_set")
+                    let slotCount = Int64(2 + callableInfo.captureArguments.count)
+                    let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: intType)
+                    instructions.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+                    let classIDExpr = arena.appendExpr(.intLiteral(0), type: intType)
+                    instructions.append(.constValue(result: classIDExpr, value: .intLiteral(0)))
+                    let closureObjExpr = arena.appendExpr(
+                        .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: kkObjectNew,
+                        arguments: [slotCountExpr, classIDExpr],
+                        result: closureObjExpr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    for (captureIndex, captureArg) in callableInfo.captureArguments.enumerated() {
+                        let fieldOffset = Int64(captureIndex + 2)
+                        let offsetExpr = arena.appendExpr(.intLiteral(fieldOffset), type: intType)
+                        instructions.append(.constValue(result: offsetExpr, value: .intLiteral(fieldOffset)))
+                        let unusedResult = arena.appendExpr(
+                            .temporary(Int32(clamping: arena.expressions.count)), type: anyType)
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: kkArraySet,
+                            arguments: [closureObjExpr, offsetExpr, captureArg],
+                            result: unusedResult,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                    }
+                    envPtrExpr = closureObjExpr
+                } else if let closureRaw = callableInfo.captureArguments.first {
+                    envPtrExpr = closureRaw
+                } else {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    envPtrExpr = zeroExpr
+                }
+            } else {
+                // Fallback when callableValueInfo is unavailable (e.g. stored lambda /
+                // function reference): treat lambdaID as the function pointer and pass
+                // zero as the environment pointer so the argument count always matches
+                // the 4-parameter ABI (handle, actionFnPtr, actionEnvPtr, continuation).
+                fnPtrExpr = lambdaID
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                envPtrExpr = zeroExpr
+            }
+            let continuationExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+            instructions.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr, continuationExpr]
+        }
         if let inst = tryEmitVirtualDispatch(
             chosenCallee: chosenCallee, calleeName: loweredCallee,
             receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
@@ -4255,7 +4364,8 @@ extension CallLowerer {
         }
         var callArguments = finalArguments
         if loweredCallee == interner.intern("kk_system_currentTimeMillis")
-            || loweredCallee == interner.intern("kk_system_nanoTime") {
+            || loweredCallee == interner.intern("kk_system_nanoTime")
+            || loweredCallee == interner.intern("kk_system_process_start_nanos") {
             callArguments = []
         }
         // Result HOF functions accept an outThrown parameter but we don't need
@@ -4270,6 +4380,10 @@ extension CallLowerer {
             interner.intern("kk_result_map"),
             interner.intern("kk_result_fold"),
             interner.intern("kk_result_recover"),
+            interner.intern("kk_result_recoverCatching"),
+            interner.intern("kk_result_mapCatching"),
+            interner.intern("kk_result_flatMap"),
+            interner.intern("kk_result_flatMapCatching"),
         ]
         if resultHOFCallees.contains(loweredCallee) {
             let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
@@ -4766,6 +4880,19 @@ extension CallLowerer {
             }
         }
 
+        if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            switch memberName {
+            case "addAll":
+                return interner.intern("kk_mutable_set_addAll")
+            case "removeAll":
+                return interner.intern("kk_mutable_set_removeAll")
+            case "retainAll":
+                return interner.intern("kk_mutable_set_retainAll")
+            default:
+                break
+            }
+        }
+
         if isMutableListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             case "sort":
@@ -5153,6 +5280,10 @@ extension CallLowerer {
             return interner.intern("kk_map_plus")
         case "minus":
             return interner.intern("kk_map_minus")
+        case "filterKeys":
+            return interner.intern("kk_map_filterKeys")
+        case "filterValues":
+            return interner.intern("kk_map_filterValues")
         case "getOrPut":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil

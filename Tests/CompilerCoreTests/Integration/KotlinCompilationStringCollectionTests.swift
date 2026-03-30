@@ -37,6 +37,16 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
+    func testCompile_string_normalize() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val s = "e\\u0301"
+            val normalized = s.normalize(NormalizationForms.NFC)
+            val stable = normalized.isNormalized(NormalizationForms.NFC)
+        }
+        """)
+    }
+
     // MARK: - String nullable conversions
 
     func testCompile_string_toIntOrNull_validInput() throws {
@@ -59,6 +69,28 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val result: Double? = "3.14".toDoubleOrNull()
+        }
+        """)
+    }
+
+    func testCompile_string_toBigDecimal() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigDecimal
+
+        fun main() {
+            val result: BigDecimal = "3.14e2".toBigDecimal()
+            val text = result.toString()
+        }
+        """)
+    }
+
+    func testCompile_string_toBigInteger() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.math.BigInteger
+
+        fun main() {
+            val result: BigInteger = "12345678901234567890".toBigInteger()
+            val text = result.toString()
         }
         """)
     }

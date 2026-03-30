@@ -752,7 +752,7 @@ extension CallTypeChecker {
             "sort", "sortBy", "sortByDescending",
         ]
         let flowHOFNames: Set = ["map", "filter", "collect"]
-        let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapKeys"]
+        let mapOnlyCollectionHOFNames: Set = ["mapValues", "mapKeys", "filterKeys", "filterValues"]
         let mutableListOnlyCollectionHOFNames: Set = ["sort", "sortBy", "sortByDescending"]
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverID) {
             true
@@ -827,7 +827,7 @@ extension CallTypeChecker {
 
             let resultType: TypeID
             switch calleeStr {
-            case "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "any", "none", "all",
+            case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "forEach", "flatMap", "any", "none", "all",
                  "count", "first", "last", "find", "associateBy", "associateWith", "associate",
                  "mapValues", "mapKeys", "takeWhile", "dropWhile", "onEach":
                 // any(), none(), count(), first(), last() can be called with no args
@@ -1055,6 +1055,10 @@ extension CallTypeChecker {
                         } else {
                             resultType = sema.types.anyType
                         }
+                    case "filterKeys" where isMapReceiver:
+                        resultType = sema.types.makeNonNullable(receiverType)
+                    case "filterValues" where isMapReceiver:
+                        resultType = sema.types.makeNonNullable(receiverType)
                     case "mapNotNull":
                         let bodyType: TypeID = if case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr) {
                             sema.types.makeNonNullable(sema.bindings.exprType(for: bodyExpr) ?? sema.types.anyType)
@@ -3265,6 +3269,20 @@ extension CallTypeChecker {
                         sema.types.make(.primitive(.double, .nonNull))
                     case "toDoubleOrNull":
                         sema.types.make(.primitive(.double, .nullable))
+                    case "toBigDecimal":
+                        makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                        )
+                    case "toBigInteger":
+                        makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigInteger")]
+                        )
                     case "reversed", "trimStart", "trimEnd":
                         sema.types.stringType
                     case "prependIndent", "replaceIndent":
@@ -3394,6 +3412,36 @@ extension CallTypeChecker {
                     let resultType: TypeID? = switch calleeStr {
                     case "lowercase", "uppercase":
                         sema.types.stringType
+                    default:
+                        nil
+                    }
+                    if let resultType {
+                        if let boundType = tryBindSyntheticStringMemberFallback(
+                            id,
+                            calleeName: calleeName,
+                            receiverType: receiverTypeForCheck,
+                            args: args,
+                            argTypes: argTypes,
+                            range: range,
+                            ctx: ctx,
+                            expectedType: expectedType,
+                            explicitTypeArgs: explicitTypeArgs,
+                            safeCall: safeCall
+                        ) {
+                            return boundType
+                        }
+                        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
+                }
+                if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
+                    let calleeStr = interner.resolve(calleeName)
+                    let resultType: TypeID? = switch calleeStr {
+                    case "normalize":
+                        sema.types.stringType
+                    case "isNormalized":
+                        sema.types.booleanType
                     default:
                         nil
                     }
