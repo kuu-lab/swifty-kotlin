@@ -3611,6 +3611,9 @@ public enum RuntimeABIExterns {
     public static let kk_cache_put = ExternDecl(name: "kk_cache_put", parameterTypes: [intptr, intptr, intptr], returnType: intptr)
     public static let kk_cache_get = ExternDecl(name: "kk_cache_get", parameterTypes: [intptr, intptr], returnType: intptr)
     public static let kk_cache_size = ExternDecl(name: "kk_cache_size", parameterTypes: [intptr], returnType: intptr)
+    public static let kk_resource_bundle_getBundle = ExternDecl(name: "kk_resource_bundle_getBundle", parameterTypes: [intptr, intptr, nullableIntptrPtr], returnType: intptr)
+    public static let kk_resource_bundle_getString = ExternDecl(name: "kk_resource_bundle_getString", parameterTypes: [intptr, intptr, nullableIntptrPtr], returnType: intptr)
+    public static let kk_resource_bundle_getKeys = ExternDecl(name: "kk_resource_bundle_getKeys", parameterTypes: [intptr], returnType: intptr)
     public static let kk_dateformat_ofPattern = ExternDecl(name: "kk_dateformat_ofPattern", parameterTypes: [intptr, intptr], returnType: intptr)
     public static let kk_dateformat_format = ExternDecl(name: "kk_dateformat_format", parameterTypes: [intptr, intptr], returnType: intptr)
 
@@ -3767,6 +3770,9 @@ public enum RuntimeABIExterns {
         kk_cache_put,
         kk_cache_get,
         kk_cache_size,
+        kk_resource_bundle_getBundle,
+        kk_resource_bundle_getString,
+        kk_resource_bundle_getKeys,
     ]
 
     // MARK: - I18N (STDLIB-I18N-153)
