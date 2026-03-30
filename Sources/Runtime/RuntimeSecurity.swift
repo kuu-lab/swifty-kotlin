@@ -1226,7 +1226,7 @@ public func kk_signature_verify(
     guard let verified = runtimeSignatureTransform(signature: signature, outThrown: outThrown, verifySignatureBytes: signatureBytes) else {
         return 0
     }
-    return verified
+    return kk_box_bool(verified)
 }
 
 @_cdecl("kk_cipher_getInstance")
