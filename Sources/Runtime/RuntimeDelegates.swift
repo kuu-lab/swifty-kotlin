@@ -134,6 +134,17 @@ public func kk_callable_ref_call_0(
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
     }
+    let expectedArity = runtimeStorage.withLock { state in
+        state.callableRefMetadataByValue[tagged]?.arity
+    }
+    if let expectedArity {
+        guard expectedArity == 0 else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "KFunction call arity mismatch: expected \(expectedArity), got 0"
+            )
+            return 0
+        }
+    }
     if let box = runtimeFunctionValueBox(from: tagged) {
         let fn = unsafeBitCast(box.fnPtr, to: KKClosureThunkEntryPoint.self)
         return fn(box.closureRaw, outThrown)
@@ -153,6 +164,17 @@ public func kk_callable_ref_call_1(
     guard tagged != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
+    }
+    let expectedArity = runtimeStorage.withLock { state in
+        state.callableRefMetadataByValue[tagged]?.arity
+    }
+    if let expectedArity {
+        guard expectedArity == 1 else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "KFunction call arity mismatch: expected \(expectedArity), got 1"
+            )
+            return 0
+        }
     }
     if let box = runtimeFunctionValueBox(from: tagged) {
         let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint1.self)
@@ -175,6 +197,17 @@ public func kk_callable_ref_call_2(
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
     }
+    let expectedArity = runtimeStorage.withLock { state in
+        state.callableRefMetadataByValue[tagged]?.arity
+    }
+    if let expectedArity {
+        guard expectedArity == 2 else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "KFunction call arity mismatch: expected \(expectedArity), got 2"
+            )
+            return 0
+        }
+    }
     if let box = runtimeFunctionValueBox(from: tagged) {
         let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint2.self)
         return fn(box.closureRaw, arg1, arg2, outThrown)
@@ -196,6 +229,17 @@ public func kk_callable_ref_call_3(
     guard tagged != 0 else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
         return 0
+    }
+    let expectedArity = runtimeStorage.withLock { state in
+        state.callableRefMetadataByValue[tagged]?.arity
+    }
+    if let expectedArity {
+        guard expectedArity == 3 else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "KFunction call arity mismatch: expected \(expectedArity), got 3"
+            )
+            return 0
+        }
     }
     if let box = runtimeFunctionValueBox(from: tagged) {
         let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint3.self)
