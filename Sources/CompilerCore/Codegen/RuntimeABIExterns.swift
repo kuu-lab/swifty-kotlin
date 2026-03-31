@@ -2373,6 +2373,13 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
+    // STDLIB-REFLECT-064: KClass.primaryConstructor
+    public static let kk_kclass_primary_constructor = ExternDecl(
+        name: "kk_kclass_primary_constructor",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
     // REFL-005: KType and typeOf<T>()
 
     public static let kk_ktype_create = ExternDecl(
@@ -4183,6 +4190,7 @@ public enum RuntimeABIExterns {
             kk_kclass_isInstance,
             kk_kclass_members,
             kk_kclass_constructors,
+            kk_kclass_primary_constructor,
             kk_ktype_create,
             kk_ktype_classifier,
             kk_ktype_arguments,

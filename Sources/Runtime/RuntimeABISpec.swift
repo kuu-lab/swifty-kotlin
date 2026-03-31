@@ -2815,6 +2815,15 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
+        // STDLIB-REFLECT-064: KClass.primaryConstructor
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_primary_constructor",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
         // REFL-005: KType and typeOf<T>()
         RuntimeABIFunctionSpec(
             name: "kk_ktype_create",
