@@ -13,12 +13,12 @@ final class KotlinCompilationDigitalSignatureTests: XCTestCase {
         import java.security.cert.TrustAnchor
 
         fun main() {
-            val generator = KeyPairGenerator.getInstance("RSA")
+            val generator = KeyPairGenerator("RSA")
             generator.initialize(2048)
             val keyPair = generator.generateKeyPair()
 
             val message = byteArrayOf(1, 2, 3, 4)
-            val signer = Signature.getInstance("SHA256withRSA")
+            val signer = Signature("SHA256withRSA")
             signer.initSign(keyPair.privateKey)
             signer.update(message)
             val sha256Signature = signer.sign()
@@ -50,12 +50,12 @@ final class KotlinCompilationDigitalSignatureTests: XCTestCase {
                 -----END CERTIFICATE-----
             """.trimIndent().toByteArray()
 
-            val factory = CertificateFactory.getInstance("X.509")
+            val factory = CertificateFactory("X.509")
             val certificate = factory.generateCertificate(certificatePem)
             val path = CertPath(listOf(certificate))
             val trustAnchor = TrustAnchor(certificate)
             val parameters = PKIXParameters(listOf(trustAnchor))
-            val validator = CertPathValidator.getInstance("PKIX")
+            val validator = CertPathValidator("PKIX")
             val valid = validator.validate(path, parameters)
         }
         """##)
