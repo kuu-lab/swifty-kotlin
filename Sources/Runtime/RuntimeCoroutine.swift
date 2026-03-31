@@ -140,7 +140,7 @@ final class RuntimeContinuationState: @unchecked Sendable {
     /// STDLIB-CORO-077: Optional CoroutineName for this coroutine (debug/tracing).
     var coroutineName: String?
     /// STDLIB-CORO-077: Optional CoroutineExceptionHandler for this coroutine.
-    var exceptionHandler: RuntimeCoroutineExceptionHandlerBox?
+    var exceptionHandler: RuntimeCoroutineContextExceptionHandlerBox?
     private let stateLock = NSLock()
     private var delayTimers: [ObjectIdentifier: DispatchSourceTimer]
 
@@ -3399,7 +3399,7 @@ func runtimeJoinChild(_ handle: Int) -> Int {
 
 /// Box for a `CoroutineExceptionHandler` context element.
 /// The handler is a raw function pointer (C ABI: `(Int, Int) -> Void`).
-final class RuntimeCoroutineExceptionHandlerBox: @unchecked Sendable {
+final class RuntimeCoroutineContextExceptionHandlerBox: @unchecked Sendable {
     let fnPtr: Int
     init(_ fnPtr: Int) { self.fnPtr = fnPtr }
 
@@ -3416,12 +3416,12 @@ final class RuntimeCoroutineExceptionHandlerBox: @unchecked Sendable {
 private final class RuntimeCoroutineContextBox: @unchecked Sendable {
     let dispatcherTag: Int?       // nil means "inherit"
     let name: String?
-    let exceptionHandler: RuntimeCoroutineExceptionHandlerBox?
+    let exceptionHandler: RuntimeCoroutineContextExceptionHandlerBox?
 
     init(
         dispatcherTag: Int? = nil,
         name: String? = nil,
-        exceptionHandler: RuntimeCoroutineExceptionHandlerBox? = nil
+        exceptionHandler: RuntimeCoroutineContextExceptionHandlerBox? = nil
     ) {
         self.dispatcherTag = dispatcherTag
         self.name = name
@@ -3516,7 +3516,7 @@ public func kk_coroutine_name_get(_ handle: Int) -> Int {
 /// The handler must have C ABI signature: `(context: Int, exception: Int) -> Void`.
 @_cdecl("kk_exception_handler_create")
 public func kk_exception_handler_create(_ fnPtr: Int) -> Int {
-    let handler = RuntimeCoroutineExceptionHandlerBox(fnPtr)
+    let handler = RuntimeCoroutineContextExceptionHandlerBox(fnPtr)
     let box = RuntimeCoroutineContextBox(exceptionHandler: handler)
     return retainContextBox(box)
 }
