@@ -411,9 +411,12 @@ extension CallLowerer {
             ))
             return result
         case .rangeTo:
+            let rangeToCallee = sema.bindings.isUIntRangeExpr(exprID)
+                ? interner.intern("kk_uint_rangeTo")
+                : interner.intern("kk_op_rangeTo")
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_rangeTo"),
+                callee: rangeToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,
@@ -434,9 +437,12 @@ extension CallLowerer {
             ))
             return result
         case .downTo:
+            let downToCallee = sema.bindings.isUIntRangeExpr(exprID)
+                ? interner.intern("kk_uint_downTo")
+                : interner.intern("kk_op_downTo")
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_downTo"),
+                callee: downToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,
@@ -444,9 +450,12 @@ extension CallLowerer {
             ))
             return result
         case .step:
+            let stepCallee = sema.bindings.isUIntRangeExpr(exprID)
+                ? interner.intern("kk_uint_step")
+                : interner.intern("kk_op_step")
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_step"),
+                callee: stepCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,

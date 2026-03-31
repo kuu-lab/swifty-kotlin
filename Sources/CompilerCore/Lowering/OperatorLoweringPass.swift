@@ -43,11 +43,15 @@ final class OperatorLoweringPass: LoweringPass {
             intToDoubleBits: ctx.interner.intern("kk_int_to_double_bits"),
             rangeCallees: [
                 ctx.interner.intern("kk_op_rangeTo"),
+                ctx.interner.intern("kk_uint_rangeTo"),
                 ctx.interner.intern("kk_op_rangeUntil"),
                 ctx.interner.intern("kk_op_ulong_rangeUntil"),
                 ctx.interner.intern("kk_op_downTo"),
+                ctx.interner.intern("kk_uint_downTo"),
                 ctx.interner.intern("kk_op_step"),
+                ctx.interner.intern("kk_uint_step"),
                 ctx.interner.intern("kk_range_reversed"),
+                ctx.interner.intern("kk_uint_range_reversed"),
             ]
         )
 

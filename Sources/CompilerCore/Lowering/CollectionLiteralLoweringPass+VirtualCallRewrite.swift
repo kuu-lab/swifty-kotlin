@@ -86,6 +86,7 @@ extension CollectionLiteralLoweringPass {
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
+            sema: context.sema, interner: context.interner,
             rangeExprIDs: &rangeExprIDs, charRangeExprIDs: &charRangeExprIDs,
             ulongRangeExprIDs: &ulongRangeExprIDs,
             listExprIDs: &listExprIDs,
@@ -2029,6 +2030,8 @@ extension CollectionLiteralLoweringPass {
         origThrownResult: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
+        sema: SemaModule?,
+        interner: StringInterner,
         rangeExprIDs: inout Set<Int32>,
         charRangeExprIDs: inout Set<Int32>,
         ulongRangeExprIDs: inout Set<Int32>,
@@ -2038,10 +2041,11 @@ extension CollectionLiteralLoweringPass {
         guard rangeExprIDs.contains(receiver.rawValue) else { return false }
         let isCharRange = charRangeExprIDs.contains(receiver.rawValue)
         let isULongRange = ulongRangeExprIDs.contains(receiver.rawValue)
+        let isUIntRange = sema.map { module.arena.exprType(receiver) == $0.types.uintType } ?? false
 
         // step — simple property access (STDLIB-RANGE-037)
         if callee == lookup.stepName, arguments.isEmpty {
-            let stepName = isULongRange ? lookup.kkULongRangeStepName : lookup.kkRangeStepName
+            let stepName = isULongRange ? lookup.kkULongRangeStepName : (isUIntRange ? interner.intern("kk_uint_range_step") : lookup.kkRangeStepName)
             loweredBody.append(.call(
                 symbol: nil, callee: stepName,
                 arguments: [receiver], result: result,
@@ -2052,7 +2056,7 @@ extension CollectionLiteralLoweringPass {
 
         // first / last / start / endInclusive / count — simple property access (STDLIB-092 / STDLIB-RANGE-034)
         if (callee == lookup.firstName || callee == lookup.startName), arguments.isEmpty {
-            let firstName = isULongRange ? lookup.kkULongRangeFirstName : lookup.kkRangeFirstName
+            let firstName = isULongRange ? lookup.kkULongRangeFirstName : (isUIntRange ? interner.intern("kk_uint_range_first") : lookup.kkRangeFirstName)
             loweredBody.append(.call(
                 symbol: nil, callee: firstName,
                 arguments: [receiver], result: result,
@@ -2061,7 +2065,7 @@ extension CollectionLiteralLoweringPass {
             return true
         }
         if (callee == lookup.lastName || callee == lookup.endInclusiveName), arguments.isEmpty {
-            let lastName = isULongRange ? lookup.kkULongRangeLastName : lookup.kkRangeLastName
+            let lastName = isULongRange ? lookup.kkULongRangeLastName : (isUIntRange ? interner.intern("kk_uint_range_last") : lookup.kkRangeLastName)
             loweredBody.append(.call(
                 symbol: nil, callee: lastName,
                 arguments: [receiver], result: result,
@@ -2071,7 +2075,7 @@ extension CollectionLiteralLoweringPass {
         }
         if callee == lookup.countName, arguments.isEmpty {
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeCountName,
+                symbol: nil, callee: isUIntRange ? interner.intern("kk_uint_range_count") : lookup.kkRangeCountName,
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
@@ -2079,7 +2083,7 @@ extension CollectionLiteralLoweringPass {
         }
         // STDLIB-637: isEmpty / sum
         if callee == lookup.isEmptyName, arguments.isEmpty {
-            let isEmptyName = isULongRange ? lookup.kkULongRangeIsEmptyName : lookup.kkRangeIsEmptyName
+            let isEmptyName = isULongRange ? lookup.kkULongRangeIsEmptyName : (isUIntRange ? interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
             loweredBody.append(.call(
                 symbol: nil, callee: isEmptyName,
                 arguments: [receiver], result: result,
@@ -2089,7 +2093,7 @@ extension CollectionLiteralLoweringPass {
         }
         if callee == lookup.sumName, arguments.isEmpty {
             loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeSumName,
+                symbol: nil, callee: isUIntRange ? interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
@@ -2098,7 +2102,7 @@ extension CollectionLiteralLoweringPass {
 
         // contains — delegate to kk_op_contains (STDLIB-090) or kk_ulong_range_contains (STDLIB-RANGE-037)
         if callee == lookup.containsName, arguments.count == 1 {
-            let containsName = isULongRange ? lookup.kkULongRangeContainsName : lookup.kkOpContainsName
+            let containsName = isULongRange ? lookup.kkULongRangeContainsName : (isUIntRange ? interner.intern("kk_uint_range_contains") : lookup.kkOpContainsName)
             loweredBody.append(.call(
                 symbol: nil, callee: containsName,
                 arguments: [receiver, arguments[0]], result: result,
@@ -2114,6 +2118,8 @@ extension CollectionLiteralLoweringPass {
                 toListCallee = lookup.kkCharRangeToListName
             } else if isULongRange {
                 toListCallee = lookup.kkULongRangeToListName
+            } else if isUIntRange {
+                toListCallee = interner.intern("kk_uint_range_toList")
             } else {
                 toListCallee = lookup.kkRangeToListName
             }
@@ -2123,6 +2129,15 @@ extension CollectionLiteralLoweringPass {
                 canThrow: false, thrownResult: nil
             ))
             if let result { listExprIDs.insert(result.rawValue) }
+            return true
+        }
+
+        if callee == interner.intern("toUIntArray"), arguments.isEmpty, isUIntRange {
+            loweredBody.append(.call(
+                symbol: nil, callee: interner.intern("kk_uint_range_toUIntArray"),
+                arguments: [receiver], result: result,
+                canThrow: false, thrownResult: nil
+            ))
             return true
         }
 
@@ -2159,7 +2174,7 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.forEachName, arguments.count == 1 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let forEachCallee = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
+            let forEachCallee = isCharRange ? lookup.kkCharRangeForEachName : (isUIntRange ? interner.intern("kk_uint_range_forEach") : lookup.kkRangeForEachName)
             _ = emitHOFCall(
                 kkName: forEachCallee, receiver: receiver,
                 arguments: arguments + [zeroExpr],
@@ -2175,7 +2190,7 @@ extension CollectionLiteralLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: lookup.kkRangeMapName, receiver: receiver,
+                kkName: isUIntRange ? interner.intern("kk_uint_range_map") : lookup.kkRangeMapName, receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, module: module,
@@ -2414,7 +2429,7 @@ extension CollectionLiteralLoweringPass {
 
         // reversed — returns a range (STDLIB-093)
         if callee == lookup.reversedName, arguments.isEmpty {
-            let reversedName = isULongRange ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
+            let reversedName = isULongRange ? lookup.kkULongRangeReversedName : (isUIntRange ? interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
             loweredBody.append(.call(
                 symbol: nil, callee: reversedName,
                 arguments: [receiver], result: result,

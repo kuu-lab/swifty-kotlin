@@ -977,11 +977,13 @@ public final class BindingTable {
     public private(set) var collectionExprIDs: Set<ExprID> = []
     public private(set) var rangeExprIDs: Set<ExprID> = []
     public private(set) var charRangeExprIDs: Set<ExprID> = []
+    public private(set) var uintRangeExprIDs: Set<ExprID> = []
     public private(set) var ulongRangeExprIDs: Set<ExprID> = []
     public private(set) var flowExprIDs: Set<ExprID> = []
     public private(set) var collectionSymbolIDs: Set<SymbolID> = []
     public private(set) var rangeSymbolIDs: Set<SymbolID> = []
     public private(set) var charRangeSymbolIDs: Set<SymbolID> = []
+    public private(set) var uintRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
@@ -1105,6 +1107,14 @@ public final class BindingTable {
         charRangeExprIDs.contains(expr)
     }
 
+    public func markUIntRangeExpr(_ expr: ExprID) {
+        uintRangeExprIDs.insert(expr)
+    }
+
+    public func isUIntRangeExpr(_ expr: ExprID) -> Bool {
+        uintRangeExprIDs.contains(expr)
+    }
+
     public func markULongRangeExpr(_ expr: ExprID) {
         ulongRangeExprIDs.insert(expr)
     }
@@ -1160,6 +1170,14 @@ public final class BindingTable {
 
     public func isCharRangeSymbol(_ symbol: SymbolID) -> Bool {
         charRangeSymbolIDs.contains(symbol)
+    }
+
+    public func markUIntRangeSymbol(_ symbol: SymbolID) {
+        uintRangeSymbolIDs.insert(symbol)
+    }
+
+    public func isUIntRangeSymbol(_ symbol: SymbolID) -> Bool {
+        uintRangeSymbolIDs.contains(symbol)
     }
 
     public func markULongRangeSymbol(_ symbol: SymbolID) {

@@ -174,6 +174,9 @@ extension ExprTypeChecker {
             if sema.bindings.isCharRangeSymbol(local.symbol) {
                 sema.bindings.markCharRangeExpr(id)
             }
+            if sema.bindings.isUIntRangeSymbol(local.symbol) {
+                sema.bindings.markUIntRangeExpr(id)
+            }
             if sema.bindings.isULongRangeSymbol(local.symbol) {
                 sema.bindings.markULongRangeExpr(id)
             }

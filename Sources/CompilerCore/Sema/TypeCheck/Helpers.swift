@@ -86,12 +86,17 @@ struct TypeCheckHelpers {
         if case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(iterableType)),
            let symbol = sema.symbols.symbol(classType.classSymbol)
         {
-            let name = interner.resolve(symbol.name)
-            if name == "IntRange" {
+            switch interner.resolve(symbol.name) {
+            case "IntRange", "IntProgression":
                 return sema.types.intType
-            }
-            if name == "LongRange" {
+            case "LongRange", "LongProgression":
                 return sema.types.longType
+            case "UIntRange", "UIntProgression":
+                return sema.types.uintType
+            case "ULongProgression":
+                return sema.types.ulongType
+            default:
+                break
             }
         }
         // Map/MutableMap iteration yields Map.Entry<K, V>, not the first type argument.

@@ -31,6 +31,9 @@ extension CallTypeChecker {
            ].contains(externalLinkName)
         {
             sema.bindings.markRangeExpr(id)
+            if externalLinkName == "kk_uint_progression_fromClosedRange" {
+                sema.bindings.markUIntRangeExpr(id)
+            }
             if externalLinkName == "kk_ulong_progression_fromClosedRange" {
                 sema.bindings.markULongRangeExpr(id)
             }
