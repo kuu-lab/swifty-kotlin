@@ -328,21 +328,6 @@ extension CallTypeChecker {
         )))
     }
 
-    private func rangeMemberIteratorType(
-        elementType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let iteratorSymbol = sema.symbols.lookupByShortName(interner.intern("Iterator")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: iteratorSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
     private func rangeMemberRangeType(
         receiverType: TypeID?,
         elementType: TypeID,
