@@ -2594,18 +2594,6 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-    public static let kk_kclass_get_annotations = ExternDecl(
-        name: "kk_kclass_get_annotations",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_kclass_find_annotation = ExternDecl(
-        name: "kk_kclass_find_annotation",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
     public static let kk_kclass_has_annotation = ExternDecl(
         name: "kk_kclass_has_annotation",
         parameterTypes: ["intptr_t", "intptr_t"],
@@ -4714,8 +4702,6 @@ public enum RuntimeABIExterns {
             kk_kclass_declared_member_functions,
             // REFL-006: Annotation reflection
             kk_kclass_register_annotation,
-            kk_kclass_get_annotations,
-            kk_kclass_find_annotation,
             kk_kclass_has_annotation,
             kk_annotation_class_name,
             kk_annotation_simple_class_name,
