@@ -72,6 +72,15 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerAtomicGetAndUpdateMethods(
+            ownerSymbol: atomicIntSymbol,
+            ownerType: atomicIntType,
+            valueType: intType,
+            prefix: "kk_atomic_int",
+            symbols: symbols,
+            interner: interner,
+            types: types
+        )
 
         registerAtomicGetAndUpdateMethods(
             ownerSymbol: atomicIntSymbol,
@@ -133,6 +142,15 @@ extension DataFlowSemaPhase {
             prefix: "kk_atomic_long",
             symbols: symbols,
             interner: interner
+        )
+        registerAtomicGetAndUpdateMethods(
+            ownerSymbol: atomicLongSymbol,
+            ownerType: atomicLongType,
+            valueType: longType,
+            prefix: "kk_atomic_long",
+            symbols: symbols,
+            interner: interner,
+            types: types
         )
 
         registerAtomicGetAndUpdateMethods(
