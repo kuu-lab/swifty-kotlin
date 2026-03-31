@@ -458,55 +458,6 @@ public enum RuntimeABIExterns {
         returnType: "intptr_t"
     )
 
-// MARK: - Instant (STDLIB-TIME-083)
-
-    public static let kk_instant_now = ExternDecl(
-        name: "kk_instant_now",
-        parameterTypes: [],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_from_epoch_millis = ExternDecl(
-        name: "kk_instant_from_epoch_millis",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_epoch_seconds = ExternDecl(
-        name: "kk_instant_epoch_seconds",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_nano_of_second = ExternDecl(
-        name: "kk_instant_nano_of_second",
-        parameterTypes: ["intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_plus_duration = ExternDecl(
-        name: "kk_instant_plus_duration",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_minus_duration = ExternDecl(
-        name: "kk_instant_minus_duration",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_compare = ExternDecl(
-        name: "kk_instant_compare",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
-
-    public static let kk_instant_until = ExternDecl(
-        name: "kk_instant_until",
-        parameterTypes: ["intptr_t", "intptr_t"],
-        returnType: "intptr_t"
-    )
     public static let kk_throwable_message = ExternDecl(
         name: "kk_throwable_message",
         parameterTypes: ["intptr_t"],
@@ -1934,6 +1885,38 @@ public enum RuntimeABIExterns {
 
     public static let kk_channel_is_closed_token = ExternDecl(
         name: "kk_channel_is_closed_token",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_channel_is_closed_for_receive = ExternDecl(
+        name: "kk_channel_is_closed_for_receive",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_channel_is_closed_for_send = ExternDecl(
+        name: "kk_channel_is_closed_for_send",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    // Channel iterator (CORO-075)
+
+    public static let kk_channel_iterator = ExternDecl(
+        name: "kk_channel_iterator",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_channel_iterator_hasNext = ExternDecl(
+        name: "kk_channel_iterator_hasNext",
+        parameterTypes: ["intptr_t"],
+        returnType: "intptr_t"
+    )
+
+    public static let kk_channel_iterator_next = ExternDecl(
+        name: "kk_channel_iterator_next",
         parameterTypes: ["intptr_t"],
         returnType: "intptr_t"
     )
@@ -4036,6 +4019,12 @@ public enum RuntimeABIExterns {
             kk_channel_receive,
             kk_channel_close,
             kk_channel_is_closed_token,
+            kk_channel_is_closed_for_receive,
+            kk_channel_is_closed_for_send,
+            // Channel iterator (CORO-075)
+            kk_channel_iterator,
+            kk_channel_iterator_hasNext,
+            kk_channel_iterator_next,
             // Deferred / awaitAll
             kk_await_all,
             // Structured Concurrency (P5-89)
