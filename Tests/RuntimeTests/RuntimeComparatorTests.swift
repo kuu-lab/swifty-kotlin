@@ -2,6 +2,23 @@ import Foundation
 @testable import Runtime
 import XCTest
 
+// MARK: - Trampoline wrappers
+// Local @convention(c) closures that delegate to the @_cdecl runtime functions.
+// We must NOT pass @_cdecl functions directly to comparatorPtr() because Swift
+// would re-export the C symbol in this module, causing duplicate symbol linker errors.
+
+private let thenByTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
+    kk_comparator_then_by_trampoline(closureRaw, a, b, outThrown)
+}
+
+private let thenByDescendingTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
+    kk_comparator_then_by_descending_trampoline(closureRaw, a, b, outThrown)
+}
+
+private let nullsFirstTrampoline: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, a, b, outThrown in
+    kk_comparator_nulls_first_trampoline(closureRaw, a, b, outThrown)
+}
+
 // MARK: - Test lambdas
 
 private let selectIdentity: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -187,7 +204,7 @@ final class RuntimeComparatorTests: XCTestCase {
         let chain = kk_comparator_then_by(byMod10, 0, selectorPtr(selectIdentity), 0)
         let sorted = kk_list_sortedWith(
             source,
-            comparatorPtr(kk_comparator_then_by_trampoline),
+            comparatorPtr(thenByTrampoline),
             chain,
             nil
         )
@@ -200,7 +217,7 @@ final class RuntimeComparatorTests: XCTestCase {
         let chain = kk_comparator_then_by_descending(byMod10, 0, selectorPtr(selectIdentity), 0)
         let sorted = kk_list_sortedWith(
             source,
-            comparatorPtr(kk_comparator_then_by_descending_trampoline),
+            comparatorPtr(thenByDescendingTrampoline),
             chain,
             nil
         )
@@ -212,7 +229,7 @@ final class RuntimeComparatorTests: XCTestCase {
         let chain = kk_comparator_nulls_first(comparatorPtr(comparatorNatural), 0)
         let sorted = kk_list_sortedWith(
             source,
-            comparatorPtr(kk_comparator_nulls_first_trampoline),
+            comparatorPtr(nullsFirstTrampoline),
             chain,
             nil
         )
