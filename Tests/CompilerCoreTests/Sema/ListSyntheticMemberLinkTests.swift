@@ -726,6 +726,37 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testListIteratorMemberResolvesWithoutTypeConstraintFailure() throws {
+        let source = """
+        class IntContainer(private val elements: List<Int>) {
+            operator fun iterator(): Iterator<Int> = elements.iterator()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let iteratorCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "iterator"
+            }, "Expected List.iterator() call in AST")
+
+            let chosenCallee = try XCTUnwrap(
+                sema.bindings.callBinding(for: iteratorCall)?.chosenCallee,
+                "Expected List.iterator() to resolve"
+            )
+            XCTAssertEqual(
+                sema.symbols.externalLinkName(for: chosenCallee),
+                "kk_range_iterator"
+            )
+        }
+    }
+
     /// Regression: listOf(...).contains/isEmpty must not emit KSWIFTK-SEMA-VAR-OUT.
     /// The synthetic List type uses .out projection; variance relaxation must apply.
     func testListOfContainsAndIsEmptyDoNotEmitVarOut() throws {
