@@ -22,12 +22,41 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) -> TypeID? {
         let memberName = ctx.interner.resolve(calleeName)
-        let flowMembers: Set = ["map", "filter", "take", "collect"]
+        let flowMembers: Set = ["map", "filter", "take", "collect", "toList", "first"]
         guard flowMembers.contains(memberName) else {
             return nil
         }
 
         switch memberName {
+        case "toList":
+            // Flow.toList() — collects all emitted values into a List
+            guard args.isEmpty else {
+                return nil
+            }
+            let listSymbol = sema.symbols.lookupByShortName(ctx.interner.intern("List")).first
+            let resultType: TypeID = if let listSymbol {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+
+        case "first":
+            // Flow.first() — returns the first emitted value
+            guard args.isEmpty else {
+                return nil
+            }
+            let firstType = receiverElementType
+            let finalType = safeCall ? sema.types.makeNullable(firstType) : firstType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+
         case "take":
             guard args.count == 1 else {
                 return nil
@@ -222,9 +251,14 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: boolType)
                     return boolType
                 }
-                if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
-                   args.isEmpty
-                {
+                let kclassMemberCollectionCallees: Set<InternedString> = [
+                    knownNames.membersName, knownNames.constructorsName,
+                    knownNames.propertiesName, knownNames.memberPropertiesName,
+                    knownNames.declaredMemberPropertiesName,
+                    knownNames.functionsName, knownNames.memberFunctionsName,
+                    knownNames.declaredMemberFunctionsName,
+                ]
+                if kclassMemberCollectionCallees.contains(calleeName), args.isEmpty {
                     let listType = makeSyntheticListType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -254,6 +288,34 @@ extension CallTypeChecker {
             }
         }
 
+        // STDLIB-NUM-130: Numeric companion static functions: Double.fromBits(Long), Float.fromBits(Int)
+        if args.count == 1,
+           case let .nameRef(receiverName, _) = ast.arena.expr(receiverID),
+           locals[receiverName] == nil
+        {
+            let receiverStr = interner.resolve(receiverName)
+            let memberStr = interner.resolve(calleeName)
+            if let (returnType, externalName) = numericCompanionFunction(
+                typeName: receiverStr, memberName: memberStr, sema: sema
+            ) {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                let fromBitsName = interner.intern(memberStr)
+                let kotlinPkgName: [InternedString] = [interner.intern("kotlin")]
+                let funcFQName = kotlinPkgName + [fromBitsName]
+                let allCandidates = sema.symbols.lookupAll(fqName: funcFQName)
+                if let funcSymbol = allCandidates.first(where: { sid in
+                    sema.symbols.symbol(sid)?.kind == .function
+                        && sema.symbols.externalLinkName(for: sid) == externalName
+                }) {
+                    sema.bindings.bindIdentifier(id, symbol: funcSymbol)
+                    sema.bindings.bindExprType(id, type: returnType)
+                    // Bind receiver as unit so lowering does not pass the class name as argument.
+                    sema.bindings.bindExprType(receiverID, type: sema.types.unitType)
+                    return returnType
+                }
+            }
+        }
+
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
 
         if case .kClassType = sema.types.kind(of: sema.types.makeNonNullable(receiverType)) {
@@ -263,9 +325,14 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: boolType)
                 return boolType
             }
-            if (calleeName == knownNames.membersName || calleeName == knownNames.constructorsName),
-               args.isEmpty
-            {
+            let kclassVarMemberCollectionCallees: Set<InternedString> = [
+                knownNames.membersName, knownNames.constructorsName,
+                knownNames.propertiesName, knownNames.memberPropertiesName,
+                knownNames.declaredMemberPropertiesName,
+                knownNames.functionsName, knownNames.memberFunctionsName,
+                knownNames.declaredMemberFunctionsName,
+            ]
+            if kclassVarMemberCollectionCallees.contains(calleeName), args.isEmpty {
                 let listType = makeSyntheticListType(
                     symbols: sema.symbols,
                     types: sema.types,
@@ -330,7 +397,7 @@ extension CallTypeChecker {
             case "run": .scopeRun
             case "apply": .scopeApply
             case "also": .scopeAlso
-            case "use" where isCloseableReceiver(receiverType, sema: sema): .scopeUse
+            case "use" where isCloseableReceiver(receiverType, sema: sema, interner: interner): .scopeUse
             default: nil
             }
             let hasUserDefinedMember = if scopeKind != nil {
@@ -2426,6 +2493,11 @@ extension CallTypeChecker {
         case .primitive(.string, _):
             false
         case .primitive:
+            true
+        case .typeParam:
+            // All type parameters have an implicit upper bound of Any? in Kotlin,
+            // so Any methods (toString, hashCode, equals) are always available on
+            // type parameter receivers (STDLIB-GEN-055).
             true
         default:
             anyFallbackReceiverType == sema.types.anyType || anyFallbackReceiverType == sema.types.nullableAnyType
@@ -5233,6 +5305,26 @@ extension CallTypeChecker {
         )))
     }
 
+    // MARK: - Numeric companion static functions (STDLIB-NUM-130)
+
+    /// Returns `(returnType, externalLinkName)` for built-in primitive companion static functions
+    /// like `Double.fromBits(bits: Long)` and `Float.fromBits(bits: Int)`.
+    private func numericCompanionFunction(
+        typeName: String,
+        memberName: String,
+        sema: SemaModule
+    ) -> (TypeID, String)? {
+        let types = sema.types
+        switch (typeName, memberName) {
+        case ("Double", "fromBits"):
+            return (types.doubleType, "kk_double_fromBits")
+        case ("Float", "fromBits"):
+            return (types.floatType, "kk_float_fromBits")
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Numeric companion constants (STDLIB-153)
 
     private func numericCompanionConstant(
@@ -5279,12 +5371,32 @@ extension CallTypeChecker {
     /// Note: AutoCloseable is registered as a typealias to Closeable (see
     /// HeaderHelpers+SyntheticCloseableStubs.swift), so checking Closeable alone
     /// covers both Closeable and AutoCloseable receivers.
-    private func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
+    ///
+    /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
+    /// OutputStream) that implement Closeable through the nominal supertype chain registered
+    /// by registerSyntheticFileIOStubs, we also accept any class type whose class symbol
+    /// has a `close()` member function registered with no parameters — this ensures that
+    /// `file.bufferedReader().use { }` and similar patterns resolve correctly.
+    private func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
         guard let closeableType = sema.types.closeableTypeID else {
             return false
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        return sema.types.isSubtype(nonNullReceiver, closeableType)
+        if sema.types.isSubtype(nonNullReceiver, closeableType) {
+            return true
+        }
+        // Fallback: check if the class explicitly declares Closeable or AutoCloseable
+        // in its registered supertype list.  This handles synthetic IO types
+        // (BufferedReader, BufferedWriter, InputStream, OutputStream) whose supertypes
+        // are registered via registerSyntheticFileIOStubs / setDirectSupertypes, without
+        // accidentally treating every class that happens to define close() as Closeable.
+        guard let closeableSymbol = sema.types.closeableInterfaceSymbol,
+              case let .classType(classType) = sema.types.kind(of: nonNullReceiver)
+        else {
+            return false
+        }
+        let directSupertypes = sema.symbols.directSupertypes(for: classType.classSymbol)
+        return directSupertypes.contains(closeableSymbol)
     }
 
     // MARK: - Result helpers (STDLIB-590)

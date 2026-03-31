@@ -125,6 +125,21 @@ public func kk_list_filter(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
     return registerRuntimeObject(RuntimeListBox(elements: filtered))
 }
 
+@_cdecl("kk_list_filterNot")
+public func kk_list_filterNot(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    var filtered: [Int] = []
+    for elem in list.elements {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        if !runtimeCollectionBool(result) { filtered.append(elem) }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: filtered))
+}
+
 @_cdecl("kk_list_mapNotNull")
 public func kk_list_mapNotNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
@@ -2272,6 +2287,62 @@ public func kk_set_forEach(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ out
         if thrown != 0 { outThrown?.pointee = thrown; return 0 }
     }
     return 0
+}
+
+@_cdecl("kk_set_filterNot")
+public func kk_set_filterNot(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let set = runtimeSetBox(from: setRaw) else {
+        invalidContainerPanic(#function, "set")
+    }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var filtered: [Int] = []
+    for elem in set.elements {
+        var thrown = 0
+        let result = lambda(closureRaw, elem, &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return registerRuntimeObject(RuntimeListBox(elements: [])) }
+        if maybeUnbox(result) == 0 { filtered.append(elem) }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: filtered))
+}
+
+@_cdecl("kk_set_mapNotNull")
+public func kk_set_mapNotNull(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let set = runtimeSetBox(from: setRaw) else {
+        invalidContainerPanic(#function, "set")
+    }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var mapped: [Int] = []
+    for elem in set.elements {
+        var thrown = 0
+        let result = lambda(closureRaw, elem, &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return registerRuntimeObject(RuntimeListBox(elements: [])) }
+        if let normalized = runtimeNormalizeNullableCollectionValue(result) {
+            mapped.append(normalized)
+        }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: mapped))
+}
+
+@_cdecl("kk_set_flatMap")
+public func kk_set_flatMap(_ setRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let set = runtimeSetBox(from: setRaw) else {
+        invalidContainerPanic(#function, "set")
+    }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var result: [Int] = []
+    for elem in set.elements {
+        var thrown = 0
+        let subCollRaw = lambda(closureRaw, elem, &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return registerRuntimeObject(RuntimeListBox(elements: [])) }
+        if let subList = runtimeListBox(from: subCollRaw) {
+            result.append(contentsOf: subList.elements)
+        } else if let subSet = runtimeSetBox(from: subCollRaw) {
+            result.append(contentsOf: subSet.elements)
+        } else if let subArray = runtimeArrayBox(from: subCollRaw) {
+            result.append(contentsOf: subArray.elements)
+        }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
 }
 
 // MARK: - Array higher-order functions (STDLIB-088)

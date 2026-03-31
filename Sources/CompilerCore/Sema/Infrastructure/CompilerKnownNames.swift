@@ -150,6 +150,13 @@ struct KnownCompilerNames {
     let isInstanceName: InternedString
     let membersName: InternedString
     let constructorsName: InternedString
+    // STDLIB-REFLECT-061: KClass member access
+    let propertiesName: InternedString
+    let memberPropertiesName: InternedString
+    let declaredMemberPropertiesName: InternedString
+    let functionsName: InternedString
+    let memberFunctionsName: InternedString
+    let declaredMemberFunctionsName: InternedString
     let size: InternedString
     let isEmpty: InternedString
     let getValue: InternedString
@@ -182,6 +189,12 @@ struct KnownCompilerNames {
     let clear: InternedString
     let reverse: InternedString
     let length: InternedString
+    // STDLIB-STR-123
+    let replace: InternedString
+    let setCharAt: InternedString
+    let capacity: InternedString
+    let ensureCapacity: InternedString
+    let trimToSize: InternedString
 
     let kotlinRegexFQName: [InternedString]
     let kotlinStringBuilderFQName: [InternedString]
@@ -289,6 +302,13 @@ struct KnownCompilerNames {
         isInstanceName = interner.intern("isInstance")
         membersName = interner.intern("members")
         constructorsName = interner.intern("constructors")
+        // STDLIB-REFLECT-061: KClass member access
+        propertiesName = interner.intern("properties")
+        memberPropertiesName = interner.intern("memberProperties")
+        declaredMemberPropertiesName = interner.intern("declaredMemberProperties")
+        functionsName = interner.intern("functions")
+        memberFunctionsName = interner.intern("memberFunctions")
+        declaredMemberFunctionsName = interner.intern("declaredMemberFunctions")
         size = interner.intern("size")
         isEmpty = interner.intern("isEmpty")
         getValue = interner.intern("getValue")
@@ -321,6 +341,12 @@ struct KnownCompilerNames {
         clear = interner.intern("clear")
         reverse = interner.intern("reverse")
         length = interner.intern("length")
+        // STDLIB-STR-123
+        replace = interner.intern("replace")
+        setCharAt = interner.intern("setCharAt")
+        capacity = interner.intern("capacity")
+        ensureCapacity = interner.intern("ensureCapacity")
+        trimToSize = interner.intern("trimToSize")
 
         let kotlin = interner.intern("kotlin")
         let kotlinText = interner.intern("text")

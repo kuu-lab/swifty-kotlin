@@ -189,6 +189,19 @@ extension ABILoweringPass {
             interner.intern("kk_double_roundToInt"),
             interner.intern("kk_float_roundToLong"),
             interner.intern("kk_double_roundToLong"),
+            // STDLIB-NUM-130: isNaN / isInfinite / isFinite / toBits / fromBits
+            interner.intern("kk_double_isNaN"),
+            interner.intern("kk_double_isInfinite"),
+            interner.intern("kk_double_isFinite"),
+            interner.intern("kk_float_isNaN"),
+            interner.intern("kk_float_isInfinite"),
+            interner.intern("kk_float_isFinite"),
+            interner.intern("kk_double_toBits"),
+            interner.intern("kk_double_toRawBits"),
+            interner.intern("kk_double_fromBits"),
+            interner.intern("kk_float_toBits"),
+            interner.intern("kk_float_toRawBits"),
+            interner.intern("kk_float_fromBits"),
             // STDLIB-512~513: ulp / nextUp / nextDown extensions
             interner.intern("kk_double_ulp"),
             interner.intern("kk_double_nextUp"),
@@ -262,6 +275,17 @@ extension ABILoweringPass {
             interner.intern("kk_range_step"),
             interner.intern("kk_range_reversed"),
             interner.intern("kk_char_range_toList"),
+            // UIntRange properties and HOFs (STDLIB-RANGE-036)
+            interner.intern("kk_uint_range_contains"),
+            interner.intern("kk_uint_range_isEmpty"),
+            interner.intern("kk_uint_range_first"),
+            interner.intern("kk_uint_range_last"),
+            interner.intern("kk_uint_range_step"),
+            interner.intern("kk_uint_range_count"),
+            interner.intern("kk_uint_range_sum"),
+            interner.intern("kk_uint_range_toUIntArray"),
+            interner.intern("kk_uint_range_reversed"),
+            interner.intern("kk_uint_range_toList"),
             // kk_property_access removed — PropertyLowering now emits direct accessor
             // calls with synthetic symbols; canThrow is handled via symbol check below.
             interner.intern("kk_lambda_invoke"),
@@ -290,6 +314,8 @@ extension ABILoweringPass {
             interner.intern("kk_flow_collect"),
             interner.intern("kk_flow_retain"),
             interner.intern("kk_flow_release"),
+            interner.intern("kk_flow_to_list"),
+            interner.intern("kk_flow_first"),
             interner.intern("kk_coroutine_launcher_arg_set"),
             interner.intern("kk_coroutine_launcher_arg_get"),
             interner.intern("kk_kxmini_run_blocking_with_cont"),
@@ -795,6 +821,10 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_is_sealed"),
             interner.intern("kk_kclass_is_value"),
             interner.intern("kk_kclass_members_count"),
+            // Job State Queries (STDLIB-CORO-070)
+            interner.intern("kk_job_is_active"),
+            interner.intern("kk_job_is_completed"),
+            interner.intern("kk_job_is_cancelled"),
         ]).union(Self.kPropertyStubCallees(interner))
     }
 }

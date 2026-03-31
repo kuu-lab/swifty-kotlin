@@ -60,6 +60,9 @@ struct CollectionLiteralLookupTables {
     let kkSetFilterName: InternedString
     let kkSetForEachName: InternedString
     let kkSetToListName: InternedString
+    let kkSetFilterNotName: InternedString
+    let kkSetMapNotNullName: InternedString
+    let kkSetFlatMapName: InternedString
 
     let kkStringSplitName: InternedString
     let kkStringChunkedName: InternedString
@@ -80,6 +83,7 @@ struct CollectionLiteralLookupTables {
     // Higher-order collection function ABI names (FUNC-003)
     let kkListMapName: InternedString
     let kkListFilterName: InternedString
+    let kkListFilterNotName: InternedString
     let kkListMapNotNullName: InternedString
     let kkListFilterNotNullName: InternedString
     let kkListForEachName: InternedString
@@ -353,6 +357,7 @@ struct CollectionLiteralLookupTables {
     let kkRangeReversedName: InternedString
     let kkRangeIsEmptyName: InternedString
     let kkRangeSumName: InternedString
+    let kkRangeToIntArrayName: InternedString
     let kkOpContainsName: InternedString
 
     // Member names (STDLIB-637)
@@ -498,6 +503,7 @@ struct CollectionLiteralLookupTables {
     let asSequenceName: InternedString
     let toListName: InternedString
     let toULongArrayName: InternedString
+    let toIntArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
@@ -708,6 +714,9 @@ struct CollectionLiteralLookupTables {
         kkSetFilterName = interner.intern("kk_set_filter")
         kkSetForEachName = interner.intern("kk_set_forEach")
         kkSetToListName = interner.intern("kk_set_toList")
+        kkSetFilterNotName = interner.intern("kk_set_filterNot")
+        kkSetMapNotNullName = interner.intern("kk_set_mapNotNull")
+        kkSetFlatMapName = interner.intern("kk_set_flatMap")
         kkStringSplitName = interner.intern("kk_string_split")
         kkStringChunkedName = interner.intern("kk_string_chunked")
         kkStringWindowedName = interner.intern("kk_string_windowed")
@@ -726,6 +735,7 @@ struct CollectionLiteralLookupTables {
 
         kkListMapName = interner.intern("kk_list_map")
         kkListFilterName = interner.intern("kk_list_filter")
+        kkListFilterNotName = interner.intern("kk_list_filterNot")
         kkListMapNotNullName = interner.intern("kk_list_mapNotNull")
         kkListFilterNotNullName = interner.intern("kk_list_filterNotNull")
         kkListForEachName = interner.intern("kk_list_forEach")
@@ -990,6 +1000,7 @@ struct CollectionLiteralLookupTables {
         kkRangeReversedName = interner.intern("kk_range_reversed")
         kkRangeIsEmptyName = interner.intern("kk_range_isEmpty")
         kkRangeSumName = interner.intern("kk_range_sum")
+        kkRangeToIntArrayName = interner.intern("kk_range_toIntArray")
         kkOpContainsName = interner.intern("kk_op_contains")
 
         sumName = interner.intern("sum")
@@ -1129,6 +1140,7 @@ struct CollectionLiteralLookupTables {
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
         toULongArrayName = interner.intern("toULongArray")
+        toIntArrayName = interner.intern("toIntArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")

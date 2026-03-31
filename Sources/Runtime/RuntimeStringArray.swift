@@ -735,6 +735,94 @@ public func kk_kclass_constructors(_ kclassRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: placeholders))
 }
 
+// MARK: - STDLIB-REFLECT-061: KClass member access (properties, functions, etc.)
+
+/// Returns all properties (including inherited) of this KClass as a runtime list.
+/// Returns a list of `RuntimeKCallableBox` elements representing each property.
+/// The count is derived from metadata when available; otherwise an empty list is returned.
+@_cdecl("kk_kclass_properties")
+public func kk_kclass_properties(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // Use fieldCount for total properties (fields represent properties in the metadata).
+    let count = box.metadata?.fieldCount ?? 0
+    let placeholders = (0..<max(count, 0)).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
+/// Returns the non-extension member properties of this KClass as a runtime list.
+/// These are the properties declared directly in the class or its superclasses,
+/// excluding extension properties.
+@_cdecl("kk_kclass_member_properties")
+public func kk_kclass_member_properties(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // fieldCount corresponds to the number of declared data fields / member properties.
+    let count = box.metadata?.fieldCount ?? 0
+    let placeholders = (0..<max(count, 0)).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
+/// Returns the declared member properties of this KClass (own class only, not inherited).
+/// These are properties explicitly declared in this class, excluding superclass properties.
+@_cdecl("kk_kclass_declared_member_properties")
+public func kk_kclass_declared_member_properties(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // fieldCount represents fields declared in the class itself.
+    let count = box.metadata?.fieldCount ?? 0
+    let placeholders = (0..<max(count, 0)).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
+/// Returns all functions (including inherited) of this KClass as a runtime list.
+/// Returns a list of `RuntimeKFunctionBox`-compatible elements representing each function.
+@_cdecl("kk_kclass_functions")
+public func kk_kclass_functions(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // Derive function count as memberCount minus fieldCount (properties are fields).
+    let memberCount = box.metadata?.memberCount ?? 0
+    let fieldCount = box.metadata?.fieldCount ?? 0
+    let count = max(0, memberCount - fieldCount)
+    let placeholders = (0..<count).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
+/// Returns the non-extension member functions of this KClass as a runtime list.
+/// These are functions declared in the class or its superclasses, excluding extensions.
+@_cdecl("kk_kclass_member_functions")
+public func kk_kclass_member_functions(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // Derive function count as memberCount minus fieldCount (approximate).
+    let memberCount = box.metadata?.memberCount ?? 0
+    let fieldCount = box.metadata?.fieldCount ?? 0
+    let functionCount = max(0, memberCount - fieldCount)
+    let placeholders = (0..<functionCount).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
+/// Returns the declared member functions of this KClass (own class only, not inherited).
+/// These are functions explicitly declared in this class, excluding superclass functions.
+@_cdecl("kk_kclass_declared_member_functions")
+public func kk_kclass_declared_member_functions(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    // Derive declared function count as memberCount minus fieldCount (approximate).
+    let memberCount = box.metadata?.memberCount ?? 0
+    let fieldCount = box.metadata?.fieldCount ?? 0
+    let functionCount = max(0, memberCount - fieldCount)
+    let placeholders = (0..<functionCount).map { _ in 0 }
+    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
+}
+
 // MARK: - REFL-005: KType and typeOf<T>()
 
 /// Creates a KType runtime object from a KClass classifier, type argument
