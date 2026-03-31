@@ -338,6 +338,7 @@ extension ExprTypeChecker {
                 sema.bindings.markULongRangeExpr(id)
             } else if lhs == uintType || rhs == uintType {
                 type = uintType
+                sema.bindings.markUIntRangeExpr(id)
             } else {
                 type = intType
             }
@@ -355,6 +356,7 @@ extension ExprTypeChecker {
                 type = ulongType
             } else if lhs == uintType {
                 type = uintType
+                sema.bindings.markUIntRangeExpr(id)
             } else {
                 type = intType
             }
@@ -366,6 +368,9 @@ extension ExprTypeChecker {
             // Inherit ULong range flag from the receiver (STDLIB-524)
             if sema.bindings.isULongRangeExpr(lhsID) {
                 sema.bindings.markULongRangeExpr(id)
+            }
+            if sema.bindings.isUIntRangeExpr(lhsID) {
+                sema.bindings.markUIntRangeExpr(id)
             }
         case .bitwiseAnd, .bitwiseOr, .bitwiseXor, .shl, .shr, .ushr:
             preconditionFailure("Bitwise/shift binary operators must be parsed as infix member calls")

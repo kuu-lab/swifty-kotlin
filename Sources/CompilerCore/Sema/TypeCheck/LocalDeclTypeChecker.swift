@@ -90,6 +90,10 @@ final class LocalDeclTypeChecker {
                 sema.bindings.markCharRangeExpr(id)
                 sema.bindings.markCharRangeSymbol(localSymbol)
             }
+            if sema.bindings.isUIntRangeExpr(initializer) {
+                sema.bindings.markUIntRangeExpr(id)
+                sema.bindings.markUIntRangeSymbol(localSymbol)
+            }
             if sema.bindings.isULongRangeExpr(initializer) {
                 sema.bindings.markULongRangeExpr(id)
                 sema.bindings.markULongRangeSymbol(localSymbol)

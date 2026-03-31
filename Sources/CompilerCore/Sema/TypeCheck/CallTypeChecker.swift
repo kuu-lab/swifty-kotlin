@@ -1515,6 +1515,7 @@ final class CallTypeChecker {
             if let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                [
                    "kk_op_rangeTo",
+                   "kk_uint_rangeTo",
                    "kk_int_progression_fromClosedRange",
                    "kk_long_progression_fromClosedRange",
                    "kk_uint_progression_fromClosedRange",
@@ -1522,6 +1523,9 @@ final class CallTypeChecker {
                ].contains(externalLinkName)
             {
                 sema.bindings.markRangeExpr(id)
+                if externalLinkName == "kk_uint_rangeTo" || externalLinkName == "kk_uint_progression_fromClosedRange" {
+                    sema.bindings.markUIntRangeExpr(id)
+                }
                 if externalLinkName == "kk_ulong_progression_fromClosedRange" {
                     sema.bindings.markULongRangeExpr(id)
                 }

@@ -528,9 +528,12 @@ final class OperatorLowerer {
             ))
             return result
         case .rangeTo:
+            let rangeToCallee = arena.exprType(result) == sema.types.uintType
+                ? interner.intern("kk_uint_rangeTo")
+                : interner.intern("kk_op_rangeTo")
             context.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_rangeTo"),
+                callee: rangeToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,
@@ -548,9 +551,12 @@ final class OperatorLowerer {
             ))
             return result
         case .downTo:
+            let downToCallee = arena.exprType(result) == sema.types.uintType
+                ? interner.intern("kk_uint_downTo")
+                : interner.intern("kk_op_downTo")
             context.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_downTo"),
+                callee: downToCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,
@@ -558,9 +564,12 @@ final class OperatorLowerer {
             ))
             return result
         case .step:
+            let stepCallee = arena.exprType(result) == sema.types.uintType
+                ? interner.intern("kk_uint_step")
+                : interner.intern("kk_op_step")
             context.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_op_step"),
+                callee: stepCallee,
                 arguments: [lhsID, rhsID],
                 result: result,
                 canThrow: false,

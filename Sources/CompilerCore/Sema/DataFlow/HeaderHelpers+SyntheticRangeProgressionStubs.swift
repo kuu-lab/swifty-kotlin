@@ -67,6 +67,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerSyntheticUIntRangeStub(
+            rangesPackageSymbol: rangesPackageSymbol,
+            rangesFQName: rangesFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerSyntheticProgressionStub(
             named: "ULongProgression",
             elementType: types.ulongType,
@@ -297,6 +304,152 @@ extension DataFlowSemaPhase {
             parameterTypes: [stepType],
             returnType: progressionType,
             externalLinkName: name == "ULongProgression" ? "kk_ulong_step" : (name == "UIntProgression" ? "kk_uint_step" : "kk_op_step"),
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerSyntheticUIntRangeStub(
+        rangesPackageSymbol: SymbolID,
+        rangesFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let className = interner.intern("UIntRange")
+        let classFQName = rangesFQName + [className]
+        let classSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: classFQName) {
+            classSymbol = existing
+        } else {
+            let created = symbols.define(
+                kind: .class,
+                name: className,
+                fqName: classFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(rangesPackageSymbol, for: created)
+            classSymbol = created
+        }
+
+        let rangeType = types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let progressionType = syntheticNominalType(
+            named: "UIntProgression",
+            in: rangesFQName,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let iteratorType = syntheticIteratorType(
+            elementType: types.uintType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let uintArrayType = syntheticNominalType(
+            named: "UIntArray",
+            in: [interner.intern("kotlin")],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        for property in [
+            ("start", "kk_uint_range_first"),
+            ("end", "kk_uint_range_last"),
+            ("first", "kk_uint_range_first"),
+            ("last", "kk_uint_range_last"),
+        ] {
+            registerProgressionProperty(
+                named: property.0,
+                ownerSymbol: classSymbol,
+                propertyType: types.uintType,
+                externalLinkName: property.1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        registerProgressionProperty(
+            named: "step",
+            ownerSymbol: classSymbol,
+            propertyType: types.intType,
+            externalLinkName: "kk_uint_range_step",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerProgressionMethod(
+            named: "contains",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [types.uintType],
+            returnType: types.booleanType,
+            externalLinkName: "kk_uint_range_contains",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "isEmpty",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: types.booleanType,
+            externalLinkName: "kk_uint_range_isEmpty",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "iterator",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: iteratorType,
+            externalLinkName: "kk_range_iterator",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "reversed",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: progressionType,
+            externalLinkName: "kk_uint_range_reversed",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "toList",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
+            externalLinkName: "kk_uint_range_toList",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "toUIntArray",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: uintArrayType,
+            externalLinkName: "kk_uint_range_toUIntArray",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticConstructor(
+            ownerSymbol: classSymbol,
+            ownerType: rangeType,
+            parameterTypes: [types.uintType, types.uintType],
+            parameterNames: ["start", "end"],
+            externalLinkName: "kk_uint_rangeTo",
             symbols: symbols,
             interner: interner
         )
@@ -729,5 +882,87 @@ extension DataFlowSemaPhase {
             args: [.out(elementType)],
             nullability: .nonNull
         )))
+    }
+
+    private func syntheticNominalType(
+        named name: String,
+        in packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let symbol = symbols.lookup(fqName: packageFQName + [interner.intern(name)]) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func registerSyntheticConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        parameterTypes: [TypeID],
+        parameterNames: [String],
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let ctorFQName = ownerInfo.fqName + [initName]
+        let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }
+        guard !hasMatchingConstructor else {
+            return
+        }
+
+        let ctorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: ctorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
+
+        let valueParameterSymbols = zip(parameterNames, parameterTypes).map { name, type in
+            let parameterName = interner.intern(name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: ctorFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
+            symbols.setPropertyType(type, for: paramSymbol)
+            return paramSymbol
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+            ),
+            for: ctorSymbol
+        )
     }
 }

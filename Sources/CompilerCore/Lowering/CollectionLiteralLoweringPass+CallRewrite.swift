@@ -1435,9 +1435,14 @@ extension CollectionLiteralLoweringPass {
                                 continue
                             }
                             if rangeExprIDs.contains(receiverID.rawValue) {
-                                let countCallee = ulongRangeExprIDs.contains(receiverID.rawValue)
-                                    ? lookup.kkULongRangeCountName
-                                    : lookup.kkRangeCountName
+                                let countCallee: InternedString
+                                if ulongRangeExprIDs.contains(receiverID.rawValue) {
+                                    countCallee = lookup.kkULongRangeCountName
+                                } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                                    countCallee = ctx.interner.intern("kk_uint_range_count")
+                                } else {
+                                    countCallee = lookup.kkRangeCountName
+                                }
                                 loweredBody.append(.call(
                                     symbol: nil,
                                     callee: countCallee,
@@ -1641,9 +1646,13 @@ extension CollectionLiteralLoweringPass {
                             }
                             // STDLIB-637: UIntRange/ULongRange isEmpty
                             if rangeExprIDs.contains(receiverID.rawValue) {
+                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
+                                let isEmptyName = ulongRangeExprIDs.contains(receiverID.rawValue)
+                                    ? lookup.kkULongRangeIsEmptyName
+                                    : (isUIntRange ? ctx.interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
                                 loweredBody.append(.call(
                                     symbol: nil,
-                                    callee: lookup.kkRangeIsEmptyName,
+                                    callee: isEmptyName,
                                     arguments: [receiverID],
                                     result: result,
                                     canThrow: false,
@@ -1659,9 +1668,10 @@ extension CollectionLiteralLoweringPass {
                         if arguments.count == 1 {
                             let receiverID = arguments[0]
                             if rangeExprIDs.contains(receiverID.rawValue) {
+                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
                                 loweredBody.append(.call(
                                     symbol: nil,
-                                    callee: lookup.kkRangeSumName,
+                                    callee: isUIntRange ? ctx.interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
                                     arguments: [receiverID],
                                     result: result,
                                     canThrow: false,
@@ -2133,10 +2143,13 @@ extension CollectionLiteralLoweringPass {
                             continue
                         }
                         if callee == lookup.reversedName, rangeExprIDs.contains(receiverID.rawValue) {
+                            let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
                             let transformResult = module.arena.appendExpr(
                                 .temporary(Int32(module.arena.expressions.count)), type: nil
                             )
-                            let reversedName = ulongRangeExprIDs.contains(receiverID.rawValue) ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
+                            let reversedName = ulongRangeExprIDs.contains(receiverID.rawValue)
+                                ? lookup.kkULongRangeReversedName
+                                : (isUIntRange ? ctx.interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: reversedName,
@@ -2295,6 +2308,8 @@ extension CollectionLiteralLoweringPass {
                                 rangeToListCallee = lookup.kkCharRangeToListName
                             } else if ulongRangeExprIDs.contains(receiverID.rawValue) {
                                 rangeToListCallee = lookup.kkULongRangeToListName
+                            } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                                rangeToListCallee = ctx.interner.intern("kk_uint_range_toList")
                             } else {
                                 rangeToListCallee = lookup.kkRangeToListName
                             }

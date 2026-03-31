@@ -245,6 +245,49 @@ final class RuntimeRangeStepTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_range_count(reversed), 5)
     }
 
+    func testUIntRangeContainsAndIsEmpty() {
+        let range = kk_uint_rangeTo(1, 10)
+        XCTAssertEqual(kk_uint_range_contains(range, 5), 1)
+        XCTAssertEqual(kk_uint_range_contains(range, 15), 0)
+        XCTAssertEqual(kk_uint_range_isEmpty(range), 0)
+        XCTAssertEqual(kk_uint_range_isEmpty(kk_uint_rangeTo(10, 1)), 1)
+    }
+
+    func testUIntRangeStartEndAliases() {
+        let range = kk_uint_rangeTo(2, 6)
+        XCTAssertEqual(kk_uint_range_first(range), 2)
+        XCTAssertEqual(kk_uint_range_last(range), 6)
+    }
+
+    func testUIntRangeToUIntArray() {
+        let range = kk_uint_step(kk_uint_rangeTo(1, 7), 3)
+        let array = kk_uint_range_toUIntArray(range)
+        XCTAssertEqual(kk_list_size(array), 3)
+        XCTAssertEqual(kk_list_get(array, 0), 1)
+        XCTAssertEqual(kk_list_get(array, 1), 4)
+        XCTAssertEqual(kk_list_get(array, 2), 7)
+    }
+
+    func testUIntRangeIteratorUsesSharedRangeIterator() {
+        let range = kk_uint_step(kk_uint_rangeTo(1, 5), 2)
+        let iterator = kk_range_iterator(range)
+        XCTAssertEqual(kk_range_hasNext(iterator), 1)
+        XCTAssertEqual(kk_range_next(iterator), 1)
+        XCTAssertEqual(kk_range_hasNext(iterator), 1)
+        XCTAssertEqual(kk_range_next(iterator), 3)
+        XCTAssertEqual(kk_range_hasNext(iterator), 1)
+        XCTAssertEqual(kk_range_next(iterator), 5)
+        XCTAssertEqual(kk_range_hasNext(iterator), 0)
+    }
+
+    func testUIntUntilToList() {
+        let range = kk_uint_step(kk_op_rangeUntil(1, 5), 1)
+        let list = kk_uint_range_toList(range)
+        XCTAssertEqual(kk_list_size(list), 4)
+        XCTAssertEqual(kk_list_get(list, 0), 1)
+        XCTAssertEqual(kk_list_get(list, 3), 4)
+    }
+
     // MARK: - ULongProgression tests (STDLIB-RANGE-039)
 
     func testULongRangeTo() {
