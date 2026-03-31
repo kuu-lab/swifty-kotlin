@@ -113,6 +113,45 @@ extension DataFlowSemaPhase {
         )
         types.kFunctionInterfaceSymbol = kFunctionSymbol
 
+        // Register KFunction member properties: name, isSuspend, parameters (STDLIB-REFLECT-063).
+        if let kFunctionInfo = symbols.symbol(kFunctionSymbol) {
+            // name: String
+            let namePropName = interner.intern("name")
+            let namePropFQ = kFunctionInfo.fqName + [namePropName]
+            if symbols.lookup(fqName: namePropFQ) == nil {
+                let namePropSymbol = symbols.define(
+                    kind: .property, name: namePropName, fqName: namePropFQ,
+                    declSite: nil, visibility: .public, flags: [.synthetic]
+                )
+                symbols.setParentSymbol(kFunctionSymbol, for: namePropSymbol)
+                symbols.setPropertyType(stringType, for: namePropSymbol)
+            }
+
+            // isSuspend: Boolean
+            let isSuspendName = interner.intern("isSuspend")
+            let isSuspendFQ = kFunctionInfo.fqName + [isSuspendName]
+            if symbols.lookup(fqName: isSuspendFQ) == nil {
+                let isSuspendSymbol = symbols.define(
+                    kind: .property, name: isSuspendName, fqName: isSuspendFQ,
+                    declSite: nil, visibility: .public, flags: [.synthetic]
+                )
+                symbols.setParentSymbol(kFunctionSymbol, for: isSuspendSymbol)
+                symbols.setPropertyType(types.booleanType, for: isSuspendSymbol)
+            }
+
+            // parameters: Any (patched to List<Any?> later by patchKFunctionParametersType)
+            let paramsName = interner.intern("parameters")
+            let paramsFQ = kFunctionInfo.fqName + [paramsName]
+            if symbols.lookup(fqName: paramsFQ) == nil {
+                let paramsSymbol = symbols.define(
+                    kind: .property, name: paramsName, fqName: paramsFQ,
+                    declSite: nil, visibility: .public, flags: [.synthetic]
+                )
+                symbols.setParentSymbol(kFunctionSymbol, for: paramsSymbol)
+                symbols.setPropertyType(anyType, for: paramsSymbol)
+            }
+        }
+
         // Register `lazy` as a top-level function in the kotlin package.
         // Kotlin signature: fun <T> lazy(initializer: () -> T): Lazy<T>
         let lazyName = interner.intern("lazy")

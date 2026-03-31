@@ -1914,6 +1914,22 @@ extension CallTypeChecker {
             let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
+        case "name":
+            let resultType = sema.types.make(.primitive(.string, .nonNull))
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        case "isSuspend":
+            let resultType = sema.types.booleanType
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        case "parameters":
+            // parameters returns List<Any?>, but at this stage use anyType as a safe fallback.
+            let resultType = sema.types.anyType
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
         default:
             return nil
         }
