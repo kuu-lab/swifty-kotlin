@@ -2551,26 +2551,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         }
     }
 
-    /// `true` when the channel is closed AND its buffer is fully drained.
-    /// Once `isClosedForReceive` is `true`, any subsequent `receive()` call will
-    /// immediately return `kChannelClosedSentinel` without blocking.
-    /// Matches Kotlin's `ReceiveChannel.isClosedForReceive` contract.
-    var isClosedForReceive: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return closed && buffer.isEmpty && senderQueue.isEmpty
-    }
-
-    /// Thread-safe snapshot of the closed flag.
-    ///
-    /// Acquires the channel lock before reading `closed` to avoid data races
-    /// with concurrent `send()`, `receive()`, and `close()` calls.
-    func isClosedSnapshot() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return closed
-    }
-
     // MARK: - Private helpers
 
     /// CORO-004: Resume a suspended sender using continuation model if available,
