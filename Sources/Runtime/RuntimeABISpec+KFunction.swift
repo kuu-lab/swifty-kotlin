@@ -1,20 +1,21 @@
-// KFunction / KProperty / KConstructor dynamic call ABI specs (STDLIB-REFLECT-067)
+// KFunction / KProperty / KConstructor / CallableRef ABI specs
+// (STDLIB-REFLECT-063 / STDLIB-REFLECT-067 / REFL-003)
 
 public extension RuntimeABISpec {
-    /// KFunction, KProperty, and KConstructor dynamic call runtime functions.
+    /// KFunction, KProperty, and KConstructor reflection runtime functions.
     static let kFunctionFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_create",
             parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "nameHandle", type: .intptr),
+                RuntimeABIParameter(name: "nameRaw", type: .intptr),
                 RuntimeABIParameter(name: "arity", type: .intptr),
-                RuntimeABIParameter(name: "returnTypeHandle", type: .intptr),
+                RuntimeABIParameter(name: "returnTypeRaw", type: .intptr),
                 RuntimeABIParameter(name: "isSuspend", type: .intptr),
-                RuntimeABIParameter(name: "parametersHandle", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_name",
@@ -22,7 +23,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_arity",
@@ -30,7 +31,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_return_type",
@@ -38,7 +39,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_is_suspend",
@@ -46,7 +47,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_parameters",
@@ -54,7 +55,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_call_0",
@@ -63,50 +64,50 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_call_1",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "arg0", type: .intptr),
+                RuntimeABIParameter(name: "arg", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_call_2",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "arg0", type: .intptr),
-                RuntimeABIParameter(name: "arg1", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Reflect"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kfunction_call_3",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "arg0", type: .intptr),
                 RuntimeABIParameter(name: "arg1", type: .intptr),
                 RuntimeABIParameter(name: "arg2", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kfunction_call_3",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "arg1", type: .intptr),
+                RuntimeABIParameter(name: "arg2", type: .intptr),
+                RuntimeABIParameter(name: "arg3", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_call_vararg",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "argsList", type: .intptr),
+                RuntimeABIParameter(name: "argsListRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kproperty_get",
@@ -115,7 +116,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kproperty_set",
@@ -125,7 +126,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kconstructor_call_0",
@@ -134,7 +135,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kconstructor_call_1",
@@ -144,7 +145,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kconstructor_call_vararg",
@@ -154,7 +155,39 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Reflect"
+            section: "Reflection"
+        ),
+    ]
+
+    /// Callable reference type identity functions (REFL-003).
+    static let callableRefFunctions: [RuntimeABIFunctionSpec] = [
+        RuntimeABIFunctionSpec(
+            name: "kk_callable_ref_tag_kfunction",
+            parameters: [
+                RuntimeABIParameter(name: "callable", type: .intptr),
+                RuntimeABIParameter(name: "name", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_callable_ref_tag_kproperty",
+            parameters: [
+                RuntimeABIParameter(name: "callable", type: .intptr),
+                RuntimeABIParameter(name: "name", type: .intptr),
+                RuntimeABIParameter(name: "arity", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_callable_ref_name",
+            parameters: [
+                RuntimeABIParameter(name: "tagged", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Reflection"
         ),
     ]
 }
