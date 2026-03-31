@@ -754,6 +754,11 @@ struct RuntimeKClassMetadataEntry {
     let fieldCount: Int
     let memberCount: Int
     let constructorCount: Int
+    // STDLIB-REFLECT-060: additional KClass basic reflection fields
+    let isFinal: Bool
+    let isOpen: Bool
+    let visibility: String
+    let typeParameterCount: Int
 }
 
 /// Global registry mapping type tokens to runtime metadata entries.
@@ -857,6 +862,29 @@ final class RuntimeKCallableBox {
     }
 }
 
+/// Runtime box for `kotlin.reflect.KParameter`.
+/// Represents a single parameter of a KFunction or KConstructor.
+final class RuntimeKParameterBox {
+    /// Parameter index (0-based).
+    let index: Int
+    /// Parameter name as a KKString raw handle (0 if unnamed).
+    let nameRaw: Int
+    /// Parameter type as a KKString raw handle describing the type name.
+    let typeRaw: Int
+    /// Whether this parameter is optional (has a default value).
+    let isOptional: Bool
+    /// Parameter kind: 0 = INSTANCE, 1 = EXTENSION_RECEIVER, 2 = VALUE.
+    let kind: Int
+
+    init(index: Int, nameRaw: Int, typeRaw: Int, isOptional: Bool = false, kind: Int = 2) {
+        self.index = index
+        self.nameRaw = nameRaw
+        self.typeRaw = typeRaw
+        self.isOptional = isOptional
+        self.kind = kind
+    }
+}
+
 /// Runtime box for `kotlin.reflect.KFunction<T>`.
 /// Represents a constructor or function member with full reflection metadata (STDLIB-REFLECT-063).
 final class RuntimeKFunctionBox {
@@ -872,6 +900,10 @@ final class RuntimeKFunctionBox {
     let fnPtr: Int
     /// Closure environment for the callable reference (zero for top-level functions).
     let closureRaw: Int
+    /// KParameter raw handles for all parameters (including receiver if any).
+    let parameterRaws: [Int]
+    /// Function type string as a KKString raw handle (e.g. "(Int, Int) -> Int").
+    let typeStringRaw: Int
 
     init(
         nameRaw: Int,
@@ -879,7 +911,9 @@ final class RuntimeKFunctionBox {
         returnTypeRaw: Int = 0,
         isSuspend: Bool = false,
         fnPtr: Int = 0,
-        closureRaw: Int = 0
+        closureRaw: Int = 0,
+        parameterRaws: [Int] = [],
+        typeStringRaw: Int = 0
     ) {
         self.nameRaw = nameRaw
         self.arity = arity
@@ -887,6 +921,8 @@ final class RuntimeKFunctionBox {
         self.isSuspend = isSuspend
         self.fnPtr = fnPtr
         self.closureRaw = closureRaw
+        self.parameterRaws = parameterRaws
+        self.typeStringRaw = typeStringRaw
     }
 }
 

@@ -1,3 +1,5 @@
+// SKIP-DIFF
+// STDLIB-REFLECT-063: KFunction complete implementation
 import kotlin.reflect.KFunction
 
 fun greet(name: String): String = "Hello, $name!"
@@ -5,6 +7,8 @@ fun greet(name: String): String = "Hello, $name!"
 fun add(a: Int, b: Int): Int = a + b
 
 fun noArgs(): String = "no arguments"
+
+suspend fun asyncWork(): Int = 42
 
 fun main() {
     // KFunction reference via :: operator
@@ -24,6 +28,10 @@ fun main() {
 
     // isSuspend
     println("greetRef.isSuspend = ${greetRef.isSuspend}")
+    println("addRef.isSuspend = ${addRef.isSuspend}")
+
+    // returnType (string representation)
+    println("addRef.returnType = ${addRef.returnType}")
 
     // call() invocation
     val result1 = greetRef.call("World")
