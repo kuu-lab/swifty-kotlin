@@ -82,6 +82,9 @@ extension TypeSystem {
         if case let .classType(rhsClass) = rhs, let annotationSym = annotationInterfaceSymbol, rhsClass.classSymbol == annotationSym {
             if case .nothing(.nonNull) = lhs { return true }
             if case let .classType(lhsClass) = lhs {
+                guard nullabilitySubtype(lhsClass.nullability, rhsClass.nullability) else {
+                    return false
+                }
                 if lhsClass.classSymbol == annotationSym { return true }
                 if let symbol = symbolTable?.symbol(lhsClass.classSymbol), symbol.kind == .annotationClass {
                     return true

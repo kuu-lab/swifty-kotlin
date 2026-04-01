@@ -2616,7 +2616,7 @@ extension CallTypeChecker {
                 : lookupReceiverType
             let rhsType = sema.types.makeNonNullable(argTypes[0])
             let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType
-            let isIntegerRhs = rhsType == intType || rhsType == longType || rhsType == uintType || rhsType == ulongType || rhsType == ubyteType || rhsType == ushortType
+            let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             switch interner.resolve(calleeName) {
             case "plus", "minus", "times", "div", "rem", "mod":
                 let resultType: TypeID?
@@ -2695,20 +2695,15 @@ extension CallTypeChecker {
                 }
             case "and", "or", "xor":
                 if isPrimitiveReceiver,
-                   isIntegerRhs
+                   rhsType == receiverForCheck
                 {
-                    let resultType: TypeID = (receiverForCheck == longType || rhsType == longType) ? longType
-                        : (receiverForCheck == ulongType || rhsType == ulongType) ? ulongType
-                        : (receiverForCheck == uintType || rhsType == uintType) ? uintType
-                        : (receiverForCheck == ushortType || rhsType == ushortType) ? ushortType
-                        : (receiverForCheck == ubyteType || rhsType == ubyteType) ? ubyteType
-                        : intType
+                    let resultType = receiverForCheck
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
             case "shl", "shr", "ushr":
-                if isPrimitiveReceiver,
+                if isShiftReceiver,
                    rhsType == intType
                 {
                     // shift amount must be Int; receiver can be Int/Long/UInt/ULong
