@@ -151,6 +151,52 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
     return current
 }
 
+@_cdecl("kk_iterator_hasNext")
+public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+        return kk_iterator_builder_hasNext(iterRaw)
+    }
+    if runtimeRangeIteratorBox(from: iterRaw) != nil {
+        return kk_range_hasNext(iterRaw)
+    }
+    if runtimeListIteratorBox(from: iterRaw) != nil {
+        return kk_list_iterator_hasNext(iterRaw)
+    }
+    if runtimeMapIteratorBox(from: iterRaw) != nil {
+        return kk_map_iterator_hasNext(iterRaw)
+    }
+    if runtimeStringIteratorBox(from: iterRaw) != nil {
+        return kk_string_iterator_hasNext(iterRaw)
+    }
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_hasNext(iterRaw)
+    }
+    return 0
+}
+
+@_cdecl("kk_iterator_next")
+public func kk_iterator_next(_ iterRaw: Int) -> Int {
+    if runtimeIteratorBuilderBox(from: iterRaw) != nil {
+        return kk_iterator_builder_next(iterRaw)
+    }
+    if runtimeRangeIteratorBox(from: iterRaw) != nil {
+        return kk_range_next(iterRaw)
+    }
+    if runtimeListIteratorBox(from: iterRaw) != nil {
+        return kk_list_iterator_next(iterRaw)
+    }
+    if runtimeMapIteratorBox(from: iterRaw) != nil {
+        return kk_map_iterator_next(iterRaw)
+    }
+    if runtimeStringIteratorBox(from: iterRaw) != nil {
+        return kk_string_iterator_next(iterRaw)
+    }
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_next(iterRaw)
+    }
+    return 0
+}
+
 // MARK: - IntRange properties (STDLIB-092)
 
 @_cdecl("kk_range_first")

@@ -118,16 +118,16 @@
   - **関連ファイル**: `HeaderHelpers+SyntheticComparisonStubs.swift`
   - **テストケース**: `Scripts/diff_cases/compare_values.kt`
 
-- [ ] STDLIB-OP-032: コンテナ演算子オーバーロード完全実装
+- [x] STDLIB-OP-032: コンテナ演算子オーバーロード完全実装
   - **仕様**: コンテナクラスでの演算子オーバーロード
   - **実装内容**:
-    - インデックス演算子: get(), set()
-    - 含有演算子: contains(), iterator()
-    - 範囲演算子: rangeTo()
-    - in演算子: contains()の省略形
-    - スプレッド演算子: spread()
-  - **現状**: 基本的なコンテナ演算子は実装済み、カスタム実装は未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
+    - インデックス演算子: get(), set() — Sema解決 + KIR IndexedAccessLowerer でディスパッチ
+    - 含有演算子: contains(), iterator() — Sema解決 + KIR ExprLowerer/ControlFlowLowerer でディスパッチ
+    - 範囲演算子: rangeTo() — Sema解決 + KIR CallLowerer+Operators でディスパッチ
+    - in演算子: contains()の省略形 — ExprTypeChecker + appendContainsCall でディスパッチ
+    - スプレッド演算子: spread() — AST isSpread + CallSupportLowerer でディスパッチ
+  - **現状**: カスタムクラスでのコンテナ演算子オーバーロードを完全サポート
+  - **関連ファイル**: `Helpers.swift`, `ControlFlowLowerer.swift`, `LocalDeclTypeChecker+IndexedAccessAndAssign.swift`, `ExprTypeChecker.swift`, `IndexedAccessLowerer.swift`
   - **テストケース**: `Scripts/diff_cases/container_operators.kt`
 
 

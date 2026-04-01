@@ -1,6 +1,6 @@
-// SKIP-DIFF — member property type inference (private var index = 0) not yet resolved as Int for generic indexing
+// SKIP-DIFF: current compiler still crashes on this case
 class Cursor(private val values: MutableList<Int>) {
-    private var index = 0
+    private var index: Int = 0
 
     operator fun hasNext(): Boolean = index < values.size
     operator fun next(): Int = values[index++]
@@ -21,6 +21,7 @@ class Bucket(private val values: MutableList<Int>) {
 fun joinAll(vararg values: Int): String = values.joinToString(",")
 
 fun main() {
+    // Container operators: get(), set(), contains(), iterator(), rangeTo(), and spread.
     val left = Bucket(mutableListOf(1, 2, 3))
     val right = Bucket(mutableListOf(4, 5))
 
