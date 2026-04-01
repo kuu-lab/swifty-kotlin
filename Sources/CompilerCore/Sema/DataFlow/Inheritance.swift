@@ -77,15 +77,23 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Default to kotlin.Any if no supertypes are specified (and it's not Any itself)
+        // Annotation classes implicitly extend kotlin.Annotation.
+        let annotationFQName = [interner.intern("kotlin"), interner.intern("Annotation")]
         let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
         if superSymbols.isEmpty,
-           let anySymbol = symbols.lookup(fqName: anyFQName),
-           symbol != anySymbol,
-           let symbolInfo = symbols.symbol(symbol),
-           symbolInfo.kind == .class || symbolInfo.kind == .object || symbolInfo.kind == .enumClass
+           let symbolInfo = symbols.symbol(symbol)
         {
-            superSymbols.append(anySymbol)
+            if symbolInfo.kind == .annotationClass,
+               let annotationSymbol = types.annotationInterfaceSymbol ?? symbols.lookup(fqName: annotationFQName),
+               symbol != annotationSymbol
+            {
+                superSymbols.append(annotationSymbol)
+            } else if let anySymbol = symbols.lookup(fqName: anyFQName),
+                      symbol != anySymbol,
+                      symbolInfo.kind == .class || symbolInfo.kind == .object || symbolInfo.kind == .enumClass
+            {
+                superSymbols.append(anySymbol)
+            }
         }
 
         let uniqueSuperSymbols = Array(Set(superSymbols)).sorted(by: { $0.rawValue < $1.rawValue })

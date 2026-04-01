@@ -239,7 +239,7 @@ final class TypeSystemTests: XCTestCase {
         let interner = StringInterner()
         ts.symbolTable = st
         
-        let annoInterfaceSym = st.define(kind: .class, name: interner.intern("Annotation"), fqName: [interner.intern("kotlin"), interner.intern("Annotation")], declSite: nil, visibility: .public)
+        let annoInterfaceSym = st.define(kind: .interface, name: interner.intern("Annotation"), fqName: [interner.intern("kotlin"), interner.intern("Annotation")], declSite: nil, visibility: .public)
         ts.annotationInterfaceSymbol = annoInterfaceSym
         let annotationType = ts.make(.classType(ClassType(classSymbol: annoInterfaceSym)))
         let nullableAnnotationType = ts.make(.classType(ClassType(classSymbol: annoInterfaceSym, args: [], nullability: .nullable)))
