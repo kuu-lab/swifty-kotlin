@@ -3258,7 +3258,7 @@ extension CollectionLiteralLoweringPass {
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                                     thenByCallee: lookup.kkComparatorThenByName,
                                     thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                                    thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                                    thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -3305,8 +3305,8 @@ extension CollectionLiteralLoweringPass {
                                 case .thenByDescending:
                                     trampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                     closureExpr = comparatorExpr
-                                case .thenComparator:
-                                    trampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                                case .thenDescending:
+                                    trampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                     closureExpr = comparatorExpr
                                 case .nullsFirst:
                                     trampolineName = lookup.kkComparatorNullsFirstTrampolineName
@@ -3336,7 +3336,7 @@ extension CollectionLiteralLoweringPass {
                                         reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                                         thenByCallee: lookup.kkComparatorThenByName,
                                         thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                                        thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                                        thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                                         nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                                         nullsLastCallee: lookup.kkComparatorNullsLastName,
                                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -3360,8 +3360,8 @@ extension CollectionLiteralLoweringPass {
                                     case .thenByDescending:
                                         innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                         innerClosureExpr = innerExpr
-                                    case .thenComparator:
-                                        innerTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                                    case .thenDescending:
+                                        innerTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                         innerClosureExpr = innerExpr
                                     case .nullsFirst:
                                         innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
@@ -3486,7 +3486,7 @@ extension CollectionLiteralLoweringPass {
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                                     thenByCallee: lookup.kkComparatorThenByName,
                                     thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                                    thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                                    thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -3507,8 +3507,8 @@ extension CollectionLiteralLoweringPass {
                                 case .thenByDescending:
                                     cmpTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                     cmpClosureExpr = cmpExpr
-                                case .thenComparator:
-                                    cmpTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                                case .thenDescending:
+                                    cmpTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                     cmpClosureExpr = cmpExpr
                                 case .nullsFirst:
                                     cmpTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
@@ -3538,7 +3538,7 @@ extension CollectionLiteralLoweringPass {
                                         reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                                         thenByCallee: lookup.kkComparatorThenByName,
                                         thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                                        thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                                        thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                                         nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                                         nullsLastCallee: lookup.kkComparatorNullsLastName,
                                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -3562,8 +3562,8 @@ extension CollectionLiteralLoweringPass {
                                     case .thenByDescending:
                                         innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                         innerClosureExpr = innerExpr
-                                    case .thenComparator:
-                                        innerTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                                    case .thenDescending:
+                                        innerTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                         innerClosureExpr = innerExpr
                                     case .nullsFirst:
                                         innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
@@ -4154,7 +4154,7 @@ extension CollectionLiteralLoweringPass {
                             reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                             thenByCallee: lookup.kkComparatorThenByName,
                             thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                            thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                            thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                             nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                             nullsLastCallee: lookup.kkComparatorNullsLastName,
                             multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -4190,8 +4190,8 @@ extension CollectionLiteralLoweringPass {
                             case .thenByDescending:
                                 trampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                 closureExpr = comparatorExpr
-                            case .thenComparator:
-                                trampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                            case .thenDescending:
+                                trampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                 closureExpr = comparatorExpr
                             case .nullsFirst:
                                 trampolineName = lookup.kkComparatorNullsFirstTrampolineName
@@ -4221,7 +4221,7 @@ extension CollectionLiteralLoweringPass {
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
                                     thenByCallee: lookup.kkComparatorThenByName,
                                     thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
-                                    thenComparatorCallee: lookup.kkComparatorThenComparatorName,
+                                    thenDescendingCallee: lookup.kkComparatorThenDescendingName,
                                     nullsFirstCallee: lookup.kkComparatorNullsFirstName,
                                     nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
@@ -4245,8 +4245,8 @@ extension CollectionLiteralLoweringPass {
                                 case .thenByDescending:
                                     innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
                                     innerClosureExpr = innerExpr
-                                case .thenComparator:
-                                    innerTrampolineName = lookup.kkComparatorThenComparatorTrampolineName
+                                case .thenDescending:
+                                    innerTrampolineName = lookup.kkComparatorThenDescendingTrampolineName
                                     innerClosureExpr = innerExpr
                                 case .nullsFirst:
                                     innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
