@@ -2,13 +2,13 @@
 import kotlinx.coroutines.*
 
 fun main() = runBlocking {
-    // Basic withContext with Dispatchers.Default
+    // Basic withContext with dispatcher
     val result = withContext(Dispatchers.Default) {
         "hello from context"
     }
     println(result)
 
-    // withContext with Dispatchers.IO
+    // withContext with IO dispatcher
     val ioResult = withContext(Dispatchers.IO) {
         "hello from IO"
     }
@@ -20,9 +20,21 @@ fun main() = runBlocking {
     }
     println(namedResult)
 
-    // withContext with composed context: Dispatchers.Default + CoroutineName
-    val composedResult = withContext(Dispatchers.Default + CoroutineName("composedCoroutine")) {
+    // withContext with context composition (+ operator)
+    val composed = Dispatchers.Default + CoroutineName("composedCoroutine")
+    val composedResult = withContext(composed) {
         "hello from composed context"
     }
     println(composedResult)
+
+    // Nested withContext
+    val nested = withContext(Dispatchers.Default) {
+        val inner = withContext(Dispatchers.IO) {
+            "inner"
+        }
+        "outer + $inner"
+    }
+    println(nested)
+
+    println("done")
 }
