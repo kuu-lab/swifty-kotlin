@@ -1,4 +1,5 @@
-import kotlin.io.path.*
+// DIFF_LINE_PATTERN: kswiftk_path_test_[0-9]+
+import kotlin.io.path.Path
 
 fun main() {
     val tmpDir = "/tmp/kswiftk_path_test_" + System.currentTimeMillis()
