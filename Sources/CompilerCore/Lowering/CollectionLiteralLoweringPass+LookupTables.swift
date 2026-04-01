@@ -197,6 +197,14 @@ struct CollectionLiteralLookupTables {
     let kkComparatorReverseOrderName: InternedString
     let kkComparatorNaturalOrderTrampolineName: InternedString
     let kkComparatorReverseOrderTrampolineName: InternedString
+    let kkComparatorThenByName: InternedString
+    let kkComparatorThenByDescendingName: InternedString
+    let kkComparatorThenByTrampolineName: InternedString
+    let kkComparatorThenByDescendingTrampolineName: InternedString
+    let kkComparatorNullsFirstName: InternedString
+    let kkComparatorNullsLastName: InternedString
+    let kkComparatorNullsFirstTrampolineName: InternedString
+    let kkComparatorNullsLastTrampolineName: InternedString
     let kkComparatorReversedName: InternedString
     let kkComparatorReversedTrampolineName: InternedString
     let kkCompareValuesName: InternedString
@@ -377,6 +385,12 @@ struct CollectionLiteralLookupTables {
     let kkULongRangeIsEmptyName: InternedString
     let kkULongRangeReversedName: InternedString
     let kkULongRangeToULongArrayName: InternedString
+    let kkULongRangeCountName: InternedString
+    let kkULongRangeIteratorName: InternedString
+    let kkULongRangeHasNextName: InternedString
+    let kkULongRangeNextName: InternedString
+    let kkULongRangeForEachName: InternedString
+    let kkULongRangeMapName: InternedString
 
     let sizeName: InternedString
     let getName: InternedString
@@ -390,7 +404,10 @@ struct CollectionLiteralLookupTables {
     let removeName: InternedString
     let firstName: InternedString
     let lastName: InternedString
+    let startName: InternedString
+    let endInclusiveName: InternedString
     let stepName: InternedString
+    let iteratorName: InternedString
 
     // ListIterator member names (STDLIB-538)
     let listIteratorMemberName: InternedString
@@ -504,6 +521,8 @@ struct CollectionLiteralLookupTables {
     let toListName: InternedString
     let toULongArrayName: InternedString
     let toIntArrayName: InternedString
+    let toLongArrayName: InternedString
+    let kkLongRangeToLongArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
@@ -847,6 +866,14 @@ struct CollectionLiteralLookupTables {
         kkComparatorReverseOrderName = interner.intern("kk_comparator_reverse_order")
         kkComparatorNaturalOrderTrampolineName = interner.intern("kk_comparator_natural_order_trampoline")
         kkComparatorReverseOrderTrampolineName = interner.intern("kk_comparator_reverse_order_trampoline")
+        kkComparatorThenByName = interner.intern("kk_comparator_then_by")
+        kkComparatorThenByDescendingName = interner.intern("kk_comparator_then_by_descending")
+        kkComparatorThenByTrampolineName = interner.intern("kk_comparator_then_by_trampoline")
+        kkComparatorThenByDescendingTrampolineName = interner.intern("kk_comparator_then_by_descending_trampoline")
+        kkComparatorNullsFirstName = interner.intern("kk_comparator_nulls_first")
+        kkComparatorNullsLastName = interner.intern("kk_comparator_nulls_last")
+        kkComparatorNullsFirstTrampolineName = interner.intern("kk_comparator_nulls_first_trampoline")
+        kkComparatorNullsLastTrampolineName = interner.intern("kk_comparator_nulls_last_trampoline")
         kkComparatorReversedName = interner.intern("kk_comparator_reversed")
         kkComparatorReversedTrampolineName = interner.intern("kk_comparator_reversed_trampoline")
         kkCompareValuesName = interner.intern("kk_compareValues")
@@ -1019,6 +1046,12 @@ struct CollectionLiteralLookupTables {
         kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
         kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
         kkULongRangeToULongArrayName = interner.intern("kk_ulong_range_toULongArray")
+        kkULongRangeCountName = interner.intern("kk_ulong_range_count")
+        kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
+        kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
+        kkULongRangeNextName = interner.intern("kk_ulong_range_next")
+        kkULongRangeForEachName = interner.intern("kk_ulong_range_forEach")
+        kkULongRangeMapName = interner.intern("kk_ulong_range_map")
 
         sizeName = interner.intern("size")
         getName = interner.intern("get")
@@ -1032,7 +1065,10 @@ struct CollectionLiteralLookupTables {
         removeName = interner.intern("remove")
         firstName = interner.intern("first")
         lastName = interner.intern("last")
+        startName = interner.intern("start")
+        endInclusiveName = interner.intern("endInclusive")
         stepName = interner.intern("step")
+        iteratorName = interner.intern("iterator")
 
         // ListIterator member names (STDLIB-538)
         listIteratorMemberName = interner.intern("listIterator")
@@ -1141,6 +1177,8 @@ struct CollectionLiteralLookupTables {
         toListName = interner.intern("toList")
         toULongArrayName = interner.intern("toULongArray")
         toIntArrayName = interner.intern("toIntArray")
+        toLongArrayName = interner.intern("toLongArray")
+        kkLongRangeToLongArrayName = interner.intern("kk_long_range_toLongArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")

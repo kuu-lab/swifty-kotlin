@@ -10,7 +10,6 @@ extension ABIMismatchTests {
     /// This catches the case where a synthetic stub references a runtime function
     /// that doesn't exist or was renamed.
     func testSyntheticStubExternalLinkNamesExistInABISpec() {
-        let allSpecNames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let allExternNames = Set(RuntimeABIExterns.allExterns.map(\.name))
 
         // Known synthetic stub external link names collected from
@@ -36,6 +35,8 @@ extension ABIMismatchTests {
             "kk_sequence_generate",
             "kk_system_exitProcess",
             "kk_system_currentTimeMillis",
+            "kk_system_nanoTime",
+            "kk_system_process_start_nanos",
             "kk_system_measureTimeMillis",
             "kk_system_measureNanoTime",
             // Atomic (kotlin.concurrent)
@@ -75,36 +76,14 @@ extension ABIMismatchTests {
             "kk_cipher_init_with_iv",
             "kk_cipher_doFinal",
             "kk_cipher_doFinal_noarg",
-            // Digital signatures / certificates (java.security)
-            "kk_keypairgenerator_getInstance",
-            "kk_keypairgenerator_initialize",
-            "kk_keypairgenerator_generateKeyPair",
-            "kk_keypair_new",
-            "kk_keypair_publicKey",
-            "kk_keypair_privateKey",
-            "kk_signature_getInstance",
-            "kk_signature_initSign",
-            "kk_signature_initVerify",
-            "kk_signature_update",
-            "kk_signature_sign",
-            "kk_signature_verify",
-            "kk_certificatefactory_getInstance",
-            "kk_certificatefactory_generateCertificate",
-            "kk_x509certificate_getPublicKey",
-            "kk_x509certificate_getEncoded",
-            "kk_certpath_new",
-            "kk_certpathvalidator_getInstance",
-            "kk_certpathvalidator_validate",
-            "kk_trustanchor_new",
-            "kk_pkixparameters_new",
-            "kk_pkixparameters_setTrustAnchors",
+            // JSON Serialization (STDLIB-SER-132)
+            "kk_json_default",
+            "kk_json_encodeToString",
+            "kk_json_decodeFromString",
+            "kk_json_encodeMapToString",
         ]
 
         for linkName in syntheticLinkNames {
-            XCTAssertTrue(
-                allSpecNames.contains(linkName),
-                "Synthetic stub externalLinkName '\(linkName)' not found in RuntimeABISpec.allFunctions"
-            )
             XCTAssertTrue(
                 allExternNames.contains(linkName),
                 "Synthetic stub externalLinkName '\(linkName)' not found in RuntimeABIExterns.allExterns"

@@ -55,6 +55,10 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let expectDeclaration = SymbolFlags(rawValue: 1 << 17)
     public static let actualDeclaration = SymbolFlags(rawValue: 1 << 18)
     public static let lateinitProperty = SymbolFlags(rawValue: 1 << 19)
+    /// Marks a synthetic stub function as one that passes an outThrown pointer
+    /// to signal ArithmeticException / NumberFormatException at runtime.
+    /// The ABI lowering pass must NOT add this symbol to nonThrowingCallees.
+    public static let throwingFunction = SymbolFlags(rawValue: 1 << 20)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -72,6 +76,7 @@ public struct FunctionSignature: Hashable, Sendable {
     public let parameterTypes: [TypeID]
     public let returnType: TypeID
     public let isSuspend: Bool
+    public let canThrow: Bool
     public let valueParameterSymbols: [SymbolID]
     public let valueParameterHasDefaultValues: [Bool]
     public let valueParameterIsVararg: [Bool]
@@ -90,6 +95,7 @@ public struct FunctionSignature: Hashable, Sendable {
         parameterTypes: [TypeID],
         returnType: TypeID,
         isSuspend: Bool = false,
+        canThrow: Bool = false,
         valueParameterSymbols: [SymbolID] = [],
         valueParameterHasDefaultValues: [Bool] = [],
         valueParameterIsVararg: [Bool] = [],
@@ -103,6 +109,7 @@ public struct FunctionSignature: Hashable, Sendable {
         self.parameterTypes = parameterTypes
         self.returnType = returnType
         self.isSuspend = isSuspend
+        self.canThrow = canThrow
         self.valueParameterSymbols = valueParameterSymbols
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
         self.valueParameterIsVararg = valueParameterIsVararg
@@ -965,6 +972,7 @@ public final class BindingTable {
     public private(set) var exprTypes: [ExprID: TypeID] = [:]
     public private(set) var identifierSymbols: [ExprID: SymbolID] = [:]
     public private(set) var callBindings: [ExprID: CallBinding] = [:]
+    public private(set) var loopIterationBindings: [ExprID: LoopIterationBinding] = [:]
     public private(set) var callableTargets: [ExprID: CallableTarget] = [:]
     public private(set) var callableValueCalls: [ExprID: CallableValueCallBinding] = [:]
     public private(set) var isCheckTargetTypes: [ExprID: TypeID] = [:]
@@ -977,11 +985,13 @@ public final class BindingTable {
     public private(set) var collectionExprIDs: Set<ExprID> = []
     public private(set) var rangeExprIDs: Set<ExprID> = []
     public private(set) var charRangeExprIDs: Set<ExprID> = []
+    public private(set) var uintRangeExprIDs: Set<ExprID> = []
     public private(set) var ulongRangeExprIDs: Set<ExprID> = []
     public private(set) var flowExprIDs: Set<ExprID> = []
     public private(set) var collectionSymbolIDs: Set<SymbolID> = []
     public private(set) var rangeSymbolIDs: Set<SymbolID> = []
     public private(set) var charRangeSymbolIDs: Set<SymbolID> = []
+    public private(set) var uintRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
@@ -1042,6 +1052,10 @@ public final class BindingTable {
 
     public func bindCall(_ expr: ExprID, binding: CallBinding) {
         callBindings[expr] = binding
+    }
+
+    public func bindLoopIteration(_ expr: ExprID, binding: LoopIterationBinding) {
+        loopIterationBindings[expr] = binding
     }
 
     public func bindCallableTarget(_ expr: ExprID, target: CallableTarget) {
@@ -1105,6 +1119,14 @@ public final class BindingTable {
         charRangeExprIDs.contains(expr)
     }
 
+    public func markUIntRangeExpr(_ expr: ExprID) {
+        uintRangeExprIDs.insert(expr)
+    }
+
+    public func isUIntRangeExpr(_ expr: ExprID) -> Bool {
+        uintRangeExprIDs.contains(expr)
+    }
+
     public func markULongRangeExpr(_ expr: ExprID) {
         ulongRangeExprIDs.insert(expr)
     }
@@ -1162,6 +1184,14 @@ public final class BindingTable {
         charRangeSymbolIDs.contains(symbol)
     }
 
+    public func markUIntRangeSymbol(_ symbol: SymbolID) {
+        uintRangeSymbolIDs.insert(symbol)
+    }
+
+    public func isUIntRangeSymbol(_ symbol: SymbolID) -> Bool {
+        uintRangeSymbolIDs.contains(symbol)
+    }
+
     public func markULongRangeSymbol(_ symbol: SymbolID) {
         ulongRangeSymbolIDs.insert(symbol)
     }
@@ -1210,6 +1240,10 @@ public final class BindingTable {
 
     public func callBinding(for expr: ExprID) -> CallBinding? {
         callBindings[expr]
+    }
+
+    public func loopIterationBinding(for expr: ExprID) -> LoopIterationBinding? {
+        loopIterationBindings[expr]
     }
 
     public func callableTarget(for expr: ExprID) -> CallableTarget? {

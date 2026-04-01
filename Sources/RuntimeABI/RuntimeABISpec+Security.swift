@@ -7,6 +7,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "keyRaw", type: .intptr),
                 RuntimeABIParameter(name: "algorithmRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Security"
@@ -15,6 +16,7 @@ public extension RuntimeABISpec {
             name: "kk_ivparameterspec_new",
             parameters: [
                 RuntimeABIParameter(name: "ivRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Security"
@@ -104,6 +106,22 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "publicKeyRaw", type: .intptr),
                 RuntimeABIParameter(name: "privateKeyRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Security"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_keypair_public",
+            parameters: [
+                RuntimeABIParameter(name: "keyPairRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Security"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_keypair_private",
+            parameters: [
+                RuntimeABIParameter(name: "keyPairRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Security"

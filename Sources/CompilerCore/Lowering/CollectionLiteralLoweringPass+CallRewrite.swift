@@ -173,6 +173,7 @@ extension CollectionLiteralLoweringPass {
             var iteratorBuilderExprIDs: Set<Int32> = []
             var indexingIterableExprIDs: Set<Int32> = []
             var indexingIterableIteratorExprIDs: Set<Int32> = []
+            var ulongRangeIteratorExprIDs: Set<Int32> = []
             var loweredBody: [KIRInstruction] = []
             loweredBody.reserveCapacity(function.body.count + 32)
 
@@ -1068,6 +1069,23 @@ extension CollectionLiteralLoweringPass {
                         continue
                     }
 
+                    // --- Rewrite kk_range_iterator on ULong range → kk_ulong_range_iterator (STDLIB-RANGE-037) ---
+                    if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
+                        let argID = arguments[0]
+                        if ulongRangeExprIDs.contains(argID.rawValue) {
+                            if let result { ulongRangeIteratorExprIDs.insert(result.rawValue) }
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkULongRangeIteratorName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            continue
+                        }
+                    }
+
                     // --- Rewrite kk_range_iterator on list → kk_list_iterator ---
                     if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
                         let argID = arguments[0]
@@ -1131,6 +1149,22 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
 
+                    // --- Rewrite kk_range_hasNext on ULong range iterator → kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
+                    if callee == lookup.kkRangeHasNextName, arguments.count == 1 {
+                        let argID = arguments[0]
+                        if ulongRangeIteratorExprIDs.contains(argID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkULongRangeHasNextName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            continue
+                        }
+                    }
+
                     // --- Rewrite kk_range_hasNext on list iterator → kk_list_iterator_hasNext ---
                     if callee == lookup.kkRangeHasNextName, arguments.count == 1 {
                         let argID = arguments[0]
@@ -1185,6 +1219,22 @@ extension CollectionLiteralLoweringPass {
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: lookup.kkIndexingIterableHasNextName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            continue
+                        }
+                    }
+
+                    // --- Rewrite kk_range_next on ULong range iterator → kk_ulong_range_next (STDLIB-RANGE-037) ---
+                    if callee == lookup.kkRangeNextName, arguments.count == 1 {
+                        let argID = arguments[0]
+                        if ulongRangeIteratorExprIDs.contains(argID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkULongRangeNextName,
                                 arguments: arguments,
                                 result: result,
                                 canThrow: false,
@@ -1385,9 +1435,17 @@ extension CollectionLiteralLoweringPass {
                                 continue
                             }
                             if rangeExprIDs.contains(receiverID.rawValue) {
+                                let countCallee: InternedString
+                                if ulongRangeExprIDs.contains(receiverID.rawValue) {
+                                    countCallee = lookup.kkULongRangeCountName
+                                } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                                    countCallee = ctx.interner.intern("kk_uint_range_count")
+                                } else {
+                                    countCallee = lookup.kkRangeCountName
+                                }
                                 loweredBody.append(.call(
                                     symbol: nil,
-                                    callee: lookup.kkRangeCountName,
+                                    callee: countCallee,
                                     arguments: [receiverID],
                                     result: result,
                                     canThrow: false,
@@ -1588,9 +1646,13 @@ extension CollectionLiteralLoweringPass {
                             }
                             // STDLIB-637: UIntRange/ULongRange isEmpty
                             if rangeExprIDs.contains(receiverID.rawValue) {
+                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
+                                let isEmptyName = ulongRangeExprIDs.contains(receiverID.rawValue)
+                                    ? lookup.kkULongRangeIsEmptyName
+                                    : (isUIntRange ? ctx.interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
                                 loweredBody.append(.call(
                                     symbol: nil,
-                                    callee: lookup.kkRangeIsEmptyName,
+                                    callee: isEmptyName,
                                     arguments: [receiverID],
                                     result: result,
                                     canThrow: false,
@@ -1606,9 +1668,10 @@ extension CollectionLiteralLoweringPass {
                         if arguments.count == 1 {
                             let receiverID = arguments[0]
                             if rangeExprIDs.contains(receiverID.rawValue) {
+                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
                                 loweredBody.append(.call(
                                     symbol: nil,
-                                    callee: lookup.kkRangeSumName,
+                                    callee: isUIntRange ? ctx.interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
                                     arguments: [receiverID],
                                     result: result,
                                     canThrow: false,
@@ -2080,10 +2143,13 @@ extension CollectionLiteralLoweringPass {
                             continue
                         }
                         if callee == lookup.reversedName, rangeExprIDs.contains(receiverID.rawValue) {
+                            let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
                             let transformResult = module.arena.appendExpr(
                                 .temporary(Int32(module.arena.expressions.count)), type: nil
                             )
-                            let reversedName = ulongRangeExprIDs.contains(receiverID.rawValue) ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
+                            let reversedName = ulongRangeExprIDs.contains(receiverID.rawValue)
+                                ? lookup.kkULongRangeReversedName
+                                : (isUIntRange ? ctx.interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: reversedName,
@@ -2242,6 +2308,8 @@ extension CollectionLiteralLoweringPass {
                                 rangeToListCallee = lookup.kkCharRangeToListName
                             } else if ulongRangeExprIDs.contains(receiverID.rawValue) {
                                 rangeToListCallee = lookup.kkULongRangeToListName
+                            } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                                rangeToListCallee = ctx.interner.intern("kk_uint_range_toList")
                             } else {
                                 rangeToListCallee = lookup.kkRangeToListName
                             }
@@ -2392,7 +2460,7 @@ extension CollectionLiteralLoweringPass {
                     // by this point plain `iterator { ... }` should refer to
                     // kotlin.sequences.iterator rather than a user-defined
                     // overload. Keep the runtime call non-throwing.
-                    if callee == lookup.iteratorBuilderName, arguments.count == 1 {
+                    if callee == lookup.iteratorBuilderName, arguments.count == 1, symbol == nil {
                         loweredBody.append(.call(
                             symbol: nil,
                             callee: lookup.kkIteratorBuilderBuildName,
@@ -2606,12 +2674,18 @@ extension CollectionLiteralLoweringPass {
                                     closureRawID = zeroExpr
                                 }
                                 let isCharRange = charRangeExprIDs.contains(receiverID.rawValue)
+                                let isULongRange = ulongRangeExprIDs.contains(receiverID.rawValue)
                                 let kkName: InternedString
                                 if callee == lookup.mapName {
-                                    kkName = lookup.kkRangeMapName
+                                    // STDLIB-RANGE-037: use ULong-specific map for unsigned ranges
+                                    kkName = isULongRange ? lookup.kkULongRangeMapName : lookup.kkRangeMapName
                                 } else {
-                                    // forEach: use char range variant if applicable (STDLIB-290)
-                                    kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
+                                    // forEach: use ULong, char, or default range variant
+                                    if isULongRange {
+                                        kkName = lookup.kkULongRangeForEachName
+                                    } else {
+                                        kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
+                                    }
                                 }
                                 let hofResult = module.arena.appendExpr(
                                     .temporary(Int32(module.arena.expressions.count)), type: nil
@@ -3182,6 +3256,10 @@ extension CollectionLiteralLoweringPass {
                                     multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                                     naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                                    thenByCallee: lookup.kkComparatorThenByName,
+                                    thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                                    nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                                    nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                                     reversedCallee: lookup.kkComparatorReversedName
                                 )
@@ -3220,6 +3298,18 @@ extension CollectionLiteralLoweringPass {
                                 case .multiSelector:
                                     trampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
                                     closureExpr = comparatorExpr
+                                case .thenBy:
+                                    trampolineName = lookup.kkComparatorThenByTrampolineName
+                                    closureExpr = comparatorExpr
+                                case .thenByDescending:
+                                    trampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                    closureExpr = comparatorExpr
+                                case .nullsFirst:
+                                    trampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                    closureExpr = comparatorExpr
+                                case .nullsLast:
+                                    trampolineName = lookup.kkComparatorNullsLastTrampolineName
+                                    closureExpr = comparatorExpr
                                 case .naturalOrder:
                                     trampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                                     let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -3240,6 +3330,10 @@ extension CollectionLiteralLoweringPass {
                                         multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                                         naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                                         reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                                        thenByCallee: lookup.kkComparatorThenByName,
+                                        thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                                        nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                                        nullsLastCallee: lookup.kkComparatorNullsLastName,
                                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                                         reversedCallee: lookup.kkComparatorReversedName
                                     )
@@ -3254,6 +3348,18 @@ extension CollectionLiteralLoweringPass {
                                         innerClosureExpr = innerExpr
                                     case .multiSelector:
                                         innerTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .thenBy:
+                                        innerTrampolineName = lookup.kkComparatorThenByTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .thenByDescending:
+                                        innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .nullsFirst:
+                                        innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .nullsLast:
+                                        innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                                         innerClosureExpr = innerExpr
                                     case .naturalOrder:
                                         innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
@@ -3370,6 +3476,10 @@ extension CollectionLiteralLoweringPass {
                                     multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                                     naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                                    thenByCallee: lookup.kkComparatorThenByName,
+                                    thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                                    nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                                    nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                                     reversedCallee: lookup.kkComparatorReversedName
                                 )
@@ -3381,6 +3491,18 @@ extension CollectionLiteralLoweringPass {
                                     cmpClosureExpr = cmpExpr
                                 case .multiSelector:
                                     cmpTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
+                                    cmpClosureExpr = cmpExpr
+                                case .thenBy:
+                                    cmpTrampolineName = lookup.kkComparatorThenByTrampolineName
+                                    cmpClosureExpr = cmpExpr
+                                case .thenByDescending:
+                                    cmpTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                    cmpClosureExpr = cmpExpr
+                                case .nullsFirst:
+                                    cmpTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                    cmpClosureExpr = cmpExpr
+                                case .nullsLast:
+                                    cmpTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                                     cmpClosureExpr = cmpExpr
                                 case .naturalOrder:
                                     cmpTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
@@ -3402,6 +3524,10 @@ extension CollectionLiteralLoweringPass {
                                         multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                                         naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                                         reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                                        thenByCallee: lookup.kkComparatorThenByName,
+                                        thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                                        nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                                        nullsLastCallee: lookup.kkComparatorNullsLastName,
                                         multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                                         reversedCallee: lookup.kkComparatorReversedName
                                     )
@@ -3416,6 +3542,18 @@ extension CollectionLiteralLoweringPass {
                                         innerClosureExpr = innerExpr
                                     case .multiSelector:
                                         innerTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .thenBy:
+                                        innerTrampolineName = lookup.kkComparatorThenByTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .thenByDescending:
+                                        innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .nullsFirst:
+                                        innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                        innerClosureExpr = innerExpr
+                                    case .nullsLast:
+                                        innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                                         innerClosureExpr = innerExpr
                                     case .naturalOrder:
                                         innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
@@ -3998,6 +4136,10 @@ extension CollectionLiteralLoweringPass {
                             multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                             naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                             reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                            thenByCallee: lookup.kkComparatorThenByName,
+                            thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                            nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                            nullsLastCallee: lookup.kkComparatorNullsLastName,
                             multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                             reversedCallee: lookup.kkComparatorReversedName
                         )
@@ -4025,6 +4167,18 @@ extension CollectionLiteralLoweringPass {
                             case .multiSelector:
                                 trampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
                                 closureExpr = comparatorExpr
+                            case .thenBy:
+                                trampolineName = lookup.kkComparatorThenByTrampolineName
+                                closureExpr = comparatorExpr
+                            case .thenByDescending:
+                                trampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                closureExpr = comparatorExpr
+                            case .nullsFirst:
+                                trampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                closureExpr = comparatorExpr
+                            case .nullsLast:
+                                trampolineName = lookup.kkComparatorNullsLastTrampolineName
+                                closureExpr = comparatorExpr
                             case .naturalOrder:
                                 trampolineName = lookup.kkComparatorNaturalOrderTrampolineName
                                 let zero = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -4045,6 +4199,10 @@ extension CollectionLiteralLoweringPass {
                                     multiSelectorCallee: lookup.kkComparatorFromMultiSelectorsName,
                                     naturalOrderCallee: lookup.kkComparatorNaturalOrderName,
                                     reverseOrderCallee: lookup.kkComparatorReverseOrderName,
+                                    thenByCallee: lookup.kkComparatorThenByName,
+                                    thenByDescendingCallee: lookup.kkComparatorThenByDescendingName,
+                                    nullsFirstCallee: lookup.kkComparatorNullsFirstName,
+                                    nullsLastCallee: lookup.kkComparatorNullsLastName,
                                     multiSelector3Callee: lookup.kkComparatorFromMultiSelectors3Name,
                                     reversedCallee: lookup.kkComparatorReversedName
                                 )
@@ -4059,6 +4217,18 @@ extension CollectionLiteralLoweringPass {
                                     innerClosureExpr = innerExpr
                                 case .multiSelector:
                                     innerTrampolineName = lookup.kkComparatorFromMultiSelectorsTrampolineName
+                                    innerClosureExpr = innerExpr
+                                case .thenBy:
+                                    innerTrampolineName = lookup.kkComparatorThenByTrampolineName
+                                    innerClosureExpr = innerExpr
+                                case .thenByDescending:
+                                    innerTrampolineName = lookup.kkComparatorThenByDescendingTrampolineName
+                                    innerClosureExpr = innerExpr
+                                case .nullsFirst:
+                                    innerTrampolineName = lookup.kkComparatorNullsFirstTrampolineName
+                                    innerClosureExpr = innerExpr
+                                case .nullsLast:
+                                    innerTrampolineName = lookup.kkComparatorNullsLastTrampolineName
                                     innerClosureExpr = innerExpr
                                 case .naturalOrder:
                                     innerTrampolineName = lookup.kkComparatorNaturalOrderTrampolineName
@@ -4224,6 +4394,9 @@ extension CollectionLiteralLoweringPass {
                     }
                     if indexingIterableIteratorExprIDs.contains(from.rawValue) {
                         indexingIterableIteratorExprIDs.insert(to.rawValue)
+                    }
+                    if ulongRangeIteratorExprIDs.contains(from.rawValue) {
+                        ulongRangeIteratorExprIDs.insert(to.rawValue)
                     }
                     loweredBody.append(instruction)
 

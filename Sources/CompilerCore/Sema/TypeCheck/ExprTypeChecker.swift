@@ -228,6 +228,16 @@ final class ExprTypeChecker {
             let type: TypeID
             switch op {
             case .not:
+                if let overloadedType = inferUnaryOperatorExpr(
+                    id,
+                    op: op,
+                    operandType: operandType,
+                    range: range,
+                    ctx: ctx,
+                    expectedType: expectedType
+                ) {
+                    return overloadedType
+                }
                 driver.emitSubtypeConstraint(
                     left: operandType, right: boolType,
                     range: ast.arena.exprRange(operandID) ?? range,
@@ -558,6 +568,127 @@ final class ExprTypeChecker {
         )
     }
 
+    func operatorFunctionNames(for op: BinaryOp, interner: StringInterner) -> [InternedString] {
+        switch op {
+        case .modulo:
+            return [interner.intern("rem"), interner.intern("mod")]
+        default:
+            return [interner.intern(op.kotlinFunctionName)]
+        }
+    }
+
+    func operatorFunctionNames(for op: UnaryOp, interner: StringInterner) -> [InternedString] {
+        [interner.intern(op.kotlinFunctionName)]
+    }
+
+    func operatorFunctionNames(for op: CompoundAssignOp, interner: StringInterner) -> [InternedString] {
+        switch op {
+        case .modAssign:
+            return [interner.intern("remAssign"), interner.intern("modAssign")]
+        default:
+            return [interner.intern(op.kotlinFunctionName)]
+        }
+    }
+
+    func collectOperatorCandidates(
+        names: [InternedString],
+        receiverType: TypeID,
+        ctx: TypeInferenceContext
+    ) -> [SymbolID] {
+        let sema = ctx.sema
+        let isPrimitive = if case .primitive = sema.types.kind(of: receiverType) { true } else { false }
+        guard !isPrimitive else { return [] }
+
+        // STDLIB-OP-031: Names that are inherently operator functions in Kotlin
+        // (e.g. equals, compareTo). Overrides of these inherit operator status
+        // even without the explicit `operator` keyword.
+        let inheritedOperatorNames: Set<String> = ["equals", "compareTo"]
+
+        var candidates: [SymbolID] = []
+        var seen: Set<SymbolID> = []
+
+        for name in names {
+            let nameStr = ctx.interner.resolve(name)
+            let isInheritedOperator = inheritedOperatorNames.contains(nameStr)
+            for candidate in driver.helpers.collectMemberFunctionCandidates(
+                named: name,
+                receiverType: receiverType,
+                sema: sema
+            ) {
+                guard seen.insert(candidate).inserted,
+                      let symbol = sema.symbols.symbol(candidate)
+                else {
+                    continue
+                }
+                // Accept explicit operator functions, and also accept overrides
+                // of inherited operator functions (equals, compareTo) that may
+                // omit the `operator` keyword. In Kotlin, overrides of Any.equals
+                // and Comparable.compareTo inherit operator status.
+                if symbol.flags.contains(.operatorFunction) {
+                    candidates.append(candidate)
+                } else if isInheritedOperator,
+                          symbol.kind == .function,
+                          symbol.flags.contains(.overrideMember) {
+                    candidates.append(candidate)
+                }
+            }
+
+            guard isInheritedOperator else {
+                continue
+            }
+
+            let nominalRoots = driver.helpers.allNominalSymbols(
+                of: receiverType,
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            var ownerQueue: [SymbolID] = nominalRoots
+            var visitedOwners: Set<SymbolID> = []
+            while !ownerQueue.isEmpty {
+                let owner = ownerQueue.removeFirst()
+                guard visitedOwners.insert(owner).inserted,
+                      let ownerSymbol = sema.symbols.symbol(owner)
+                else {
+                    continue
+                }
+                ownerQueue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+                let memberFQName = ownerSymbol.fqName + [name]
+                for candidate in sema.symbols.lookupAll(fqName: memberFQName) {
+                    guard seen.insert(candidate).inserted,
+                          let symbol = sema.symbols.symbol(candidate),
+                          symbol.kind == .function,
+                          symbol.flags.contains(.overrideMember),
+                          sema.symbols.parentSymbol(for: candidate) == owner
+                    else {
+                        continue
+                    }
+                    candidates.append(candidate)
+                }
+            }
+        }
+
+        if !candidates.isEmpty {
+            return candidates
+        }
+
+        for name in names {
+            for candidate in ctx.cachedScopeLookup(name) {
+                guard seen.insert(candidate).inserted,
+                      let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType != nil
+                else {
+                    continue
+                }
+                candidates.append(candidate)
+            }
+        }
+
+        return candidates
+    }
+
     private func inferUnaryOperatorExpr(
         _ id: ExprID,
         op: UnaryOp,
@@ -569,39 +700,20 @@ final class ExprTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let lhsIsPrimitive = if case .primitive = sema.types.kind(of: operandType) { true } else { false }
-        let operatorName = interner.intern(op.kotlinFunctionName)
-
-        let memberCandidates = lhsIsPrimitive ? [] : driver.helpers.collectMemberFunctionCandidates(
-            named: operatorName,
+        let operatorNames = operatorFunctionNames(for: op, interner: interner)
+        let operatorCandidates = collectOperatorCandidates(
+            names: operatorNames,
             receiverType: operandType,
-            sema: sema
-        ).filter { candidate in
-            guard let symbol = sema.symbols.symbol(candidate) else { return false }
-            return symbol.flags.contains(.operatorFunction)
-        }
-        let operatorCandidates: [SymbolID] = if !memberCandidates.isEmpty {
-            memberCandidates
-        } else if !lhsIsPrimitive {
-            ctx.cachedScopeLookup(operatorName).filter { candidate in
-                guard let symbol = ctx.cachedSymbol(candidate),
-                      symbol.kind == .function,
-                      symbol.flags.contains(.operatorFunction),
-                      let signature = sema.symbols.functionSignature(for: candidate)
-                else {
-                    return false
-                }
-                return signature.receiverType != nil
-            }
-        } else {
-            []
-        }
+            ctx: ctx
+        )
+        let displayOperatorName = interner.resolve(operatorNames[0])
 
         if !operatorCandidates.isEmpty {
             let resolved = ctx.resolver.resolveCall(
                 candidates: operatorCandidates,
                 call: CallExpr(
                     range: range,
-                    calleeName: operatorName,
+                    calleeName: operatorNames[0],
                     args: []
                 ),
                 expectedType: expectedType,
@@ -616,7 +728,7 @@ final class ExprTypeChecker {
             guard let chosen = resolved.chosenCallee else {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0002",
-                    "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                    "No viable overload found for operator '\(displayOperatorName)'.",
                     range: range
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
@@ -639,7 +751,7 @@ final class ExprTypeChecker {
         {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0002",
-                "No viable overload found for operator '\(interner.resolve(operatorName))'.",
+                "No viable overload found for operator '\(displayOperatorName)'.",
                 range: range
             )
             sema.bindings.bindExprType(id, type: sema.types.errorType)

@@ -48,11 +48,11 @@ extension CallTypeChecker {
         // or comparison results. This is a known limitation; full ULong support
         // would require unsigned comparison helpers in the runtime.
         // Only CharRange needs separate helpers (kk_char_range_*) due to box/unbox.
-        let isUIntRange = receiverType == sema.types.uintType
+        let isUIntRange = sema.bindings.isUIntRangeExpr(receiverID) || receiverType == sema.types.uintType
         let isULongRange = sema.bindings.isULongRangeExpr(receiverID) || receiverType == sema.types.ulongType
 
         if args.isEmpty,
-           memberName == "step",
+           ["step", "start", "end"].contains(memberName),
            let propertyResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: sema.types.makeNonNullable(receiverType ?? sema.types.anyType),
@@ -95,6 +95,9 @@ extension CallTypeChecker {
             if sema.bindings.isCharRangeExpr(receiverID) {
                 sema.bindings.markCharRangeExpr(id)
             }
+            if sema.bindings.isUIntRangeExpr(receiverID) {
+                sema.bindings.markUIntRangeExpr(id)
+            }
             // Propagate ULong range marker through range-preserving transforms.
             if sema.bindings.isULongRangeExpr(receiverID) {
                 sema.bindings.markULongRangeExpr(id)
@@ -106,6 +109,7 @@ extension CallTypeChecker {
             argCount: args.count,
             sema: sema,
             interner: interner,
+            receiverType: receiverType,
             isCharRange: isCharRange,
             isLongRange: isLongRange,
             isUIntRange: isUIntRange,
@@ -118,25 +122,26 @@ extension CallTypeChecker {
 
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
         let rangeMembers: Set = [
-            "first", "last", "count", "contains",
-            "toList", "toIntArray", "toUIntArray", "forEach", "map", "mapIndexed", "mapNotNull",
+            "start", "end", "endInclusive", "first", "last", "count", "contains",
+            "iterator",
+            "toList", "toIntArray", "toLongArray", "toUIntArray", "forEach", "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
             "find", "findLast", "firstOrNull", "lastOrNull",
             "any", "all", "none",
             "chunked", "windowed",
-            "reversed", "step", "isEmpty", "sum",
+            "reversed", "step", "isEmpty", "sum", "iterator",
         ]
         return rangeMembers.contains(memberName)
     }
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "count", "toList", "toIntArray", "toUIntArray", "reversed", "isEmpty", "sum":
+        case "count", "start", "end", "endInclusive", "iterator", "toList", "toIntArray", "toLongArray", "toUIntArray", "reversed", "isEmpty", "sum":
             argCount == 0
         case "step":
             argCount == 0 || argCount == 1
-        case "first", "last":
+        case "start", "end", "first", "last":
             argCount == 0 || argCount == 1
         case "contains", "forEach", "map", "mapIndexed", "mapNotNull",
              "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed",
@@ -185,6 +190,7 @@ extension CallTypeChecker {
         argCount: Int,
         sema: SemaModule,
         interner: StringInterner,
+        receiverType: TypeID? = nil,
         isCharRange: Bool = false,
         isLongRange: Bool = false,
         isUIntRange: Bool = false,
@@ -198,7 +204,7 @@ extension CallTypeChecker {
             isULongRange: isULongRange
         )
         switch memberName {
-        case "first", "last":
+        case "first", "last", "start", "end", "endInclusive":
             return elementType
         case "firstOrNull", "lastOrNull", "find", "findLast":
             return sema.types.makeNullable(elementType)
@@ -210,12 +216,18 @@ extension CallTypeChecker {
             return sema.types.booleanType
         case "forEach":
             return sema.types.unitType
+        case "iterator":
+            return rangeMemberIteratorType(elementType: elementType, sema: sema, interner: interner)
         case "toList":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
         case "toIntArray":
             return rangeMemberIntArrayType(sema: sema, interner: interner)
+        case "toLongArray":
+            return rangeMemberLongArrayType(sema: sema, interner: interner)
         case "toUIntArray":
             return rangeMemberUIntArrayType(sema: sema, interner: interner)
+        case "iterator":
+            return rangeMemberIteratorType(elementType: elementType, sema: sema, interner: interner)
         case "filter", "filterIndexed", "filterNot":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
         case "map", "mapIndexed", "mapNotNull":
@@ -231,9 +243,25 @@ extension CallTypeChecker {
                 interner: interner
             )
         case "reversed":
-            return elementType
+            return rangeMemberRangeType(
+                receiverType: receiverType,
+                elementType: elementType,
+                sema: sema,
+                interner: interner,
+                isLongRange: isLongRange,
+                isUIntRange: isUIntRange,
+                isULongRange: isULongRange
+            )
         case "step":
-            return argCount == 0 ? sema.types.intType : elementType
+            return argCount == 0 ? sema.types.intType : rangeMemberRangeType(
+                receiverType: receiverType,
+                elementType: elementType,
+                sema: sema,
+                interner: interner,
+                isLongRange: isLongRange,
+                isUIntRange: isUIntRange,
+                isULongRange: isULongRange
+            )
         default:
             return sema.types.anyType
         }
@@ -259,6 +287,21 @@ extension CallTypeChecker {
         )))
     }
 
+    private func rangeMemberIteratorType(
+        elementType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let iteratorSymbol = sema.symbols.lookupByShortName(interner.intern("Iterator")).first else {
+            return sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: iteratorSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
     private func rangeMemberIntArrayType(
         sema: SemaModule,
         interner: StringInterner
@@ -273,6 +316,20 @@ extension CallTypeChecker {
         )))
     }
 
+    private func rangeMemberLongArrayType(
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let longArraySymbol = sema.symbols.lookupByShortName(interner.intern("LongArray")).first else {
+            return sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: longArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
     private func rangeMemberUIntArrayType(
         sema: SemaModule,
         interner: StringInterner
@@ -282,6 +339,44 @@ extension CallTypeChecker {
         }
         return sema.types.make(.classType(ClassType(
             classSymbol: uintArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func rangeMemberRangeType(
+        receiverType: TypeID?,
+        elementType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner,
+        isLongRange: Bool,
+        isUIntRange: Bool,
+        isULongRange: Bool
+    ) -> TypeID {
+        if let receiverType,
+           case .classType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+        {
+            return sema.types.makeNonNullable(receiverType)
+        }
+
+        if isULongRange {
+            return sema.types.ulongType
+        }
+        if isUIntRange {
+            return sema.types.uintType
+        }
+        if isLongRange {
+            return sema.types.longType
+        }
+        if elementType == sema.types.charType {
+            return sema.types.intType
+        }
+
+        guard let intRangeSymbol = sema.symbols.lookupByShortName(interner.intern("IntRange")).first else {
+            return sema.types.intType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: intRangeSymbol,
             args: [],
             nullability: .nonNull
         )))
