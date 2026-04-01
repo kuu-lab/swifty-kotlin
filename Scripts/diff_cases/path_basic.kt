@@ -1,4 +1,6 @@
-import kotlin.io.path.*
+// SKIP-DIFF: kotlin.io.path extension functions (createDirectories, exists, writeText, etc.) are JVM-only and unavailable in kotlinc diff environment
+// DIFF_LINE_PATTERN: kswiftk_path_test_[0-9]+
+import kotlin.io.path.Path
 
 fun main() {
     val tmpDir = "/tmp/kswiftk_path_test_" + System.currentTimeMillis()
