@@ -2589,7 +2589,9 @@ extension CallTypeChecker {
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let uintType = sema.types.make(.primitive(.uint, .nonNull))
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
-            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType {
+            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
+            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
+            if lookupReceiverType == intType || lookupReceiverType == longType || lookupReceiverType == uintType || lookupReceiverType == ulongType || lookupReceiverType == ubyteType || lookupReceiverType == ushortType {
                 let resultType = lookupReceiverType
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
@@ -2613,8 +2615,8 @@ extension CallTypeChecker {
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             let rhsType = sema.types.makeNonNullable(argTypes[0])
-            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
-            let isIntegerRhs = rhsType == intType || rhsType == longType || rhsType == uintType || rhsType == ulongType
+            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType
+            let isIntegerRhs = rhsType == intType || rhsType == longType || rhsType == uintType || rhsType == ulongType || rhsType == ubyteType || rhsType == ushortType
             switch interner.resolve(calleeName) {
             case "plus", "minus", "times", "div", "rem", "mod":
                 let resultType: TypeID?
@@ -2698,6 +2700,8 @@ extension CallTypeChecker {
                     let resultType: TypeID = (receiverForCheck == longType || rhsType == longType) ? longType
                         : (receiverForCheck == ulongType || rhsType == ulongType) ? ulongType
                         : (receiverForCheck == uintType || rhsType == uintType) ? uintType
+                        : (receiverForCheck == ushortType || rhsType == ushortType) ? ushortType
+                        : (receiverForCheck == ubyteType || rhsType == ubyteType) ? ubyteType
                         : intType
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                     sema.bindings.bindExprType(id, type: finalType)

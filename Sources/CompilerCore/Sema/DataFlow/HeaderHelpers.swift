@@ -887,6 +887,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
+        registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
         registerSyntheticPropertyInterfaceStubs(
             symbols: symbols, types: types, interner: interner,

@@ -79,6 +79,18 @@ extension TypeSystem {
             }
         }
 
+        if case let .classType(rhsClass) = rhs, let annotationSym = annotationInterfaceSymbol, rhsClass.classSymbol == annotationSym {
+            if case .nothing(.nonNull) = lhs { return true }
+            if case let .classType(lhsClass) = lhs {
+                if lhsClass.classSymbol == annotationSym { return true }
+                if let symbol = symbolTable?.symbol(lhsClass.classSymbol), symbol.kind == .annotationClass {
+                    return true
+                }
+            }
+            // We do not return false here, as it might be a subtype through normal inheritance
+            // if Annotation was explicitly added to supertypes.
+        }
+
         // primitive <: Comparable<same_primitive>
         // All Kotlin primitive types (Int, Long, Double, Float, Char, Boolean, etc.) implement Comparable<Self>.
         if case let .primitive(_, leftNullability) = lhs,

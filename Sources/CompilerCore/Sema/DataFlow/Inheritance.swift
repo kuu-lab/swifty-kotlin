@@ -76,6 +76,18 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+
+        // Default to kotlin.Any if no supertypes are specified (and it's not Any itself)
+        let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+        if superSymbols.isEmpty,
+           let anySymbol = symbols.lookup(fqName: anyFQName),
+           symbol != anySymbol,
+           let symbolInfo = symbols.symbol(symbol),
+           symbolInfo.kind == .class || symbolInfo.kind == .object || symbolInfo.kind == .enumClass
+        {
+            superSymbols.append(anySymbol)
+        }
+
         let uniqueSuperSymbols = Array(Set(superSymbols)).sorted(by: { $0.rawValue < $1.rawValue })
         symbols.setDirectSupertypes(uniqueSuperSymbols, for: symbol)
         types.setNominalDirectSupertypes(uniqueSuperSymbols, for: symbol)
