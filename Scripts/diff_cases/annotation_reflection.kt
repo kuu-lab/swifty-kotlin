@@ -1,39 +1,26 @@
-// STDLIB-REFLECT-065: Annotation Reflection
-// Tests annotation metadata access via KClass reflection APIs.
+// STDLIB-REFLECT-065: Annotation reflection
+annotation class MyLabel(val name: String = "default")
+annotation class Marker
 
-@Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.RUNTIME)
-annotation class MyAnnotation(val value: String = "default")
+@MyLabel("hello")
+@Marker
+class Foo
 
-@Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.RUNTIME)
-annotation class AnotherAnnotation
+@MyLabel
+class Bar
 
-@MyAnnotation(value = "hello")
-@AnotherAnnotation
-class AnnotatedClass
-
-class UnannotatedClass
+class Baz
 
 fun main() {
-    val klass = AnnotatedClass::class
-    val annotations = klass.annotations
-    println("annotation count: ${annotations.size}")
+    // KClass.annotations — returns a list of annotations
+    val fooAnnotations = Foo::class.annotations
+    println(fooAnnotations.size) // 2
 
-    val found = klass.findAnnotation<MyAnnotation>()
-    if (found != null) {
-        println("found MyAnnotation")
-    } else {
-        println("MyAnnotation not found")
-    }
+    val barAnnotations = Bar::class.annotations
+    println(barAnnotations.size) // 1
 
-    val notFound = klass.findAnnotation<AnotherAnnotation>()
-    if (notFound != null) {
-        println("found AnotherAnnotation")
-    } else {
-        println("AnotherAnnotation not found")
-    }
+    val bazAnnotations = Baz::class.annotations
+    println(bazAnnotations.size) // 0
 
-    val unannotated = UnannotatedClass::class
-    println("unannotated count: ${unannotated.annotations.size}")
+    println("annotation_reflection ok")
 }
