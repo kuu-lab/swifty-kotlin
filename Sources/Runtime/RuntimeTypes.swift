@@ -762,6 +762,16 @@ struct RuntimeKClassMetadataEntry {
     let isOpen: Bool
     let visibility: String
     let typeParameterCount: Int
+    /// Runtime annotations attached to this type (STDLIB-REFLECT-065).
+    var annotations: [RuntimeAnnotationRecord] = []
+}
+
+/// Runtime representation of an annotation attached to a declaration (STDLIB-REFLECT-065).
+struct RuntimeAnnotationRecord {
+    /// Fully-qualified name of the annotation class (e.g. "MyLabel").
+    let annotationFQName: String
+    /// Argument values serialized as strings (e.g. ["hello"]).
+    let arguments: [String]
 }
 
 /// Global registry mapping type tokens to runtime metadata entries.
@@ -780,6 +790,15 @@ final class RuntimeKClassMetadataRegistry: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return entries[typeToken]
+    }
+
+    func appendAnnotations(typeToken: Int, annotations: [RuntimeAnnotationRecord]) {
+        lock.lock()
+        defer { lock.unlock() }
+        if var entry = entries[typeToken] {
+            entry.annotations.append(contentsOf: annotations)
+            entries[typeToken] = entry
+        }
     }
 
     func reset() {
@@ -972,47 +991,23 @@ final class RuntimeKConstructorBox {
 
 // MARK: - Annotation Reflection (STDLIB-REFLECT-065)
 
-/// Runtime representation of an annotation instance.
-/// Wraps the annotation class name and its argument values for runtime reflection.
+/// Runtime box for a Kotlin annotation instance.
+/// Represents a single annotation applied to a declaration, with its class
+/// name and argument values accessible at runtime.
 final class RuntimeAnnotationBox {
-    /// Fully-qualified name of the annotation class (e.g. "kotlin.Deprecated").
+    /// Fully-qualified name of the annotation class.
     let annotationFQName: String
-    /// Argument values stored as positional strings.
+    /// Argument values serialized as strings.
     let arguments: [String]
+    /// Raw KClass handle for the annotation class (0 if not available).
+    let annotationClassRaw: Int
 
-    init(annotationFQName: String, arguments: [String] = []) {
+    init(annotationFQName: String, arguments: [String], annotationClassRaw: Int = 0) {
         self.annotationFQName = annotationFQName
         self.arguments = arguments
+        self.annotationClassRaw = annotationClassRaw
     }
 }
-
-/// Runtime registry that maps type tokens to their attached annotations.
-/// Populated during module initialisation via `kk_kclass_register_annotation`.
-final class RuntimeAnnotationRegistry: @unchecked Sendable {
-    private let lock = NSLock()
-    /// typeToken -> list of annotation boxes registered for that type.
-    private var entries: [Int: [RuntimeAnnotationBox]] = [:]
-
-    func register(typeToken: Int, annotation: RuntimeAnnotationBox) {
-        lock.lock()
-        defer { lock.unlock() }
-        entries[typeToken, default: []].append(annotation)
-    }
-
-    func annotations(for typeToken: Int) -> [RuntimeAnnotationBox] {
-        lock.lock()
-        defer { lock.unlock() }
-        return entries[typeToken] ?? []
-    }
-
-    func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        entries.removeAll()
-    }
-}
-
-let runtimeAnnotationRegistry = RuntimeAnnotationRegistry()
 
 // MARK: - BufferedReader (STDLIB-567)
 
