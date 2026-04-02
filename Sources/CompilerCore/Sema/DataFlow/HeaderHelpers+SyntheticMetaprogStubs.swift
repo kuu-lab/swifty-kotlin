@@ -183,15 +183,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if let retentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Retention")]) {
-            let record = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-            )
-            var annotations = symbols.annotations(for: retentionSymbol)
-            if !annotations.contains(record) {
-                annotations.append(record)
-            }
-            symbols.setAnnotations(annotations, for: retentionSymbol)
+            addAnnotationTargetMetaAnnotation(to: retentionSymbol, symbols: symbols)
         }
 
         registerSyntheticAnnotationTargetEnum(

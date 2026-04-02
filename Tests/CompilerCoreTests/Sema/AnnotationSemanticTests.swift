@@ -225,6 +225,39 @@ final class AnnotationSemanticTests: XCTestCase {
         )
     }
 
+    func testRetentionAnnotationIsSyntheticAndTargetedToAnnotationClasses() throws {
+        let source = """
+        annotation class RetainedApi
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let sema = try XCTUnwrap(ctx.sema)
+        let retentionFQName = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("annotation"),
+            ctx.interner.intern("Retention"),
+        ]
+        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: retentionFQName))
+        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+
+        XCTAssertEqual(symbol.visibility, .public)
+        XCTAssertTrue(symbol.flags.contains(.synthetic))
+        XCTAssertEqual(symbol.kind, .annotationClass)
+
+        let annotations = sema.symbols.annotations(for: symbol.id)
+        XCTAssertTrue(
+            annotations.contains(
+                where: {
+                    $0.annotationFQName == "kotlin.annotation.Target"
+                        && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
+                }
+            ),
+            "Expected Retention to carry @Target(AnnotationTarget.ANNOTATION_CLASS), got: \(annotations)"
+        )
+    }
+
     func testFieldTargetAllowsBackedFieldAndRejectsMissingBackingField() {
         let source = """
         @Target(value = [AnnotationTarget.FIELD])
