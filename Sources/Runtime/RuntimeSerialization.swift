@@ -102,6 +102,11 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
         return box.elements.map { runtimeValueToJSON($0) }
     }
 
+    // Set
+    if let box = tryCast(ptr, to: RuntimeSetBox.self) {
+        return box.elements.map { runtimeValueToJSON($0) }
+    }
+
     // Map
     if let box = tryCast(ptr, to: RuntimeMapBox.self) {
         var dict: [String: Any] = [:]
@@ -124,6 +129,15 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
         return [runtimeValueToJSON(box.first), runtimeValueToJSON(box.second)]
     }
 
+    // Triple -> 3-element array
+    if let box = tryCast(ptr, to: RuntimeTripleBox.self) {
+        return [
+            runtimeValueToJSON(box.first),
+            runtimeValueToJSON(box.second),
+            runtimeValueToJSON(box.third),
+        ]
+    }
+
     // RuntimeObjectBox: serialize fields array as array
     if let box = tryCast(ptr, to: RuntimeObjectBox.self) {
         return box.elements.map { runtimeValueToJSON($0) }
@@ -134,8 +148,13 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
         return box.elements.map { runtimeValueToJSON($0) }
     }
 
-    // Fallback: treat raw pointer as integer
-    return rawValue
+    // ArrayDeque uses the same JSON representation as a list.
+    if let box = tryCast(ptr, to: RuntimeArrayDequeBox.self) {
+        return box.elements.map { runtimeValueToJSON($0) }
+    }
+
+    // As a last resort, keep the payload JSON-serializable and stable.
+    return runtimeElementToString(rawValue)
 }
 
 /// Convert a JSONSerialization-parsed Any into a runtime raw value.
