@@ -74,6 +74,7 @@ extension ABIMismatchTests {
             // ThreadLocal (java.lang / kotlin.concurrent)
             "kk_thread_local_new",
             "kk_thread_local_getOrSet",
+            "kk_thread_create",
             // kotlin.concurrent
             "kk_lock_withLock",
             // Symmetric crypto (javax.crypto)
