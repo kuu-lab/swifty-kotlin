@@ -1,3 +1,4 @@
+// SKIP-DIFF: This case exercises KSwiftK-specific convenience stubs that do not match kotlinc's JDK signatures.
 import java.security.KeyPairGenerator
 import java.security.Signature
 import java.security.cert.CertPath
