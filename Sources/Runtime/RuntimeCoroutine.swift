@@ -1277,11 +1277,36 @@ private enum RuntimeFlowTag: Int {
     case take = 3
     case onEach = 4
     case distinctUntilChanged = 5
+    case transform = 6
+    case takeWhile = 7
+    case dropWhile = 8
+    case buffer = 9
+    case conflate = 10
+    case flowOn = 11
+    case debounce = 12
+    case sample = 13
+    case delayEach = 14
+}
+
+private struct RuntimeFlowEvent {
+    let value: Int
+    let timestamp: UInt64
 }
 
 private struct RuntimeFlowOp {
     let kind: RuntimeFlowTag
     let argument: Int
+}
+
+private enum RuntimeFlowSource {
+    case emitter(Int)
+    case fixed([RuntimeFlowEvent])
+    case merge([Int])
+    case zip(Int, Int, Int)
+    case combine(Int, Int, Int)
+    case flatMapConcat(Int, Int)
+    case flatMapMerge(Int, Int)
+    case flatMapLatest(Int, Int)
 }
 
 /// Collect context tracks the lazy pipeline state for a single collect call.
@@ -1291,8 +1316,32 @@ private struct RuntimeFlowOp {
 /// Currently, short-circuiting is handled by `runtimeFlowTakeExhausted` after
 /// each element delivery rather than through this flag.
 private final class RuntimeFlowCollectContext {
-    var emittedValues: [Int] = []
+    let startedAt = DispatchTime.now().uptimeNanoseconds
+    var emittedEvents: [RuntimeFlowEvent] = []
     var cancelled = false
+    var processor: ((RuntimeFlowEvent) -> RuntimeFlowProcessorAction)?
+    var processorFailed = false
+}
+
+private final class RuntimeFlowLockedBox<T> {
+    private let lock = NSLock()
+    private var value: T
+
+    init(_ value: T) {
+        self.value = value
+    }
+
+    func withLock<R>(_ body: (inout T) -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
+    }
+}
+
+private enum RuntimeFlowProcessorAction {
+    case `continue`
+    case stop
+    case fail
 }
 
 /// Opaque flow handle. Immutable operation chain; source emitter is re-executed
@@ -1300,14 +1349,25 @@ private final class RuntimeFlowCollectContext {
 /// When `fixedValues` is non-nil, the flow is backed by flowOf and the emitter
 /// function pointer is ignored.
 private final class RuntimeFlowHandle {
-    let emitterFnPtr: Int
+    let source: RuntimeFlowSource
     let opChain: [RuntimeFlowOp]
     let fixedValues: [Int]?
 
-    init(emitterFnPtr: Int, opChain: [RuntimeFlowOp] = [], fixedValues: [Int]? = nil) {
-        self.emitterFnPtr = emitterFnPtr
+    init(source: RuntimeFlowSource, opChain: [RuntimeFlowOp] = [], fixedValues: [Int]? = nil) {
+        self.source = source
         self.opChain = opChain
         self.fixedValues = fixedValues
+    }
+
+    convenience init(emitterFnPtr: Int, opChain: [RuntimeFlowOp] = [], fixedValues: [Int]? = nil) {
+        if let fixedValues {
+            let fixedEvents = fixedValues.enumerated().map { index, value in
+                RuntimeFlowEvent(value: value, timestamp: UInt64(index))
+            }
+            self.init(source: .fixed(fixedEvents), opChain: opChain, fixedValues: fixedValues)
+        } else {
+            self.init(source: .emitter(emitterFnPtr), opChain: opChain, fixedValues: nil)
+        }
     }
 }
 
@@ -1362,6 +1422,50 @@ private func runtimeFlowCurrentCollectContext() -> RuntimeFlowCollectContext? {
     runtimeFlowCollectStackBox().stack.last
 }
 
+private func runtimeFlowCallUnary(_ fnPtr: Int, value: Int) -> (result: Int, thrown: Bool) {
+    guard fnPtr != 0 else {
+        return (value, false)
+    }
+    let function = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = function(0, value, &thrown)
+    return (runtimeFlowMaybeUnbox(result), thrown != 0)
+}
+
+private func runtimeFlowCallBinary(_ fnPtr: Int, lhs: Int, rhs: Int) -> (result: Int, thrown: Bool) {
+    guard fnPtr != 0 else {
+        return (rhs, false)
+    }
+    let function = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = function(0, lhs, rhs, &thrown)
+    return (runtimeFlowMaybeUnbox(result), thrown != 0)
+}
+
+private func runtimeFlowSortEvents(_ events: [RuntimeFlowEvent]) -> [RuntimeFlowEvent] {
+    events.enumerated().sorted { lhs, rhs in
+        if lhs.element.timestamp == rhs.element.timestamp {
+            return lhs.offset < rhs.offset
+        }
+        return lhs.element.timestamp < rhs.element.timestamp
+    }.map(\.element)
+}
+
+private func runtimeFlowIsStreamLevelOp(_ kind: RuntimeFlowTag) -> Bool {
+    switch kind {
+    case .conflate, .flowOn, .debounce, .sample, .delayEach, .buffer:
+        return true
+    default:
+        return false
+    }
+}
+
 private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
         return value
@@ -1381,117 +1485,403 @@ private func runtimeFlowMaybeUnbox(_ value: Int) -> Int {
     return value
 }
 
-/// Result of processing a single value through the operator chain.
-private enum FlowOpResult {
-    /// Value passed all ops and should be delivered to the collector.
-    case emit(Int)
-    /// Value was filtered out; skip delivery.
-    case filtered
-    /// An exception was thrown during an operator; abort the flow.
-    case thrown
-    /// A short-circuiting op (e.g. take) signalled that collection is done.
-    case done
+private func runtimeFlowApplyElementOp(
+    _ events: [RuntimeFlowEvent],
+    op: RuntimeFlowOp
+) -> [RuntimeFlowEvent]? {
+    switch op.kind {
+    case .emit, .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
+        return events
+
+    case .map, .transform:
+        var mapped: [RuntimeFlowEvent] = []
+        mapped.reserveCapacity(events.count)
+        for event in events {
+            let result = runtimeFlowCallUnary(op.argument, value: event.value)
+            if result.thrown {
+                return nil
+            }
+            mapped.append(RuntimeFlowEvent(value: result.result, timestamp: event.timestamp))
+        }
+        return mapped
+
+    case .filter:
+        var filtered: [RuntimeFlowEvent] = []
+        filtered.reserveCapacity(events.count)
+        for event in events {
+            let result = runtimeFlowCallUnary(op.argument, value: event.value)
+            if result.thrown {
+                return nil
+            }
+            if result.result != 0 {
+                filtered.append(event)
+            }
+        }
+        return filtered
+
+    case .take:
+        return Array(events.prefix(max(0, runtimeFlowMaybeUnbox(op.argument))))
+
+    case .onEach:
+        for event in events {
+            let result = runtimeFlowCallUnary(op.argument, value: event.value)
+            if result.thrown {
+                return nil
+            }
+        }
+        return events
+
+    case .distinctUntilChanged:
+        var result: [RuntimeFlowEvent] = []
+        result.reserveCapacity(events.count)
+        var lastValue: Int?
+        for event in events {
+            if lastValue == event.value {
+                continue
+            }
+            lastValue = event.value
+            result.append(event)
+        }
+        return result
+
+    case .takeWhile:
+        var result: [RuntimeFlowEvent] = []
+        result.reserveCapacity(events.count)
+        for event in events {
+            let predicate = runtimeFlowCallUnary(op.argument, value: event.value)
+            if predicate.thrown {
+                return nil
+            }
+            guard predicate.result != 0 else {
+                break
+            }
+            result.append(event)
+        }
+        return result
+
+    case .dropWhile:
+        var dropping = true
+        var result: [RuntimeFlowEvent] = []
+        result.reserveCapacity(events.count)
+        for event in events {
+            if dropping {
+                let predicate = runtimeFlowCallUnary(op.argument, value: event.value)
+                if predicate.thrown {
+                    return nil
+                }
+                if predicate.result != 0 {
+                    continue
+                }
+                dropping = false
+            }
+            result.append(event)
+        }
+        return result
+    }
 }
 
-/// Apply the operator chain to a single emitted value (lazy, per-element).
-/// `takeCounters` tracks remaining elements for each take op index and is
-/// mutated across successive calls within a single collect invocation.
-private func runtimeFlowApplyOpsLazy(
-    _ value: Int,
+private enum RuntimeFlowElementEventResult {
+    case emit(RuntimeFlowEvent)
+    case emitAndStop(RuntimeFlowEvent)
+    case filtered
+    case done
+    case thrown
+}
+
+private struct RuntimeFlowElementState {
+    var takeCounters: [Int: Int]
+    var lastValues: [Int: Int] = [:]
+    var dropWhileFinished: [Int: Bool] = [:]
+}
+
+private func runtimeFlowInitElementState(_ ops: [RuntimeFlowOp]) -> RuntimeFlowElementState {
+    var takeCounters: [Int: Int] = [:]
+    for (index, op) in ops.enumerated() where op.kind == .take {
+        takeCounters[index] = max(0, runtimeFlowMaybeUnbox(op.argument))
+    }
+    return RuntimeFlowElementState(takeCounters: takeCounters)
+}
+
+private func runtimeFlowElementStateHasExhaustedTake(_ state: RuntimeFlowElementState) -> Bool {
+    state.takeCounters.values.contains { $0 <= 0 }
+}
+
+private func runtimeFlowApplyElementOpsToEvent(
+    _ event: RuntimeFlowEvent,
     ops: [RuntimeFlowOp],
-    takeCounters: inout [Int: Int],
-    lastValues: inout [Int: Int]
-) -> FlowOpResult {
-    var current = value
+    state: inout RuntimeFlowElementState
+) -> RuntimeFlowElementEventResult {
+    var current = event
     for (index, op) in ops.enumerated() {
         switch op.kind {
-        case .emit:
-            // Emit ops are handled during flow construction; skip.
+        case .emit, .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
             continue
-
-        case .map:
-            guard op.argument != 0 else {
-                return .filtered
-            }
-            let transform = unsafeBitCast(
-                op.argument,
-                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-            )
-            var thrown = 0
-            let transformed = transform(0, current, &thrown)
-            if thrown != 0 {
+        case .map, .transform:
+            let result = runtimeFlowCallUnary(op.argument, value: current.value)
+            if result.thrown {
                 return .thrown
             }
-            current = runtimeFlowMaybeUnbox(transformed)
-
+            current = RuntimeFlowEvent(value: result.result, timestamp: current.timestamp)
         case .filter:
-            guard op.argument != 0 else {
-                return .filtered
-            }
-            let predicate = unsafeBitCast(
-                op.argument,
-                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-            )
-            var thrown = 0
-            let decision = predicate(0, current, &thrown)
-            if thrown != 0 {
+            let result = runtimeFlowCallUnary(op.argument, value: current.value)
+            if result.thrown {
                 return .thrown
             }
-            if runtimeFlowMaybeUnbox(decision) == 0 {
+            if result.result == 0 {
                 return .filtered
             }
-
         case .take:
-            let limit = max(0, runtimeFlowMaybeUnbox(op.argument))
-            let remaining = takeCounters[index, default: limit]
+            let remaining = state.takeCounters[index, default: max(0, runtimeFlowMaybeUnbox(op.argument))]
             if remaining <= 0 {
                 return .done
             }
-            takeCounters[index] = remaining - 1
-            // If this was the last allowed element, signal done after delivery.
-            if remaining - 1 <= 0 {
-                // Still emit the current value but mark context for cancellation
-                // after this element is delivered.
-            }
-
+            state.takeCounters[index] = remaining - 1
         case .onEach:
-            guard op.argument != 0 else {
-                continue
-            }
-            let action = unsafeBitCast(
-                op.argument,
-                to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
-            )
-            var thrown = 0
-            _ = action(0, current, &thrown)
-            if thrown != 0 {
+            let result = runtimeFlowCallUnary(op.argument, value: current.value)
+            if result.thrown {
                 return .thrown
             }
-            // onEach does not transform the value; pass it through.
-
         case .distinctUntilChanged:
-            if let last = lastValues[index], last == current {
+            if let last = state.lastValues[index], last == current.value {
                 return .filtered
             }
-            lastValues[index] = current
+            state.lastValues[index] = current.value
+        case .takeWhile:
+            let result = runtimeFlowCallUnary(op.argument, value: current.value)
+            if result.thrown {
+                return .thrown
+            }
+            if result.result == 0 {
+                return .done
+            }
+        case .dropWhile:
+            if state.dropWhileFinished[index, default: false] {
+                continue
+            }
+            let result = runtimeFlowCallUnary(op.argument, value: current.value)
+            if result.thrown {
+                return .thrown
+            }
+            if result.result != 0 {
+                return .filtered
+            }
+            state.dropWhileFinished[index] = true
         }
+    }
+    if runtimeFlowElementStateHasExhaustedTake(state) {
+        return .emitAndStop(current)
     }
     return .emit(current)
 }
 
-/// Check whether a take op has exhausted its counter, signalling the flow
-/// should stop. Called after delivering each element.
-private func runtimeFlowTakeExhausted(
-    ops: [RuntimeFlowOp],
-    takeCounters: [Int: Int]
-) -> Bool {
-    for (index, op) in ops.enumerated() {
-        guard op.kind == .take else { continue }
-        if let remaining = takeCounters[index], remaining <= 0 {
-            return true
+private func runtimeFlowEvaluateLazyElementOnly(
+    _ flow: RuntimeFlowHandle
+) -> [RuntimeFlowEvent]? {
+    guard !flow.opChain.contains(where: { runtimeFlowIsStreamLevelOp($0.kind) }) else {
+        return nil
+    }
+
+    var state = runtimeFlowInitElementState(flow.opChain)
+    var collected: [RuntimeFlowEvent] = []
+    let context = RuntimeFlowCollectContext()
+    context.processor = { event in
+        switch runtimeFlowApplyElementOpsToEvent(event, ops: flow.opChain, state: &state) {
+        case .emit(let output):
+            collected.append(output)
+            return .continue
+        case .emitAndStop(let output):
+            collected.append(output)
+            return .stop
+        case .filtered:
+            return .continue
+        case .done:
+            return .stop
+        case .thrown:
+            return .fail
         }
     }
-    return false
+
+    switch flow.source {
+    case .emitter(let emitterFnPtr):
+        runtimeFlowPushCollectContext(context)
+        defer { runtimeFlowPopCollectContext() }
+        guard emitterFnPtr != 0 else { return [] }
+        let emitter = unsafeBitCast(
+            emitterFnPtr,
+            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var outThrown = 0
+        _ = emitter(&outThrown)
+        if outThrown != 0 || context.processorFailed {
+            return nil
+        }
+        return collected
+    case .fixed(let events):
+        for event in events {
+            switch runtimeFlowApplyElementOpsToEvent(event, ops: flow.opChain, state: &state) {
+            case .emit(let output):
+                collected.append(output)
+            case .emitAndStop(let output):
+                collected.append(output)
+                return collected
+            case .filtered:
+                continue
+            case .done:
+                return collected
+            case .thrown:
+                return nil
+            }
+        }
+        return collected
+    default:
+        return nil
+    }
+}
+
+private func runtimeFlowApplyConflate(_ events: [RuntimeFlowEvent]) -> [RuntimeFlowEvent] {
+    guard !events.isEmpty else { return [] }
+    var conflated: [RuntimeFlowEvent] = []
+    conflated.reserveCapacity(events.count)
+    var pending = events[0]
+    let bucketSizeNs: UInt64 = 1_000_000
+    for event in events.dropFirst() {
+        if event.timestamp / bucketSizeNs == pending.timestamp / bucketSizeNs {
+            pending = event
+        } else {
+            conflated.append(pending)
+            pending = event
+        }
+    }
+    conflated.append(pending)
+    return conflated
+}
+
+private func runtimeFlowApplyDebounce(_ events: [RuntimeFlowEvent], intervalMs: Int) -> [RuntimeFlowEvent] {
+    guard !events.isEmpty else { return [] }
+    let intervalNs = UInt64(max(0, intervalMs)) * 1_000_000
+    guard intervalNs > 0 else { return events }
+    var debounced: [RuntimeFlowEvent] = []
+    debounced.reserveCapacity(events.count)
+    for index in events.indices {
+        let current = events[index]
+        let nextTimestamp = index + 1 < events.count ? events[index + 1].timestamp : nil
+        if let nextTimestamp, nextTimestamp <= current.timestamp + intervalNs {
+            continue
+        }
+        debounced.append(RuntimeFlowEvent(value: current.value, timestamp: current.timestamp + intervalNs))
+    }
+    return debounced
+}
+
+private func runtimeFlowApplySample(_ events: [RuntimeFlowEvent], intervalMs: Int) -> [RuntimeFlowEvent] {
+    guard !events.isEmpty else { return [] }
+    let intervalNs = UInt64(max(1, intervalMs)) * 1_000_000
+    let finalTimestamp = events.last!.timestamp
+    var sampled: [RuntimeFlowEvent] = []
+    var tick = intervalNs
+    var startIndex = 0
+    while tick <= finalTimestamp {
+        var latest: RuntimeFlowEvent?
+        var index = startIndex
+        while index < events.count, events[index].timestamp <= tick {
+            latest = events[index]
+            index += 1
+        }
+        if let latest {
+            sampled.append(RuntimeFlowEvent(value: latest.value, timestamp: tick))
+            startIndex = index
+        }
+        tick += intervalNs
+    }
+    if let lastEvent = events.last, sampled.last?.value != lastEvent.value {
+        sampled.append(RuntimeFlowEvent(value: lastEvent.value, timestamp: max(lastEvent.timestamp, sampled.last?.timestamp ?? 0)))
+    }
+    return sampled
+}
+
+private func runtimeFlowApplyStreamOps(
+    _ events: [RuntimeFlowEvent],
+    ops: [RuntimeFlowOp]
+) -> [RuntimeFlowEvent]? {
+    var currentEvents = runtimeFlowSortEvents(events)
+    for op in ops {
+        switch op.kind {
+        case .conflate:
+            currentEvents = runtimeFlowApplyConflate(currentEvents)
+        case .debounce:
+            currentEvents = runtimeFlowApplyDebounce(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
+        case .sample:
+            currentEvents = runtimeFlowApplySample(currentEvents, intervalMs: runtimeFlowMaybeUnbox(op.argument))
+        case .delayEach:
+            let intervalNs = UInt64(max(0, runtimeFlowMaybeUnbox(op.argument))) * 1_000_000
+            currentEvents = currentEvents.map { RuntimeFlowEvent(value: $0.value, timestamp: $0.timestamp + intervalNs) }
+        case .buffer, .flowOn, .emit:
+            continue
+        default:
+            guard let updated = runtimeFlowApplyElementOp(currentEvents, op: op) else {
+                return nil
+            }
+            currentEvents = updated
+        }
+    }
+    return runtimeFlowSortEvents(currentEvents)
+}
+
+private func runtimeFlowCollectLazyElementOnly(
+    _ flow: RuntimeFlowHandle,
+    collectorFnPtr: Int,
+    continuation: Int
+) -> Bool? {
+    guard !flow.opChain.contains(where: { runtimeFlowIsStreamLevelOp($0.kind) }) else {
+        return nil
+    }
+
+    var state = runtimeFlowInitElementState(flow.opChain)
+
+    func processEvent(_ event: RuntimeFlowEvent) -> RuntimeFlowProcessorAction {
+        switch runtimeFlowApplyElementOpsToEvent(event, ops: flow.opChain, state: &state) {
+        case .emit(let output):
+            return runtimeFlowDeliverValue(output.value, collectorFnPtr: collectorFnPtr, continuation: continuation) ? .continue : .stop
+        case .emitAndStop(let output):
+            return runtimeFlowDeliverValue(output.value, collectorFnPtr: collectorFnPtr, continuation: continuation) ? .stop : .stop
+        case .filtered:
+            return .continue
+        case .done:
+            return .stop
+        case .thrown:
+            return .fail
+        }
+    }
+
+    switch flow.source {
+    case .emitter(let emitterFnPtr):
+        let context = RuntimeFlowCollectContext()
+        context.processor = processEvent
+        runtimeFlowPushCollectContext(context)
+        defer { runtimeFlowPopCollectContext() }
+        guard emitterFnPtr != 0 else { return true }
+        let emitter = unsafeBitCast(
+            emitterFnPtr,
+            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var outThrown = 0
+        _ = emitter(&outThrown)
+        return outThrown == 0 && !context.processorFailed
+    case .fixed(let events):
+        for event in events {
+            switch processEvent(event) {
+            case .continue:
+                continue
+            case .stop:
+                return true
+            case .fail:
+                return false
+            }
+        }
+        return true
+    default:
+        return nil
+    }
 }
 
 /// Cold-stream collect: re-execute the source emitter and push each emitted
@@ -1509,47 +1899,32 @@ private func runtimeFlowCollectLazy(
     collectorFnPtr: Int,
     continuation: Int
 ) -> Int {
-    guard let sourceValues = runtimeFlowSourceValues(flow) else {
-        return 0
+    if let collectedLazily = runtimeFlowCollectLazyElementOnly(
+        flow,
+        collectorFnPtr: collectorFnPtr,
+        continuation: continuation
+    ) {
+        return collectedLazily ? 0 : 0
     }
 
-    // Now process each emitted value through the lazy operator chain.
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
-    // Check if a take(0) already exhausts everything before any emission.
-    if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
+    guard let sourceEvents = runtimeFlowSourceEvents(flow) else {
         return 0
     }
-
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue,
-            ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
+    var lastTimestamp: UInt64 = 0
+    for event in sourceEvents {
+        if event.timestamp > lastTimestamp {
+            let delta = event.timestamp - lastTimestamp
+            if delta > 0 {
+                usleep(useconds_t(min(delta / 1_000, UInt64(UInt32.max))))
+            }
+        }
+        lastTimestamp = event.timestamp
+        let delivered = runtimeFlowDeliverValue(
+            event.value,
+            collectorFnPtr: collectorFnPtr,
+            continuation: continuation
         )
-
-        switch result {
-        case .emit(let value):
-            let delivered = runtimeFlowDeliverValue(
-                value,
-                collectorFnPtr: collectorFnPtr,
-                continuation: continuation
-            )
-            if !delivered {
-                return 0
-            }
-            // After successful delivery, check if take is exhausted.
-            if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
-                return 0
-            }
-
-        case .filtered:
-            continue
-
-        case .thrown, .done:
+        if !delivered {
             return 0
         }
     }
@@ -1642,7 +2017,23 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
     if tag == RuntimeFlowTag.emit.rawValue {
         let context = runtimeFlowCurrentCollectContext()
         if let context, !context.cancelled {
-            context.emittedValues.append(runtimeFlowMaybeUnbox(value))
+            let timestamp = DispatchTime.now().uptimeNanoseconds - context.startedAt
+            let event = RuntimeFlowEvent(value: runtimeFlowMaybeUnbox(value), timestamp: timestamp)
+            if let processor = context.processor {
+                switch processor(event) {
+                case .continue:
+                    break
+                case .stop:
+                    context.cancelled = true
+                    return runtimeFlowStopSentinel
+                case .fail:
+                    context.cancelled = true
+                    context.processorFailed = true
+                    return runtimeFlowStopSentinel
+                }
+            } else {
+                context.emittedEvents.append(event)
+            }
         }
         return value
     }
@@ -1653,7 +2044,7 @@ public func kk_flow_emit(_ flowHandle: Int, _ value: Int, _ tag: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_flow_emit received invalid flow handle")
     }
     let derived = RuntimeFlowHandle(
-        emitterFnPtr: flow.emitterFnPtr,
+        source: flow.source,
         opChain: flow.opChain + [RuntimeFlowOp(kind: opKind, argument: value)],
         fixedValues: flow.fixedValues
     )
@@ -1716,143 +2107,246 @@ public func kk_flow_release(_ flowHandle: Int) -> Int {
 /// Obtain source values from a flow handle (handles both emitter-based and
 /// fixedValues-based flows). Returns nil on emitter error.
 private func runtimeFlowSourceValues(_ flow: RuntimeFlowHandle) -> [Int]? {
-    if let fixed = flow.fixedValues {
-        return fixed
-    }
-    let context = RuntimeFlowCollectContext()
-    runtimeFlowPushCollectContext(context)
-
-    guard flow.emitterFnPtr != 0 else {
-        runtimeFlowPopCollectContext()
-        return []
-    }
-
-    let emitter = unsafeBitCast(
-        flow.emitterFnPtr,
-        to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
-    )
-    var outThrown = 0
-    _ = emitter(&outThrown)
-    runtimeFlowPopCollectContext()
-
-    if outThrown != 0 {
-        return nil
-    }
-    return context.emittedValues
+    runtimeFlowSourceEvents(flow)?.map(\.value)
 }
 
-/// Prepare take counters for the given op chain.
-private func runtimeFlowInitTakeCounters(_ ops: [RuntimeFlowOp]) -> [Int: Int] {
-    var takeCounters: [Int: Int] = [:]
-    for (index, op) in ops.enumerated() where op.kind == .take {
-        takeCounters[index] = max(0, runtimeFlowMaybeUnbox(op.argument))
+private func runtimeFlowEvaluateOnDispatcher(
+    _ flow: RuntimeFlowHandle,
+    dispatcherTag: Int
+) -> [RuntimeFlowEvent]? {
+    if dispatcherTag == RuntimeDispatcherTag.mainDispatcher, Thread.isMainThread {
+        return runtimeFlowSourceEvents(flow)
     }
-    return takeCounters
+
+    let queue = dispatchQueue(for: dispatcherTag)
+    let gate = DispatchSemaphore(value: 0)
+    let resultBox = RuntimeFlowLockedBox<[RuntimeFlowEvent]?>(nil)
+    queue.async {
+        resultBox.withLock { value in
+            value = runtimeFlowSourceEvents(flow)
+        }
+        gate.signal()
+    }
+    gate.wait()
+    return resultBox.withLock { $0 }
+}
+
+/// Obtain source events from a flow handle. Returns nil on emitter error.
+private func runtimeFlowInvokeSource(_ source: RuntimeFlowSource) -> [RuntimeFlowEvent]? {
+    switch source {
+    case .fixed(let events):
+        return events
+    case .emitter(let emitterFnPtr):
+        let context = RuntimeFlowCollectContext()
+        runtimeFlowPushCollectContext(context)
+        defer { runtimeFlowPopCollectContext() }
+
+        guard emitterFnPtr != 0 else {
+            return []
+        }
+        let emitter = unsafeBitCast(
+            emitterFnPtr,
+            to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var outThrown = 0
+        _ = emitter(&outThrown)
+        if outThrown != 0 {
+            return nil
+        }
+        return context.emittedEvents
+    case .merge(let handles):
+        var merged: [RuntimeFlowEvent] = []
+        for handle in handles {
+            guard let flow = runtimeFlowHandle(from: handle),
+                  let events = runtimeFlowSourceEvents(flow)
+            else {
+                return nil
+            }
+            merged.append(contentsOf: events)
+        }
+        return runtimeFlowSortEvents(merged)
+    case .zip(let lhsHandle, let rhsHandle, let transform):
+        guard let lhs = runtimeFlowHandle(from: lhsHandle),
+              let rhs = runtimeFlowHandle(from: rhsHandle),
+              let lhsEvents = runtimeFlowSourceEvents(lhs),
+              let rhsEvents = runtimeFlowSourceEvents(rhs)
+        else {
+            return nil
+        }
+        var zipped: [RuntimeFlowEvent] = []
+        for index in 0 ..< min(lhsEvents.count, rhsEvents.count) {
+            let result = runtimeFlowCallBinary(transform, lhs: lhsEvents[index].value, rhs: rhsEvents[index].value)
+            if result.thrown {
+                return nil
+            }
+            zipped.append(RuntimeFlowEvent(
+                value: result.result,
+                timestamp: max(lhsEvents[index].timestamp, rhsEvents[index].timestamp)
+            ))
+        }
+        return zipped
+    case .combine(let lhsHandle, let rhsHandle, let transform):
+        guard let lhs = runtimeFlowHandle(from: lhsHandle),
+              let rhs = runtimeFlowHandle(from: rhsHandle),
+              let lhsEvents = runtimeFlowSourceEvents(lhs),
+              let rhsEvents = runtimeFlowSourceEvents(rhs)
+        else {
+            return nil
+        }
+        let mergedLhs = lhsEvents.map { (event: $0, isLeft: true) }
+        let mergedRhs = rhsEvents.map { (event: $0, isLeft: false) }
+        let merged = (mergedLhs + mergedRhs).enumerated().sorted { lhs, rhs in
+            if lhs.element.event.timestamp == rhs.element.event.timestamp {
+                return lhs.offset < rhs.offset
+            }
+            return lhs.element.event.timestamp < rhs.element.event.timestamp
+        }.map(\.element)
+        var latestLhs: Int?
+        var latestRhs: Int?
+        var combined: [RuntimeFlowEvent] = []
+        for event in merged {
+            if event.isLeft {
+                latestLhs = event.event.value
+            } else {
+                latestRhs = event.event.value
+            }
+            if let lhsValue = latestLhs, let rhsValue = latestRhs {
+                let result = runtimeFlowCallBinary(transform, lhs: lhsValue, rhs: rhsValue)
+                if result.thrown {
+                    return nil
+                }
+                combined.append(RuntimeFlowEvent(value: result.result, timestamp: event.event.timestamp))
+            }
+        }
+        return combined
+    case .flatMapConcat(let outerHandle, let transform):
+        guard let outer = runtimeFlowHandle(from: outerHandle),
+              let outerEvents = runtimeFlowSourceEvents(outer)
+        else {
+            return nil
+        }
+        var concatenated: [RuntimeFlowEvent] = []
+        var cursor: UInt64 = 0
+        for outerEvent in outerEvents {
+            let result = runtimeFlowCallUnary(transform, value: outerEvent.value)
+            if result.thrown {
+                return nil
+            }
+            guard let inner = runtimeFlowHandle(from: result.result),
+                  let innerEvents = runtimeFlowSourceEvents(inner)
+            else {
+                continue
+            }
+            let base = max(cursor, outerEvent.timestamp)
+            let shifted = innerEvents.map { RuntimeFlowEvent(value: $0.value, timestamp: base + $0.timestamp) }
+            concatenated.append(contentsOf: shifted)
+            cursor = shifted.last?.timestamp ?? base
+        }
+        return concatenated
+    case .flatMapMerge(let outerHandle, let transform):
+        guard let outer = runtimeFlowHandle(from: outerHandle),
+              let outerEvents = runtimeFlowSourceEvents(outer)
+        else {
+            return nil
+        }
+        var merged: [RuntimeFlowEvent] = []
+        for outerEvent in outerEvents {
+            let result = runtimeFlowCallUnary(transform, value: outerEvent.value)
+            if result.thrown {
+                return nil
+            }
+            guard let inner = runtimeFlowHandle(from: result.result),
+                  let innerEvents = runtimeFlowSourceEvents(inner)
+            else {
+                continue
+            }
+            merged.append(contentsOf: innerEvents.map {
+                RuntimeFlowEvent(value: $0.value, timestamp: outerEvent.timestamp + $0.timestamp)
+            })
+        }
+        return runtimeFlowSortEvents(merged)
+    case .flatMapLatest(let outerHandle, let transform):
+        guard let outer = runtimeFlowHandle(from: outerHandle),
+              let outerEvents = runtimeFlowSourceEvents(outer)
+        else {
+            return nil
+        }
+        var latest: [RuntimeFlowEvent] = []
+        for (index, outerEvent) in outerEvents.enumerated() {
+            let nextOuterTimestamp = index + 1 < outerEvents.count ? outerEvents[index + 1].timestamp : UInt64.max
+            let result = runtimeFlowCallUnary(transform, value: outerEvent.value)
+            if result.thrown {
+                return nil
+            }
+            guard let inner = runtimeFlowHandle(from: result.result),
+                  let innerEvents = runtimeFlowSourceEvents(inner)
+            else {
+                continue
+            }
+            latest.append(contentsOf: innerEvents.compactMap { innerEvent in
+                let timestamp = outerEvent.timestamp + innerEvent.timestamp
+                guard timestamp < nextOuterTimestamp else { return nil }
+                return RuntimeFlowEvent(value: innerEvent.value, timestamp: timestamp)
+            })
+        }
+        return runtimeFlowSortEvents(latest)
+    }
+}
+
+private func runtimeFlowSourceEvents(_ flow: RuntimeFlowHandle) -> [RuntimeFlowEvent]? {
+    if let flowOnIndex = flow.opChain.firstIndex(where: { $0.kind == .flowOn }) {
+        let dispatcher = flow.opChain[flowOnIndex].argument
+        let upstreamOps = Array(flow.opChain[..<flowOnIndex])
+        let downstreamOps = Array(flow.opChain[(flowOnIndex + 1)...])
+        let upstreamFlow = RuntimeFlowHandle(source: flow.source, opChain: upstreamOps, fixedValues: flow.fixedValues)
+        guard let upstreamEvents = runtimeFlowEvaluateOnDispatcher(upstreamFlow, dispatcherTag: dispatcher) else {
+            return nil
+        }
+        let downstreamFlow = RuntimeFlowHandle(source: .fixed(upstreamEvents), opChain: downstreamOps)
+        return runtimeFlowSourceEvents(downstreamFlow)
+    }
+
+    if let lazyEvents = runtimeFlowEvaluateLazyElementOnly(flow) {
+        return lazyEvents
+    }
+
+    guard let sourceEvents = runtimeFlowInvokeSource(flow.source) else {
+        return nil
+    }
+    return runtimeFlowApplyStreamOps(sourceEvents, ops: flow.opChain)
 }
 
 /// Collect all emitted values into a list and return the list handle.
 @_cdecl("kk_flow_to_list")
 public func kk_flow_to_list(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle),
-          let sourceValues = runtimeFlowSourceValues(flow)
+          let sourceEvents = runtimeFlowSourceEvents(flow)
     else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
-    var collected: [Int] = []
-    if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
-        return registerRuntimeObject(RuntimeListBox(elements: collected))
-    }
-
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue, ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
-        )
-        switch result {
-        case .emit(let value):
-            collected.append(value)
-            if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
-                return registerRuntimeObject(RuntimeListBox(elements: collected))
-            }
-        case .filtered:
-            continue
-        case .thrown, .done:
-            return registerRuntimeObject(RuntimeListBox(elements: collected))
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: collected))
+    return registerRuntimeObject(RuntimeListBox(elements: sourceEvents.map(\.value)))
 }
 
 /// Return the first emitted value after applying the operator chain, or 0 if empty.
 @_cdecl("kk_flow_first")
 public func kk_flow_first(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle),
-          let sourceValues = runtimeFlowSourceValues(flow)
+          let sourceEvents = runtimeFlowSourceEvents(flow)
     else {
         return 0
     }
-
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue, ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
-        )
-        switch result {
-        case .emit(let value):
-            return value
-        case .filtered:
-            continue
-        case .thrown, .done:
-            return 0
-        }
-    }
-    return 0
+    return sourceEvents.first?.value ?? 0
 }
 
 /// Count the number of elements emitted after applying the operator chain.
 @_cdecl("kk_flow_count")
 public func kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle),
-          let sourceValues = runtimeFlowSourceValues(flow)
+          let sourceEvents = runtimeFlowSourceEvents(flow)
     else {
         return 0
     }
-
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
-    var count = 0
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue, ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
-        )
-        switch result {
-        case .emit:
-            count += 1
-            if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
-                return count
-            }
-        case .filtered:
-            continue
-        case .thrown, .done:
-            return count
-        }
-    }
-    return count
+    return sourceEvents.count
 }
 
 /// Fold: accumulate values with an initial value and an operation.
@@ -1860,7 +2354,7 @@ public func kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
 @_cdecl("kk_flow_fold")
 public func kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle),
-          let sourceValues = runtimeFlowSourceValues(flow)
+          let sourceEvents = runtimeFlowSourceEvents(flow)
     else {
         return initial
     }
@@ -1873,30 +2367,11 @@ public func kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: In
         to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
 
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
     var accumulator = initial
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue, ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
-        )
-        switch result {
-        case .emit(let value):
-            var thrown = 0
-            accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
-            if thrown != 0 {
-                return accumulator
-            }
-            if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
-                return accumulator
-            }
-        case .filtered:
-            continue
-        case .thrown, .done:
+    for event in sourceEvents {
+        var thrown = 0
+        accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, event.value, &thrown))
+        if thrown != 0 {
             return accumulator
         }
     }
@@ -1908,7 +2383,7 @@ public func kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: In
 @_cdecl("kk_flow_reduce")
 public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle),
-          let sourceValues = runtimeFlowSourceValues(flow)
+          let sourceEvents = runtimeFlowSourceEvents(flow)
     else {
         return 0
     }
@@ -1921,37 +2396,18 @@ public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> 
         to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
 
-    let ops = flow.opChain
-    var takeCounters = runtimeFlowInitTakeCounters(ops)
-    var lastValues: [Int: Int] = [:]
-
     var accumulator = 0
     var hasFirst = false
-    for rawValue in sourceValues {
-        let result = runtimeFlowApplyOpsLazy(
-            rawValue, ops: ops,
-            takeCounters: &takeCounters,
-            lastValues: &lastValues
-        )
-        switch result {
-        case .emit(let value):
-            if !hasFirst {
-                accumulator = value
-                hasFirst = true
-            } else {
-                var thrown = 0
-                accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
-                if thrown != 0 {
-                    return accumulator
-                }
-            }
-            if runtimeFlowTakeExhausted(ops: ops, takeCounters: takeCounters) {
+    for event in sourceEvents {
+        if !hasFirst {
+            accumulator = event.value
+            hasFirst = true
+        } else {
+            var thrown = 0
+            accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, event.value, &thrown))
+            if thrown != 0 {
                 return accumulator
             }
-        case .filtered:
-            continue
-        case .thrown, .done:
-            return accumulator
         }
     }
     return accumulator
@@ -1974,6 +2430,36 @@ public func kk_flow_of(_ arrayHandle: Int, _ count: Int) -> Int {
 
     let handle = RuntimeFlowHandle(emitterFnPtr: 0, fixedValues: values)
     return runtimeRegisterFlowHandle(handle)
+}
+
+@_cdecl("kk_flow_zip")
+public func kk_flow_zip(_ lhsHandle: Int, _ rhsHandle: Int, _ transformFnPtr: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .zip(lhsHandle, rhsHandle, transformFnPtr)))
+}
+
+@_cdecl("kk_flow_combine")
+public func kk_flow_combine(_ lhsHandle: Int, _ rhsHandle: Int, _ transformFnPtr: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .combine(lhsHandle, rhsHandle, transformFnPtr)))
+}
+
+@_cdecl("kk_flow_merge")
+public func kk_flow_merge(_ lhsHandle: Int, _ rhsHandle: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .merge([lhsHandle, rhsHandle])))
+}
+
+@_cdecl("kk_flow_flat_map_concat")
+public func kk_flow_flat_map_concat(_ flowHandle: Int, _ transformFnPtr: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .flatMapConcat(flowHandle, transformFnPtr)))
+}
+
+@_cdecl("kk_flow_flat_map_merge")
+public func kk_flow_flat_map_merge(_ flowHandle: Int, _ transformFnPtr: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .flatMapMerge(flowHandle, transformFnPtr)))
+}
+
+@_cdecl("kk_flow_flat_map_latest")
+public func kk_flow_flat_map_latest(_ flowHandle: Int, _ transformFnPtr: Int) -> Int {
+    runtimeRegisterFlowHandle(RuntimeFlowHandle(source: .flatMapLatest(flowHandle, transformFnPtr)))
 }
 
 // MARK: - CoroutineContext Elements (STDLIB-CORO-077)

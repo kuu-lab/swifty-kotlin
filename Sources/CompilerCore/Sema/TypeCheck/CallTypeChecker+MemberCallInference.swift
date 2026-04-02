@@ -57,16 +57,12 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
 
-        case "take":
+        case "take", "buffer", "debounce", "sample", "delayEach", "flowOn":
             guard args.count == 1 else {
                 return nil
             }
-            _ = driver.inferExpr(
-                args[0].expr,
-                ctx: ctx,
-                locals: &locals,
-                expectedType: sema.types.intType
-            )
+            let expectedArgType: TypeID = memberName == "flowOn" ? sema.types.anyType : sema.types.intType
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedArgType)
             sema.bindings.markFlowExpr(id)
             sema.bindings.bindFlowElementType(receiverElementType, forExpr: id)
             let flowType = driver.helpers.makeFlowType(
@@ -76,7 +72,21 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
 
-        case "map", "filter", "collect":
+        case "conflate":
+            guard args.isEmpty else {
+                return nil
+            }
+            sema.bindings.markFlowExpr(id)
+            sema.bindings.bindFlowElementType(receiverElementType, forExpr: id)
+            let flowType = driver.helpers.makeFlowType(
+                elementType: receiverElementType, sema: sema, interner: ctx.interner
+            ) ?? sema.types.anyType
+            let finalType = safeCall ? sema.types.makeNullable(flowType) : flowType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+
+        case "map", "filter", "collect", "transform", "takeWhile", "dropWhile",
+             "flatMapConcat", "flatMapMerge", "flatMapLatest":
             guard args.count == 1 else {
                 return nil
             }
@@ -91,6 +101,8 @@ extension CallTypeChecker {
                 sema.types.booleanType
             case "collect":
                 sema.types.unitType
+            case "takeWhile", "dropWhile":
+                sema.types.booleanType
             default:
                 sema.types.anyType
             }
@@ -106,13 +118,15 @@ extension CallTypeChecker {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             }
 
-            if memberName == "map" || memberName == "filter" {
+            if memberName != "collect" {
                 sema.bindings.markFlowExpr(id)
-                let resultElementType: TypeID = if memberName == "map",
+                let resultElementType: TypeID = if memberName == "map" || memberName == "transform",
                                                    case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
                                                    let mappedType = sema.bindings.exprType(for: bodyExpr)
                 {
                     mappedType
+                } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest" {
+                    sema.types.anyType
                 } else {
                     receiverElementType
                 }
