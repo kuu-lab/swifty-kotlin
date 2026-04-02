@@ -1,4 +1,4 @@
-import CompilerCore
+import RuntimeABI
 @testable import Runtime
 import XCTest
 
@@ -39,6 +39,7 @@ extension ABIMismatchTests {
             "kk_system_process_start_nanos",
             "kk_system_measureTimeMillis",
             "kk_system_measureNanoTime",
+            "kk_synchronized",
             // Atomic (kotlin.concurrent)
             "kk_atomic_int_create",
             "kk_atomic_int_load",

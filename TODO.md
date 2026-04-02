@@ -326,6 +326,18 @@
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/suspend_functions.kt`
 
+- [x] STDLIB-CORO-071: async/await完全実装
+  - **仕様**: async/awaitの完全サポート
+  - **実装内容**:
+    - asyncビルダー: async { return value }
+    - await式: val result = asyncFunction()
+    - asyncの例外処理: try-catch in async (kk_kxmini_async_await_throwing)
+    - awaitのキャンセル: awaitのキャンセル対応 (kk_async_task_cancel)
+    - asyncのディスパッチャ指定: async(Dispatchers.Default) (kk_kxmini_async_with_dispatcher)
+  - **関連ファイル**: `RuntimeCoroutine.swift`, `Sources/RuntimeABI/RuntimeABIExterns.swift`
+  - **テストケース**: `Scripts/diff_cases/async_await.kt`
+
+
 - [ ] STDLIB-CORO-070: Job完全実装
   - **仕様**: Jobインターフェースの完全サポート
   - **実装内容**:
@@ -551,7 +563,7 @@
     - 例外抑制: addSuppressed(), getSuppressed()
     - try-with-resources: use()関数
     - 例外フィルタリング: catchの条件付き
-  - **現状**: 基本的な例外は実装済み、抑制は未実装
+  - **現状**: 基本的な例外・cause chain・suppressed・`use()` の抑制連携は実装済み。残課題は stack trace など他の高度機能の互換性向上
   - **関連ファイル**: `RuntimeThrowableBox`
   - **テストケース**: `Scripts/diff_cases/exception_advanced.kt`
 
