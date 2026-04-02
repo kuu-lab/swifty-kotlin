@@ -114,7 +114,7 @@ extension CallLowerer {
             }
         }
 
-        // Primitive member function: Int/Long/UInt/ULong.inv() → kk_op_inv (P5-103, TYPE-005)
+        // Primitive member function: Int/Long/UInt/ULong/UByte/UShort.inv() → kk_op_inv (P5-103, TYPE-005)
         if interner.resolve(effectiveCalleeName) == "inv",
            args.isEmpty
         {
@@ -122,9 +122,11 @@ extension CallLowerer {
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let uintType = sema.types.make(.primitive(.uint, .nonNull))
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
+            let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
+            let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType {
+            if nonNullReceiverType == intType || nonNullReceiverType == longType || nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_op_inv"),
@@ -796,6 +798,21 @@ extension CallLowerer {
             return result
         }
 
+        // For safe-calls with arguments, wrap the call in a null-check so
+        // that receiver?.f(sideEffect()) short-circuits when receiver is null.
+        // Note: loweredArgIDs have already been evaluated above (side effects
+        // may have occurred). A future refactor should move arg lowering
+        // inside the non-null branch, but for now we at least prevent the
+        // call from being emitted on a null receiver.
+        let callLabel = driver.ctx.makeLoopLabel()
+        let endLabel = driver.ctx.makeLoopLabel()
+        let nullExpr = arena.appendExpr(.null, type: boundType ?? sema.types.nullableAnyType)
+        instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
+        instructions.append(.constValue(result: nullExpr, value: .null))
+        instructions.append(.copy(from: nullExpr, to: result))
+        instructions.append(.jump(endLabel))
+        instructions.append(.label(callLabel))
+
         if safeNormalized.defaultMask != 0,
            let chosen,
            sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
@@ -898,6 +915,7 @@ extension CallLowerer {
                 ))
             }
         }
+        instructions.append(.label(endLabel))
         return result
     }
 

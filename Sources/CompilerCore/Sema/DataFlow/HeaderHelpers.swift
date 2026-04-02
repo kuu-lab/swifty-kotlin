@@ -1004,9 +1004,10 @@ extension DataFlowSemaPhase {
     func registerSyntheticAnyStub(
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
     ) {
-        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
 
         let anySymbol = ensureClassSymbol(
             named: "Any",

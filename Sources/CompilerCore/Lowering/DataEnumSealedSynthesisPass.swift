@@ -1276,11 +1276,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         sema: SemaModule,
         interner: StringInterner
     ) -> SemanticSymbol? {
-        let anyName = interner.intern("Any")
+        let kotlinAnyFQName = [interner.intern("kotlin"), interner.intern("Any")]
         return sema.symbols.directSupertypes(for: owner.id)
             .compactMap { sema.symbols.symbol($0) }
             .first(where: { symbol in
-                symbol.kind == .class && symbol.name != anyName
+                symbol.kind == .class && symbol.fqName != kotlinAnyFQName
             })
     }
 
@@ -1787,7 +1787,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                 let superEqualsFQName = superSymbol.fqName + [equalsName]
                 let superEqualsSymbol = sema.symbols.lookupAll(fqName: superEqualsFQName).first
                 
-                // Call super.equals(other) if it exists
+                // Call super.equals(other) if it exists, otherwise use reference equality
                 if let superEqualsSymbol = superEqualsSymbol {
                     body.append(.call(
                         symbol: superEqualsSymbol,
@@ -1797,10 +1797,20 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                         canThrow: false,
                         thrownResult: nil
                     ))
-                    
-                    // If super.equals() returns false, return false immediately
-                    body.append(.jumpIfEqual(lhs: superEqualsResult, rhs: falseExpr, target: returnFalseLabel))
+                } else {
+                    // Fallback: use reference equality (consistent with properties-empty branch)
+                    body.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_op_eq"),
+                        arguments: [receiverRef, otherRef],
+                        result: superEqualsResult,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
                 }
+
+                // If super.equals() returns false, return false immediately
+                body.append(.jumpIfEqual(lhs: superEqualsResult, rhs: falseExpr, target: returnFalseLabel))
             }
 
             let trueResult = module.arena.appendExpr(

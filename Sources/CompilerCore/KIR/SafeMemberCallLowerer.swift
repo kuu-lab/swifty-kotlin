@@ -234,7 +234,7 @@ final class SafeMemberCallLowerer {
         let arena = shared.arena
         let interner = shared.interner
         
-        // Int.inv() などの単項演算子
+        // Int/Long/UInt/ULong/UByte/UShort.inv() などの単項演算子
         if interner.resolve(effectiveCalleeName) == "inv", args.isEmpty {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -242,11 +242,11 @@ final class SafeMemberCallLowerer {
             let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
             let ubyteType = sema.types.make(.primitive(.ubyte, .nonNull))
             let ushortType = sema.types.make(.primitive(.ushort, .nonNull))
-            
+
             let receiverType = arena.exprType(loweredReceiverID) ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            
-            if nonNullReceiverType == intType || nonNullReceiverType == longType || 
+
+            if nonNullReceiverType == intType || nonNullReceiverType == longType ||
                nonNullReceiverType == uintType || nonNullReceiverType == ulongType ||
                nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
                 
@@ -936,11 +936,16 @@ final class SafeMemberCallLowerer {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let argType = arena.exprType(argumentID) ?? sema.types.anyType
         let nonNullArgType = sema.types.makeNonNullable(argType)
-        let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType || nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
-        
-        if nonNullReceiverType == intType || nonNullReceiverType == longType || 
+
+        if nonNullReceiverType == intType || nonNullReceiverType == longType ||
            nonNullReceiverType == uintType || nonNullReceiverType == ulongType ||
            nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType {
+
+            let isShiftReceiver = nonNullReceiverType == intType || nonNullReceiverType == longType ||
+                                  nonNullReceiverType == uintType || nonNullReceiverType == ulongType
+            let isUnsignedReceiver = nonNullReceiverType == uintType || nonNullReceiverType == ulongType ||
+                                     nonNullReceiverType == ubyteType || nonNullReceiverType == ushortType
+
             let primitiveCallee: InternedString? = switch interner.resolve(effectiveCalleeName) {
             case "plus":
                 interner.intern("kk_op_add")
@@ -959,11 +964,11 @@ final class SafeMemberCallLowerer {
             case "xor":
                 nonNullArgType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
             case "shl":
-                nonNullArgType == intType ? interner.intern("kk_op_shl") : nil
+                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_shl") : nil
             case "shr":
-                nonNullArgType == intType ? interner.intern("kk_op_shr") : nil
+                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_shr") : nil
             case "ushr":
-                nonNullArgType == intType ? interner.intern("kk_op_ushr") : nil
+                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_ushr") : nil
             default:
                 nil
             }
