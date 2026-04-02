@@ -6,19 +6,22 @@ enum TypeRefParserCore {
         var allowFunctionType: Bool
         var allowKeywordIdentifiers: Bool
         var reserveVarianceKeywords: Bool
+        var allowTypeAnnotations: Bool
 
         static let declaration = Options(
             allowQualifiedPath: true,
             allowFunctionType: true,
             allowKeywordIdentifiers: true,
-            reserveVarianceKeywords: true
+            reserveVarianceKeywords: true,
+            allowTypeAnnotations: true
         )
 
         static let expressionInline = Options(
             allowQualifiedPath: true,
             allowFunctionType: false,
             allowKeywordIdentifiers: true,
-            reserveVarianceKeywords: false
+            reserveVarianceKeywords: false,
+            allowTypeAnnotations: true
         )
     }
 
@@ -40,7 +43,8 @@ enum TypeRefParserCore {
         _ tokens: ArraySlice<Token>,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine? = nil
     ) -> TypeRefParseResult? {
         guard !tokens.isEmpty else {
             return nil
@@ -51,7 +55,8 @@ enum TypeRefParserCore {
             from: 0,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -62,7 +67,8 @@ enum TypeRefParserCore {
         _ tokens: ArraySlice<Token>,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine? = nil
     ) -> TypeArgsParseResult? {
         guard !tokens.isEmpty else {
             return nil
@@ -73,7 +79,8 @@ enum TypeRefParserCore {
             from: 0,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -85,14 +92,16 @@ enum TypeRefParserCore {
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (ref: TypeRefID, next: Int)? {
         guard let first = parseSingleTypeRefPrefix(
             tokens,
             from: start,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -108,7 +117,8 @@ enum TypeRefParserCore {
                 from: next,
                 interner: interner,
                 astArena: astArena,
-                options: options
+                options: options,
+                diagnostics: diagnostics
             ) else {
                 next = saved
                 break
@@ -130,10 +140,52 @@ enum TypeRefParserCore {
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (ref: TypeRefID, next: Int)? {
         guard start < tokens.count else {
             return nil
+        }
+
+        if options.allowTypeAnnotations, tokens[start].kind == .symbol(.at) {
+            var annotations: [AnnotationNode] = []
+            var next = start
+            while let parsedAnnotation = AnnotationParsingSupport.parseAnnotation(
+                from: tokens,
+                start: next,
+                interner: interner,
+                allowUseSiteTarget: false
+            ) {
+                if parsedAnnotation.hadInvalidUseSiteTarget {
+                    diagnostics?.error(
+                        "KSWIFTK-PARSE-TYPE-ANNOTATION",
+                        "Use-site targets are not allowed on type annotations.",
+                        range: parsedAnnotation.invalidUseSiteTargetRange
+                    )
+                }
+                annotations.append(parsedAnnotation.annotation)
+                next = parsedAnnotation.nextIndex
+            }
+            guard !annotations.isEmpty,
+                  let base = parseSingleTypeRefPrefix(
+                      tokens,
+                      from: next,
+                      interner: interner,
+                      astArena: astArena,
+                      options: Options(
+                          allowQualifiedPath: options.allowQualifiedPath,
+                          allowFunctionType: options.allowFunctionType,
+                          allowKeywordIdentifiers: options.allowKeywordIdentifiers,
+                          reserveVarianceKeywords: options.reserveVarianceKeywords,
+                          allowTypeAnnotations: true
+                      ),
+                      diagnostics: diagnostics
+                  )
+            else {
+                return nil
+            }
+            let annotated = astArena.appendTypeRef(.annotated(base: base.ref, annotations: annotations))
+            return (annotated, base.next)
         }
 
         if options.allowFunctionType,
@@ -142,7 +194,8 @@ enum TypeRefParserCore {
                from: start,
                interner: interner,
                astArena: astArena,
-               options: options
+               options: options,
+               diagnostics: diagnostics
            )
         {
             return functionType
@@ -162,13 +215,14 @@ enum TypeRefParserCore {
 
         if next < tokens.count,
            tokens[next].kind == .symbol(.lessThan),
-           let parsedArgs = parseTypeArgRefsPrefix(
-               tokens,
-               from: next,
-               interner: interner,
-               astArena: astArena,
-               options: options
-           )
+                   let parsedArgs = parseTypeArgRefsPrefix(
+                       tokens,
+                       from: next,
+                       interner: interner,
+                       astArena: astArena,
+                       options: options,
+                       diagnostics: diagnostics
+                   )
         {
             typeArgs = parsedArgs.args
             next = parsedArgs.next
@@ -190,7 +244,8 @@ enum TypeRefParserCore {
                        from: next,
                        interner: interner,
                        astArena: astArena,
-                       options: options
+                       options: options,
+                       diagnostics: diagnostics
                    )
                 {
                     typeArgs = parsedArgs.args
@@ -215,7 +270,8 @@ enum TypeRefParserCore {
                 isSuspend: false,
                 interner: interner,
                 astArena: astArena,
-                options: options
+                options: options,
+                diagnostics: diagnostics
             ) {
                 return receiverFnType
             }
@@ -236,7 +292,8 @@ enum TypeRefParserCore {
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (args: [TypeArgRef], next: Int)? {
         guard start < tokens.count,
               tokens[start].kind == .symbol(.lessThan)
@@ -289,7 +346,8 @@ enum TypeRefParserCore {
                 from: next,
                 interner: interner,
                 astArena: astArena,
-                options: options
+                options: options,
+                diagnostics: diagnostics
             ) else {
                 return nil
             }
@@ -311,7 +369,8 @@ enum TypeRefParserCore {
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (ref: TypeRefID, next: Int)? {
         var next = start
         var isSuspend = false
@@ -334,7 +393,7 @@ enum TypeRefParserCore {
             // a named type for a receiver function type like `suspend StringBuilder.() -> Unit`.
             // Try to parse a named type as receiver.
             if let receiverParse = parseNamedTypeOnly(
-                tokens, from: next, interner: interner, astArena: astArena, options: options
+                tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
             ),
                receiverParse.next + 1 < tokens.count,
                tokens[receiverParse.next].kind == .symbol(.dot),
@@ -347,7 +406,8 @@ enum TypeRefParserCore {
                     isSuspend: true,
                     interner: interner,
                     astArena: astArena,
-                    options: options
+                    options: options,
+                    diagnostics: diagnostics
                 )
             }
             return nil
@@ -374,7 +434,8 @@ enum TypeRefParserCore {
             range: (next + 1) ..< closeParen,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -385,7 +446,8 @@ enum TypeRefParserCore {
             from: returnStart,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -406,7 +468,8 @@ enum TypeRefParserCore {
         range: Range<Int>,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> [TypeRefID]? {
         guard !range.isEmpty else {
             return []
@@ -425,7 +488,8 @@ enum TypeRefParserCore {
                           from: segmentStart,
                           interner: interner,
                           astArena: astArena,
-                          options: options
+                          options: options,
+                          diagnostics: diagnostics
                       ),
                       parsed.next == index
                 else {
@@ -444,7 +508,8 @@ enum TypeRefParserCore {
                 from: segmentStart,
                 interner: interner,
                 astArena: astArena,
-                options: options
+                options: options,
+                diagnostics: diagnostics
             ),
                 parsed.next == range.upperBound
             else {
@@ -516,7 +581,8 @@ enum TypeRefParserCore {
         from start: Int,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (ref: TypeRefID, next: Int)? {
         guard start < tokens.count,
               let firstName = identifier(from: tokens[start], interner: interner, options: options)
@@ -531,7 +597,7 @@ enum TypeRefParserCore {
         if next < tokens.count,
            tokens[next].kind == .symbol(.lessThan),
            let parsedArgs = parseTypeArgRefsPrefix(
-               tokens, from: next, interner: interner, astArena: astArena, options: options
+               tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
            )
         {
             typeArgs = parsedArgs.args
@@ -551,7 +617,7 @@ enum TypeRefParserCore {
                 if next < tokens.count,
                    tokens[next].kind == .symbol(.lessThan),
                    let parsedArgs = parseTypeArgRefsPrefix(
-                       tokens, from: next, interner: interner, astArena: astArena, options: options
+                       tokens, from: next, interner: interner, astArena: astArena, options: options, diagnostics: diagnostics
                    )
                 {
                     typeArgs = parsedArgs.args
@@ -574,7 +640,8 @@ enum TypeRefParserCore {
         isSuspend: Bool,
         interner: StringInterner,
         astArena: ASTArena,
-        options: Options
+        options: Options,
+        diagnostics: DiagnosticEngine?
     ) -> (ref: TypeRefID, next: Int)? {
         guard parenStart < tokens.count,
               tokens[parenStart].kind == .symbol(.lParen)
@@ -597,7 +664,8 @@ enum TypeRefParserCore {
             range: (parenStart + 1) ..< closeParen,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }
@@ -608,7 +676,8 @@ enum TypeRefParserCore {
             from: returnStart,
             interner: interner,
             astArena: astArena,
-            options: options
+            options: options,
+            diagnostics: diagnostics
         ) else {
             return nil
         }

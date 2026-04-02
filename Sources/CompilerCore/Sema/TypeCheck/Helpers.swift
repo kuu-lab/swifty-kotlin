@@ -480,6 +480,17 @@ struct TypeCheckHelpers {
         case let .intersection(partRefs):
             let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
             return sema.types.make(.intersection(partTypes))
+
+        case let .annotated(base, annotations):
+            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            return ExtensionFunctionTypeSupport.normalizeAnnotatedType(
+                baseType: baseType,
+                annotations: annotations,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
         }
     }
 
