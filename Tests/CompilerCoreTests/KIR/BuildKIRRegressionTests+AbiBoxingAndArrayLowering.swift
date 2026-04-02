@@ -71,6 +71,8 @@ extension BuildKIRRegressionTests {
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_load")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_store")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_array_get")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_long_array_get")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_ref_exchange")))
     }
 

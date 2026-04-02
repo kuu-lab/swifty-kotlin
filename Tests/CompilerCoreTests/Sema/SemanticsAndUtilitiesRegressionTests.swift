@@ -24,15 +24,19 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
-    func testAtomicReferenceInAtomicsPackageIsResolved() throws {
+    func testAtomicIntArrayInAtomicsPackageIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
 
-        import kotlin.concurrent.atomics.AtomicReference
+        import kotlin.concurrent.atomics.AtomicIntArray
 
         fun main() {
-            val ar = AtomicReference<String>("hello")
-            println(ar.load())
+            val arr = AtomicIntArray(intArrayOf(1, 2, 3))
+            val first = arr[0]
+            arr[1] = first + 4
+            val cas = arr.compareAndSet(1, 6, 7)
+            val delta = arr.getAndAdd(2, 8)
+            println("$first $cas $delta")
         }
         """
 
@@ -41,7 +45,33 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runToKIR(ctx)
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
-                "AtomicReference in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+                "AtomicIntArray in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
+    func testAtomicLongArrayInAtomicsPackageIsResolved() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import kotlin.concurrent.atomics.AtomicLongArray
+
+        fun main() {
+            val arr = AtomicLongArray(longArrayOf(1L, 2L, 3L))
+            val first = arr[0]
+            arr[1] = first + 4L
+            val cas = arr.compareAndSet(1, 6L, 7L)
+            val delta = arr.getAndAdd(2, 8L)
+            println("$first $cas $delta")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "AtomicLongArray in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }

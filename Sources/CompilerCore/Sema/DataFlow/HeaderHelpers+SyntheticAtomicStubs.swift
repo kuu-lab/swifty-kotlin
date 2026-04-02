@@ -14,11 +14,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let atomicsPkg = ensureAtomicPackage(
+            path: ["kotlin", "concurrent", "atomics"],
+            symbols: symbols,
+            interner: interner
+        )
+        let atomicsPkgSymbol = symbols.lookup(fqName: atomicsPkg) ?? .invalid
 
         let intType = types.intType
         let longType = types.longType
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let anyNullableType = types.make(.any(.nullable))
+        let stringType = types.stringType
         let unitType = types.unitType
 
         // -- AtomicInt --
@@ -270,6 +277,529 @@ extension DataFlowSemaPhase {
             types: types
         )
 
+        // -- Experimental atomic array API --
+        registerAtomicAnnotationClass(
+            named: "ExperimentalAtomicApi",
+            packageFQName: atomicsPkg,
+            packageSymbol: atomicsPkgSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        let atomicIntArraySymbol = ensureClassSymbol(
+            named: "AtomicIntArray",
+            in: atomicsPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let atomicIntArrayType = types.make(.classType(ClassType(
+            classSymbol: atomicIntArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(atomicIntArrayType, for: atomicIntArraySymbol)
+
+        registerAtomicConstructor(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            externalLinkName: "kk_atomic_int_array_create",
+            paramType: intType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        if let intArraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("IntArray")]) {
+            let intArrayType = types.make(.classType(ClassType(
+                classSymbol: intArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            registerAtomicConstructor(
+                ownerSymbol: atomicIntArraySymbol,
+                ownerType: atomicIntArrayType,
+                externalLinkName: "kk_atomic_int_array_createFromArray",
+                paramType: intArrayType,
+                symbols: symbols,
+                interner: interner,
+                paramName: "array"
+            )
+        }
+
+        registerAtomicProperty(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            propertyName: "size",
+            propertyType: intType,
+            getterLinkName: "kk_atomic_int_array_size",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "toString",
+            externalLinkName: "kk_atomic_int_array_toString",
+            returnType: stringType,
+            parameters: [],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "get",
+            externalLinkName: "kk_atomic_int_array_get",
+            returnType: intType,
+            parameters: [(name: "index", type: intType)],
+            flags: [.synthetic, .operatorFunction],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "loadAt",
+            externalLinkName: "kk_atomic_int_array_get",
+            returnType: intType,
+            parameters: [(name: "index", type: intType)],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "set",
+            externalLinkName: "kk_atomic_int_array_set",
+            returnType: unitType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            flags: [.synthetic, .operatorFunction],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "storeAt",
+            externalLinkName: "kk_atomic_int_array_set",
+            returnType: unitType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "exchange",
+            externalLinkName: "kk_atomic_int_array_exchange",
+            returnType: intType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "exchangeAt",
+            externalLinkName: "kk_atomic_int_array_exchange",
+            returnType: intType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "getAndSet",
+            externalLinkName: "kk_atomic_int_array_exchange",
+            returnType: intType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "compareAndSet",
+            externalLinkName: "kk_atomic_int_array_compareAndSet",
+            returnType: boolType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "compareAndSetAt",
+            externalLinkName: "kk_atomic_int_array_compareAndSet",
+            returnType: boolType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "compareAndExchange",
+            externalLinkName: "kk_atomic_int_array_compareAndExchange",
+            returnType: intType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicIntArraySymbol,
+            ownerType: atomicIntArrayType,
+            name: "compareAndExchangeAt",
+            externalLinkName: "kk_atomic_int_array_compareAndExchange",
+            returnType: intType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: intType),
+                (name: "newValue", type: intType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+
+        for (name, linkName, parameters) in [
+            ("getAndAdd", "kk_atomic_int_array_getAndAdd", [(name: "index", type: intType), (name: "delta", type: intType)]),
+            ("getAndAddAt", "kk_atomic_int_array_getAndAdd", [(name: "index", type: intType), (name: "delta", type: intType)]),
+            ("addAndGet", "kk_atomic_int_array_addAndGet", [(name: "index", type: intType), (name: "delta", type: intType)]),
+            ("addAndFetchAt", "kk_atomic_int_array_addAndGet", [(name: "index", type: intType), (name: "delta", type: intType)]),
+            ("getAndIncrement", "kk_atomic_int_array_getAndIncrement", [(name: "index", type: intType)]),
+            ("fetchAndIncrementAt", "kk_atomic_int_array_getAndIncrement", [(name: "index", type: intType)]),
+            ("incrementAndGet", "kk_atomic_int_array_incrementAndGet", [(name: "index", type: intType)]),
+            ("incrementAndFetchAt", "kk_atomic_int_array_incrementAndGet", [(name: "index", type: intType)]),
+            ("getAndDecrement", "kk_atomic_int_array_getAndDecrement", [(name: "index", type: intType)]),
+            ("fetchAndDecrementAt", "kk_atomic_int_array_getAndDecrement", [(name: "index", type: intType)]),
+            ("decrementAndGet", "kk_atomic_int_array_decrementAndGet", [(name: "index", type: intType)]),
+            ("decrementAndFetchAt", "kk_atomic_int_array_decrementAndGet", [(name: "index", type: intType)]),
+        ] as [(String, String, [(name: String, type: TypeID)])] {
+            registerAtomicMember(
+                ownerSymbol: atomicIntArraySymbol,
+                ownerType: atomicIntArrayType,
+                name: name,
+                externalLinkName: linkName,
+                returnType: intType,
+                parameters: parameters,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        let intTransformType = types.make(.functionType(FunctionType(
+            params: [intType],
+            returnType: intType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        for (name, linkName) in [
+            ("getAndUpdate", "kk_atomic_int_array_getAndUpdate"),
+            ("fetchAndUpdateAt", "kk_atomic_int_array_getAndUpdate"),
+            ("updateAndGet", "kk_atomic_int_array_updateAndGet"),
+            ("updateAndFetchAt", "kk_atomic_int_array_updateAndGet"),
+        ] as [(String, String)] {
+            registerAtomicMember(
+                ownerSymbol: atomicIntArraySymbol,
+                ownerType: atomicIntArrayType,
+                name: name,
+                externalLinkName: linkName,
+                returnType: intType,
+                parameters: [
+                    (name: "index", type: intType),
+                    (name: "transform", type: intTransformType),
+                ],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        let atomicLongArraySymbol = ensureClassSymbol(
+            named: "AtomicLongArray",
+            in: atomicsPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let atomicLongArrayType = types.make(.classType(ClassType(
+            classSymbol: atomicLongArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(atomicLongArrayType, for: atomicLongArraySymbol)
+
+        registerAtomicConstructor(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            externalLinkName: "kk_atomic_long_array_create",
+            paramType: intType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        if let longArraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("LongArray")]) {
+            let longArrayType = types.make(.classType(ClassType(
+                classSymbol: longArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            registerAtomicConstructor(
+                ownerSymbol: atomicLongArraySymbol,
+                ownerType: atomicLongArrayType,
+                externalLinkName: "kk_atomic_long_array_createFromArray",
+                paramType: longArrayType,
+                symbols: symbols,
+                interner: interner,
+                paramName: "array"
+            )
+        }
+
+        registerAtomicProperty(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            propertyName: "size",
+            propertyType: intType,
+            getterLinkName: "kk_atomic_long_array_size",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "toString",
+            externalLinkName: "kk_atomic_long_array_toString",
+            returnType: stringType,
+            parameters: [],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "get",
+            externalLinkName: "kk_atomic_long_array_get",
+            returnType: longType,
+            parameters: [(name: "index", type: intType)],
+            flags: [.synthetic, .operatorFunction],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "loadAt",
+            externalLinkName: "kk_atomic_long_array_get",
+            returnType: longType,
+            parameters: [(name: "index", type: intType)],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "set",
+            externalLinkName: "kk_atomic_long_array_set",
+            returnType: unitType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: longType),
+            ],
+            flags: [.synthetic, .operatorFunction],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "storeAt",
+            externalLinkName: "kk_atomic_long_array_set",
+            returnType: unitType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "exchange",
+            externalLinkName: "kk_atomic_long_array_exchange",
+            returnType: longType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "exchangeAt",
+            externalLinkName: "kk_atomic_long_array_exchange",
+            returnType: longType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "getAndSet",
+            externalLinkName: "kk_atomic_long_array_exchange",
+            returnType: longType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "compareAndSet",
+            externalLinkName: "kk_atomic_long_array_compareAndSet",
+            returnType: boolType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: longType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "compareAndSetAt",
+            externalLinkName: "kk_atomic_long_array_compareAndSet",
+            returnType: boolType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: longType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "compareAndExchange",
+            externalLinkName: "kk_atomic_long_array_compareAndExchange",
+            returnType: longType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: longType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerAtomicMember(
+            ownerSymbol: atomicLongArraySymbol,
+            ownerType: atomicLongArrayType,
+            name: "compareAndExchangeAt",
+            externalLinkName: "kk_atomic_long_array_compareAndExchange",
+            returnType: longType,
+            parameters: [
+                (name: "index", type: intType),
+                (name: "expectedValue", type: longType),
+                (name: "newValue", type: longType),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+
+        for (name, linkName, parameters) in [
+            ("getAndAdd", "kk_atomic_long_array_getAndAdd", [(name: "index", type: intType), (name: "delta", type: longType)]),
+            ("getAndAddAt", "kk_atomic_long_array_getAndAdd", [(name: "index", type: intType), (name: "delta", type: longType)]),
+            ("addAndGet", "kk_atomic_long_array_addAndGet", [(name: "index", type: intType), (name: "delta", type: longType)]),
+            ("addAndFetchAt", "kk_atomic_long_array_addAndGet", [(name: "index", type: intType), (name: "delta", type: longType)]),
+            ("getAndIncrement", "kk_atomic_long_array_getAndIncrement", [(name: "index", type: intType)]),
+            ("fetchAndIncrementAt", "kk_atomic_long_array_getAndIncrement", [(name: "index", type: intType)]),
+            ("incrementAndGet", "kk_atomic_long_array_incrementAndGet", [(name: "index", type: intType)]),
+            ("incrementAndFetchAt", "kk_atomic_long_array_incrementAndGet", [(name: "index", type: intType)]),
+            ("getAndDecrement", "kk_atomic_long_array_getAndDecrement", [(name: "index", type: intType)]),
+            ("fetchAndDecrementAt", "kk_atomic_long_array_getAndDecrement", [(name: "index", type: intType)]),
+            ("decrementAndGet", "kk_atomic_long_array_decrementAndGet", [(name: "index", type: intType)]),
+            ("decrementAndFetchAt", "kk_atomic_long_array_decrementAndGet", [(name: "index", type: intType)]),
+        ] as [(String, String, [(name: String, type: TypeID)])] {
+            registerAtomicMember(
+                ownerSymbol: atomicLongArraySymbol,
+                ownerType: atomicLongArrayType,
+                name: name,
+                externalLinkName: linkName,
+                returnType: longType,
+                parameters: parameters,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        let longTransformType = types.make(.functionType(FunctionType(
+            params: [longType],
+            returnType: longType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        for (name, linkName) in [
+            ("getAndUpdate", "kk_atomic_long_array_getAndUpdate"),
+            ("fetchAndUpdateAt", "kk_atomic_long_array_getAndUpdate"),
+            ("updateAndGet", "kk_atomic_long_array_updateAndGet"),
+            ("updateAndFetchAt", "kk_atomic_long_array_updateAndGet"),
+        ] as [(String, String)] {
+            registerAtomicMember(
+                ownerSymbol: atomicLongArraySymbol,
+                ownerType: atomicLongArrayType,
+                name: name,
+                externalLinkName: linkName,
+                returnType: longType,
+                parameters: [
+                    (name: "index", type: intType),
+                    (name: "transform", type: longTransformType),
+                ],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         // -- Lock --
         let lockSymbol = ensureClassSymbol(
             named: "Lock",
@@ -311,7 +841,8 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         paramType: TypeID,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        paramName: String = "initial"
     ) {
         guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
         let initName = interner.intern("<init>")
@@ -336,11 +867,11 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
         symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
 
-        let paramName = interner.intern("initial")
+        let internedParamName = interner.intern(paramName)
         let paramSymbol = symbols.define(
             kind: .valueParameter,
-            name: paramName,
-            fqName: ctorFQName + [paramName],
+            name: internedParamName,
+            fqName: ctorFQName + [internedParamName],
             declSite: nil,
             visibility: .private,
             flags: [.synthetic]
@@ -389,6 +920,39 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setExternalLinkName(getterLinkName, for: propertySymbol)
         symbols.setPropertyType(valueType, for: propertySymbol)
+    }
+
+    private func registerAtomicProperty(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        propertyName: String,
+        propertyType: TypeID,
+        getterLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let internedPropertyName = interner.intern(propertyName)
+        let propertyFQName = ownerInfo.fqName + [internedPropertyName]
+        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { id in
+            symbols.symbol(id)?.kind == .property
+        }) {
+            symbols.setExternalLinkName(getterLinkName, for: existing)
+            symbols.setPropertyType(propertyType, for: existing)
+            return
+        }
+
+        let propertySymbol = symbols.define(
+            kind: .property,
+            name: internedPropertyName,
+            fqName: propertyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
+        symbols.setExternalLinkName(getterLinkName, for: propertySymbol)
+        symbols.setPropertyType(propertyType, for: propertySymbol)
     }
 
     private func registerAtomicCoreMethods(
@@ -529,6 +1093,7 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)],
+        flags: SymbolFlags = [.synthetic],
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -547,7 +1112,7 @@ extension DataFlowSemaPhase {
             fqName: memberFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: flags
         )
         symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
         symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
@@ -603,4 +1168,34 @@ extension DataFlowSemaPhase {
         }
         return fqName
     }
+
+    private func registerAtomicAnnotationClass(
+        named name: String,
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let className = interner.intern(name)
+        let classFQName = packageFQName + [className]
+        if let existing = symbols.lookup(fqName: classFQName) {
+            if packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: existing)
+            }
+            return
+        }
+
+        let classSymbol = symbols.define(
+            kind: .annotationClass,
+            name: className,
+            fqName: classFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if packageSymbol != .invalid {
+            symbols.setParentSymbol(packageSymbol, for: classSymbol)
+        }
+    }
+
 }
