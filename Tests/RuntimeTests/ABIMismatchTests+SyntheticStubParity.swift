@@ -31,6 +31,8 @@ extension ABIMismatchTests {
             "kk_readline",
             "kk_readln",
             "kk_readlnOrNull",
+            // Comparator (STDLIB-176)
+            "kk_comparator_then_comparator",
             "kk_sequence_of",
             "kk_sequence_generate",
             "kk_system_exitProcess",
@@ -68,6 +70,9 @@ extension ABIMismatchTests {
             "kk_atomic_ref_exchange",
             "kk_atomic_ref_compareAndSet",
             "kk_atomic_ref_compareAndExchange",
+            // ThreadLocal (java.lang / kotlin.concurrent)
+            "kk_thread_local_new",
+            "kk_thread_local_getOrSet",
             // Symmetric crypto (javax.crypto)
             "kk_secretkeyspec_new",
             "kk_ivparameterspec_new",
