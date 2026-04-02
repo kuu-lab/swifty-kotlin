@@ -1085,6 +1085,76 @@ extension DataFlowSemaPhase {
             }
         }
 
+        let continuationSymbol = ensureInterfaceSymbol(
+            named: "Continuation",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let continuationType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(continuationType, for: continuationSymbol)
+
+        let continuationTypeParamName = interner.intern("T")
+        let continuationTypeParamFQName = kotlinCoroutinesPkg + [interner.intern("Continuation"), continuationTypeParamName]
+        let continuationTypeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: continuationTypeParamFQName) {
+            continuationTypeParamSymbol = existing
+        } else {
+            let symbol = symbols.define(
+                kind: .typeParameter,
+                name: continuationTypeParamName,
+                fqName: continuationTypeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            symbols.setParentSymbol(continuationSymbol, for: symbol)
+            continuationTypeParamSymbol = symbol
+        }
+        let continuationTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: continuationTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let resultTypeSymbol = ensureClassSymbol(
+            named: "Result",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let resultOfContinuationTType = types.make(.classType(ClassType(
+            classSymbol: resultTypeSymbol,
+            args: [.out(continuationTypeParamType)],
+            nullability: .nonNull
+        )))
+        types.setNominalTypeParameterSymbols([continuationTypeParamSymbol], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
+
+        registerSyntheticCoroutineMember(
+            ownerSymbol: continuationSymbol,
+            ownerType: continuationType,
+            name: "resumeWith",
+            externalLinkName: nil,
+            returnType: types.unitType,
+            parameters: [(name: "result", type: resultOfContinuationTType)],
+            typeParameterSymbols: [continuationTypeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticObjectProperty(
+            ownerSymbol: continuationSymbol,
+            ownerType: continuationType,
+            name: "context",
+            propertyType: coroutineContextType,
+            symbols: symbols,
+            interner: interner
+        )
+
         let coroutineNameSymbol = ensureClassSymbol(
             named: "CoroutineName",
             in: coroutinesPkg,
@@ -2232,7 +2302,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         name: String,
-        externalLinkName: String,
+        externalLinkName: String? = nil,
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)] = [],
         flags: SymbolFlags = [.synthetic],
@@ -2258,7 +2328,9 @@ extension DataFlowSemaPhase {
             flags: flags
         )
         symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+        }
         var valueParameterSymbols: [SymbolID] = []
         for parameter in parameters {
             let parameterName = interner.intern(parameter.name)
