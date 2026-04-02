@@ -935,7 +935,6 @@ final class SafeMemberCallLowerer {
         let receiverType = arena.exprType(loweredReceiverID) ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let argType = arena.exprType(argumentID) ?? sema.types.anyType
-        let nonNullArgType = sema.types.makeNonNullable(argType)
 
         if nonNullReceiverType == intType || nonNullReceiverType == longType ||
            nonNullReceiverType == uintType || nonNullReceiverType == ulongType ||
@@ -958,17 +957,17 @@ final class SafeMemberCallLowerer {
             case "rem", "mod":
                 isUnsignedReceiver ? interner.intern("kk_op_urem") : interner.intern("kk_op_mod")
             case "and":
-                nonNullArgType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
+                argType == nonNullReceiverType ? interner.intern("kk_bitwise_and") : nil
             case "or":
-                nonNullArgType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
+                argType == nonNullReceiverType ? interner.intern("kk_bitwise_or") : nil
             case "xor":
-                nonNullArgType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
+                argType == nonNullReceiverType ? interner.intern("kk_bitwise_xor") : nil
             case "shl":
-                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_shl") : nil
+                isShiftReceiver && argType == intType ? interner.intern("kk_op_shl") : nil
             case "shr":
-                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_shr") : nil
+                isShiftReceiver && argType == intType ? interner.intern("kk_op_shr") : nil
             case "ushr":
-                isShiftReceiver && nonNullArgType == intType ? interner.intern("kk_op_ushr") : nil
+                isShiftReceiver && argType == intType ? interner.intern("kk_op_ushr") : nil
             default:
                 nil
             }
