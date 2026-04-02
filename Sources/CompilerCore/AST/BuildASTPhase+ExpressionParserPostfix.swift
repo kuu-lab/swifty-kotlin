@@ -247,9 +247,10 @@ extension BuildASTPhase.ExpressionParser {
             let savedIndex = index
             _ = consume()
             if matches(.symbol(.lBrace)),
-               let lambdaExpr = parseLambdaLiteral(label: implicitLambdaLabel, allowImplicitEmptyParams: true)
+               let lambdaExpr = parseLambdaLiteral(label: implicitLambdaLabel, allowImplicitEmptyParams: true),
+               matches(.symbol(.rParen))
             {
-                _ = consumeIf(.symbol(.rParen))
+                _ = consume()
                 expr = lambdaExpr
             } else {
                 index = savedIndex
