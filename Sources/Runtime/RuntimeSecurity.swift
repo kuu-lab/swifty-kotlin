@@ -1487,8 +1487,13 @@ public func kk_certificatefactory_generateCertificate(
         runtimeSetThrown(outThrown, message: "CertificateException: unsupported certificate factory \(factory.typeName)")
         return 0
     }
-    guard let data = runtimeSecurityBytesAsData(from: dataRaw, caller: #function) else {
-        runtimeSetThrown(outThrown, message: "CertificateException: expected ByteArray/List<Int>")
+    let data: Data
+    if let bytesData = runtimeSecurityBytesAsData(from: dataRaw, caller: #function) {
+        data = bytesData
+    } else if let streamData = runtimeSecurityInputStreamBytes(from: dataRaw) {
+        data = streamData
+    } else {
+        runtimeSetThrown(outThrown, message: "CertificateException: expected ByteArray/List<Int>/InputStream")
         return 0
     }
     guard let certificate = runtimeSecurityCertificate(from: data) else {
@@ -1617,12 +1622,17 @@ public func kk_trustanchor_new_with_constraints(
 @_cdecl("kk_pkixparameters_new")
 public func kk_pkixparameters_new(_ trustAnchorsRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let trustAnchorList = runtimeListBox(from: trustAnchorsRaw) else {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: expected List<TrustAnchor>")
+    let elements: [Int]
+    if let trustAnchorList = runtimeListBox(from: trustAnchorsRaw) {
+        elements = trustAnchorList.elements
+    } else if let trustAnchorSet = runtimeSetBox(from: trustAnchorsRaw) {
+        elements = trustAnchorSet.elements
+    } else {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: expected List/Set<TrustAnchor>")
         return 0
     }
     var anchors: [Int] = []
-    for anchorRaw in trustAnchorList.elements {
+    for anchorRaw in elements {
         guard runtimeTrustAnchorBox(from: anchorRaw) != nil else {
             runtimeSetThrown(outThrown, message: "IllegalArgumentException: expected TrustAnchor")
             return 0

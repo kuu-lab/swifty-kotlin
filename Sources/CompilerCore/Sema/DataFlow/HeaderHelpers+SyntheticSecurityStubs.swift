@@ -253,6 +253,20 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSecurityMemberProperty(
+            name: "public",
+            ownerSymbol: keyPairSymbol,
+            propertyType: publicKeyType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSecurityMemberProperty(
+            name: "private",
+            ownerSymbol: keyPairSymbol,
+            propertyType: privateKeyType,
+            symbols: symbols,
+            interner: interner
+        )
 
         let keyPairGeneratorSymbol = ensureClassSymbol(
             named: "KeyPairGenerator",
@@ -539,6 +553,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSecurityInstanceMethod(
+            name: "generateCertPath",
+            externalLinkName: "kk_certificatefactory_generateCertPath",
+            ownerSymbol: certificateFactorySymbol,
+            ownerType: certificateFactoryType,
+            parameters: [("certificates", anyType)],
+            returnType: certPathType,
+            symbols: symbols,
+            interner: interner
+        )
 
         registerSecurityConstructor(
             externalLinkName: "kk_certpath_new",
@@ -553,6 +577,14 @@ extension DataFlowSemaPhase {
             ownerSymbol: trustAnchorSymbol,
             ownerType: trustAnchorType,
             parameters: [("certificate", x509CertificateType)],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSecurityConstructor(
+            externalLinkName: "kk_trustanchor_new_with_constraints",
+            ownerSymbol: trustAnchorSymbol,
+            ownerType: trustAnchorType,
+            parameters: [("certificate", x509CertificateType), ("nameConstraints", anyType)],
             symbols: symbols,
             interner: interner
         )
