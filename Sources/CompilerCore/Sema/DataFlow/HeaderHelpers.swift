@@ -133,6 +133,47 @@ extension DataFlowSemaPhase {
         return SourceRange(start: declRange.start, end: bodyRange.end)
     }
 
+    func attachCompilerMetadataAnnotations(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        moduleName: String,
+        interner: StringInterner
+    ) {
+        let encoder = MetadataEncoder()
+        let targets = symbols.allSymbols().filter { Self.compilerMetadataAnnotatedKinds.contains($0.kind) }
+
+        let recordsBySymbol = targets.reduce(into: [SymbolID: MetadataRecord]()) { partial, symbol in
+            partial[symbol.id] = encoder.buildRecord(
+                for: symbol,
+                symbols: symbols,
+                types: types,
+                moduleName: moduleName,
+                interner: interner
+            )
+        }
+
+        for symbol in targets {
+            guard let record = recordsBySymbol[symbol.id] else {
+                continue
+            }
+            var annotations = symbols.annotations(for: symbol.id)
+            if annotations.contains(where: { KnownCompilerAnnotation.metadata.matches($0.annotationFQName) }) {
+                continue
+            }
+            annotations.append(encoder.metadataAnnotationRecord(for: record))
+            symbols.setAnnotations(annotations, for: symbol.id)
+        }
+    }
+
+    private static let compilerMetadataAnnotatedKinds: Set<SymbolKind> = [
+        .class,
+        .interface,
+        .object,
+        .enumClass,
+        .annotationClass,
+    ]
+
+
     /// Base value for synthetic type parameter symbol IDs used in metadata encoding.
     /// Shared between MetadataTypeSignatureParser (encoding) and collectSyntheticTypeParameters (decoding).
     static var syntheticTypeParameterBase: Int32 {
