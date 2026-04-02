@@ -442,6 +442,13 @@ extension DataFlowSemaPhase {
         // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
         symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
 
+        let flowBuilderLambdaType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.unitType,
+            isSuspend: true,
+            nullability: .nonNull
+        )))
+
         // CoroutineName(name: String) constructor
         registerSyntheticCoroutineTopLevelFunction(
             named: "CoroutineName",
@@ -486,6 +493,68 @@ extension DataFlowSemaPhase {
                 isSuspend: false,
                 nullability: .nonNull
             ))))],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Flow builders
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "flow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "channelFlow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "callbackFlow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "flowOf",
+            packageFQName: flowPkg,
+            parameters: [(name: "values", type: types.anyType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_of",
+            syntheticTypeParameterNames: ["T"],
+            syntheticVarargParameterIndices: [0],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "emptyFlow",
+            packageFQName: flowPkg,
+            parameters: [],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_empty",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "asFlow",
+            externalLinkName: "kk_flow_as_flow",
+            returnType: flowRawType,
             symbols: symbols,
             interner: interner
         )
@@ -1093,6 +1162,7 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         externalLinkName: String? = nil,
         syntheticTypeParameterNames: [String] = [],
+        syntheticVarargParameterIndices: Set<Int> = [],
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1167,7 +1237,7 @@ extension DataFlowSemaPhase {
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: parameters.indices.map { syntheticVarargParameterIndices.contains($0) },
                 typeParameterSymbols: typeParameterSymbols
             ),
             for: functionSymbol
