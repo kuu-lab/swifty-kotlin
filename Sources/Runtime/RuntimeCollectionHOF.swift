@@ -51,6 +51,9 @@ private func runtimeSortedWithComparatorInvoke(
 
         if runtimeIsHeapObject(fnPtr) {
             let vtableCompareFnPtr = kk_vtable_lookup(fnPtr, 0)
+            guard vtableCompareFnPtr != 0 else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: runtimeSortedWithComparatorInvoke received a heap object comparator with null vtable compare method at slot 0")
+            }
             let vtableCompareFn = unsafeBitCast(vtableCompareFnPtr, to: RuntimeCollectionLambda2.self)
             return { lhs, rhs, outThrown in
                 vtableCompareFn(fnPtr, maybeUnbox(lhs), maybeUnbox(rhs), outThrown)
@@ -2114,7 +2117,7 @@ public func kk_list_sortedByDescending(_ listRaw: Int, _ fnPtr: Int, _ closureRa
         let comparison = runtimeCompareValues(lhs.2, rhs.2)
         if comparison != 0 { return comparison > 0 }
         return lhs.0 < rhs.0
-    }.map(\.1)
+    }.map { $0.1 }
     return registerRuntimeObject(RuntimeListBox(elements: sorted))
 }
 
@@ -2135,7 +2138,7 @@ public func kk_list_sortedWith(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
         return lhs.0 < rhs.0
     }
     if hadThrow { return registerRuntimeObject(RuntimeListBox(elements: [])) }
-    return registerRuntimeObject(RuntimeListBox(elements: indexed.map(\.1)))
+    return registerRuntimeObject(RuntimeListBox(elements: indexed.map { $0.1 }))
 }
 
 // MARK: - takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
