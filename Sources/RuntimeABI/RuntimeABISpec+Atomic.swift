@@ -20,10 +20,29 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_int_load_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_int_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_int_store_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -38,11 +57,33 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_int_exchange_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "new", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_int_compareAndSet",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_int_compareAndSet_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "expect", type: .intptr),
+                RuntimeABIParameter(name: "update", type: .intptr),
+                RuntimeABIParameter(name: "successOrder", type: .intptr),
+                RuntimeABIParameter(name: "failureOrder", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -138,10 +179,29 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_long_load_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_long_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_long_store_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -156,11 +216,33 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_long_exchange_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "new", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_long_compareAndSet",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_long_compareAndSet_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "expect", type: .intptr),
+                RuntimeABIParameter(name: "update", type: .intptr),
+                RuntimeABIParameter(name: "successOrder", type: .intptr),
+                RuntimeABIParameter(name: "failureOrder", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -277,10 +359,29 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_bool_load_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_bool_store_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -295,11 +396,33 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_bool_exchange_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "new", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_compareAndSet",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_bool_compareAndSet_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "expect", type: .intptr),
+                RuntimeABIParameter(name: "update", type: .intptr),
+                RuntimeABIParameter(name: "successOrder", type: .intptr),
+                RuntimeABIParameter(name: "failureOrder", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -373,10 +496,29 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_ref_load_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_store",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_ref_store_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"
@@ -391,11 +533,33 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_atomic_ref_exchange_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "new", type: .intptr),
+                RuntimeABIParameter(name: "order", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_compareAndSet",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
                 RuntimeABIParameter(name: "expect", type: .intptr),
                 RuntimeABIParameter(name: "update", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_atomic_ref_compareAndSet_order",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "expect", type: .intptr),
+                RuntimeABIParameter(name: "update", type: .intptr),
+                RuntimeABIParameter(name: "successOrder", type: .intptr),
+                RuntimeABIParameter(name: "failureOrder", type: .intptr),
             ],
             returnType: .intptr,
             section: "Atomic"

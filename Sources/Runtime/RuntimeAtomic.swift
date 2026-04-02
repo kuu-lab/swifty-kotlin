@@ -103,9 +103,24 @@ public func kk_atomic_int_load(_ receiver: Int) -> Int {
     return box.load()
 }
 
+@_cdecl("kk_atomic_int_load_order")
+public func kk_atomic_int_load_order(_ receiver: Int, _ order: Int) -> Int {
+    guard let box = atomicIntBox(from: receiver) else { return 0 }
+    _ = order
+    return box.load()
+}
+
 @_cdecl("kk_atomic_int_store")
 public func kk_atomic_int_store(_ receiver: Int, _ value: Int) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
+    box.store(value)
+    return 0
+}
+
+@_cdecl("kk_atomic_int_store_order")
+public func kk_atomic_int_store_order(_ receiver: Int, _ value: Int, _ order: Int) -> Int {
+    guard let box = atomicIntBox(from: receiver) else { return 0 }
+    _ = order
     box.store(value)
     return 0
 }
@@ -116,9 +131,30 @@ public func kk_atomic_int_exchange(_ receiver: Int, _ new: Int) -> Int {
     return box.exchange(new)
 }
 
+@_cdecl("kk_atomic_int_exchange_order")
+public func kk_atomic_int_exchange_order(_ receiver: Int, _ new: Int, _ order: Int) -> Int {
+    guard let box = atomicIntBox(from: receiver) else { return 0 }
+    _ = order
+    return box.exchange(new)
+}
+
 @_cdecl("kk_atomic_int_compareAndSet")
 public func kk_atomic_int_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicIntBox(from: receiver) else { return 0 }
+    return box.compareAndSet(expect: expect, update: update) ? 1 : 0
+}
+
+@_cdecl("kk_atomic_int_compareAndSet_order")
+public func kk_atomic_int_compareAndSet_order(
+    _ receiver: Int,
+    _ expect: Int,
+    _ update: Int,
+    _ successOrder: Int,
+    _ failureOrder: Int
+) -> Int {
+    guard let box = atomicIntBox(from: receiver) else { return 0 }
+    _ = successOrder
+    _ = failureOrder
     return box.compareAndSet(expect: expect, update: update) ? 1 : 0
 }
 
@@ -287,9 +323,24 @@ public func kk_atomic_long_load(_ receiver: Int) -> Int {
     return box.load()
 }
 
+@_cdecl("kk_atomic_long_load_order")
+public func kk_atomic_long_load_order(_ receiver: Int, _ order: Int) -> Int {
+    guard let box = atomicLongBox(from: receiver) else { return 0 }
+    _ = order
+    return box.load()
+}
+
 @_cdecl("kk_atomic_long_store")
 public func kk_atomic_long_store(_ receiver: Int, _ value: Int) -> Int {
     guard let box = atomicLongBox(from: receiver) else { return 0 }
+    box.store(value)
+    return 0
+}
+
+@_cdecl("kk_atomic_long_store_order")
+public func kk_atomic_long_store_order(_ receiver: Int, _ value: Int, _ order: Int) -> Int {
+    guard let box = atomicLongBox(from: receiver) else { return 0 }
+    _ = order
     box.store(value)
     return 0
 }
@@ -300,9 +351,30 @@ public func kk_atomic_long_exchange(_ receiver: Int, _ new: Int) -> Int {
     return box.exchange(new)
 }
 
+@_cdecl("kk_atomic_long_exchange_order")
+public func kk_atomic_long_exchange_order(_ receiver: Int, _ new: Int, _ order: Int) -> Int {
+    guard let box = atomicLongBox(from: receiver) else { return 0 }
+    _ = order
+    return box.exchange(new)
+}
+
 @_cdecl("kk_atomic_long_compareAndSet")
 public func kk_atomic_long_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicLongBox(from: receiver) else { return 0 }
+    return box.compareAndSet(expect: expect, update: update) ? 1 : 0
+}
+
+@_cdecl("kk_atomic_long_compareAndSet_order")
+public func kk_atomic_long_compareAndSet_order(
+    _ receiver: Int,
+    _ expect: Int,
+    _ update: Int,
+    _ successOrder: Int,
+    _ failureOrder: Int
+) -> Int {
+    guard let box = atomicLongBox(from: receiver) else { return 0 }
+    _ = successOrder
+    _ = failureOrder
     return box.compareAndSet(expect: expect, update: update) ? 1 : 0
 }
 
@@ -458,9 +530,24 @@ public func kk_atomic_bool_load(_ receiver: Int) -> Int {
     return box.load() ? 1 : 0
 }
 
+@_cdecl("kk_atomic_bool_load_order")
+public func kk_atomic_bool_load_order(_ receiver: Int, _ order: Int) -> Int {
+    guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    _ = order
+    return box.load() ? 1 : 0
+}
+
 @_cdecl("kk_atomic_bool_store")
 public func kk_atomic_bool_store(_ receiver: Int, _ value: Int) -> Int {
     guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    box.store(value != 0)
+    return 0
+}
+
+@_cdecl("kk_atomic_bool_store_order")
+public func kk_atomic_bool_store_order(_ receiver: Int, _ value: Int, _ order: Int) -> Int {
+    guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    _ = order
     box.store(value != 0)
     return 0
 }
@@ -471,9 +558,30 @@ public func kk_atomic_bool_exchange(_ receiver: Int, _ new: Int) -> Int {
     return box.exchange(new != 0) ? 1 : 0
 }
 
+@_cdecl("kk_atomic_bool_exchange_order")
+public func kk_atomic_bool_exchange_order(_ receiver: Int, _ new: Int, _ order: Int) -> Int {
+    guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    _ = order
+    return box.exchange(new != 0) ? 1 : 0
+}
+
 @_cdecl("kk_atomic_bool_compareAndSet")
 public func kk_atomic_bool_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    return box.compareAndSet(expect: expect != 0, update: update != 0) ? 1 : 0
+}
+
+@_cdecl("kk_atomic_bool_compareAndSet_order")
+public func kk_atomic_bool_compareAndSet_order(
+    _ receiver: Int,
+    _ expect: Int,
+    _ update: Int,
+    _ successOrder: Int,
+    _ failureOrder: Int
+) -> Int {
+    guard let box = atomicBoolBox(from: receiver) else { return 0 }
+    _ = successOrder
+    _ = failureOrder
     return box.compareAndSet(expect: expect != 0, update: update != 0) ? 1 : 0
 }
 
@@ -598,9 +706,24 @@ public func kk_atomic_ref_load(_ receiver: Int) -> Int {
     return box.load()
 }
 
+@_cdecl("kk_atomic_ref_load_order")
+public func kk_atomic_ref_load_order(_ receiver: Int, _ order: Int) -> Int {
+    guard let box = atomicRefBox(from: receiver) else { return 0 }
+    _ = order
+    return box.load()
+}
+
 @_cdecl("kk_atomic_ref_store")
 public func kk_atomic_ref_store(_ receiver: Int, _ value: Int) -> Int {
     guard let box = atomicRefBox(from: receiver) else { return 0 }
+    box.store(value)
+    return 0
+}
+
+@_cdecl("kk_atomic_ref_store_order")
+public func kk_atomic_ref_store_order(_ receiver: Int, _ value: Int, _ order: Int) -> Int {
+    guard let box = atomicRefBox(from: receiver) else { return 0 }
+    _ = order
     box.store(value)
     return 0
 }
@@ -611,9 +734,30 @@ public func kk_atomic_ref_exchange(_ receiver: Int, _ new: Int) -> Int {
     return box.exchange(new)
 }
 
+@_cdecl("kk_atomic_ref_exchange_order")
+public func kk_atomic_ref_exchange_order(_ receiver: Int, _ new: Int, _ order: Int) -> Int {
+    guard let box = atomicRefBox(from: receiver) else { return 0 }
+    _ = order
+    return box.exchange(new)
+}
+
 @_cdecl("kk_atomic_ref_compareAndSet")
 public func kk_atomic_ref_compareAndSet(_ receiver: Int, _ expect: Int, _ update: Int) -> Int {
     guard let box = atomicRefBox(from: receiver) else { return 0 }
+    return box.compareAndSet(expect: expect, update: update) ? 1 : 0
+}
+
+@_cdecl("kk_atomic_ref_compareAndSet_order")
+public func kk_atomic_ref_compareAndSet_order(
+    _ receiver: Int,
+    _ expect: Int,
+    _ update: Int,
+    _ successOrder: Int,
+    _ failureOrder: Int
+) -> Int {
+    guard let box = atomicRefBox(from: receiver) else { return 0 }
+    _ = successOrder
+    _ = failureOrder
     return box.compareAndSet(expect: expect, update: update) ? 1 : 0
 }
 

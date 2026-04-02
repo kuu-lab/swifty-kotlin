@@ -1,7 +1,7 @@
 import Foundation
 
 /// Synthetic stdlib stubs for kotlin.concurrent atomic and lock types.
-/// Registers constructors, load/store/exchange/compareAndSet/compareAndExchange methods,
+/// Registers constructors, MemoryOrder, load/store/exchange/compareAndSet/compareAndExchange methods,
 /// arithmetic methods (AtomicInt/AtomicLong), and the `value` property.
 extension DataFlowSemaPhase {
     func registerSyntheticAtomicStubs(
@@ -20,6 +20,12 @@ extension DataFlowSemaPhase {
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let anyNullableType = types.make(.any(.nullable))
         let unitType = types.unitType
+        let memoryOrderType = ensureAtomicMemoryOrderEnum(
+            in: concurrentPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // -- AtomicInt --
         let atomicIntSymbol = ensureClassSymbol(
@@ -59,6 +65,7 @@ extension DataFlowSemaPhase {
             valueType: intType,
             boolType: boolType,
             unitType: unitType,
+            memoryOrderType: memoryOrderType,
             prefix: "kk_atomic_int",
             symbols: symbols,
             interner: interner
@@ -130,6 +137,7 @@ extension DataFlowSemaPhase {
             valueType: longType,
             boolType: boolType,
             unitType: unitType,
+            memoryOrderType: memoryOrderType,
             prefix: "kk_atomic_long",
             symbols: symbols,
             interner: interner
@@ -202,6 +210,7 @@ extension DataFlowSemaPhase {
             valueType: anyNullableType,
             boolType: boolType,
             unitType: unitType,
+            memoryOrderType: memoryOrderType,
             prefix: "kk_atomic_ref",
             symbols: symbols,
             interner: interner
@@ -255,6 +264,7 @@ extension DataFlowSemaPhase {
             valueType: boolType,
             boolType: boolType,
             unitType: unitType,
+            memoryOrderType: memoryOrderType,
             prefix: "kk_atomic_bool",
             symbols: symbols,
             interner: interner
@@ -397,6 +407,7 @@ extension DataFlowSemaPhase {
         valueType: TypeID,
         boolType: TypeID,
         unitType: TypeID,
+        memoryOrderType: TypeID,
         prefix: String,
         symbols: SymbolTable,
         interner: StringInterner
@@ -408,6 +419,13 @@ extension DataFlowSemaPhase {
             returnType: valueType, parameters: [],
             symbols: symbols, interner: interner
         )
+        // load(order: MemoryOrder) -> T
+        registerAtomicMember(
+            ownerSymbol: ownerSymbol, ownerType: ownerType,
+            name: "load", externalLinkName: "\(prefix)_load_order",
+            returnType: valueType, parameters: [(name: "order", type: memoryOrderType)],
+            symbols: symbols, interner: interner
+        )
         // store(value: T) -> Unit (returns via side effect)
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
@@ -415,11 +433,33 @@ extension DataFlowSemaPhase {
             returnType: unitType, parameters: [(name: "value", type: valueType)],
             symbols: symbols, interner: interner
         )
+        // store(value: T, order: MemoryOrder) -> Unit
+        registerAtomicMember(
+            ownerSymbol: ownerSymbol, ownerType: ownerType,
+            name: "store", externalLinkName: "\(prefix)_store_order",
+            returnType: unitType,
+            parameters: [
+                (name: "value", type: valueType),
+                (name: "order", type: memoryOrderType),
+            ],
+            symbols: symbols, interner: interner
+        )
         // exchange(new: T) -> T
         registerAtomicMember(
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "exchange", externalLinkName: "\(prefix)_exchange",
             returnType: valueType, parameters: [(name: "new", type: valueType)],
+            symbols: symbols, interner: interner
+        )
+        // exchange(new: T, order: MemoryOrder) -> T
+        registerAtomicMember(
+            ownerSymbol: ownerSymbol, ownerType: ownerType,
+            name: "exchange", externalLinkName: "\(prefix)_exchange_order",
+            returnType: valueType,
+            parameters: [
+                (name: "new", type: valueType),
+                (name: "order", type: memoryOrderType),
+            ],
             symbols: symbols, interner: interner
         )
         // compareAndSet(expect: T, update: T) -> Boolean
@@ -430,6 +470,19 @@ extension DataFlowSemaPhase {
             parameters: [
                 (name: "expect", type: valueType),
                 (name: "update", type: valueType),
+            ],
+            symbols: symbols, interner: interner
+        )
+        // compareAndSet(expect: T, update: T, successOrder: MemoryOrder, failureOrder: MemoryOrder) -> Boolean
+        registerAtomicMember(
+            ownerSymbol: ownerSymbol, ownerType: ownerType,
+            name: "compareAndSet", externalLinkName: "\(prefix)_compareAndSet_order",
+            returnType: boolType,
+            parameters: [
+                (name: "expect", type: valueType),
+                (name: "update", type: valueType),
+                (name: "successOrder", type: memoryOrderType),
+                (name: "failureOrder", type: memoryOrderType),
             ],
             symbols: symbols, interner: interner
         )
@@ -520,6 +573,63 @@ extension DataFlowSemaPhase {
             returnType: valueType, parameters: [(name: "transform", type: transformType)],
             symbols: symbols, interner: interner
         )
+    }
+
+    private func ensureAtomicMemoryOrderEnum(
+        in packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let enumName = interner.intern("MemoryOrder")
+        let enumFQName = packageFQName + [enumName]
+        let enumSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumFQName) {
+            enumSymbol = existing
+        } else {
+            enumSymbol = symbols.define(
+                kind: .enumClass,
+                name: enumName,
+                fqName: enumFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol = symbols.lookup(fqName: packageFQName), pkgSymbol != .invalid {
+            symbols.setParentSymbol(pkgSymbol, for: enumSymbol)
+        }
+
+        let enumType = types.make(.classType(ClassType(
+            classSymbol: enumSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(enumType, for: enumSymbol)
+
+        for entryName in ["RELAXED", "ACQUIRE", "RELEASE", "ACQ_REL", "SEQ_CST"] {
+            let entry = interner.intern(entryName)
+            let entryFQName = enumFQName + [entry]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entry,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+            if symbols.propertyType(for: entrySymbol) == nil {
+                symbols.setPropertyType(enumType, for: entrySymbol)
+            }
+        }
+
+        return enumType
     }
 
     private func registerAtomicMember(

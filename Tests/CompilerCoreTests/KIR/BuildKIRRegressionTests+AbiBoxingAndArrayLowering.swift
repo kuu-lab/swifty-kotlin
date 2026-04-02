@@ -69,9 +69,45 @@ extension BuildKIRRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_load")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_load_order")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_store")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_int_store_order")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
         XCTAssertTrue(callees.contains(interner.intern("kk_atomic_ref_exchange")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_ref_exchange_order")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_atomic_bool_compareAndSet_order")))
+    }
+
+    func testBuildKIRLowersAtomicMemoryOrderOverloadsToRuntimeCalls() throws {
+        let source = """
+        import kotlin.concurrent.AtomicInt
+        import kotlin.concurrent.MemoryOrder
+
+        fun main() {
+            val ai = AtomicInt(1)
+            ai.load(MemoryOrder.SEQ_CST)
+            ai.store(2, MemoryOrder.RELAXED)
+            ai.exchange(3, MemoryOrder.ACQUIRE)
+            ai.compareAndSet(1, 2, MemoryOrder.RELEASE, MemoryOrder.ACQ_REL)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            XCTAssertFalse(ctx.diagnostics.hasError, "Atomic MemoryOrder overloads should lower without diagnostics.")
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_atomic_int_load_order"))
+            XCTAssertTrue(callNames.contains("kk_atomic_int_store_order"))
+            XCTAssertTrue(callNames.contains("kk_atomic_int_exchange_order"))
+            XCTAssertTrue(callNames.contains("kk_atomic_int_compareAndSet_order"))
+            XCTAssertFalse(callNames.contains("kk_atomic_int_load"))
+        }
     }
 
     func testThisBasedMemberCallCompilesAndUsesImplicitReceiverInLowering() throws {

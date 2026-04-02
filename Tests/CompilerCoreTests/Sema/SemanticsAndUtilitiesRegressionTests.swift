@@ -24,6 +24,30 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+    func testAtomicMemoryOrderOverloadsResolve() throws {
+        let source = """
+        import kotlin.concurrent.AtomicInt
+        import kotlin.concurrent.MemoryOrder
+
+        fun main() {
+            val ai = AtomicInt(1)
+            ai.load(MemoryOrder.SEQ_CST)
+            ai.store(2, MemoryOrder.RELAXED)
+            ai.exchange(3, MemoryOrder.ACQUIRE)
+            ai.compareAndSet(1, 2, MemoryOrder.RELEASE, MemoryOrder.ACQ_REL)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runToKIR(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Atomic MemoryOrder overloads should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
     func testAtomicReferenceInAtomicsPackageIsResolved() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
