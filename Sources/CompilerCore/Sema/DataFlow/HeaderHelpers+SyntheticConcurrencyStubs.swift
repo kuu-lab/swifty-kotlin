@@ -29,6 +29,7 @@ extension DataFlowSemaPhase {
             types.anyType
         }
         let nullableClassLoaderType = types.makeNullable(classLoaderType)
+        let nullableStringType = types.makeNullable(types.stringType)
 
         let threadSymbol = ensureClassSymbol(
             named: "Thread",
@@ -51,6 +52,7 @@ extension DataFlowSemaPhase {
             packageSymbol: symbols.lookup(fqName: concurrentPkg),
             threadType: threadType,
             classLoaderType: nullableClassLoaderType,
+            nullableStringType: nullableStringType,
             symbols: symbols,
             types: types,
             interner: interner
@@ -62,6 +64,7 @@ extension DataFlowSemaPhase {
         packageSymbol: SymbolID?,
         threadType: TypeID,
         classLoaderType: TypeID,
+        nullableStringType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -82,7 +85,7 @@ extension DataFlowSemaPhase {
                     types.booleanType,
                     types.booleanType,
                     classLoaderType,
-                    types.stringType,
+                    nullableStringType,
                     types.intType,
                     defaultFunctionType,
                 ]
@@ -110,7 +113,7 @@ extension DataFlowSemaPhase {
             ("start", types.booleanType, true),
             ("isDaemon", types.booleanType, true),
             ("contextClassLoader", classLoaderType, true),
-            ("name", types.stringType, true),
+            ("name", nullableStringType, true),
             ("priority", types.intType, true),
             ("block", types.make(.functionType(FunctionType(
                 params: [],
@@ -136,11 +139,11 @@ extension DataFlowSemaPhase {
 
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: parameterSpecs.map(\.type),
+                parameterTypes: parameterSpecs.map { $0.type },
                 returnType: threadType,
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: parameterSpecs.map(\.hasDefault),
+                valueParameterHasDefaultValues: parameterSpecs.map { $0.hasDefault },
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
             ),
             for: functionSymbol

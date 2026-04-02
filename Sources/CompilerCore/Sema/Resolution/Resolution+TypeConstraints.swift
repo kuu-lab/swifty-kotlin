@@ -31,6 +31,9 @@ extension OverloadResolver {
             }
             let remainingIndices = positionalCursor..<paramCount
             for paramIndex in remainingIndices.reversed() {
+                guard isCallableLike(signature.parameterTypes[paramIndex]) else {
+                    continue
+                }
                 if isVararg[paramIndex] || boundNonVarargParams.contains(paramIndex) {
                     continue
                 }

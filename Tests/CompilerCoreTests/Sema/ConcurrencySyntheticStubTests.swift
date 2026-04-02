@@ -44,7 +44,7 @@ final class ConcurrencySyntheticStubTests: XCTestCase {
         XCTAssertEqual(threadSignature.parameterTypes.count, 6)
         XCTAssertEqual(threadSignature.parameterTypes[0], sema.types.booleanType)
         XCTAssertEqual(threadSignature.parameterTypes[1], sema.types.booleanType)
-        XCTAssertEqual(threadSignature.parameterTypes[3], sema.types.stringType)
+        XCTAssertEqual(threadSignature.parameterTypes[3], sema.types.makeNullable(sema.types.stringType))
         XCTAssertEqual(threadSignature.parameterTypes[4], sema.types.intType)
 
         let classLoaderFQName = ["java", "lang", "ClassLoader"].map { interner.intern($0) }
