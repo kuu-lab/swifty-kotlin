@@ -31,6 +31,7 @@ final class CallTypeChecker {
         } else {
             nil
         }
+        let calleePath = qualifiedCalleePath(for: calleeID, ast: ast)
         // --- Builder DSL functions (STDLIB-002) ---
         // Must intercept BEFORE eager arg inference so the lambda argument
         // is inferred with the correct implicit receiver type.
@@ -363,6 +364,66 @@ final class CallTypeChecker {
                     parameterMapping: [0: 0]
                 ))
             }
+            sema.bindings.bindExprType(id, type: resultType)
+            return resultType
+        }
+
+        // --- kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn ---
+        // Special intrinsic used by coroutine lowering. The block is type-checked
+        // as a regular function taking the current Continuation<T>.
+        let suspendCoroutineIntrinsicFQName = knownNames.kotlinCoroutinesIntrinsicsFQName + [knownNames.suspendCoroutineUninterceptedOrReturn]
+        let isSuspendCoroutineIntrinsic = if let calleeName {
+            calleeName == knownNames.suspendCoroutineUninterceptedOrReturn
+                && !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+                && isSyntheticStdlibSymbol(
+                    calleeName,
+                    fqComponents: ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"],
+                    ctx: ctx
+                )
+        } else {
+            calleePath == suspendCoroutineIntrinsicFQName
+        }
+        let isSuspendCoroutineShadowed = calleeName.map {
+            isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+        } ?? false
+        if isSuspendCoroutineIntrinsic,
+           args.count == 1,
+           !isSuspendCoroutineShadowed
+        {
+            let resultType = explicitTypeArgs.first ?? expectedType ?? sema.types.anyType
+            let continuationType: TypeID = if let continuationSymbol = sema.symbols.lookup(fqName: knownNames.kotlinCoroutinesFQName + [knownNames.continuation]) {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: continuationSymbol,
+                    args: [.invariant(resultType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
+            let blockExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [continuationType],
+                returnType: sema.types.nullableAnyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: blockExpectedType
+            )
+            if let chosen = sema.symbols.lookup(fqName: knownNames.kotlinCoroutinesIntrinsicsFQName + [knownNames.suspendCoroutineUninterceptedOrReturn]) {
+                sema.bindings.bindCall(
+                    id,
+                    binding: CallBinding(
+                        chosenCallee: chosen,
+                        substitutedTypeArguments: [resultType],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            }
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .suspendCoroutineUninterceptedOrReturn)
             sema.bindings.bindExprType(id, type: resultType)
             return resultType
         }
@@ -2983,6 +3044,34 @@ final class CallTypeChecker {
             return sym.fqName == internedFQ
         }
     }
+
+    /// Returns the fully qualified path of a callee expression when it is
+    /// composed of dotted names like `kotlin.coroutines.foo`.
+    private func qualifiedCalleePath(for exprID: ExprID, ast: ASTModule) -> [InternedString]? {
+        guard let expr = ast.arena.expr(exprID) else {
+            return nil
+        }
+        switch expr {
+        case let .nameRef(name, _):
+            return [name]
+        case let .memberCall(receiver, member, _, _, _):
+            guard let receiverPath = qualifiedCalleePath(for: receiver, ast: ast) else {
+                return nil
+            }
+            return receiverPath + [member]
+        case let .callableRef(receiver, member, _):
+            if let receiver {
+                guard let receiverPath = qualifiedCalleePath(for: receiver, ast: ast) else {
+                    return nil
+                }
+                return receiverPath + [member]
+            }
+            return [member]
+        default:
+            return nil
+        }
+    }
+
 }
 
 // swiftlint:enable type_body_length

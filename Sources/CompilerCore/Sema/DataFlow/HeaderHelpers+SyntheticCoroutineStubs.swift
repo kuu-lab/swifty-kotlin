@@ -33,11 +33,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let kotlinCoroutinesPkg = ensureSyntheticPackage(
-            kotlinPkg + [interner.intern("coroutines")],
-            symbols: symbols,
-            interner: interner
-        )
         let coroutinesPkg = ensureSyntheticPackage(
             kotlinxPkg + [interner.intern("coroutines")],
             symbols: symbols,
@@ -206,6 +201,81 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+
+        let continuationSymbol = ensureInterfaceSymbol(
+            named: "Continuation",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesPkg) {
+            symbols.setParentSymbol(packageSymbol, for: continuationSymbol)
+        }
+        let suspendIntrinsicName = interner.intern("suspendCoroutineUninterceptedOrReturn")
+        let suspendIntrinsicFQName = kotlinCoroutinesIntrinsicsPkg + [suspendIntrinsicName]
+        if symbols.lookup(fqName: suspendIntrinsicFQName) == nil {
+            let suspendIntrinsicSymbol = symbols.define(
+                kind: .function,
+                name: suspendIntrinsicName,
+                fqName: suspendIntrinsicFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction, .suspendFunction]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinCoroutinesIntrinsicsPkg) {
+                symbols.setParentSymbol(packageSymbol, for: suspendIntrinsicSymbol)
+            }
+
+            let functionTypeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: interner.intern("T"),
+                fqName: suspendIntrinsicFQName + [interner.intern("$synthetic"), interner.intern("T")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            let functionTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: functionTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let continuationType = types.make(.classType(ClassType(
+                classSymbol: continuationSymbol,
+                args: [.invariant(functionTypeParameterType)],
+                nullability: .nonNull
+            )))
+            types.setNominalTypeParameterSymbols([functionTypeParameterSymbol], for: continuationSymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+            symbols.setPropertyType(continuationType, for: continuationSymbol)
+
+            let blockParameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: interner.intern("block"),
+                fqName: suspendIntrinsicFQName + [interner.intern("block")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(suspendIntrinsicSymbol, for: blockParameterSymbol)
+
+            let blockType = types.make(.functionType(FunctionType(
+                params: [continuationType],
+                returnType: types.nullableAnyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [blockType],
+                    returnType: functionTypeParameterType,
+                    isSuspend: true,
+                    valueParameterSymbols: [blockParameterSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [functionTypeParameterSymbol]
+                ),
+                for: suspendIntrinsicSymbol
+            )
+        }
 
         registerSyntheticCoroutineTopLevelFunction(
             named: "runBlocking",
@@ -1373,7 +1443,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let functionName = interner.intern("Channel")
-        let functionFQName = packageFQName + [functionName]
         // Use a unique synthetic suffix to distinguish from the no-arg overload.
         let overloadFQName = packageFQName + [interner.intern("Channel$capacity")]
         guard symbols.lookup(fqName: overloadFQName) == nil else {

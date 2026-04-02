@@ -193,9 +193,11 @@ struct KnownCompilerNames {
     let getOrPut: InternedString
     let putAll: InternedString
     let regexCtor: InternedString
+    let continuation: InternedString
     let runBlocking: InternedString
     let launch: InternedString
     let async: InternedString
+    let suspendCoroutineUninterceptedOrReturn: InternedString
 
     // Scope function names (STDLIB-004 / STDLIB-250)
     let letFn: InternedString
@@ -236,6 +238,8 @@ struct KnownCompilerNames {
     let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
+    let kotlinCoroutinesFQName: [InternedString]
+    let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
     let kotlinxCoroutinesDeferredFQName: [InternedString]
     let kotlinxCoroutinesChannelFQName: [InternedString]
@@ -358,9 +362,11 @@ struct KnownCompilerNames {
         getOrPut = interner.intern("getOrPut")
         putAll = interner.intern("putAll")
         regexCtor = interner.intern("Regex")
+        continuation = interner.intern("Continuation")
         runBlocking = interner.intern("runBlocking")
         launch = interner.intern("launch")
         async = interner.intern("async")
+        suspendCoroutineUninterceptedOrReturn = interner.intern("suspendCoroutineUninterceptedOrReturn")
 
         // Scope function names (STDLIB-004 / STDLIB-250)
         letFn = interner.intern("let")
@@ -390,6 +396,7 @@ struct KnownCompilerNames {
         trimToSize = interner.intern("trimToSize")
 
         let kotlin = interner.intern("kotlin")
+        let kotlinCoroutines = interner.intern("coroutines")
         let kotlinText = interner.intern("text")
         let kotlinCollections = interner.intern("collections")
         let kotlinSequences = interner.intern("sequences")
@@ -410,6 +417,8 @@ struct KnownCompilerNames {
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
         kotlinCollectionsArrayDequeFQName = [kotlin, kotlinCollections, arrayDeque]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
+        kotlinCoroutinesFQName = [kotlin, kotlinCoroutines]
+        kotlinCoroutinesIntrinsicsFQName = [kotlin, kotlinCoroutines, interner.intern("intrinsics")]
         kotlinxCoroutinesJobFQName = [kotlinx, coroutines, job]
         kotlinxCoroutinesDeferredFQName = [kotlinx, coroutines, deferred]
         kotlinxCoroutinesChannelFQName = [kotlinx, coroutines, channels, channel]
