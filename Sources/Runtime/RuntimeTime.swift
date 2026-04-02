@@ -33,8 +33,12 @@ private func runtimeMonotonicNowNanoseconds() -> Int64 {
     return now <= UInt64(Int64.max) ? Int64(now) : Int64.max
 }
 
+private func runtimeNegSaturating(_ value: Int64) -> Int64 {
+    value == Int64.min ? Int64.max : -value
+}
+
 private func runtimeTimeMarkElapsedNanoseconds(_ mark: RuntimeTimeMarkBox) -> Int64 {
-    runtimeSaturatingAdd(runtimeMonotonicNowNanoseconds(), -mark.uptimeNanoseconds)
+    runtimeSaturatingAdd(runtimeMonotonicNowNanoseconds(), runtimeNegSaturating(mark.uptimeNanoseconds))
 }
 
 private func runtimeDurationHandle(fromNanoseconds nanoseconds: Int64) -> Int {
@@ -97,7 +101,7 @@ public func kk_time_mark_minus_duration(_ markRaw: Int, _ durationRaw: Int) -> I
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_mark_minus_duration received invalid handle")
     }
     let shifted = RuntimeTimeMarkBox(
-        uptimeNanoseconds: runtimeSaturatingAdd(mark.uptimeNanoseconds, -duration.nanoseconds)
+        uptimeNanoseconds: runtimeSaturatingAdd(mark.uptimeNanoseconds, runtimeNegSaturating(duration.nanoseconds))
     )
     return registerRuntimeObject(shifted)
 }
@@ -109,7 +113,7 @@ public func kk_time_mark_minus_mark(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_mark_minus_mark received invalid TimeMark handle")
     }
-    return runtimeDurationHandle(fromNanoseconds: runtimeSaturatingAdd(lhs.uptimeNanoseconds, -rhs.uptimeNanoseconds))
+    return runtimeDurationHandle(fromNanoseconds: runtimeSaturatingAdd(lhs.uptimeNanoseconds, runtimeNegSaturating(rhs.uptimeNanoseconds)))
 }
 
 @_cdecl("kk_time_mark_compare")

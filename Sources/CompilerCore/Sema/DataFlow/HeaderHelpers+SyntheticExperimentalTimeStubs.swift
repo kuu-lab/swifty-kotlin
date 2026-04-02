@@ -207,7 +207,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: timeSourceSymbol,
             ownerType: timeSourceType,
             parameters: [],
-            returnType: comparableTimeMarkType,
+            returnType: timeMarkType,
             symbols: symbols,
             interner: interner
         )
@@ -281,7 +281,7 @@ extension DataFlowSemaPhase {
         }
         let memberName = interner.intern(name)
         let memberFQName = ownerInfo.fqName + [memberName]
-        let desiredParameterTypes = parameters.map(\.type)
+        let desiredParameterTypes = parameters.map { $0.type }
         if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
                 return false

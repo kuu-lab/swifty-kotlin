@@ -5,7 +5,7 @@ import kotlin.time.milliseconds
 @OptIn(ExperimentalTime::class)
 fun main() {
     val start = TimeSource.Monotonic.markNow()
-    val shifted = start + 5.milliseconds
+    val shifted = start + 200.milliseconds
     val rewound = shifted - 10.milliseconds
 
     println(start.elapsedNow().inWholeNanoseconds >= 0L)
