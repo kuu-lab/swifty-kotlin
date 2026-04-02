@@ -27,6 +27,7 @@ final class KotlinCompilationDigitalSignatureTests: XCTestCase {
             verifier.initVerify(keyPair.publicKey)
             verifier.update(message)
             val verified = verifier.verify(sha256Signature)
+            check(verified) { "SHA256withRSA verification failed" }
 
             val certificatePem = """
                 -----BEGIN CERTIFICATE-----
@@ -57,6 +58,7 @@ final class KotlinCompilationDigitalSignatureTests: XCTestCase {
             val parameters = PKIXParameters(listOf(trustAnchor))
             val validator = CertPathValidator.getInstance("PKIX")
             val valid = validator.validate(path, parameters)
+            check(valid) { "PKIX validation failed" }
         }
         """##)
     }

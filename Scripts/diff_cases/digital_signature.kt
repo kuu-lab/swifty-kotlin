@@ -21,6 +21,7 @@ fun main() {
     verifierSha1.initVerify(keyPair.publicKey)
     verifierSha1.update(message)
     val verifiedSha1 = verifierSha1.verify(signatureSha1)
+    check(verifiedSha1) { "SHA1withRSA verification failed" }
 
     val signerSha256 = Signature.getInstance("SHA256withRSA")
     signerSha256.initSign(keyPair.privateKey)
@@ -31,6 +32,7 @@ fun main() {
     verifierSha256.initVerify(keyPair.publicKey)
     verifierSha256.update(message)
     val verifiedSha256 = verifierSha256.verify(signatureSha256)
+    check(verifiedSha256) { "SHA256withRSA verification failed" }
 
     val certificatePem = """
         -----BEGIN CERTIFICATE-----
@@ -61,4 +63,5 @@ fun main() {
     val parameters = PKIXParameters(listOf(trustAnchor))
     val validator = CertPathValidator.getInstance("PKIX")
     val valid = validator.validate(certPath, parameters)
+    check(valid) { "PKIX validation failed" }
 }
