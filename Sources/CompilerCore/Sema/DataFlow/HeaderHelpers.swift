@@ -942,6 +942,42 @@ extension DataFlowSemaPhase {
         }
         symbols.setAnnotations(existingAnnotations, for: experimentalContractsSymbol)
 
+        let experimentalFQName = ensurePackage(
+            path: ["kotlin", "experimental"],
+            symbols: symbols,
+            interner: interner
+        )
+        let experimentalPkg = symbols.lookup(fqName: experimentalFQName) ?? SymbolID.invalid
+        let experimentalTypeInferenceSymbol = ensureAnnotationClassSymbol(
+            named: "ExperimentalTypeInference",
+            in: experimentalFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if experimentalPkg != SymbolID.invalid {
+            symbols.setParentSymbol(experimentalPkg, for: experimentalTypeInferenceSymbol)
+        }
+        let experimentalTypeInferenceAnnotations = [
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.annotation.Target",
+                arguments: [
+                    "AnnotationTarget.CLASS",
+                    "AnnotationTarget.FUNCTION",
+                    "AnnotationTarget.TYPE",
+                    "AnnotationTarget.TYPEALIAS",
+                ]
+            ),
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.annotation.Retention",
+                arguments: ["AnnotationRetention.BINARY"]
+            ),
+        ]
+        var experimentalTypeInferenceExisting = symbols.annotations(for: experimentalTypeInferenceSymbol)
+        for annotation in experimentalTypeInferenceAnnotations where !experimentalTypeInferenceExisting.contains(annotation) {
+            experimentalTypeInferenceExisting.append(annotation)
+        }
+        symbols.setAnnotations(experimentalTypeInferenceExisting, for: experimentalTypeInferenceSymbol)
+
         let builderType = types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
         let effectType = types.make(.classType(ClassType(classSymbol: effectSymbol, args: [], nullability: .nonNull)))
 
