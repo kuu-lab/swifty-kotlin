@@ -35,6 +35,8 @@ extension ABIMismatchTests {
             "kk_sequence_generate",
             "kk_system_exitProcess",
             "kk_system_currentTimeMillis",
+            "kk_system_nanoTime",
+            "kk_system_process_start_nanos",
             "kk_system_measureTimeMillis",
             "kk_system_measureNanoTime",
             // Atomic (kotlin.concurrent)
@@ -66,6 +68,11 @@ extension ABIMismatchTests {
             "kk_atomic_ref_exchange",
             "kk_atomic_ref_compareAndSet",
             "kk_atomic_ref_compareAndExchange",
+            // ThreadLocal (java.lang / kotlin.concurrent)
+            "kk_thread_local_new",
+            "kk_thread_local_getOrSet",
+            // kotlin.concurrent
+            "kk_lock_withLock",
             "kk_atomic_native_ptr_create",
             "kk_atomic_native_ptr_load",
             "kk_atomic_native_ptr_store",
