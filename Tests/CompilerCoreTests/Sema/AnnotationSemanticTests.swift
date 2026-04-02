@@ -684,6 +684,67 @@ final class AnnotationSemanticTests: XCTestCase {
         }
     }
 
+    func testOptInAllowsExperimentalStdlibApiUsage() {
+        let source = """
+        @OptIn(ExperimentalStdlibApi::class)
+        fun hex(): String = 255.toHexString()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+
+        XCTAssertTrue(diagnostics.isEmpty, "Expected opt-in annotated function to use HexFormat API without diagnostics, got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    func testExperimentalStdlibApiWithoutOptInEmitsDiagnostic() {
+        let source = """
+        fun hex(): String = 255.toHexString()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+
+        XCTAssertEqual(diagnostics.count, 1, "Expected one opt-in diagnostic for toHexString(), got: \(ctx.diagnostics.diagnostics)")
+        XCTAssertTrue(diagnostics.allSatisfy(isError), "Opt-in diagnostics should be errors")
+    }
+
+    func testExperimentalStdlibApiDefaultPropertyWithoutOptInEmitsDiagnostic() {
+        let source = """
+        fun hex(): String = 42.toHexString(HexFormat.Default)
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+
+        XCTAssertEqual(diagnostics.count, 2, "Expected opt-in diagnostics for HexFormat.Default and toHexString(), got: \(ctx.diagnostics.diagnostics)")
+        XCTAssertTrue(diagnostics.allSatisfy(isError), "Opt-in diagnostics should be errors")
+    }
+
+    func testFileLevelOptInAllowsExperimentalStdlibApiUsage() {
+        let source = """
+        @file:OptIn(ExperimentalStdlibApi::class)
+
+        fun hex(): Int = "ff".hexToInt()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+
+        XCTAssertTrue(diagnostics.isEmpty, "Expected file-level opt-in to suppress HexFormat diagnostics, got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    func testOptInSuppressionAliasSuppressesDiagnostic() {
+        let source = """
+        @Suppress("OPT_IN_USAGE")
+        fun hex(): String = 255.toHexString()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-OPT-IN", in: ctx)
+
+        XCTAssertTrue(diagnostics.isEmpty, "Expected OPT_IN_USAGE suppression alias to suppress opt-in diagnostics, got: \(ctx.diagnostics.diagnostics)")
+    }
+
     private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
         let ctx = makeContextFromSource(source)
         do {

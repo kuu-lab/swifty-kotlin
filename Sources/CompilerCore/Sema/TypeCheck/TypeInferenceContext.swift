@@ -52,7 +52,6 @@ struct TypeInferenceContext {
     /// DslMarker annotation as an outer receiver, the outer receiver is hidden
     /// from implicit resolution.
     var activeDslMarkerAnnotations: Set<String> = []
-
     func with(scope newScope: Scope) -> TypeInferenceContext {
         var copy = self; copy.scope = newScope; return copy
     }

@@ -343,9 +343,33 @@ extension TypeCheckHelpers {
                 }
                 names.append(trimmed)
             }
+
+            if matches.isEmpty,
+               let normalized = normalizeOptInMarkerName(value),
+               seen.insert(normalized).inserted
+            {
+                names.append(normalized)
+            }
         }
 
         return names
+    }
+
+    private func normalizeOptInMarkerName(_ raw: String) -> String? {
+        let trimmed = optInArgumentValue(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]()"))
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let suffixes = ["::class", ".class", ":class", "class"]
+        for suffix in suffixes where trimmed.count > suffix.count && trimmed.hasSuffix(suffix) {
+            return String(trimmed.dropLast(suffix.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return nil
     }
 
     private func optInArgumentValue(_ argument: String) -> String {
