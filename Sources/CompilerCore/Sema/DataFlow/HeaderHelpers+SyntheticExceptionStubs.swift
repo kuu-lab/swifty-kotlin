@@ -385,8 +385,8 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(throwableSymbol, for: getSuppressedSymbol)
             symbols.setExternalLinkName("kk_throwable_getSuppressed", for: getSuppressedSymbol)
-            // Return type is Array<Throwable>, but since we lower to runtime calls
-            // returning opaque arrays, we use anyType as the return representation.
+            // Publicly this is Array<Throwable>; internally we keep the lowered
+            // representation opaque because the runtime returns a raw array handle.
             let returnType = types.anyType
             symbols.setFunctionSignature(
                 FunctionSignature(
