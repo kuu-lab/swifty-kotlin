@@ -902,15 +902,36 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let effectSymbol = ensureClassSymbol(
+        let contractEffectSymbol = ensureInterfaceSymbol(
             named: "ContractEffect",
+            in: contractsFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        let effectSymbol = ensureInterfaceSymbol(
+            named: "Effect",
+            in: contractsFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        let simpleEffectSymbol = ensureInterfaceSymbol(
+            named: "SimpleEffect",
+            in: contractsFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        let conditionalEffectSymbol = ensureInterfaceSymbol(
+            named: "ConditionalEffect",
             in: contractsFQName,
             symbols: symbols,
             interner: interner
         )
         if contractsPkg != .invalid {
             symbols.setParentSymbol(contractsPkg, for: builderSymbol)
+            symbols.setParentSymbol(contractsPkg, for: contractEffectSymbol)
             symbols.setParentSymbol(contractsPkg, for: effectSymbol)
+            symbols.setParentSymbol(contractsPkg, for: simpleEffectSymbol)
+            symbols.setParentSymbol(contractsPkg, for: conditionalEffectSymbol)
         }
 
         let experimentalContractsSymbol = ensureAnnotationClassSymbol(
@@ -944,7 +965,19 @@ extension DataFlowSemaPhase {
         symbols.setAnnotations(existingAnnotations, for: experimentalContractsSymbol)
 
         let builderType = types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
+        let contractEffectType = types.make(.classType(ClassType(classSymbol: contractEffectSymbol, args: [], nullability: .nonNull)))
         let effectType = types.make(.classType(ClassType(classSymbol: effectSymbol, args: [], nullability: .nonNull)))
+        let simpleEffectType = types.make(.classType(ClassType(classSymbol: simpleEffectSymbol, args: [], nullability: .nonNull)))
+        let conditionalEffectType = types.make(.classType(ClassType(classSymbol: conditionalEffectSymbol, args: [], nullability: .nonNull)))
+
+        symbols.setPropertyType(contractEffectType, for: contractEffectSymbol)
+        symbols.setPropertyType(effectType, for: effectSymbol)
+        symbols.setPropertyType(simpleEffectType, for: simpleEffectSymbol)
+        symbols.setPropertyType(conditionalEffectType, for: conditionalEffectSymbol)
+
+        symbols.setDirectSupertypes([contractEffectSymbol], for: effectSymbol)
+        symbols.setDirectSupertypes([effectSymbol], for: simpleEffectSymbol)
+        symbols.setDirectSupertypes([effectSymbol], for: conditionalEffectSymbol)
 
         let contractName = interner.intern("contract")
         let contractFQName = contractsFQName + [contractName]
@@ -1015,7 +1048,7 @@ extension DataFlowSemaPhase {
             name: "returns",
             receiverType: builderType,
             params: [],
-            returnType: effectType
+            returnType: simpleEffectType
         )
         ensureMember(
             owner: builderSymbol,
@@ -1023,15 +1056,15 @@ extension DataFlowSemaPhase {
             name: "returns",
             receiverType: builderType,
             params: [types.booleanType],
-            returnType: effectType
+            returnType: simpleEffectType
         )
         ensureMember(
-            owner: effectSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractEffect")],
+            owner: simpleEffectSymbol,
+            ownerFQName: contractsFQName + [interner.intern("SimpleEffect")],
             name: "implies",
-            receiverType: effectType,
+            receiverType: simpleEffectType,
             params: [types.booleanType],
-            returnType: types.unitType
+            returnType: conditionalEffectType
         )
         // STDLIB-593 stub: `ContractBuilder.returnsNotNull()` -- forward declaration
         // so that user code containing `contract { returnsNotNull() }` resolves.
@@ -1041,7 +1074,7 @@ extension DataFlowSemaPhase {
             name: "returnsNotNull",
             receiverType: builderType,
             params: [],
-            returnType: effectType
+            returnType: simpleEffectType
         )
 
         // STDLIB-592: InvocationKind enum class stub
