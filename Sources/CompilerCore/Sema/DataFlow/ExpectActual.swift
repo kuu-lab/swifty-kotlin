@@ -161,9 +161,9 @@ extension DataFlowSemaPhase {
                 return false
             }
             let typeParamMapping = Dictionary(uniqueKeysWithValues: zip(expectTPs, actualTPs))
-            guard expectActualTypeListsMatch(
-                expectTPs.map { symbols.typeParameterUpperBounds(for: $0) }.flatMap { $0 },
-                actualTPs.map { symbols.typeParameterUpperBounds(for: $0) }.flatMap { $0 },
+            guard expectActualTypeBoundListsMatch(
+                expectTPs.map { symbols.typeParameterUpperBounds(for: $0) },
+                actualTPs.map { symbols.typeParameterUpperBounds(for: $0) },
                 typeParamMapping: typeParamMapping,
                 symbols: symbols,
                 types: types
