@@ -44,7 +44,7 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = collectTokens(from: nodeID, in: arena)
+        let tokens = propertyHeadTokens(from: nodeID, in: arena)
         guard !tokens.isEmpty else {
             return nil
         }
@@ -69,24 +69,7 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        var exprTokens: [Token] = []
-        depth = BracketDepth()
-        var index = start
-        while index < tokens.count {
-            let token = tokens[index]
-            if depth.isAtTopLevel {
-                if token.kind == .symbol(.semicolon) {
-                    break
-                }
-                let suffix = Array(tokens[index...])
-                if let accessorIndex = inlineAccessorStartIndex(in: suffix), accessorIndex == 0 {
-                    break
-                }
-            }
-            exprTokens.append(token)
-            depth.track(token.kind)
-            index += 1
-        }
+        let exprTokens = tokens[start...].filter { $0.kind != .symbol(.semicolon) }
         guard !exprTokens.isEmpty else {
             return nil
         }
