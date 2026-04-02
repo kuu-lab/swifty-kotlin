@@ -1891,12 +1891,12 @@ private func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, message: 
 
 @_cdecl("kk_secretkeyspec_new")
 public func kk_secretkeyspec_new(_ keyRaw: Int, _ algorithmRaw: Int) -> Int {
-    return 0
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: UnsupportedOperationException: SecretKeySpec is not available on this platform")
 }
 
 @_cdecl("kk_ivparameterspec_new")
 public func kk_ivparameterspec_new(_ ivRaw: Int) -> Int {
-    return 0
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: UnsupportedOperationException: IvParameterSpec is not available on this platform")
 }
 
 @_cdecl("kk_keypairgenerator_getInstance")
