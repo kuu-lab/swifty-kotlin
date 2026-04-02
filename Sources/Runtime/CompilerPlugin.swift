@@ -442,7 +442,9 @@ public func kk_extension_registrar_register_extension(
     guard !extensionName.isEmpty else {
         return -1
     }
-    let kind = RuntimeCompilerPluginExtensionKind.allCases[safe: max(0, min(kindRaw, RuntimeCompilerPluginExtensionKind.allCases.count - 1))] ?? .extensionRegistrar
+    guard let kind = RuntimeCompilerPluginExtensionKind.allCases[safe: kindRaw] else {
+        return -1
+    }
     registrar.registerExtension(name: extensionName, kind: kind)
     return 0
 }
