@@ -16,6 +16,19 @@ final class KotlinCompilationDeepRecursiveTests: XCTestCase {
         """)
     }
 
+    func testCompileDeepRecursiveFunctionExplicitParamName() throws {
+        try assertKotlinCompilesToKIR("""
+        class Node(val next: Node?)
+
+        fun probe(node: Node?): Int {
+            val depth: DeepRecursiveFunction<Node?, Int> = DeepRecursiveFunction<Node?, Int> { n ->
+                if (n == null) 0 else callRecursive(n.next) + 1
+            }
+            return depth.invoke(node)
+        }
+        """)
+    }
+
     func testCompileDeepRecursiveFunctionBasicObjectEmission() throws {
         try assertKotlinCompilesToObject("""
         class Node(val next: Node?)

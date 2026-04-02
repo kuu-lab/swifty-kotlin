@@ -1035,7 +1035,9 @@ final class CallTypeChecker {
                let ctorSymbol
             {
                 let argumentExprID = args[0].expr
-                guard isValidBuilderLambdaArgument(argumentExprID, ast: ast) else {
+                // DeepRecursiveFunction's block has signature DeepRecursiveScope<T,R>.(T) -> R,
+                // so the lambda may declare 0 params (implicit `it`) or 1 explicit param.
+                guard isValidLambdaArgument(argumentExprID, ast: ast, maxParams: 1) else {
                     ctx.semaCtx.diagnostics.error(
                         "KSWIFTK-SEMA-0002",
                         "No viable overload found for call.",
