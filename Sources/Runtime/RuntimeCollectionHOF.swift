@@ -56,6 +56,8 @@ private func runtimeSortedWithComparatorInvoke(
                 vtableCompareFn(fnPtr, maybeUnbox(lhs), maybeUnbox(rhs), outThrown)
             }
         }
+
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: runtimeSortedWithComparatorInvoke received a registered comparator object without an itable or vtable compare method")
     }
 
     let compareFn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda2.self)
