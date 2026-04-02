@@ -60,6 +60,13 @@ extension CollectionLiteralLoweringPass {
         }
     }
 
+    private func isUIntRangeExpr(_ expr: KIRExprID, module: KIRModule, ctx: KIRContext) -> Bool {
+        guard let sema = ctx.sema else {
+            return false
+        }
+        return module.arena.exprType(expr) == sema.types.uintType
+    }
+
     /// Returns true when the resolved symbol's FQN matches one of the known
     /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
     /// we conservatively allow the rewrite – the name check already passed and
@@ -1438,7 +1445,7 @@ extension CollectionLiteralLoweringPass {
                                 let countCallee: InternedString
                                 if ulongRangeExprIDs.contains(receiverID.rawValue) {
                                     countCallee = lookup.kkULongRangeCountName
-                                } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                                } else if isUIntRangeExpr(receiverID, module: module, ctx: ctx) {
                                     countCallee = ctx.interner.intern("kk_uint_range_count")
                                 } else {
                                     countCallee = lookup.kkRangeCountName
@@ -1646,7 +1653,7 @@ extension CollectionLiteralLoweringPass {
                             }
                             // STDLIB-637: UIntRange/ULongRange isEmpty
                             if rangeExprIDs.contains(receiverID.rawValue) {
-                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
+                                let isUIntRange = isUIntRangeExpr(receiverID, module: module, ctx: ctx)
                                 let isEmptyName = ulongRangeExprIDs.contains(receiverID.rawValue)
                                     ? lookup.kkULongRangeIsEmptyName
                                     : (isUIntRange ? ctx.interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
@@ -1668,7 +1675,7 @@ extension CollectionLiteralLoweringPass {
                         if arguments.count == 1 {
                             let receiverID = arguments[0]
                             if rangeExprIDs.contains(receiverID.rawValue) {
-                                let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
+                                let isUIntRange = isUIntRangeExpr(receiverID, module: module, ctx: ctx)
                                 loweredBody.append(.call(
                                     symbol: nil,
                                     callee: isUIntRange ? ctx.interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
@@ -2143,7 +2150,7 @@ extension CollectionLiteralLoweringPass {
                             continue
                         }
                         if callee == lookup.reversedName, rangeExprIDs.contains(receiverID.rawValue) {
-                            let isUIntRange = module.arena.exprType(receiverID) == ctx.sema?.types.uintType
+                            let isUIntRange = isUIntRangeExpr(receiverID, module: module, ctx: ctx)
                             let transformResult = module.arena.appendExpr(
                                 .temporary(Int32(module.arena.expressions.count)), type: nil
                             )
@@ -2308,7 +2315,7 @@ extension CollectionLiteralLoweringPass {
                                 rangeToListCallee = lookup.kkCharRangeToListName
                             } else if ulongRangeExprIDs.contains(receiverID.rawValue) {
                                 rangeToListCallee = lookup.kkULongRangeToListName
-                            } else if module.arena.exprType(receiverID) == ctx.sema?.types.uintType {
+                            } else if isUIntRangeExpr(receiverID, module: module, ctx: ctx) {
                                 rangeToListCallee = ctx.interner.intern("kk_uint_range_toList")
                             } else {
                                 rangeToListCallee = lookup.kkRangeToListName

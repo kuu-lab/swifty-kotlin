@@ -29,7 +29,7 @@ private struct RuntimeBuilderThreadState {
     }
 }
 
-private final class RuntimeBuilderState: @unchecked Sendable {
+final class RuntimeBuilderState: @unchecked Sendable {
     private let lock = NSLock()
     private var threads: [ObjectIdentifier: RuntimeBuilderThreadState] = [:]
     private let maxDepth = 16
@@ -44,7 +44,7 @@ private final class RuntimeBuilderState: @unchecked Sendable {
         }
     }
 
-    func popStringFrame() -> RuntimeStringBuilderFrame? {
+    fileprivate func popStringFrame() -> RuntimeStringBuilderFrame? {
         withThreadState { state in
             state.stringFrames.popLast()
         }
@@ -108,10 +108,14 @@ private final class RuntimeBuilderState: @unchecked Sendable {
         }
     }
 
-    func popListFrame() -> RuntimeMutableListFrame? {
+    fileprivate func popListFrame() -> RuntimeMutableListFrame? {
         withThreadState { state in
             state.listFrames.popLast()
         }
+    }
+
+    func popListElements() -> [Int]? {
+        popListFrame()?.elements
     }
 
     func appendListElement(_ value: Int) {
@@ -142,7 +146,7 @@ private final class RuntimeBuilderState: @unchecked Sendable {
         }
     }
 
-    func popSetFrame() -> RuntimeMutableSetFrame? {
+    fileprivate func popSetFrame() -> RuntimeMutableSetFrame? {
         withThreadState { state in
             state.setFrames.popLast()
         }
@@ -186,7 +190,7 @@ private final class RuntimeBuilderState: @unchecked Sendable {
         }
     }
 
-    func popMapFrame() -> RuntimeMutableMapFrame? {
+    fileprivate func popMapFrame() -> RuntimeMutableMapFrame? {
         withThreadState { state in
             state.mapFrames.popLast()
         }
@@ -222,7 +226,7 @@ private final class RuntimeBuilderState: @unchecked Sendable {
     }
 }
 
-private let runtimeBuilderState = RuntimeBuilderState()
+let runtimeBuilderState = RuntimeBuilderState()
 
 @_cdecl("kk_string_builder_append")
 public func kk_string_builder_append(_ strRaw: Int) -> Int {
@@ -326,42 +330,6 @@ public func kk_builder_list_addAll(_ collectionRaw: Int) -> Int {
     }
     runtimeBuilderState.appendListElements(elements)
     return 0
-}
-
-@_cdecl("kk_build_list")
-public func kk_build_list(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_list called with null function pointer")
-    }
-    guard runtimeBuilderState.pushListFrame() else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_list nesting depth exceeded (max 16)")
-    }
-
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
-    var thrown = 0
-    _ = lambda(&thrown)
-
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-
-    let frame = runtimeBuilderState.popListFrame() ?? RuntimeMutableListFrame()
-    return registerRuntimeObject(RuntimeListBox(elements: frame.elements))
-}
-
-@_cdecl("kk_build_list_with_capacity")
-public func kk_build_list_with_capacity(
-    _ capacity: Int,
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
-        return 0
-    }
-    return kk_build_list(fnPtr, outThrown)
 }
 
 @_cdecl("kk_builder_set_add")

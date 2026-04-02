@@ -255,6 +255,42 @@ public func kk_list_to_mutable_list(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: list.elements))
 }
 
+@_cdecl("kk_build_list")
+public func kk_build_list(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard fnPtr != 0 else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_list called with null function pointer")
+    }
+    guard runtimeBuilderState.pushListFrame() else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_list nesting depth exceeded (max 16)")
+    }
+
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
+    var thrown = 0
+    _ = lambda(&thrown)
+
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+    }
+
+    let elements = runtimeBuilderState.popListElements() ?? []
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
+}
+
+@_cdecl("kk_build_list_with_capacity")
+public func kk_build_list_with_capacity(
+    _ capacity: Int,
+    _ fnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if capacity < 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        return 0
+    }
+    return kk_build_list(fnPtr, outThrown)
+}
+
 @_cdecl("kk_list_joinToString")
 public func kk_list_joinToString(
     _ listRaw: Int,

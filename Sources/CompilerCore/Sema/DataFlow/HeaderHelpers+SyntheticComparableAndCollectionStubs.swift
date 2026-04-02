@@ -314,6 +314,15 @@ extension DataFlowSemaPhase {
             listInterfaceSymbol: listInterfaceSymbol,
             collectionInterfaceSymbol: collectionInterfaceSymbol
         )
+        guard let mutableListSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]) else {
+            return
+        }
+        registerSyntheticBuildListStub(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            listSymbol: listInterfaceSymbol,
+            mutableListSymbol: mutableListSymbol
+        )
 
         let setInterfaceSymbol = registerSyntheticSetStub(
             symbols: symbols, types: types, interner: interner,
