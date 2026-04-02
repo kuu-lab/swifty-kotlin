@@ -460,7 +460,9 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([.in], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        types.setNominalDirectSupertypes([exceptionSymbol], for: cancellationSymbol)
+        types.setNominalDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([flowInterfaceSymbol], for: sharedFlowSymbol)
         symbols.setDirectSupertypes([sharedFlowSymbol], for: stateFlowSymbol)
         symbols.setDirectSupertypes([sharedFlowSymbol], for: mutableSharedFlowSymbol)
@@ -1120,8 +1122,11 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(coroutineExceptionHandlerType, for: coroutineExceptionHandlerSymbol)
         symbols.setDirectSupertypes([coroutineContextElementSymbol], for: coroutineExceptionHandlerSymbol)
 
-        // Make CoroutineDispatcher a subtype of CoroutineContext.Element
-        symbols.setDirectSupertypes([coroutineContextElementSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+        // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
+        symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineNameSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: dispatcherSymbol)
 
         let flowBuilderLambdaType = types.make(.functionType(FunctionType(
             params: [],
