@@ -1,3 +1,4 @@
+// SKIP-DIFF: locale-aware date format APIs are not available in kotlinc diff reference.
 import java.text.getDateInstance
 import java.text.getDateTimeInstance
 import java.text.getTimeInstance
