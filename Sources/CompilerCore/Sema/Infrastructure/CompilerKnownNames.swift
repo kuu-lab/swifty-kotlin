@@ -277,6 +277,8 @@ struct KnownCompilerNames {
     let kotlinCollectionsMutableMapFQName: [InternedString]
     let kotlinCollectionsArrayDequeFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
+    let kotlinCoroutinesFQName: [InternedString]
+    let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinxCoroutinesJobFQName: [InternedString]
     let kotlinxCoroutinesDeferredFQName: [InternedString]
     let kotlinxCoroutinesChannelFQName: [InternedString]
@@ -284,8 +286,6 @@ struct KnownCompilerNames {
     let kotlinxCoroutinesRunBlockingFQName: [InternedString]
     let kotlinxCoroutinesLaunchFQName: [InternedString]
     let kotlinxCoroutinesAsyncFQName: [InternedString]
-    let kotlinCoroutinesFQName: [InternedString]
-    let kotlinCoroutinesIntrinsicsFQName: [InternedString]
     let kotlinCoroutinesContinuationFQName: [InternedString]
     let kotlinCoroutinesCoroutineContextFQName: [InternedString]
     let kotlinCoroutinesCoroutineSuspendedFQName: [InternedString]
@@ -445,8 +445,8 @@ struct KnownCompilerNames {
         trimToSize = interner.intern("trimToSize")
 
         let kotlin = interner.intern("kotlin")
-        let kotlinText = interner.intern("text")
         let kotlinCoroutines = interner.intern("coroutines")
+        let kotlinText = interner.intern("text")
         let kotlinCollections = interner.intern("collections")
         let kotlinSequences = interner.intern("sequences")
         let kotlinx = interner.intern("kotlinx")
@@ -454,10 +454,8 @@ struct KnownCompilerNames {
         let channels = interner.intern("channels")
         let flowPkg = interner.intern("flow")
         let coroutineSuspended = interner.intern("COROUTINE_SUSPENDED")
-        let continuation = interner.intern("Continuation")
         let coroutineContext = interner.intern("CoroutineContext")
         let coroutinesIntrinsics = interner.intern("intrinsics")
-        let suspendCoroutineUninterceptedOrReturn = interner.intern("suspendCoroutineUninterceptedOrReturn")
 
         kotlinRegexFQName = [kotlin, kotlinText, regex]
         kotlinStringBuilderFQName = [kotlin, kotlinText, stringBuilder]

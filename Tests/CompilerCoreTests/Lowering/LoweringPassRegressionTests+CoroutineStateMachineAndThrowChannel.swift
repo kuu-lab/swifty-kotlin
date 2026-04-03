@@ -91,11 +91,13 @@ extension LoweringPassRegressionTests {
             let loweredProbe = try findKIRFunction(named: "kk_suspend_probe", in: module, interner: ctx.interner)
 
             let loweredCalls = extractCallees(from: loweredProbe.body, interner: ctx.interner)
-            XCTAssertTrue(loweredCalls.contains("kk_function_invoke"))
             XCTAssertFalse(loweredCalls.contains("suspendCoroutineUninterceptedOrReturn"))
+            XCTAssertTrue(loweredCalls.contains("kk_coroutine_suspended"), "Callees: \(loweredCalls)")
+            XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_enter"), "Callees: \(loweredCalls)")
+            XCTAssertTrue(loweredCalls.contains("kk_coroutine_state_exit"), "Callees: \(loweredCalls)")
 
             let throwFlags = extractThrowFlags(from: loweredProbe.body, interner: ctx.interner)
-            XCTAssertEqual(throwFlags["kk_function_invoke"]?.allSatisfy { $0 == true }, true)
+            XCTAssertEqual(throwFlags["kk_coroutine_suspended"]?.allSatisfy { $0 == false }, true)
         }
     }
 

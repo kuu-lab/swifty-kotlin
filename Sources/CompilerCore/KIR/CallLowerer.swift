@@ -198,6 +198,19 @@ final class CallLowerer {
             )
         }
 
+        if let loweredSuspendIntrinsic = lowerSuspendCoroutineUninterceptedOrReturnCallExpr(
+            exprID,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        ) {
+            return loweredSuspendIntrinsic
+        }
+
         if let loweredRepeat = lowerRepeatCallExpr(
             exprID,
             args: args,

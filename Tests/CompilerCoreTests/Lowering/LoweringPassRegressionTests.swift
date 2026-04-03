@@ -191,6 +191,32 @@ final class LoweringPassRegressionTests: XCTestCase {
         }
     }
 
+    func testCoroutineLoweringRewritesSuspendCoroutineUninterceptedOrReturnFromImport() throws {
+        let source = """
+        import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
+
+        suspend fun probe(): Any? {
+            return suspendCoroutineUninterceptedOrReturn { cont ->
+                cont
+            }
+        }
+        fun main(): Any? = runBlocking(probe)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendCoroutineIntrinsicLowering", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let probeBody = try findKIRFunctionBody(named: "kk_suspend_probe", in: module, interner: ctx.interner)
+
+            let callees = extractCallees(from: probeBody, interner: ctx.interner)
+            XCTAssertTrue(callees.contains("kk_coroutine_suspended"), "callees: \(callees)")
+            XCTAssertFalse(callees.contains("suspendCoroutineUninterceptedOrReturn"), "callees: \(callees)")
+        }
+    }
+
     func testCoroutineLoweringRewritesSuspendFunctionTypeInvokeCalls() throws {
         let source = """
         import kotlinx.coroutines.*
