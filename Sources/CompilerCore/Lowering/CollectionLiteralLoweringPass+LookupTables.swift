@@ -11,6 +11,7 @@ struct CollectionLiteralLookupTables {
     let emptyArrayName: InternedString
     let intArrayOfName: InternedString
     let longArrayOfName: InternedString
+    let uintArrayOfName: InternedString
     let doubleArrayOfName: InternedString
     let floatArrayOfName: InternedString
     let booleanArrayOfName: InternedString
@@ -199,9 +200,11 @@ struct CollectionLiteralLookupTables {
     let kkComparatorReverseOrderTrampolineName: InternedString
     let kkComparatorThenByName: InternedString
     let kkComparatorThenByDescendingName: InternedString
+    let kkComparatorThenDescendingName: InternedString
     let kkComparatorThenComparatorName: InternedString
     let kkComparatorThenByTrampolineName: InternedString
     let kkComparatorThenByDescendingTrampolineName: InternedString
+    let kkComparatorThenDescendingTrampolineName: InternedString
     let kkComparatorThenComparatorTrampolineName: InternedString
     let kkComparatorNullsFirstName: InternedString
     let kkComparatorNullsLastName: InternedString
@@ -689,6 +692,7 @@ struct CollectionLiteralLookupTables {
         emptyArrayName = interner.intern("emptyArray")
         intArrayOfName = interner.intern("intArrayOf")
         longArrayOfName = interner.intern("longArrayOf")
+        uintArrayOfName = interner.intern("uintArrayOf")
         doubleArrayOfName = interner.intern("doubleArrayOf")
         floatArrayOfName = interner.intern("floatArrayOf")
         booleanArrayOfName = interner.intern("booleanArrayOf")
@@ -870,9 +874,11 @@ struct CollectionLiteralLookupTables {
         kkComparatorReverseOrderTrampolineName = interner.intern("kk_comparator_reverse_order_trampoline")
         kkComparatorThenByName = interner.intern("kk_comparator_then_by")
         kkComparatorThenByDescendingName = interner.intern("kk_comparator_then_by_descending")
+        kkComparatorThenDescendingName = interner.intern("kk_comparator_then_descending")
         kkComparatorThenComparatorName = interner.intern("kk_comparator_then_comparator")
         kkComparatorThenByTrampolineName = interner.intern("kk_comparator_then_by_trampoline")
         kkComparatorThenByDescendingTrampolineName = interner.intern("kk_comparator_then_by_descending_trampoline")
+        kkComparatorThenDescendingTrampolineName = interner.intern("kk_comparator_then_descending_trampoline")
         kkComparatorThenComparatorTrampolineName = interner.intern("kk_comparator_then_comparator_trampoline")
         kkComparatorNullsFirstName = interner.intern("kk_comparator_nulls_first")
         kkComparatorNullsLastName = interner.intern("kk_comparator_nulls_last")
@@ -1327,7 +1333,7 @@ struct CollectionLiteralLookupTables {
         mutableListConstructorNames = [arrayListName]
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
-        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
+        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
         builderDSLNames = [buildStringName, buildListName, buildSetName, buildMapName]
 
         stringProducingCallees = [

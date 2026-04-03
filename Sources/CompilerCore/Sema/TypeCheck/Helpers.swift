@@ -93,7 +93,7 @@ struct TypeCheckHelpers {
                 return sema.types.longType
             case "UIntRange", "UIntProgression":
                 return sema.types.uintType
-            case "ULongProgression":
+            case "ULongRange", "ULongProgression":
                 return sema.types.ulongType
             default:
                 break
@@ -320,8 +320,24 @@ struct TypeCheckHelpers {
         // Member-like names such as `map`/`filter`/`take` stay conservative here
         // because this helper does not know whether the unresolved callee was
         // invoked on an actual Flow receiver.
-        case knownNames.flow:
+        case knownNames.flow,
+             interner.intern("channelFlow"),
+             interner.intern("callbackFlow"):
             guard argumentCount == 1 else { return nil }
+            return makeFlowType(
+                elementType: sema.types.anyType,
+                sema: sema,
+                interner: interner
+            ) ?? sema.types.anyType
+        case interner.intern("flowOf"):
+            guard argumentCount >= 0 else { return nil }
+            return makeFlowType(
+                elementType: sema.types.anyType,
+                sema: sema,
+                interner: interner
+            ) ?? sema.types.anyType
+        case interner.intern("emptyFlow"):
+            guard argumentCount == 0 else { return nil }
             return makeFlowType(
                 elementType: sema.types.anyType,
                 sema: sema,
@@ -492,6 +508,17 @@ struct TypeCheckHelpers {
         case let .intersection(partRefs):
             let partTypes = partRefs.map { resolveTypeRef($0, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics) }
             return sema.types.make(.intersection(partTypes))
+
+        case let .annotated(base, annotations):
+            let baseType = resolveTypeRef(base, ast: ast, sema: sema, interner: interner, scope: scope, diagnostics: diagnostics)
+            return ExtensionFunctionTypeSupport.normalizeAnnotatedType(
+                baseType: baseType,
+                annotations: annotations,
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                diagnostics: diagnostics
+            )
         }
     }
 

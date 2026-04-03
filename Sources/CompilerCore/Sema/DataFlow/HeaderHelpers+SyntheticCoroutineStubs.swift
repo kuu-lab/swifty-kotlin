@@ -18,18 +18,18 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let kotlinxPkg = ensureSyntheticPackage(
-            [interner.intern("kotlinx")],
-            symbols: symbols,
-            interner: interner
-        )
         let kotlinCoroutinesPkg = ensureSyntheticPackage(
-            [interner.intern("kotlin"), interner.intern("coroutines")],
+            kotlinPkg + [interner.intern("coroutines")],
             symbols: symbols,
             interner: interner
         )
         let kotlinCoroutinesIntrinsicsPkg = ensureSyntheticPackage(
             kotlinCoroutinesPkg + [interner.intern("intrinsics")],
+            symbols: symbols,
+            interner: interner
+        )
+        let kotlinxPkg = ensureSyntheticPackage(
+            [interner.intern("kotlinx")],
             symbols: symbols,
             interner: interner
         )
@@ -49,6 +49,41 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        let continuationSymbol = ensureInterfaceSymbol(
+            named: "Continuation",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let continuationTypeParamName = interner.intern("T")
+        let continuationTypeParamFQName = kotlinCoroutinesPkg + [interner.intern("Continuation"), continuationTypeParamName]
+        let continuationTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: continuationTypeParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: continuationTypeParamName,
+                fqName: continuationTypeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let continuationTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: continuationTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let continuationType = types.make(.classType(ClassType(
+            classSymbol: continuationSymbol,
+            args: [.invariant(continuationTypeParamType)],
+            nullability: .nonNull
+        )))
+        let continuationInterceptorSymbol = ensureInterfaceSymbol(
+            named: "ContinuationInterceptor",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let exceptionSymbol = ensureClassSymbol(
             named: "Exception",
             in: kotlinPkg,
@@ -109,7 +144,6 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
-
         let jobType = types.make(.classType(ClassType(
             classSymbol: jobSymbol,
             args: [],
@@ -145,38 +179,14 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let rootCancellationType = types.make(.classType(ClassType(
-            classSymbol: rootCancellationSymbol,
+        let continuationInterceptorType = types.make(.classType(ClassType(
+            classSymbol: continuationInterceptorSymbol,
             args: [],
             nullability: .nonNull
         )))
-        let continuationSymbol = ensureInterfaceSymbol(
-            named: "Continuation",
-            in: kotlinCoroutinesPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let continuationTypeParamName = interner.intern("T")
-        let continuationTypeParamFQName = kotlinCoroutinesPkg + [interner.intern("Continuation"), continuationTypeParamName]
-        let continuationTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: continuationTypeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: continuationTypeParamName,
-                fqName: continuationTypeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let continuationTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: continuationTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let continuationType = types.make(.classType(ClassType(
-            classSymbol: continuationSymbol,
-            args: [.invariant(continuationTypeParamType)],
+        let rootCancellationType = types.make(.classType(ClassType(
+            classSymbol: rootCancellationSymbol,
+            args: [],
             nullability: .nonNull
         )))
 
@@ -192,9 +202,13 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(dispatcherType, for: dispatcherSymbol)
         symbols.setPropertyType(channelType, for: channelSymbol)
         symbols.setPropertyType(cancellationType, for: cancellationSymbol)
+        symbols.setPropertyType(continuationType, for: continuationSymbol)
+        symbols.setPropertyType(continuationInterceptorType, for: continuationInterceptorSymbol)
         symbols.setPropertyType(rootCancellationType, for: rootCancellationSymbol)
         symbols.setDirectSupertypes([exceptionSymbol], for: cancellationSymbol)
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
+        types.setNominalTypeParameterSymbols([continuationTypeParamSymbol], for: continuationSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
 
         registerSyntheticCoroutineTopLevelFunction(
             named: "runBlocking",
@@ -238,6 +252,29 @@ extension DataFlowSemaPhase {
                 )))),
             ],
             returnType: jobType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineExtensionFunction(
+            named: "intercepted",
+            packageFQName: kotlinCoroutinesIntrinsicsPkg,
+            receiverType: continuationType,
+            parameters: [],
+            returnType: continuationType,
+            externalLinkName: "kk_continuation_intercepted",
+            typeParameterSymbols: [continuationTypeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: continuationInterceptorSymbol,
+            ownerType: continuationInterceptorType,
+            name: "interceptContinuation",
+            externalLinkName: "kk_continuation_interceptor_intercept_continuation",
+            returnType: continuationType,
+            parameters: [(name: "continuation", type: continuationType)],
+            typeParameterSymbols: [continuationTypeParamSymbol],
             symbols: symbols,
             interner: interner
         )
@@ -405,8 +442,15 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(coroutineExceptionHandlerType, for: coroutineExceptionHandlerSymbol)
         symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineExceptionHandlerSymbol)
 
-        // Make CoroutineDispatcher a subtype of CoroutineContext
-        symbols.setDirectSupertypes([coroutineContextSymbol], for: dispatcherSymbol)
+        // Make CoroutineDispatcher a subtype of CoroutineContext and ContinuationInterceptor.
+        symbols.setDirectSupertypes([coroutineContextSymbol, continuationInterceptorSymbol], for: dispatcherSymbol)
+
+        let flowBuilderLambdaType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.unitType,
+            isSuspend: true,
+            nullability: .nonNull
+        )))
 
         // CoroutineName(name: String) constructor
         registerSyntheticCoroutineTopLevelFunction(
@@ -452,6 +496,68 @@ extension DataFlowSemaPhase {
                 isSuspend: false,
                 nullability: .nonNull
             ))))],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Flow builders
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "flow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "channelFlow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "callbackFlow",
+            packageFQName: flowPkg,
+            parameters: [(name: "block", type: flowBuilderLambdaType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_create",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "flowOf",
+            packageFQName: flowPkg,
+            parameters: [(name: "values", type: types.anyType)],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_of",
+            syntheticTypeParameterNames: ["T"],
+            syntheticVarargParameterIndices: [0],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineTopLevelFunction(
+            named: "emptyFlow",
+            packageFQName: flowPkg,
+            parameters: [],
+            returnType: flowRawType,
+            externalLinkName: "kk_flow_empty",
+            syntheticTypeParameterNames: ["T"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCoroutineMember(
+            ownerSymbol: flowInterfaceSymbol,
+            ownerType: flowRawType,
+            name: "asFlow",
+            externalLinkName: "kk_flow_as_flow",
+            returnType: flowRawType,
             symbols: symbols,
             interner: interner
         )
@@ -780,6 +886,37 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // kotlin.coroutines compatibility shim for EmptyCoroutineContext
+        let kotlinCoroutineContextSymbol = ensureInterfaceSymbol(
+            named: "CoroutineContext",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let kotlinCoroutineContextType = types.make(.classType(ClassType(
+            classSymbol: kotlinCoroutineContextSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(kotlinCoroutineContextType, for: kotlinCoroutineContextSymbol)
+        symbols.setDirectSupertypes([coroutineContextSymbol], for: kotlinCoroutineContextSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: kotlinCoroutineContextSymbol)
+
+        let emptyCoroutineContextSymbol = ensureObjectSymbol(
+            named: "EmptyCoroutineContext",
+            in: kotlinCoroutinesPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let emptyCoroutineContextType = types.make(.classType(ClassType(
+            classSymbol: emptyCoroutineContextSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(emptyCoroutineContextType, for: emptyCoroutineContextSymbol)
+        symbols.setDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
+        types.setNominalDirectSupertypes([kotlinCoroutineContextSymbol], for: emptyCoroutineContextSymbol)
+
         // Mutex (kotlinx.coroutines.sync.Mutex)
         let syncPkg = ensureSyntheticPackage(
             coroutinesPkg + [interner.intern("sync")],
@@ -946,6 +1083,41 @@ extension DataFlowSemaPhase {
 
     }
 
+    func registerSyntheticCoroutineCancellationStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let jobFQName: [InternedString] = [interner.intern("kotlinx"), interner.intern("coroutines"), interner.intern("Job")]
+        guard let jobSymbol = symbols.lookup(fqName: jobFQName) else {
+            return
+        }
+        let jobType = types.make(.classType(ClassType(
+            classSymbol: jobSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let cancellationPkg = ensureSyntheticPackage(
+            ensurePackage(
+                path: ["kotlin", "coroutines", "cancellation"],
+                symbols: symbols,
+                interner: interner
+            ),
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticCoroutineExtensionFunction(
+            named: "cancel",
+            packageFQName: cancellationPkg,
+            receiverType: jobType,
+            externalLinkName: "kk_job_cancel",
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
     private func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -965,6 +1137,100 @@ extension DataFlowSemaPhase {
         )
     }
 
+    private func registerSyntheticCoroutineExtensionFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        externalLinkName: String? = nil,
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
+        syntheticTypeParameterNames: [String] = [],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        let existingSymbols = symbols.lookupAll(fqName: functionFQName)
+        let hasExistingFunctionWithSameSignature = existingSymbols.contains { id in
+            guard let sym = symbols.symbol(id),
+                  sym.kind == .function,
+                  let sig = symbols.functionSignature(for: id)
+            else {
+                return false
+            }
+            return sig.receiverType == receiverType
+                && sig.parameterTypes == parameters.map(\.type)
+                && sig.returnType == returnType
+        }
+        guard !hasExistingFunctionWithSameSignature else {
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        if let externalLinkName, !externalLinkName.isEmpty {
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        }
+
+        var functionTypeParameterSymbols = typeParameterSymbols
+        if !syntheticTypeParameterNames.isEmpty {
+            let localNamespaceFQName = functionFQName + [interner.intern("$synthetic")]
+            for typeParamName in syntheticTypeParameterNames {
+                let internedTypeParamName = interner.intern(typeParamName)
+                let typeParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: internedTypeParamName,
+                    fqName: localNamespaceFQName + [internedTypeParamName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                functionTypeParameterSymbols.append(typeParamSymbol)
+            }
+        }
+
+        var valueParameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let paramNameID = interner.intern(parameter.name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramNameID,
+                fqName: functionFQName + [paramNameID],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameters.map(\.type),
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: functionTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount
+            ),
+            for: functionSymbol
+        )
+    }
+
     private func registerSyntheticCoroutineTopLevelFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -973,6 +1239,7 @@ extension DataFlowSemaPhase {
         externalLinkName: String? = nil,
         syntheticTypeParameterNames: [String] = [],
         isSuspend: Bool = false,
+        syntheticVarargParameterIndices: Set<Int> = [],
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1048,7 +1315,7 @@ extension DataFlowSemaPhase {
                 isSuspend: isSuspend,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: parameters.indices.map { syntheticVarargParameterIndices.contains($0) },
                 typeParameterSymbols: typeParameterSymbols
             ),
             for: functionSymbol
@@ -1088,6 +1355,52 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(returnType, for: propertySymbol)
     }
 
+    private func registerSyntheticCoroutineExtensionFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        externalLinkName: String,
+        returnType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        let existingSymbols = symbols.lookupAll(fqName: functionFQName)
+        if let existing = existingSymbols.first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == returnType
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: returnType
+            ),
+            for: functionSymbol
+        )
+    }
+
     private func registerSyntheticCoroutineMember(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -1096,6 +1409,8 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)] = [],
         flags: SymbolFlags = [.synthetic],
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1139,7 +1454,9 @@ extension DataFlowSemaPhase {
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount
             ),
             for: memberSymbol
         )
