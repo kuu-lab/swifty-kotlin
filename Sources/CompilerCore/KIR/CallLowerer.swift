@@ -1819,7 +1819,7 @@ final class CallLowerer {
         }
 
         func makeNameHintExpr(for type: TypeID) -> KIRExprID {
-            if let name = RuntimeTypeCheckToken.simpleName(of: type, sema: sema, interner: interner) {
+            if let name = RuntimeTypeCheckToken.qualifiedName(of: type, sema: sema, interner: interner) {
                 let internedName = interner.intern(name)
                 let nameHintExpr = arena.appendExpr(.stringLiteral(internedName), type: stringType)
                 instructions.append(.constValue(result: nameHintExpr, value: .stringLiteral(internedName)))
