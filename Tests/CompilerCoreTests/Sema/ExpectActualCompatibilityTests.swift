@@ -2,15 +2,15 @@
 import XCTest
 
 final class ExpectActualCompatibilityTests: XCTestCase {
-    func testGenericExpectActualFunctionLinks() throws {
+    func testGenericExpectActualClassLinks() throws {
         let sources = [
             """
             package sample.kmp
-            expect fun <T> identity(value: T): T
+            expect class Box<T>
             """,
             """
             package sample.kmp
-            actual fun <T> identity(value: T): T = value
+            actual class Box<T>
             """,
         ]
 
@@ -29,14 +29,14 @@ final class ExpectActualCompatibilityTests: XCTestCase {
         let fqName = [
             ctx.interner.intern("sample"),
             ctx.interner.intern("kmp"),
-            ctx.interner.intern("identity")
+            ctx.interner.intern("Box")
         ]
         let symbols = sema.symbols.lookupAll(fqName: fqName).compactMap { sema.symbols.symbol($0) }
         let expectSymbol = try XCTUnwrap(symbols.first { symbol in
-            symbol.kind == .function && symbol.flags.contains(.expectDeclaration)
+            symbol.kind == .class && symbol.flags.contains(.expectDeclaration)
         })
         let actualSymbol = try XCTUnwrap(symbols.first { symbol in
-            symbol.kind == .function && symbol.flags.contains(.actualDeclaration)
+            symbol.kind == .class && symbol.flags.contains(.actualDeclaration)
         })
 
         XCTAssertEqual(sema.symbols.actualSymbol(for: expectSymbol.id), actualSymbol.id)
@@ -58,10 +58,10 @@ final class ExpectActualCompatibilityTests: XCTestCase {
         try runSema(ctx)
 
         let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
-            guard case let .error(code, _, _) = diagnostic.severity else {
+            guard diagnostic.severity == .error else {
                 return nil
             }
-            return code
+            return diagnostic.code
         }
         XCTAssertTrue(
             errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
@@ -89,10 +89,10 @@ final class ExpectActualCompatibilityTests: XCTestCase {
         try runSema(ctx)
 
         let errorCodes = ctx.diagnostics.diagnostics.compactMap { diagnostic -> String? in
-            guard case let .error(code, _, _) = diagnostic.severity else {
+            guard diagnostic.severity == .error else {
                 return nil
             }
-            return code
+            return diagnostic.code
         }
         XCTAssertTrue(
             errorCodes.contains("KSWIFTK-MPP-UNRESOLVED"),
