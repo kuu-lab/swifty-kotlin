@@ -2749,10 +2749,16 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     // STDLIB-CORO-077: If dispatcherRaw is a RuntimeCoroutineContext, delegate
     // to kk_with_context_full which handles context element propagation.
     if !isDispatcherTag(dispatcherRaw), dispatcherRaw != 0,
-       let ptr = UnsafeMutableRawPointer(bitPattern: dispatcherRaw),
-       tryCast(ptr, to: RuntimeCoroutineContext.self) != nil
+       let ptr = UnsafeMutableRawPointer(bitPattern: dispatcherRaw)
     {
-        return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer,
+           tryCast(ptr, to: RuntimeCoroutineContext.self) != nil
+        {
+            return kk_with_context_full(dispatcherRaw, blockFnPtr, continuation)
+        }
     }
 
     let resolvedDispatcher = switch dispatcherRaw {
@@ -2769,8 +2775,6 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
         _ = kk_coroutine_state_exit(continuation, 0)
         return 0
     }
-
-    let queue = dispatchQueue(for: resolvedDispatcher)
 
     // Capture the current coroutine scope so child launches inside the block
     // are registered with the correct scope on the target queue's thread.
@@ -2792,7 +2796,7 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     // even calls from a background thread targeting the main queue would hang.
     // We therefore execute inline whenever we are already on the target queue
     // (main-thread case) to avoid the deadlock.
-    if queue === DispatchQueue.main && Thread.isMainThread {
+    if resolvedDispatcher == RuntimeDispatcherTag.mainDispatcher && Thread.isMainThread {
         let savedScope = RuntimeCoroutineScope.current
         defer { RuntimeCoroutineScope.current = savedScope }
         RuntimeCoroutineScope.current = parentScope
@@ -2802,27 +2806,44 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
         )
     }
 
-    // CORO-004: Continuation-based withContext is still in progress.
-    // For now keep the semaphore fallback, which matches the current runtime
-    // model and avoids relying on unfinished continuation result plumbing.
-    let semaphore = DispatchSemaphore(value: 0)
-    let resultBox = WithContextResultBox()
+    let dispatcher = runtimeResolveDispatcher(from: resolvedDispatcher)
 
-    queue.async {
+    if resolvedDispatcher == RuntimeDispatcherTag.mainDispatcher {
+        // CORO-004: Continuation-based withContext is still in progress.
+        // Keep the semaphore fallback for off-main-thread main dispatcher calls,
+        // which matches the current runtime model and avoids relying on unfinished
+        // continuation result plumbing.
+        let semaphore = DispatchSemaphore(value: 0)
+        let resultBox = WithContextResultBox()
+
+        dispatcher.dispatchAsync {
+            // Propagate the coroutine scope to the target thread.
+            let savedScope = RuntimeCoroutineScope.current
+            RuntimeCoroutineScope.current = parentScope
+            defer { RuntimeCoroutineScope.current = savedScope }
+
+            resultBox.value = runSuspendEntryLoopWithContinuation(
+                entryPointRaw: blockFnPtr,
+                continuation: continuation
+            )
+            semaphore.signal()
+        }
+
+        semaphore.wait()
+        return resultBox.value
+    }
+
+    return dispatcher.dispatchSync {
         // Propagate the coroutine scope to the target thread.
         let savedScope = RuntimeCoroutineScope.current
         RuntimeCoroutineScope.current = parentScope
         defer { RuntimeCoroutineScope.current = savedScope }
 
-        resultBox.value = runSuspendEntryLoopWithContinuation(
+        return runSuspendEntryLoopWithContinuation(
             entryPointRaw: blockFnPtr,
             continuation: continuation
         )
-        semaphore.signal()
     }
-
-    semaphore.wait()
-    return resultBox.value
 }
 
 // MARK: - Channel Runtime (CORO-001)

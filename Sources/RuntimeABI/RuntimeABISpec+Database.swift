@@ -1,4 +1,4 @@
-// Database runtime ABI specs (STDLIB-DB-142 / STDLIB-DB-140)
+// Database ABI specs (STDLIB-DB-142 / STDLIB-DB-140)
 
 public extension RuntimeABISpec {
     static let databaseFunctions: [RuntimeABIFunctionSpec] = [

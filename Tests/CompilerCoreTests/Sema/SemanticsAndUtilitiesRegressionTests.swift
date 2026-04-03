@@ -24,15 +24,15 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
-    func testAtomicReferenceInAtomicsPackageIsResolved() throws {
+    func testAtomicLongInConcurrentPackageIsResolved() throws {
         let source = """
-        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        @file:OptIn(kotlin.concurrent.ExperimentalAtomicApi::class)
 
-        import kotlin.concurrent.atomics.AtomicReference
+        import kotlin.concurrent.AtomicLong
 
         fun main() {
-            val ar = AtomicReference<String>("hello")
-            println(ar.load())
+            val al = AtomicLong(42L)
+            println(al.load())
         }
         """
 
@@ -41,7 +41,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runToKIR(ctx)
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
-                "AtomicReference in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+                "AtomicLong in kotlin.concurrent should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
