@@ -1,3 +1,5 @@
+// SKIP-DIFF: Uses the custom jdbc:kswiftk driver provided by this runtime.
+// kotlinc does not ship that driver, so the reference run fails by design.
 import java.sql.Connection
 import java.sql.DriverManager
 
