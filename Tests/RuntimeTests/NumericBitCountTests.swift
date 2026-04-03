@@ -2,6 +2,16 @@ import XCTest
 @testable import Runtime
 
 final class NumericBitCountTests: XCTestCase {
+    private func isPowerOfTwo32(_ value: Int) -> Bool {
+        let bits = UInt32(bitPattern: Int32(truncatingIfNeeded: value))
+        return bits != 0 && (bits & (bits &- 1)) == 0
+    }
+
+    private func isPowerOfTwo64(_ value: Int) -> Bool {
+        let bits = UInt(bitPattern: value)
+        return bits != 0 && (bits & (bits &- 1)) == 0
+    }
+
 
     // MARK: - Int Bit Count Tests (32-bit semantics)
 
@@ -291,13 +301,12 @@ final class NumericBitCountTests: XCTestCase {
             let lowest = kk_int_lowestOneBit(value)
             
             if value != 0 {
-                XCTAssertGreaterThan(highest, 0, "Highest one bit should be > 0 for non-zero value \(value)")
-                XCTAssertGreaterThan(lowest, 0, "Lowest one bit should be > 0 for non-zero value \(value)")
+                XCTAssertNotEqual(highest, 0, "Highest one bit should be non-zero for non-zero value \(value)")
+                XCTAssertNotEqual(lowest, 0, "Lowest one bit should be non-zero for non-zero value \(value)")
                 
-                // Verify highest is power of two
-                XCTAssertEqual(highest & (highest - 1), 0, "Highest one bit should be power of two for \(value)")
-                // Verify lowest is power of two
-                XCTAssertEqual(lowest & (lowest - 1), 0, "Lowest one bit should be power of two for \(value)")
+                // Verify highest and lowest are powers of two in unsigned bit space.
+                XCTAssertTrue(isPowerOfTwo32(highest), "Highest one bit should be power of two for \(value)")
+                XCTAssertTrue(isPowerOfTwo32(lowest), "Lowest one bit should be power of two for \(value)")
             } else {
                 XCTAssertEqual(highest, 0, "Highest one bit should be 0 for zero")
                 XCTAssertEqual(lowest, 0, "Lowest one bit should be 0 for zero")
@@ -348,13 +357,12 @@ final class NumericBitCountTests: XCTestCase {
             let lowest = kk_long_lowestOneBit(value)
             
             if value != 0 {
-                XCTAssertGreaterThan(highest, 0, "Long highest one bit should be > 0 for non-zero value \(value)")
-                XCTAssertGreaterThan(lowest, 0, "Long lowest one bit should be > 0 for non-zero value \(value)")
+                XCTAssertNotEqual(highest, 0, "Long highest one bit should be non-zero for non-zero value \(value)")
+                XCTAssertNotEqual(lowest, 0, "Long lowest one bit should be non-zero for non-zero value \(value)")
                 
-                // Verify highest is power of two
-                XCTAssertEqual(highest & (highest - 1), 0, "Long highest one bit should be power of two for \(value)")
-                // Verify lowest is power of two
-                XCTAssertEqual(lowest & (lowest - 1), 0, "Long lowest one bit should be power of two for \(value)")
+                // Verify highest and lowest are powers of two in unsigned bit space.
+                XCTAssertTrue(isPowerOfTwo64(highest), "Long highest one bit should be power of two for \(value)")
+                XCTAssertTrue(isPowerOfTwo64(lowest), "Long lowest one bit should be power of two for \(value)")
             } else {
                 XCTAssertEqual(highest, 0, "Long highest one bit should be 0 for zero")
                 XCTAssertEqual(lowest, 0, "Long lowest one bit should be 0 for zero")

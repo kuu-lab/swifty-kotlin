@@ -300,9 +300,9 @@ extension OverloadResolverTests {
             args: [CallArg(type: intType)]
         )
         let resolved = resolver.resolveCall(candidates: [genericFn, concreteFn], call: call, expectedType: nil, ctx: ctx)
-        // After type substitution both have [Int] → isMoreSpecific sees them as equal → ambiguous
-        XCTAssertNil(resolved.chosenCallee)
-        XCTAssertEqual(resolved.diagnostic?.code, "KSWIFTK-SEMA-0003")
+        XCTAssertEqual(resolved.chosenCallee, concreteFn)
+        XCTAssertNil(resolved.diagnostic)
+        XCTAssertEqual(resolved.substitutedTypeArguments.count, 0)
     }
 
     /// Most specific selection with incompatible parameter counts yields no winner.

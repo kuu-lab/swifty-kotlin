@@ -14,6 +14,11 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let atomicsPkg = ensureAtomicPackage(
+            path: ["kotlin", "concurrent", "atomics"],
+            symbols: symbols,
+            interner: interner
+        )
 
         let intType = types.intType
         let longType = types.longType
@@ -164,57 +169,32 @@ extension DataFlowSemaPhase {
         )
 
         // -- AtomicReference<T> --
-        let atomicRefSymbol = ensureClassSymbol(
-            named: "AtomicReference",
-            in: concurrentPkg,
+        registerAtomicReferenceStubs(
+            ownerPackage: concurrentPkg,
+            ownerPackageSymbol: symbols.lookup(fqName: concurrentPkg) ?? .invalid,
             symbols: symbols,
-            interner: interner
-        )
-        let atomicRefType = types.make(.classType(ClassType(
-            classSymbol: atomicRefSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(atomicRefType, for: atomicRefSymbol)
-
-        // AtomicReference stores values as Any? at the ABI level.
-        registerAtomicConstructor(
-            ownerSymbol: atomicRefSymbol,
-            ownerType: atomicRefType,
-            externalLinkName: "kk_atomic_ref_create",
-            paramType: anyNullableType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerAtomicValueProperty(
-            ownerSymbol: atomicRefSymbol,
-            ownerType: atomicRefType,
-            valueType: anyNullableType,
-            getterLinkName: "kk_atomic_ref_load",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerAtomicCoreMethods(
-            ownerSymbol: atomicRefSymbol,
-            ownerType: atomicRefType,
-            valueType: anyNullableType,
-            boolType: boolType,
-            unitType: unitType,
-            prefix: "kk_atomic_ref",
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerAtomicGetAndUpdateMethods(
-            ownerSymbol: atomicRefSymbol,
-            ownerType: atomicRefType,
-            valueType: anyNullableType,
-            prefix: "kk_atomic_ref",
-            symbols: symbols,
+            types: types,
             interner: interner,
-            types: types
+            externalLinkPrefix: "kk_atomic_ref"
+        )
+
+        // kotlin.concurrent.atomics package — compatibility aliases for newer imports.
+        let atomicsPkgSymbol = symbols.lookup(fqName: atomicsPkg) ?? .invalid
+        registerSyntheticAnnotationClass(
+            named: "ExperimentalAtomicApi",
+            packageFQName: atomicsPkg,
+            packageSymbol: atomicsPkgSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicReferenceStubs(
+            ownerPackage: atomicsPkg,
+            ownerPackageSymbol: atomicsPkgSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            externalLinkPrefix: "kk_atomic_ref"
         )
 
         // -- AtomicBoolean --
@@ -310,6 +290,8 @@ extension DataFlowSemaPhase {
         ownerType: TypeID,
         externalLinkName: String,
         paramType: TypeID,
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -353,7 +335,9 @@ extension DataFlowSemaPhase {
                 returnType: ownerType,
                 valueParameterSymbols: [paramSymbol],
                 valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount
             ),
             for: ctorSymbol
         )
@@ -398,6 +382,8 @@ extension DataFlowSemaPhase {
         boolType: TypeID,
         unitType: TypeID,
         prefix: String,
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -406,6 +392,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "load", externalLinkName: "\(prefix)_load",
             returnType: valueType, parameters: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // store(value: T) -> Unit (returns via side effect)
@@ -413,6 +401,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "store", externalLinkName: "\(prefix)_store",
             returnType: unitType, parameters: [(name: "value", type: valueType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // exchange(new: T) -> T
@@ -420,6 +410,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "exchange", externalLinkName: "\(prefix)_exchange",
             returnType: valueType, parameters: [(name: "new", type: valueType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // compareAndSet(expect: T, update: T) -> Boolean
@@ -431,6 +423,8 @@ extension DataFlowSemaPhase {
                 (name: "expect", type: valueType),
                 (name: "update", type: valueType),
             ],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // compareAndExchange(expect: T, update: T) -> T
@@ -442,6 +436,8 @@ extension DataFlowSemaPhase {
                 (name: "expect", type: valueType),
                 (name: "update", type: valueType),
             ],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
     }
@@ -451,6 +447,8 @@ extension DataFlowSemaPhase {
         ownerType: TypeID,
         valueType: TypeID,
         prefix: String,
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -459,6 +457,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndAdd", externalLinkName: "\(prefix)_fetchAndAdd",
             returnType: valueType, parameters: [(name: "delta", type: valueType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // addAndFetch(delta: T) -> T
@@ -466,6 +466,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "addAndFetch", externalLinkName: "\(prefix)_addAndFetch",
             returnType: valueType, parameters: [(name: "delta", type: valueType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // fetchAndIncrement() -> T
@@ -473,6 +475,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "fetchAndIncrement", externalLinkName: "\(prefix)_fetchAndIncrement",
             returnType: valueType, parameters: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // incrementAndFetch() -> T
@@ -480,6 +484,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "incrementAndFetch", externalLinkName: "\(prefix)_incrementAndFetch",
             returnType: valueType, parameters: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // decrementAndFetch() -> T
@@ -487,6 +493,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "decrementAndFetch", externalLinkName: "\(prefix)_decrementAndFetch",
             returnType: valueType, parameters: [],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
     }
@@ -496,6 +504,8 @@ extension DataFlowSemaPhase {
         ownerType: TypeID,
         valueType: TypeID,
         prefix: String,
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
@@ -511,6 +521,8 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "getAndUpdate", externalLinkName: "\(prefix)_getAndUpdate",
             returnType: valueType, parameters: [(name: "transform", type: transformType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
         // updateAndGet(transform: (T) -> T) -> T
@@ -518,7 +530,100 @@ extension DataFlowSemaPhase {
             ownerSymbol: ownerSymbol, ownerType: ownerType,
             name: "updateAndGet", externalLinkName: "\(prefix)_updateAndGet",
             returnType: valueType, parameters: [(name: "transform", type: transformType)],
+            typeParameterSymbols: typeParameterSymbols,
+            classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
+        )
+    }
+
+    private func registerAtomicReferenceStubs(
+        ownerPackage: [InternedString],
+        ownerPackageSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        externalLinkPrefix: String
+    ) {
+        let atomicRefSymbol = ensureClassSymbol(
+            named: "AtomicReference",
+            in: ownerPackage,
+            symbols: symbols,
+            interner: interner
+        )
+        if ownerPackageSymbol != .invalid {
+            symbols.setParentSymbol(ownerPackageSymbol, for: atomicRefSymbol)
+        }
+
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = ownerPackage + [interner.intern("AtomicReference"), typeParamName]
+        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let atomicRefType = types.make(.classType(ClassType(
+            classSymbol: atomicRefSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: atomicRefSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: atomicRefSymbol)
+        symbols.setPropertyType(atomicRefType, for: atomicRefSymbol)
+
+        registerAtomicConstructor(
+            ownerSymbol: atomicRefSymbol,
+            ownerType: atomicRefType,
+            externalLinkName: "\(externalLinkPrefix)_create",
+            paramType: typeParamType,
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicValueProperty(
+            ownerSymbol: atomicRefSymbol,
+            ownerType: atomicRefType,
+            valueType: typeParamType,
+            getterLinkName: "\(externalLinkPrefix)_load",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicCoreMethods(
+            ownerSymbol: atomicRefSymbol,
+            ownerType: atomicRefType,
+            valueType: typeParamType,
+            boolType: types.make(.primitive(.boolean, .nonNull)),
+            unitType: types.unitType,
+            prefix: externalLinkPrefix,
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerAtomicGetAndUpdateMethods(
+            ownerSymbol: atomicRefSymbol,
+            ownerType: atomicRefType,
+            valueType: typeParamType,
+            prefix: externalLinkPrefix,
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner,
+            types: types
         )
     }
 
@@ -529,6 +634,8 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)],
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -575,7 +682,9 @@ extension DataFlowSemaPhase {
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount
             ),
             for: memberSymbol
         )
@@ -602,5 +711,34 @@ extension DataFlowSemaPhase {
             }
         }
         return fqName
+    }
+
+    private func registerSyntheticAnnotationClass(
+        named name: String,
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let className = interner.intern(name)
+        let classFQName = packageFQName + [className]
+        if let existing = symbols.lookup(fqName: classFQName) {
+            if packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: existing)
+            }
+            return
+        }
+
+        let classSymbol = symbols.define(
+            kind: .annotationClass,
+            name: className,
+            fqName: classFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if packageSymbol != .invalid {
+            symbols.setParentSymbol(packageSymbol, for: classSymbol)
+        }
     }
 }
