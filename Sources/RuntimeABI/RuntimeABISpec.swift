@@ -70,7 +70,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 
 // swiftlint:disable:next type_body_length
 public enum RuntimeABISpec {
-    public static let specVersion = "J28"
+    public static let specVersion = "J29"
 
     private static func deduplicatedFunctions(
         _ functions: [RuntimeABIFunctionSpec]
@@ -1837,6 +1837,38 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_runtime_maxMemory",
             parameters: [],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_instant_to_java_instant",
+            parameters: [
+                RuntimeABIParameter(name: "instantRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_java_instant_to_kotlin_instant",
+            parameters: [
+                RuntimeABIParameter(name: "instantRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_instant_to_js_date",
+            parameters: [
+                RuntimeABIParameter(name: "instantRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_js_date_to_kotlin_instant",
+            parameters: [
+                RuntimeABIParameter(name: "dateRaw", type: .intptr),
+            ],
             returnType: .intptr,
             section: "System"
         ),
@@ -5969,6 +6001,22 @@ public enum RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "lhsRaw", type: .intptr),
                 RuntimeABIParameter(name: "rhsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_duration_to_java_duration",
+            parameters: [
+                RuntimeABIParameter(name: "durationRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_java_duration_to_kotlin_duration",
+            parameters: [
+                RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration"
