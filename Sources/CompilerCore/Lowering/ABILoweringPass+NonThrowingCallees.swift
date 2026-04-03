@@ -573,6 +573,7 @@ extension ABILoweringPass {
             interner.intern("kk_instant_minus_duration"),
             interner.intern("kk_instant_compare"),
             interner.intern("kk_instant_until"),
+            interner.intern("kk_instant_elapsed"),
             interner.intern("kk_time_source_mark_now"),
             interner.intern("kk_time_source_monotonic_mark_now"),
             interner.intern("kk_time_mark_elapsed_now"),
