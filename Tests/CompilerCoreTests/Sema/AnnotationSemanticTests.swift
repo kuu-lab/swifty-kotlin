@@ -32,6 +32,29 @@ final class AnnotationSemanticTests: XCTestCase {
         XCTAssertTrue(diagnostics.isEmpty, "Expected deprecated(error) diagnostic to be suppressed, got: \(ctx.diagnostics.diagnostics)")
     }
 
+    func testDeprecatedStdlibApisCanBeSuppressedWithDeprecationError() {
+        let source = """
+        import kotlin.io.createTempDir
+        import kotlin.io.createTempFile
+
+        @Suppress("DEPRECATION_ERROR", "KSWIFTK-SEMA-DEPRECATED")
+        fun caller() {
+            val legacyChar = 65.toChar()
+            println(legacyChar)
+            val legacySlice = "kotlin".subSequence(1, 4)
+            println(legacySlice)
+            val tempDir = createTempDir(prefix = "kswiftk-", suffix = "-dir")
+            val tempFile = createTempFile(prefix = "kswiftk-", suffix = ".tmp", directory = tempDir)
+            println(tempFile)
+        }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
+
+        XCTAssertTrue(diagnostics.isEmpty, "Expected stdlib deprecation diagnostics to be suppressed, got: \(ctx.diagnostics.diagnostics)")
+    }
+
     func testDeprecatedDefaultEmitsWarningAtCallSite() {
         let source = """
         @Deprecated("Use replacement")

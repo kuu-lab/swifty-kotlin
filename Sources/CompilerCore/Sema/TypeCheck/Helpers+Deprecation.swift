@@ -92,11 +92,22 @@ extension TypeCheckHelpers {
             return
         }
 
-        diagnostics.warning(
-            "KSWIFTK-SEMA-DEPRECATED",
-            "'\(callee)' is deprecated. Use toInt().toChar() or Char(code) instead.",
+        let toCharFQName: [InternedString] = [interner.intern("kotlin"), calleeName]
+        guard let symbolID = sema.symbols.lookupAll(fqName: toCharFQName).first(where: { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.receiverType == receiver
+        }) else {
+            return
+        }
+
+        checkDeprecation(
+            for: symbolID,
+            sema: sema,
+            interner: interner,
             range: range,
-            codeActions: [DiagnosticCodeAction(title: "Replace with 'toInt().toChar()'")]
+            diagnostics: diagnostics
         )
     }
 
