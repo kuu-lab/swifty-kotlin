@@ -138,6 +138,8 @@ final class ASTContextFunctionTypeTests: XCTestCase {
             return rendered + (nullable ? "?" : "")
         case let .intersection(parts):
             return parts.map { renderTypeRef($0, in: ast, interner: interner) }.joined(separator: " & ")
+        case let .annotated(base, _):
+            return renderTypeRef(base, in: ast, interner: interner)
         }
     }
 
