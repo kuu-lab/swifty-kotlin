@@ -1560,6 +1560,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.value
     }
+    if let ktypeProjectionBox = tryCast(raw, to: RuntimeKTypeProjectionBox.self) {
+        return runtimeKTypeProjectionToString(ktypeProjectionBox)
+    }
     // STDLIB-REFLECT-066: KType rendering
     if let ktypeBox = tryCast(raw, to: RuntimeKTypeBox.self) {
         return runtimeKTypeToString(ktypeBox)
