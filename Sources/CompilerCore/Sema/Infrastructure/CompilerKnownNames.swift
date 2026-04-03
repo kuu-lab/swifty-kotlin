@@ -12,6 +12,7 @@ enum KnownCompilerAnnotation {
     case suppress
     case dslMarker
     case wasExperimental
+    case experimentalTypeInference
 
     var simpleName: String {
         switch self {
@@ -37,6 +38,8 @@ enum KnownCompilerAnnotation {
             "DslMarker"
         case .wasExperimental:
             "WasExperimental"
+        case .experimentalTypeInference:
+            "ExperimentalTypeInference"
         }
     }
 
@@ -64,6 +67,8 @@ enum KnownCompilerAnnotation {
             "kotlin.DslMarker"
         case .wasExperimental:
             "kotlin.WasExperimental"
+        case .experimentalTypeInference:
+            "kotlin.experimental.ExperimentalTypeInference"
         }
     }
 
@@ -245,7 +250,6 @@ struct KnownCompilerNames {
     let kotlinxCoroutinesRunBlockingFQName: [InternedString]
     let kotlinxCoroutinesLaunchFQName: [InternedString]
     let kotlinxCoroutinesAsyncFQName: [InternedString]
-    let kotlinxCoroutinesProduceFQName: [InternedString]
     let kotlinResultFQName: [InternedString]
     let kotlinRunCatchingFQName: [InternedString]
 
@@ -422,7 +426,6 @@ struct KnownCompilerNames {
         kotlinxCoroutinesRunBlockingFQName = [kotlinx, coroutines, runBlocking]
         kotlinxCoroutinesLaunchFQName = [kotlinx, coroutines, launch]
         kotlinxCoroutinesAsyncFQName = [kotlinx, coroutines, async]
-        kotlinxCoroutinesProduceFQName = [kotlinx, coroutines, channels, produce]
 
         let resultName = interner.intern("Result")
         kotlinResultFQName = [kotlin, resultName]
