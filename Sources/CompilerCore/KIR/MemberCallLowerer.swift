@@ -102,11 +102,20 @@ final class MemberCallLowerer {
             let loweredArgs = args.map { arg in
                 context.lowerSubExpr(arg.expr, driver: coordinator.driver)
             }
+            var finalArguments = [receiverID] + loweredArgs
+            if runtimeName == "kk_channel_send" || runtimeName == "kk_channel_receive" {
+                let continuationExpr = arena.appendExpr(
+                    .intLiteral(0),
+                    type: sema.types.intType
+                )
+                context.append(.constValue(result: continuationExpr, value: .intLiteral(0)))
+                finalArguments.append(continuationExpr)
+            }
             
             context.append(.call(
                 symbol: nil,
                 callee: interner.intern(runtimeName),
-                arguments: [receiverID] + loweredArgs,
+                arguments: finalArguments,
                 result: result,
                 canThrow: true,
                 thrownResult: nil
