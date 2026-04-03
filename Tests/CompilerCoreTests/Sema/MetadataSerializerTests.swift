@@ -343,7 +343,7 @@ final class MetadataSerializerTests: XCTestCase {
         )
 
         let record = encoder.buildRecord(
-            for: XCTUnwrap(symbols.symbol(symbol)),
+            for: try XCTUnwrap(symbols.symbol(symbol)),
             symbols: symbols,
             types: types,
             moduleName: "Demo",
