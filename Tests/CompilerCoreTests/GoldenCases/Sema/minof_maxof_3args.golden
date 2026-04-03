@@ -3461,11 +3461,11 @@ file f0 package=golden.sema
 expr e0 name(maxOf) type=_
 expr e1 int(3) type=Int
 expr e2 int(7) type=Int
-expr e3 call callee=e0 args=[_:e1,_:e2] type=Int call=s558 map=[0->0,1->1] targs=[]
+expr e3 call callee=e0 args=[_:e1,_:e2] type=Int call=s556 map=[0->0,1->1] targs=[]
 expr e4 name(minOf) type=_
 expr e5 int(3) type=Int
 expr e6 int(7) type=Int
-expr e7 call callee=e4 args=[_:e5,_:e6] type=Int call=s561 map=[0->0,1->1] targs=[]
+expr e7 call callee=e4 args=[_:e5,_:e6] type=Int call=s559 map=[0->0,1->1] targs=[]
 expr e8 name(maxOf) type=_
 expr e9 name(a) type=Int ref=s3428
 expr e10 name(b) type=Int ref=s3429

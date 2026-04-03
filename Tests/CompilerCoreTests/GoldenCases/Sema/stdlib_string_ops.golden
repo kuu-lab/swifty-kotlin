@@ -3497,106 +3497,106 @@ file f0 package=golden.sema
   decl d34 fun useReplaceFirst suspend=0 inline=0 sym=s3459
   decl d35 fun useReplaceRange suspend=0 inline=0 sym=s3460
 expr e0 string(  hi  ) type=String
-expr e1 memberCall recv=e0 callee=trim args=[] type=String call=s621 map=[] targs=[]
+expr e1 memberCall recv=e0 callee=trim args=[] type=String call=s619 map=[] targs=[]
 expr e2 string(1,2,3) type=String
 expr e3 string(,) type=String
-expr e4 memberCall recv=e2 callee=split args=[_:e3] type=Class#123<out String> call=s646 map=[0->0] targs=[]
+expr e4 memberCall recv=e2 callee=split args=[_:e3] type=Class#121<out String> call=s644 map=[0->0] targs=[]
 expr e5 string(abc) type=String
 expr e6 string(a) type=String
 expr e7 string(z) type=String
-expr e8 memberCall recv=e5 callee=replace args=[_:e6,_:e7] type=String call=s648 map=[0->0,1->1] targs=[]
+expr e8 memberCall recv=e5 callee=replace args=[_:e6,_:e7] type=String call=s646 map=[0->0,1->1] targs=[]
 expr e9 string(Kotlin) type=String
 expr e10 string(Ko) type=String
-expr e11 memberCall recv=e9 callee=startsWith args=[_:e10] type=Boolean call=s651 map=[0->0] targs=[]
+expr e11 memberCall recv=e9 callee=startsWith args=[_:e10] type=Boolean call=s649 map=[0->0] targs=[]
 expr e12 string(Kotlin) type=String
 expr e13 string(lin) type=String
-expr e14 memberCall recv=e12 callee=endsWith args=[_:e13] type=Boolean call=s653 map=[0->0] targs=[]
+expr e14 memberCall recv=e12 callee=endsWith args=[_:e13] type=Boolean call=s651 map=[0->0] targs=[]
 expr e15 string(Kotlin) type=String
 expr e16 string(otl) type=String
-expr e17 memberCall recv=e15 callee=contains args=[_:e16] type=Boolean call=s655 map=[0->0] targs=[]
+expr e17 memberCall recv=e15 callee=contains args=[_:e16] type=Boolean call=s653 map=[0->0] targs=[]
 expr e18 string(42) type=String
-expr e19 memberCall recv=e18 callee=toInt args=[] type=Int call=s657 map=[] targs=[]
+expr e19 memberCall recv=e18 callee=toInt args=[] type=Int call=s655 map=[] targs=[]
 expr e20 string(3.14) type=String
-expr e21 memberCall recv=e20 callee=toDouble args=[] type=Double call=s661 map=[] targs=[]
+expr e21 memberCall recv=e20 callee=toDouble args=[] type=Double call=s659 map=[] targs=[]
 expr e22 string(%s:%d) type=String
 expr e23 string(age) type=String
 expr e24 int(7) type=Int
-expr e25 memberCall recv=e22 callee=format args=[_:e23,_:e24] type=String call=s674 map=[0->0,1->0] targs=[]
+expr e25 memberCall recv=e22 callee=format args=[_:e23,_:e24] type=String call=s672 map=[0->0,1->0] targs=[]
 expr e26 string(hello) type=String
 expr e27 int(1) type=Int
-expr e28 memberCall recv=e26 callee=substring args=[_:e27] type=String call=s667 map=[0->0] targs=[]
+expr e28 memberCall recv=e26 callee=substring args=[_:e27] type=String call=s665 map=[0->0] targs=[]
 expr e29 string(hello) type=String
 expr e30 int(1) type=Int
 expr e31 int(3) type=Int
-expr e32 memberCall recv=e29 callee=substring args=[_:e30,_:e31] type=String call=s672 map=[0->0,1->1] targs=[]
+expr e32 memberCall recv=e29 callee=substring args=[_:e30,_:e31] type=String call=s670 map=[0->0,1->1] targs=[]
 expr e33 string(Hello) type=String
-expr e34 memberCall recv=e33 callee=lowercase args=[] type=String call=s622 map=[] targs=[]
+expr e34 memberCall recv=e33 callee=lowercase args=[] type=String call=s620 map=[] targs=[]
 expr e35 string(Hello) type=String
-expr e36 memberCall recv=e35 callee=uppercase args=[] type=String call=s623 map=[] targs=[]
+expr e36 memberCall recv=e35 callee=uppercase args=[] type=String call=s621 map=[] targs=[]
 expr e37 string(123) type=String
-expr e38 memberCall recv=e37 callee=toIntOrNull args=[] type=Int? call=s660 map=[] targs=[]
+expr e38 memberCall recv=e37 callee=toIntOrNull args=[] type=Int? call=s658 map=[] targs=[]
 expr e39 string(abc) type=String
-expr e40 memberCall recv=e39 callee=toIntOrNull args=[] type=Int? call=s660 map=[] targs=[]
+expr e40 memberCall recv=e39 callee=toIntOrNull args=[] type=Int? call=s658 map=[] targs=[]
 expr e41 string( 3.14 ) type=String
-expr e42 memberCall recv=e41 callee=toDoubleOrNull args=[] type=Double? call=s662 map=[] targs=[]
+expr e42 memberCall recv=e41 callee=toDoubleOrNull args=[] type=Double? call=s660 map=[] targs=[]
 expr e43 string(abc) type=String
-expr e44 memberCall recv=e43 callee=toDoubleOrNull args=[] type=Double? call=s662 map=[] targs=[]
+expr e44 memberCall recv=e43 callee=toDoubleOrNull args=[] type=Double? call=s660 map=[] targs=[]
 expr e45 string(hello) type=String
 expr e46 string(he) type=String
-expr e47 memberCall recv=e45 callee=removePrefix args=[_:e46] type=String call=s712 map=[0->0] targs=[]
+expr e47 memberCall recv=e45 callee=removePrefix args=[_:e46] type=String call=s710 map=[0->0] targs=[]
 expr e48 string(hello) type=String
 expr e49 string(lo) type=String
-expr e50 memberCall recv=e48 callee=removeSuffix args=[_:e49] type=String call=s714 map=[0->0] targs=[]
+expr e50 memberCall recv=e48 callee=removeSuffix args=[_:e49] type=String call=s712 map=[0->0] targs=[]
 expr e51 string([hello]) type=String
 expr e52 string([) type=String
 expr e53 string(]) type=String
-expr e54 memberCall recv=e51 callee=removeSurrounding args=[_:e52,_:e53] type=String call=s718 map=[0->0,1->1] targs=[]
+expr e54 memberCall recv=e51 callee=removeSurrounding args=[_:e52,_:e53] type=String call=s716 map=[0->0,1->1] targs=[]
 expr e55 string(**foo**) type=String
 expr e56 string(*) type=String
-expr e57 memberCall recv=e55 callee=removeSurrounding args=[_:e56] type=String call=s716 map=[0->0] targs=[]
+expr e57 memberCall recv=e55 callee=removeSurrounding args=[_:e56] type=String call=s714 map=[0->0] targs=[]
 expr e58 string(hello.world.kt) type=String
 expr e59 string(.) type=String
-expr e60 memberCall recv=e58 callee=substringBefore args=[_:e59] type=String call=s721 map=[0->0] targs=[]
+expr e60 memberCall recv=e58 callee=substringBefore args=[_:e59] type=String call=s719 map=[0->0] targs=[]
 expr e61 string(hello.world.kt) type=String
 expr e62 string(.) type=String
-expr e63 memberCall recv=e61 callee=substringAfter args=[_:e62] type=String call=s723 map=[0->0] targs=[]
+expr e63 memberCall recv=e61 callee=substringAfter args=[_:e62] type=String call=s721 map=[0->0] targs=[]
 expr e64 string(hello.world.kt) type=String
 expr e65 string(.) type=String
-expr e66 memberCall recv=e64 callee=substringBeforeLast args=[_:e65] type=String call=s725 map=[0->0] targs=[]
+expr e66 memberCall recv=e64 callee=substringBeforeLast args=[_:e65] type=String call=s723 map=[0->0] targs=[]
 expr e67 string(hello.world.kt) type=String
 expr e68 string(.) type=String
-expr e69 memberCall recv=e67 callee=substringAfterLast args=[_:e68] type=String call=s727 map=[0->0] targs=[]
+expr e69 memberCall recv=e67 callee=substringAfterLast args=[_:e68] type=String call=s725 map=[0->0] targs=[]
 expr e70 string() type=String
-expr e71 memberCall recv=e70 callee=isEmpty args=[] type=Boolean call=s745 map=[] targs=[]
+expr e71 memberCall recv=e70 callee=isEmpty args=[] type=Boolean call=s743 map=[] targs=[]
 expr e72 string(x) type=String
-expr e73 memberCall recv=e72 callee=isNotEmpty args=[] type=Boolean call=s746 map=[] targs=[]
+expr e73 memberCall recv=e72 callee=isNotEmpty args=[] type=Boolean call=s744 map=[] targs=[]
 expr e74 string(  ) type=String
-expr e75 memberCall recv=e74 callee=isBlank args=[] type=Boolean call=s747 map=[] targs=[]
+expr e75 memberCall recv=e74 callee=isBlank args=[] type=Boolean call=s745 map=[] targs=[]
 expr e76 string(x) type=String
-expr e77 memberCall recv=e76 callee=isNotBlank args=[] type=Boolean call=s748 map=[] targs=[]
+expr e77 memberCall recv=e76 callee=isNotBlank args=[] type=Boolean call=s746 map=[] targs=[]
 expr e78 string(hello) type=String
-expr e79 memberCall recv=e78 callee=first args=[] type=Char call=s749 map=[] targs=[]
+expr e79 memberCall recv=e78 callee=first args=[] type=Char call=s747 map=[] targs=[]
 expr e80 string() type=String
-expr e81 memberCall recv=e80 callee=firstOrNull args=[] type=Char? call=s752 map=[] targs=[]
+expr e81 memberCall recv=e80 callee=firstOrNull args=[] type=Char? call=s750 map=[] targs=[]
 expr e82 string(abc
 def) type=String
 expr e83 string(  ) type=String
-expr e84 memberCall recv=e82 callee=prependIndent args=[_:e83] type=String call=s756 map=[0->0] targs=[]
+expr e84 memberCall recv=e82 callee=prependIndent args=[_:e83] type=String call=s754 map=[0->0] targs=[]
 expr e85 string(  abc
   def) type=String
 expr e86 string() type=String
-expr e87 memberCall recv=e85 callee=replaceIndent args=[_:e86] type=String call=s759 map=[0->0] targs=[]
+expr e87 memberCall recv=e85 callee=replaceIndent args=[_:e86] type=String call=s757 map=[0->0] targs=[]
 expr e88 string(abc) type=String
 expr e89 string(ABC) type=String
 expr e90 bool(true) type=Boolean
-expr e91 memberCall recv=e88 callee=equals args=[_:e89,ignoreCase:e90] type=Boolean call=s763 map=[0->0,1->1] targs=[]
+expr e91 memberCall recv=e88 callee=equals args=[_:e89,ignoreCase:e90] type=Boolean call=s761 map=[0->0,1->1] targs=[]
 expr e92 string(abcabc) type=String
 expr e93 string(abc) type=String
 expr e94 string(X) type=String
-expr e95 memberCall recv=e92 callee=replaceFirst args=[_:e93,_:e94] type=String call=s765 map=[0->0,1->1] targs=[]
+expr e95 memberCall recv=e92 callee=replaceFirst args=[_:e93,_:e94] type=String call=s763 map=[0->0,1->1] targs=[]
 expr e96 string(hello) type=String
 expr e97 int(0) type=Int
 expr e98 int(2) type=Int
 expr e99 binary(rangeTo) lhs=e97 rhs=e98 type=Int
 expr e100 string(HE) type=String
-expr e101 memberCall recv=e96 callee=replaceRange args=[_:e99,_:e100] type=String call=s768 map=[0->0,1->1] targs=[]
+expr e101 memberCall recv=e96 callee=replaceRange args=[_:e99,_:e100] type=String call=s766 map=[0->0,1->1] targs=[]

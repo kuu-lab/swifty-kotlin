@@ -3437,8 +3437,8 @@ expr e3 memberCall recv=e2 callee=length args=[] type=_
 expr e4 call callee=e1 args=[_:e3] type=_
 expr e5 name(listOf) type=_
 expr e6 name(it) type=String ref=s-1002304
-expr e7 memberCall recv=e6 callee=length args=[] type=Int call=s620 map=[] targs=[]
-expr e8 call callee=e5 args=[_:e7] type=Class#123<out Int>
+expr e7 memberCall recv=e6 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e8 call callee=e5 args=[_:e7] type=Class#121<out Int>
 expr e9 lambda params=[] body=e8 label=flatMap type=(String) -> Any
 expr e10 memberCall recv=e0 callee=flatMap args=[_:e9] type=Class#123<Int>
 expr e11 localDecl lengths mutable=0 type=t3 init=e10 type=Unit ref=s3427
@@ -3451,8 +3451,8 @@ expr e17 call callee=e13 args=[_:e14,_:e16] type=_
 expr e18 name(listOf) type=_
 expr e19 name(it) type=String ref=s-1005888
 expr e20 name(it) type=String ref=s-1005888
-expr e21 memberCall recv=e20 callee=uppercase args=[] type=String call=s623 map=[] targs=[]
-expr e22 call callee=e18 args=[_:e19,_:e21] type=Class#123<out String>
+expr e21 memberCall recv=e20 callee=uppercase args=[] type=String call=s621 map=[] targs=[]
+expr e22 call callee=e18 args=[_:e19,_:e21] type=Class#121<out String>
 expr e23 lambda params=[] body=e22 label=flatMap type=(String) -> Any
 expr e24 memberCall recv=e12 callee=flatMap args=[_:e23] type=Class#123<String>
 expr e25 localDecl chars mutable=0 type=t5 init=e24 type=Unit ref=s3428
@@ -3467,12 +3467,12 @@ expr e33 binary(multiply) lhs=e31 rhs=e32 type=_
 expr e34 call callee=e27 args=[_:e29,_:e33] type=_
 expr e35 name(listOf) type=_
 expr e36 name(it) type=String ref=s-1011008
-expr e37 memberCall recv=e36 callee=length args=[] type=Int call=s620 map=[] targs=[]
+expr e37 memberCall recv=e36 callee=length args=[] type=Int call=s618 map=[] targs=[]
 expr e38 name(it) type=String ref=s-1011008
-expr e39 memberCall recv=e38 callee=length args=[] type=Int call=s620 map=[] targs=[]
+expr e39 memberCall recv=e38 callee=length args=[] type=Int call=s618 map=[] targs=[]
 expr e40 int(2) type=Int
 expr e41 binary(multiply) lhs=e39 rhs=e40 type=Int
-expr e42 call callee=e35 args=[_:e37,_:e41] type=Class#123<out Int>
+expr e42 call callee=e35 args=[_:e37,_:e41] type=Class#121<out Int>
 expr e43 lambda params=[] body=e42 label=flatMap type=(String) -> Any
 expr e44 memberCall recv=e26 callee=flatMap args=[_:e43] type=Class#123<Int>
 expr e45 localDecl doubled mutable=0 type=_ init=e44 type=Unit ref=s3429
