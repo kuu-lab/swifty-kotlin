@@ -347,8 +347,8 @@ extension DataFlowSemaPhase {
             )],
             returnType: suspendCoroutineTType,
             externalLinkName: "kk_suspend_coroutine",
-            flags: [.synthetic, .inlineFunction],
             isSuspend: true,
+            flags: [.synthetic, .inlineFunction],
             explicitTypeParameterSymbols: [suspendCoroutineTypeParamSymbol],
             symbols: symbols,
             interner: interner
@@ -1262,7 +1262,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-<<<<<<< HEAD
         registerSyntheticCoroutineTopLevelProperty(
             named: "COROUTINE_SUSPENDED",
             packageFQName: kotlinCoroutinesIntrinsicsPkg,
@@ -1335,7 +1334,7 @@ extension DataFlowSemaPhase {
                 for: suspendCoroutineSymbol
             )
         }
-=======
+
         registerSyntheticCoroutineTopLevelFunction(
             named: "cancel",
             packageFQName: cancellationPkg,
@@ -1360,7 +1359,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
->>>>>>> 39862a03c (implement top-level cancel)
 
         // CoroutineContext.plus(other: CoroutineContext): CoroutineContext
         registerSyntheticCoroutineMember(
@@ -1988,8 +1986,8 @@ extension DataFlowSemaPhase {
             packageFQName: packageFQName,
             parameters: [(name: parameterName, type: parameterType)],
             returnType: returnType,
-            flags: flags,
             isSuspend: isSuspend,
+            flags: flags,
             symbols: symbols,
             interner: interner
         )
@@ -2098,7 +2096,6 @@ extension DataFlowSemaPhase {
         isSuspend: Bool = false,
         syntheticTypeParameterNames: [String] = [],
         flags: SymbolFlags = [.synthetic],
-        isSuspend: Bool = false,
         explicitTypeParameterSymbols: [SymbolID]? = nil,
         syntheticVarargParameterIndices: Set<Int> = [],
         symbols: SymbolTable,
