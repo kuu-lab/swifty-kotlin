@@ -141,7 +141,8 @@ final class ABIMismatchTests: XCTestCase {
     func testCoroutineFunctionCount() {
         // Keep this in sync with RuntimeABISpec.coroutineFunctions entries.
         // STDLIB-CORO-070 adds Job.complete/completeExceptionally/cancel(cause)/awaitCompletion.
-        XCTAssertEqual(RuntimeABISpec.coroutineFunctions.count, 94)
+        // read-write lock adds kk_read_write_lock_create/read/write.
+        XCTAssertEqual(RuntimeABISpec.coroutineFunctions.count, 113)
     }
 
     func testBoxingFunctionCount() {
@@ -235,6 +236,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.bigIntegerFunctions,
             RuntimeABISpec.broadcastChannelFunctions,
             RuntimeABISpec.serializationFunctions,
+            RuntimeABISpec.networkFunctions,
             RuntimeABISpec.abiParityFunctions,
         ]
         XCTAssertEqual(
@@ -512,6 +514,12 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters.count, 0)
     }
 
+    func testKKReadWriteLockCreateSignature() throws {
+        let spec = try requireSpec("kk_read_write_lock_create")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 0)
+    }
+
     func testKKMutexLockSignature() throws {
         let spec = try requireSpec("kk_mutex_lock")
         XCTAssertEqual(spec.returnType, .intptr)
@@ -558,6 +566,30 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[2].type, .intptr)
         XCTAssertEqual(spec.parameters[3].name, "continuation")
         XCTAssertEqual(spec.parameters[3].type, .intptr)
+    }
+
+    func testKKReadWriteLockReadSignature() throws {
+        let spec = try requireSpec("kk_read_write_lock_read")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 3)
+        XCTAssertEqual(spec.parameters[0].name, "handle")
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
+        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
+        XCTAssertEqual(spec.parameters[2].type, .intptr)
+    }
+
+    func testKKReadWriteLockWriteSignature() throws {
+        let spec = try requireSpec("kk_read_write_lock_write")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 3)
+        XCTAssertEqual(spec.parameters[0].name, "handle")
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].name, "actionFnPtr")
+        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        XCTAssertEqual(spec.parameters[2].name, "actionEnvPtr")
+        XCTAssertEqual(spec.parameters[2].type, .intptr)
     }
 
     // MARK: - Collection HOF Scan/Reduce (STDLIB-526..530)
