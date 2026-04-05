@@ -5695,6 +5695,7 @@ public func kk_coroutine_cancel(_ continuation: Int) {
 /// Cancel the currently running coroutine without requiring a continuation handle.
 @_cdecl("kk_coroutine_cancel_current")
 public func kk_coroutine_cancel_current(_ message: Int, _ causeRaw: Int) -> Int {
+    let text = extractString(from: UnsafeMutableRawPointer(bitPattern: message)) ?? "CancellationException"
     let normalizedCause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     guard let state = RuntimeContinuationState.current else {
         return 0
