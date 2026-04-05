@@ -2,36 +2,7 @@
 
 最終更新: 2026-04-01
 
-## 実装サマリー
-
-### Phase 1 完了済みタスク (高優先度)
-- **プリミティブ型**: Boolean拡張関数 ✓
-- **配列操作**: 基本操作・高階関数・ソートと順序操作 ✓
-- **オブジェクト指向**: インターフェース・シールドクラス・データクラス・オブジェクト宣言・無名オブジェクト ✓
-- **関数型プログラミング**: コレクション高階関数・スコープ関数・関数参照・拡張関数・拡張プロパティ・シーケンス高階関数・文字列高階関数・ラムダとクロージャ ✓
-- **プロパティデリゲート**: lazyデリゲート・lateinitプロパティ ✓
-- **ジェネリクス**: ジェネリッククラス制約 ✓
-- **演算子**: invoke演算子・範囲操作・プリミティブ型完全演算子・ビット操作関数 ✓
-- **Char拡張関数**: 分類・変換・数値変換・Unicodeプロパティ ✓
-- **プリミティブ型変換**: 全ての型間相互変換・unsigned型変換 ✓
-
-### Phase 2 未完了タスク (中優先度)
-- 抽象クラス制約
-- データクラス継承制約
-- コンパニオンオブジェクト
-- 継承修飾子とオーバーライド
-- 多重継承と衝突解決
-- シーケンス高階関数
-- 文字列高階関数
-- ラムダとクロージャ
-- 関数型
-- 算術・比較・コンテナ演算子
-- UInt範囲
-- 範囲高階関数・進行
-- Comparable・Comparator
-- observable/vetoableデリゲート
-- lateinit拡張
-- ジェネリック関数・インターフェース
+---
 
 ## 運用ルール
 
@@ -94,17 +65,6 @@
   - **現状**: 基本的な範囲操作は実装済み、高階関数は未実装
   - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
   - **テストケース**: `Scripts/diff_cases/range_hof.kt`
-- [x] STDLIB-OP-030: 算術演算子オーバーロード完全実装
-  - **仕様**: カスタムクラスでの算術演算子オーバーロード
-  - **実装内容**:
-    - 単項演算子: unaryPlus(), unaryMinus(), not()
-    - 二項演算子: plus(), minus(), times(), div(), mod(), rem()
-    - 代入演算子: plusAssign(), minusAssign(), timesAssign(), divAssign(), modAssign()
-    - 演算子の優先順位と結合性
-    - 演算子オーバーロードの型チェック
-  - **現状**: 基本的な演算子は実装済み、カスタムオーバーロードは未実装
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/operator_overload.kt`
 
 - [ ] STDLIB-OP-031: 比較演算子オーバーロード完全実装
   - **仕様**: カスタムクラスでの比較演算子オーバーロード
@@ -118,19 +78,6 @@
   - **関連ファイル**: `HeaderHelpers+SyntheticComparisonStubs.swift`
   - **テストケース**: `Scripts/diff_cases/compare_values.kt`
 
-- [x] STDLIB-OP-032: コンテナ演算子オーバーロード完全実装
-  - **仕様**: コンテナクラスでの演算子オーバーロード
-  - **実装内容**:
-    - インデックス演算子: get(), set() — Sema解決 + KIR IndexedAccessLowerer でディスパッチ
-    - 含有演算子: contains(), iterator() — Sema解決 + KIR ExprLowerer/ControlFlowLowerer でディスパッチ
-    - 範囲演算子: rangeTo() — Sema解決 + KIR CallLowerer+Operators でディスパッチ
-    - in演算子: contains()の省略形 — ExprTypeChecker + appendContainsCall でディスパッチ
-    - スプレッド演算子: spread() — AST isSpread + CallSupportLowerer でディスパッチ
-  - **現状**: カスタムクラスでのコンテナ演算子オーバーロードを完全サポート
-  - **関連ファイル**: `Helpers.swift`, `ControlFlowLowerer.swift`, `LocalDeclTypeChecker+IndexedAccessAndAssign.swift`, `ExprTypeChecker.swift`, `IndexedAccessLowerer.swift`
-  - **テストケース**: `Scripts/diff_cases/container_operators.kt`
-
-
 - [ ] STDLIB-RANGE-034: IntRange完全実装
   - **仕様**: IntRangeの完全な機能サポート
   - **実装内容**:
@@ -142,30 +89,6 @@
   - **現状**: 基本的なIntRangeは実装済み、高度な機能は未実装
   - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
   - **テストケース**: `Scripts/diff_cases/range_basic.kt`
-
-- [x] STDLIB-RANGE-035: LongRange完全実装
-  - **仕様**: LongRangeの完全な機能サポート
-  - **実装内容**:
-    - コンストラクタ: LongRange(start, end), startL..endL
-    - プロパティ: start, end, first, last, step
-    - 包含判定: contains(), isEmpty()
-    - 反復: iterator(), reversed()
-    - 変換: toList(), toLongArray()
-  - **現状**: 基本的なLongRangeは実装済み、IntRangeとの相互運用は未実装
-  - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
-  - **テストケース**: `Scripts/diff_cases/long_range.kt`
-
-- [x] STDLIB-RANGE-036: UIntRange完全実装
-  - **仕様**: UIntRangeの完全な機能サポート
-  - **実装内容**:
-    - コンストラクタ: UIntRange(start, end), startU..endU
-    - プロパティ: start, end, first, last, step
-    - 包含判定: contains(), isEmpty()
-    - 反復: iterator(), reversed()
-    - 変換: toList(), toUIntArray()
-  - **現状**: UIntRangeは未実装
-  - **関連ファイル**: `RuntimeRangeAndDispatch.swift`
-  - **テストケース**: `Scripts/diff_cases/uint_range.kt`
 
 - [ ] STDLIB-RANGE-039: 範囲進行完全実装
   - **仕様**: 範囲進行（Progression）の完全サポート
@@ -211,19 +134,6 @@
 
 #### Phase 2: ジェネリクスと型システム (中優先度)
 
-
-- [x] STDLIB-GEN-055: 型制約完全実装
-  - **仕様**: 型パラメータの制約
-  - **実装内容**:
-    - 上限制約: <T : Comparable<T>>
-    - 複数制約: <T : Comparable<T>, Serializable>
-    - where句: fun <T> process(value: T) where T : Comparable<T>
-    - 制約の解決とチェック
-    - 制約違反のエラーメッセージ
-  - **現状**: 基本的な制約と where 句は実装済み
-  - **関連ファイル**: `HeaderHelpers+SyntheticTODOAndIOStubs.swift`
-  - **テストケース**: `Scripts/diff_cases/type_constraints.kt`
-
 - [ ] STDLIB-GEN-057: reified型パラメータ完全実装
   - **仕様**: reified型パラメータの完全サポート
   - **実装内容**:
@@ -237,67 +147,6 @@
   - **テストケース**: `Scripts/diff_cases/reified_generics.kt`
 
 #### Phase 2: リフレクション (中優先度)
-
-- [x] STDLIB-REFLECT-060: KClass基本機能完全実装
-  - **仕様**: KClassの基本的なリフレクション機能
-  - **実装内容**:
-    - クラス名: simpleName, qualifiedName
-    - クラス階層: supertypes, isInstance
-    - 型パラメータ: typeParameters, generics
-    - 可視性: visibility, isAbstract, isFinal
-    - コンストラクタ: constructors
-  - **現状**: 基本的なKClassは実装済み (REFL-004参照)、詳細は未実装
-  - **関連ファイル**: `RuntimeReflection.swift`
-  - **テストケース**: `Scripts/diff_cases/kclass_basic.kt`
-
-- [x] STDLIB-REFLECT-062: KProperty完全実装
-  - **仕様**: KPropertyインターフェースの完全サポート
-  - **実装内容**:
-    - プロパティ名: name
-    - プロパティ型: returnType
-    - 可視性: visibility, isLateinit, isConst
-    - ゲッター/セッター: getter, setter
-    - プロパティ値の取得/設定: get(), set()
-  - **現状**: 実装完了
-  - **関連ファイル**: `Sources/Runtime/RuntimeDelegates.swift`, `Sources/Runtime/RuntimeABISpec+KPropertyStub.swift`, `Sources/CompilerCore/Codegen/RuntimeABIExterns+KPropertyStub.swift`, `Sources/CompilerCore/KIR/CallLowerer+MemberCalls.swift`
-  - **テストケース**: `Scripts/diff_cases/kproperty_basic.kt`
-
-- [x] STDLIB-REFLECT-063: KFunction完全実装
-  - **仕様**: KFunctionインターフェースの完全サポート
-  - **実装内容**:
-    - 関数名: name
-    - 関数型: type
-    - パラメータ: parameters, valueParameters
-    - 戻り値型: returnType
-    - 関数の呼び出し: call()
-    - suspend関数: isSuspend
-  - **現状**: 完全実装済み (RuntimeReflection.swift に kk_kfunction_* 関数群を追加、RuntimeABIExterns+KFunction.swift を新規作成)
-  - **関連ファイル**: `RuntimeReflection.swift`, `RuntimeABIExterns+KFunction.swift`
-  - **テストケース**: `Scripts/diff_cases/kfunction_basic.kt`
-
-- [x] STDLIB-REFLECT-064: KConstructor完全実装
-  - **仕様**: KConstructorインターフェースの完全サポート
-  - **実装内容**:
-    - コンストラクタパラメータ: parameters, valueParameters
-    - 可視性: visibility
-    - インスタンス生成: call()
-    - プライマリコンストラクタ: isPrimary
-    - セカンダリコンストラクタ
-  - **現状**: 基本的なKConstructorは実装済み、呼び出しは未実装
-  - **関連ファイル**: `RuntimeReflection.swift`
-  - **テストケース**: `Scripts/diff_cases/kconstructor_basic.kt`
-
-- [x] STDLIB-REFLECT-065: アノテーションリフレクション完全実装
-  - **仕様**: アノテーションのリフレクションアクセス
-  - **実装内容**:
-    - アノテーション取得: annotations
-    - 特定アノテーション検索: findAnnotation()
-    - アノテーションプロパティ: annotationClass
-    - アノテーション値の取得
-    - 実行時アノテーション: @Retention(RUNTIME)
-  - **現状**: 実装完了
-  - **関連ファイル**: `RuntimeReflection.swift`
-  - **テストケース**: `Scripts/diff_cases/annotation_reflection.kt`
 
 - [ ] STDLIB-REFLECT-066: 型リフレクション完全実装
   - **仕様**: 型情報のリフレクションアクセス
@@ -325,18 +174,6 @@
   - **現状**: async/awaitは一部実装済み、suspend関数は未実装
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/suspend_functions.kt`
-
-- [x] STDLIB-CORO-071: async/await完全実装
-  - **仕様**: async/awaitの完全サポート
-  - **実装内容**:
-    - asyncビルダー: async { return value }
-    - await式: val result = asyncFunction()
-    - asyncの例外処理: try-catch in async (kk_kxmini_async_await_throwing)
-    - awaitのキャンセル: awaitのキャンセル対応 (kk_async_task_cancel)
-    - asyncのディスパッチャ指定: async(Dispatchers.Default) (kk_kxmini_async_with_dispatcher)
-  - **関連ファイル**: `RuntimeCoroutine.swift`, `Sources/RuntimeABI/RuntimeABIExterns.swift`
-  - **テストケース**: `Scripts/diff_cases/async_await.kt`
-
 
 - [ ] STDLIB-CORO-070: Job完全実装
   - **仕様**: Jobインターフェースの完全サポート
@@ -374,30 +211,6 @@
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/channel_basic.kt`
 
-- [x] STDLIB-CORO-076: Channel高度機能完全実装
-  - **仕様**: Channelの高度な機能
-  - **実装内容**:
-    - バックプレッシャー: suspend on full/empty
-    - ファンアウト: 複数受信者
-    - ファンイン: 複数送信者
-    - ブロードキャスト: BroadcastChannel
-    - パイプライン: channelパイプライン処理
-  - **現状**: 完全実装済み (`RuntimeBroadcastChannelHandle`, `kk_broadcast_channel_*`, `kk_channel_pipeline_drain`)
-  - **関連ファイル**: `RuntimeCoroutine.swift`
-  - **テストケース**: `Scripts/diff_cases/channel_backpressure.kt`
-
-- [x] STDLIB-CORO-077: withContext完全実装
-  - **仕様**: withContextの完全サポート
-  - **実装内容**:
-    - コンテキスト切り替え: withContext(Dispatchers.IO)
-    - スレッドプール: 各ディスパッチャのスレッド管理
-    - コンテキスト要素: Job, CoroutineName, CoroutineExceptionHandler
-    - コンテキストの合成: +演算子
-    - コンテキストのキャンセル伝播
-  - **現状**: 完全実装済み (`RuntimeCoroutineContext`, `kk_context_plus`, `kk_with_context_full`, `kk_coroutine_name_create`, `kk_exception_handler_create`)
-  - **関連ファイル**: `RuntimeCoroutine.swift`
-  - **テストケース**: `Scripts/diff_cases/with_context.kt`
-
 - [ ] STDLIB-CORO-079: Mutex完全実装
   - **仕様**: Mutexの完全サポート
   - **実装内容**:
@@ -410,12 +223,6 @@
   - **関連ファイル**: `RuntimeCoroutine.swift`
   - **テストケース**: `Scripts/diff_cases/mutex_basic.kt`
 
-- [x] STDLIB-CORO-080: Atomic操作完全実装
-  - **仕様**: アトミック操作の完全サポート
-  - **実装内容**:
-    - AtomicInt: 整数のアトミック操作
-    - AtomicBoolean: 真偽値のアトミック操作
-    - AtomicReference: 参照のアトミック操作
     - compareAndSet: CAS操作
     - getAndUpdate, updateAndGet: アトミック更新
   - **現状**: 完全実装済み (AtomicBoolean追加、getAndUpdate/updateAndGet全型対応)
@@ -435,18 +242,6 @@
   - **現状**: Instantは未実装
   - **関連ファイル**: `RuntimeDuration.swift`
   - **テストケース**: `Scripts/diff_cases/instant_basic.kt`
-
-- [x] STDLIB-TIME-085: システム時刻完全実装
-  - **仕様**: システム時刻アクセスの完全サポート
-  - **実装内容**:
-    - currentTimeMillis: ミリ秒単位の現在時刻
-    - nanoTime: ナノ秒単位の相対時刻
-    - processStartNanos: プロセス開始時刻
-    - 時刻の精度と分解能
-    - 時刻のモノトニック性保証
-  - **現状**: 完全実装済み (STDLIB-TIME-085) - kk_system_process_start_nanos追加、ABI登録完了
-  - **関連ファイル**: `RuntimeSystem.swift`
-  - **テストケース**: `Scripts/diff_cases/system_current_time_millis.kt`, `Scripts/diff_cases/system_nano_time.kt`, `Scripts/diff_cases/system_process_start_nanos.kt`
 
 - [ ] STDLIB-TIME-086: Clock完全実装
   - **仕様**: Clockインターフェースの完全サポート
@@ -1202,6 +997,6 @@
 
 ### 全体実装計画の最終更新
 
-**残タスク数: 88件**
+**残タスク数: 82件**
 
 Phase 1-3の基盤タスクを優先し、Phase 4-5は段階的に実装します。
