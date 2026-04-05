@@ -3439,12 +3439,12 @@ expr e7 blockExpr stmts=[e3] trailing=e6 type=Unit
 expr e8 lambda params=[] body=e7 label=buildString type=() -> Unit
 expr e9 call callee=e0 args=[_:e8] type=String
 expr e10 name(buildList) type=_
-expr e11 this type=Class#221<Int>
+expr e11 this type=Class#223<Int>
 expr e12 int(1) type=Int
-expr e13 memberCall recv=e11 callee=add args=[_:e12] type=Boolean call=s224 map=[0->0] targs=[Int]
+expr e13 memberCall recv=e11 callee=add args=[_:e12] type=Boolean call=s226 map=[0->0] targs=[Int]
 expr e14 name(add) type=_
 expr e15 int(2) type=Int
 expr e16 call callee=e14 args=[_:e15] type=Unit
 expr e17 blockExpr stmts=[e13] trailing=e16 type=Unit
 expr e18 lambda params=[] body=e17 label=buildList type=() -> Unit
-expr e19 call callee=e10 args=[_:e18] type=Class#121<out Int>
+expr e19 call callee=e10 args=[_:e18] type=Class#123<out Int>

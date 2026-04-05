@@ -3442,7 +3442,7 @@ expr e0 string(hello) type=String
 expr e1 name(it) type=_
 expr e2 memberCall recv=e1 callee=length args=[] type=_
 expr e3 name(it) type=String ref=s-1001280
-expr e4 memberCall recv=e3 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e4 memberCall recv=e3 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e5 lambda params=[] body=e4 label=let type=(String) -> Int
 expr e6 memberCall recv=e0 callee=let args=[_:e5] type=Int
 expr e7 string(hello) type=String
@@ -3454,7 +3454,7 @@ expr e12 string(hello) type=String
 expr e13 this type=_
 expr e14 memberCall recv=e13 callee=length args=[] type=_
 expr e15 this type=String
-expr e16 memberCall recv=e15 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e16 memberCall recv=e15 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e17 lambda params=[] body=e16 label=run type=String.() -> Int
 expr e18 memberCall recv=e12 callee=run args=[_:e17] type=Int
 expr e19 string(hello) type=String
@@ -3488,6 +3488,6 @@ expr e46 string(hello) type=String
 expr e47 this type=_
 expr e48 memberCall recv=e47 callee=length args=[] type=_
 expr e49 this type=String
-expr e50 memberCall recv=e49 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e50 memberCall recv=e49 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e51 lambda params=[] body=e50 label=with type=String.() -> Int
 expr e52 call callee=e45 args=[_:e46,_:e51] type=Int

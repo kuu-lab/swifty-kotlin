@@ -3454,8 +3454,8 @@ expr e15 call callee=e11 args=[_:e12,_:e14] type=_
 expr e16 name(listOf) type=_
 expr e17 name(it) type=String ref=s-1005376
 expr e18 name(it) type=String ref=s-1005376
-expr e19 memberCall recv=e18 callee=uppercase args=[] type=String call=s621 map=[] targs=[]
-expr e20 call callee=e16 args=[_:e17,_:e19] type=Class#121<out String>
+expr e19 memberCall recv=e18 callee=uppercase args=[] type=String call=s623 map=[] targs=[]
+expr e20 call callee=e16 args=[_:e17,_:e19] type=Class#123<out String>
 expr e21 lambda params=[] body=e20 label=flatMap type=(String) -> Any
 expr e22 memberCall recv=e10 callee=flatMap args=[_:e21] type=Class#123<String>
 expr e23 localDecl flat mutable=0 type=_ init=e22 type=Unit ref=s3428
@@ -3466,8 +3466,8 @@ expr e27 memberCall recv=e26 callee=length args=[] type=_
 expr e28 memberCall recv=e25 callee=to args=[_:e27] type=_
 expr e29 name(it) type=String ref=s-1008448
 expr e30 name(it) type=String ref=s-1008448
-expr e31 memberCall recv=e30 callee=length args=[] type=Int call=s618 map=[] targs=[]
-expr e32 memberCall recv=e29 callee=to args=[_:e31] type=Class#73<String, Int>
+expr e31 memberCall recv=e30 callee=length args=[] type=Int call=s620 map=[] targs=[]
+expr e32 memberCall recv=e29 callee=to args=[_:e31] type=Class#75<String, Int>
 expr e33 lambda params=[] body=e32 label=associate type=(String) -> Any
 expr e34 memberCall recv=e24 callee=associate args=[_:e33] type=Class#259<String, Int>
 expr e35 localDecl assoc mutable=0 type=_ init=e34 type=Unit ref=s3429
@@ -3475,7 +3475,7 @@ expr e36 name(values) type=Class#123<String> ref=s3426
 expr e37 name(it) type=_
 expr e38 memberCall recv=e37 callee=first args=[] type=_
 expr e39 name(it) type=String ref=s-1010496
-expr e40 memberCall recv=e39 callee=first args=[] type=Char call=s747 map=[] targs=[]
+expr e40 memberCall recv=e39 callee=first args=[] type=Char call=s749 map=[] targs=[]
 expr e41 lambda params=[] body=e40 label=associateBy type=(String) -> Any
 expr e42 memberCall recv=e36 callee=associateBy args=[_:e41] type=Class#259<Char, String>
 expr e43 localDecl byKey mutable=0 type=_ init=e42 type=Unit ref=s3430
@@ -3483,7 +3483,7 @@ expr e44 name(values) type=Class#123<String> ref=s3426
 expr e45 name(it) type=_
 expr e46 memberCall recv=e45 callee=length args=[] type=_
 expr e47 name(it) type=String ref=s-1012544
-expr e48 memberCall recv=e47 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e48 memberCall recv=e47 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e49 lambda params=[] body=e48 label=associateWith type=(String) -> Any
 expr e50 memberCall recv=e44 callee=associateWith args=[_:e49] type=Class#259<String, Int>
 expr e51 localDecl withVal mutable=0 type=_ init=e50 type=Unit ref=s3431
@@ -3491,7 +3491,7 @@ expr e52 name(values) type=Class#123<String> ref=s3426
 expr e53 name(it) type=_
 expr e54 memberCall recv=e53 callee=length args=[] type=_
 expr e55 name(it) type=String ref=s-1014592
-expr e56 memberCall recv=e55 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e56 memberCall recv=e55 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e57 lambda params=[] body=e56 label=groupBy type=(String) -> Any
 expr e58 memberCall recv=e52 callee=groupBy args=[_:e57] type=Class#259<Int, Class#123<String>>
 expr e59 localDecl grouped mutable=0 type=_ init=e58 type=Unit ref=s3432
@@ -3501,9 +3501,9 @@ expr e62 memberCall recv=e61 callee=length args=[] type=_
 expr e63 int(3) type=_
 expr e64 binary(greaterThan) lhs=e62 rhs=e63 type=_
 expr e65 name(it) type=String ref=s-1017664
-expr e66 memberCall recv=e65 callee=length args=[] type=Int call=s618 map=[] targs=[]
+expr e66 memberCall recv=e65 callee=length args=[] type=Int call=s620 map=[] targs=[]
 expr e67 int(3) type=Int
 expr e68 binary(greaterThan) lhs=e66 rhs=e67 type=Boolean
 expr e69 lambda params=[] body=e68 label=partition type=(String) -> Boolean
-expr e70 memberCall recv=e60 callee=partition args=[_:e69] type=Class#73<Class#121<String>, Class#121<String>>
+expr e70 memberCall recv=e60 callee=partition args=[_:e69] type=Class#75<Class#123<String>, Class#123<String>>
 expr e71 destructuringDecl names=[matching,rest] mutable=0 init=e70 type=Unit

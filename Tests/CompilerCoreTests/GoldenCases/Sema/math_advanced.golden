@@ -3450,7 +3450,7 @@ file f0 package=golden.sema
 expr e0 name(atan2) type=_
 expr e1 double(1.0) type=Double
 expr e2 double(1.0) type=Double
-expr e3 call callee=e0 args=[_:e1,_:e2] type=Double call=s975 map=[0->0,1->1] targs=[]
+expr e3 call callee=e0 args=[_:e1,_:e2] type=Double call=s977 map=[0->0,1->1] targs=[]
 expr e4 name(hypot) type=_
 expr e5 double(3.0) type=Double
 expr e6 double(4.0) type=Double

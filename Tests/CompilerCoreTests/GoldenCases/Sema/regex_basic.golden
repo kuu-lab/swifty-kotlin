@@ -3455,7 +3455,7 @@ expr e22 name(println) type=_
 expr e23 string(abc123) type=String
 expr e24 name(Regex) type=_
 expr e25 string([0-9]+) type=String
-expr e26 call callee=e24 args=[_:e25] type=Class#727
+expr e26 call callee=e24 args=[_:e25] type=Class#729
 expr e27 string(X) type=String
 expr e28 memberCall recv=e23 callee=replace args=[_:e26,_:e27] type=String call=s734 map=[0->0,1->1] targs=[]
 expr e29 call callee=e22 args=[_:e28] type=Unit call=s1628 map=[0->0] targs=[]

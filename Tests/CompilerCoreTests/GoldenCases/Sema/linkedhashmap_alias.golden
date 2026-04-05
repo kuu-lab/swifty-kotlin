@@ -3450,7 +3450,7 @@ expr e13 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e14 string(m) type=String
 expr e15 indexedAccess receiver=e13 indices=[e14] type=_
 expr e16 int(13) type=Int
-expr e17 indexedAssign receiver=e13 indices=[e14] value=e16 type=Unit call=s278 map=[0->0,1->1] targs=[String,Int]
+expr e17 indexedAssign receiver=e13 indices=[e14] value=e16 type=Unit call=s280 map=[0->0,1->1] targs=[String,Int]
 expr e18 name(println) type=_
 expr e19 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e20 call callee=e18 args=[_:e19] type=Unit call=s1628 map=[0->0] targs=[]
@@ -3472,10 +3472,10 @@ expr e35 memberCall recv=e34 callee=key args=[] type=_
 expr e36 name(it) type=_
 expr e37 memberCall recv=e36 callee=value args=[] type=_
 expr e38 stringTemplate[expr(e35),lit(=),expr(e37)] type=_
-expr e39 name(it) type=Class#285<out String, out Int> ref=s-1011264
-expr e40 memberCall recv=e39 callee=key args=[] type=String call=s288 map=[] targs=[String,Int]
-expr e41 name(it) type=Class#285<out String, out Int> ref=s-1011264
-expr e42 memberCall recv=e41 callee=value args=[] type=Int call=s289 map=[] targs=[String,Int]
+expr e39 name(it) type=Class#287<out String, out Int> ref=s-1011264
+expr e40 memberCall recv=e39 callee=key args=[] type=String call=s290 map=[] targs=[String,Int]
+expr e41 name(it) type=Class#287<out String, out Int> ref=s-1011264
+expr e42 memberCall recv=e41 callee=value args=[] type=Int call=s291 map=[] targs=[String,Int]
 expr e43 stringTemplate[expr(e40),lit(=),expr(e42)] type=String
 expr e44 lambda params=[] body=e43 label=map type=(Class#287<out String, out Int>) -> Any
 expr e45 memberCall recv=e33 callee=map args=[_:e44] type=Class#123<String>
@@ -3484,13 +3484,13 @@ expr e47 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e48 string(z) type=String
 expr e49 indexedAccess receiver=e47 indices=[e48] type=_
 expr e50 int(99) type=Int
-expr e51 indexedAssign receiver=e47 indices=[e48] value=e50 type=Unit call=s278 map=[0->0,1->1] targs=[String,Int]
+expr e51 indexedAssign receiver=e47 indices=[e48] value=e50 type=Unit call=s280 map=[0->0,1->1] targs=[String,Int]
 expr e52 name(println) type=_
 expr e53 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e54 call callee=e52 args=[_:e53] type=Unit call=s1628 map=[0->0] targs=[]
 expr e55 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e56 string(a) type=String
-expr e57 memberCall recv=e55 callee=remove args=[_:e56] type=Int? call=s280 map=[0->0] targs=[String,Int]
+expr e57 memberCall recv=e55 callee=remove args=[_:e56] type=Int? call=s282 map=[0->0] targs=[String,Int]
 expr e58 name(println) type=_
 expr e59 name(lhm) type=Class#277<String, Int> ref=s3426
 expr e60 memberCall recv=e59 callee=size args=[] type=Int
@@ -3517,7 +3517,7 @@ expr e80 name(lhm2) type=Class#277<String, String> ref=s3427
 expr e81 string(key2) type=String
 expr e82 indexedAccess receiver=e80 indices=[e81] type=_
 expr e83 string(value2) type=String
-expr e84 indexedAssign receiver=e80 indices=[e81] value=e83 type=Unit call=s278 map=[0->0,1->1] targs=[String,String]
+expr e84 indexedAssign receiver=e80 indices=[e81] value=e83 type=Unit call=s280 map=[0->0,1->1] targs=[String,String]
 expr e85 name(println) type=_
 expr e86 name(lhm2) type=Class#277<String, String> ref=s3427
 expr e87 call callee=e85 args=[_:e86] type=Unit call=s1628 map=[0->0] targs=[]
@@ -3538,7 +3538,7 @@ expr e101 name(mutable) type=Class#277<Int, String> ref=s3428
 expr e102 int(3) type=Int
 expr e103 indexedAccess receiver=e101 indices=[e102] type=_
 expr e104 string(three) type=String
-expr e105 indexedAssign receiver=e101 indices=[e102] value=e104 type=Unit call=s278 map=[0->0,1->1] targs=[Int,String]
+expr e105 indexedAssign receiver=e101 indices=[e102] value=e104 type=Unit call=s280 map=[0->0,1->1] targs=[Int,String]
 expr e106 name(println) type=_
 expr e107 name(mutable) type=Class#277<Int, String> ref=s3428
 expr e108 call callee=e106 args=[_:e107] type=Unit call=s1628 map=[0->0] targs=[]
@@ -3546,12 +3546,12 @@ expr e109 name(mutable) type=Class#277<Int, String> ref=s3428
 expr e110 name(mapOf) type=_
 expr e111 int(4) type=Int
 expr e112 string(four) type=String
-expr e113 memberCall recv=e111 callee=to args=[_:e112] type=Class#73<Int, String>
+expr e113 memberCall recv=e111 callee=to args=[_:e112] type=Class#75<Int, String>
 expr e114 int(5) type=Int
 expr e115 string(five) type=String
-expr e116 memberCall recv=e114 callee=to args=[_:e115] type=Class#73<Int, String>
-expr e117 call callee=e110 args=[_:e113,_:e116] type=Class#257<Int, out String>
-expr e118 memberCall recv=e109 callee=putAll args=[_:e117] type=Unit call=s283 map=[0->0] targs=[]
+expr e116 memberCall recv=e114 callee=to args=[_:e115] type=Class#75<Int, String>
+expr e117 call callee=e110 args=[_:e113,_:e116] type=Class#259<Int, out String>
+expr e118 memberCall recv=e109 callee=putAll args=[_:e117] type=Unit call=s285 map=[0->0] targs=[]
 expr e119 name(println) type=_
 expr e120 name(mutable) type=Class#277<Int, String> ref=s3428
 expr e121 call callee=e119 args=[_:e120] type=Unit call=s1628 map=[0->0] targs=[]
@@ -3593,7 +3593,7 @@ expr e156 name(generic) type=Class#277<Double, Boolean> ref=s3429
 expr e157 double(2.7) type=Double
 expr e158 indexedAccess receiver=e156 indices=[e157] type=_
 expr e159 bool(false) type=Boolean
-expr e160 indexedAssign receiver=e156 indices=[e157] value=e159 type=Unit call=s278 map=[0->0,1->1] targs=[Double,Boolean]
+expr e160 indexedAssign receiver=e156 indices=[e157] value=e159 type=Unit call=s280 map=[0->0,1->1] targs=[Double,Boolean]
 expr e161 name(println) type=_
 expr e162 name(generic) type=Class#277<Double, Boolean> ref=s3429
 expr e163 call callee=e161 args=[_:e162] type=Unit call=s1628 map=[0->0] targs=[]

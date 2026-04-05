@@ -3518,7 +3518,7 @@ expr e46 name(e) type=Int ref=s3454
 expr e47 return value=e46 type=Nothing
 expr e48 name(s) type=String? ref=s3448
 expr e49 safeMemberCall recv=e48 callee=hashCode args=[] type=<error>
-expr e50 name(IntArray) type=Any ref=s340
+expr e50 name(IntArray) type=Any ref=s342
 expr e51 int(3) type=Int
 expr e52 call callee=e50 args=[_:e51] type=Any
 expr e53 localDecl arr mutable=1 type=_ init=e52 type=Unit ref=s3455

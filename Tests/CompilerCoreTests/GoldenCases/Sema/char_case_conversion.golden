@@ -3431,8 +3431,8 @@ file f0 package=_
   decl d1 fun charLowercase suspend=0 inline=0 sym=s3426
   decl d2 fun charTitlecase suspend=0 inline=0 sym=s3427
 expr e0 char(97) type=Char
-expr e1 memberCall recv=e0 callee=uppercase args=[] type=String call=s878 map=[] targs=[]
+expr e1 memberCall recv=e0 callee=uppercase args=[] type=String call=s880 map=[] targs=[]
 expr e2 char(65) type=Char
-expr e3 memberCall recv=e2 callee=lowercase args=[] type=String call=s879 map=[] targs=[]
+expr e3 memberCall recv=e2 callee=lowercase args=[] type=String call=s881 map=[] targs=[]
 expr e4 char(97) type=Char
-expr e5 memberCall recv=e4 callee=titlecase args=[] type=String call=s880 map=[] targs=[]
+expr e5 memberCall recv=e4 callee=titlecase args=[] type=String call=s882 map=[] targs=[]

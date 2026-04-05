@@ -3465,11 +3465,11 @@ expr e3 call callee=e0 args=[_:e2] type=Unit call=s1628 map=[0->0] targs=[]
 expr e4 name(LinkedList) type=Any ref=s379
 expr e5 call callee=e4 args=[] type=<error>
 expr e6 return value=e5 type=Nothing
-expr e7 name(LinkedList) type=Any ref=s377
+expr e7 name(LinkedList) type=Any ref=s379
 expr e8 call callee=e7 args=[] type=<error>
-expr e9 name(LinkedList) type=Any ref=s377
+expr e9 name(LinkedList) type=Any ref=s379
 expr e10 call callee=e9 args=[] type=<error>
-expr e11 name(LinkedList) type=Any ref=s377
+expr e11 name(LinkedList) type=Any ref=s379
 expr e12 call callee=e11 args=[] type=<error>
 expr e13 localDecl nested mutable=0 type=t13 init=e12 type=Unit ref=s3441
 expr e14 name(LinkedList) type=Any ref=s379
@@ -3488,11 +3488,11 @@ expr e26 call callee=e23 args=[_:e25] type=Unit call=s1628 map=[0->0] targs=[]
 expr e27 string(custom) type=String
 expr e28 name(list) type=T#3437 ref=s3438
 expr e29 return value=e28 type=Nothing
-expr e30 this type=Class#221<String>
-expr e31 memberCall recv=e30 callee=size args=[] type=Int ref=s118
+expr e30 this type=Class#223<String>
+expr e31 memberCall recv=e30 callee=size args=[] type=Int ref=s120
 expr e32 stringTemplate[lit(extended: ),expr(e31)] type=String
 expr e33 return value=e32 type=Nothing
-expr e34 name(LinkedList) type=Any ref=s377
+expr e34 name(LinkedList) type=Any ref=s379
 expr e35 call callee=e34 args=[] type=<error>
 expr e36 localDecl list mutable=0 type=t27 init=e35 type=Unit ref=s3443
 expr e37 name(list) type=Class#223<String> ref=s3443
@@ -3500,7 +3500,7 @@ expr e38 string(hello) type=String
 expr e39 memberCall recv=e37 callee=add args=[_:e38] type=Boolean call=s226 map=[0->0] targs=[String]
 expr e40 name(list) type=Class#223<String> ref=s3443
 expr e41 string(world) type=String
-expr e42 memberCall recv=e40 callee=add args=[_:e41] type=Boolean call=s224 map=[0->0] targs=[String]
+expr e42 memberCall recv=e40 callee=add args=[_:e41] type=Boolean call=s226 map=[0->0] targs=[String]
 expr e43 name(println) type=_
 expr e44 name(list) type=Class#223<String> ref=s3443
 expr e45 memberCall recv=e44 callee=size args=[] type=Int ref=s120
@@ -3514,7 +3514,7 @@ expr e52 name(list) type=Class#223<String> ref=s3443
 expr e53 localDecl ml mutable=0 type=t30 init=e52 type=Unit ref=s3444
 expr e54 name(ml) type=Class#223<String> ref=s3444
 expr e55 string(!) type=String
-expr e56 memberCall recv=e54 callee=add args=[_:e55] type=Boolean call=s224 map=[0->0] targs=[String]
+expr e56 memberCall recv=e54 callee=add args=[_:e55] type=Boolean call=s226 map=[0->0] targs=[String]
 expr e57 name(println) type=_
 expr e58 name(ml) type=Class#223<String> ref=s3444
 expr e59 memberCall recv=e58 callee=size args=[] type=Int ref=s120
@@ -3552,7 +3552,7 @@ expr e90 call callee=e89 args=[] type=Class#223<Int> call=s3427 map=[] targs=[]
 expr e91 localDecl created mutable=0 type=_ init=e90 type=Unit ref=s3447
 expr e92 name(created) type=Class#223<Int> ref=s3447
 expr e93 int(42) type=Int
-expr e94 memberCall recv=e92 callee=add args=[_:e93] type=Boolean call=s224 map=[0->0] targs=[Int]
+expr e94 memberCall recv=e92 callee=add args=[_:e93] type=Boolean call=s226 map=[0->0] targs=[Int]
 expr e95 name(println) type=_
 expr e96 name(created) type=Class#223<Int> ref=s3447
 expr e97 memberCall recv=e96 callee=size args=[] type=Int ref=s120
@@ -3563,7 +3563,7 @@ expr e101 localDecl container mutable=0 type=_ init=e100 type=Unit ref=s3448
 expr e102 name(container) type=Class#3428 ref=s3448
 expr e103 memberCall recv=e102 callee=items args=[] type=Class#223<String> ref=s3430
 expr e104 string(property) type=String
-expr e105 memberCall recv=e103 callee=add args=[_:e104] type=Boolean call=s224 map=[0->0] targs=[String]
+expr e105 memberCall recv=e103 callee=add args=[_:e104] type=Boolean call=s226 map=[0->0] targs=[String]
 expr e106 name(println) type=_
 expr e107 name(container) type=Class#3428 ref=s3448
 expr e108 memberCall recv=e107 callee=items args=[] type=Class#223<String> ref=s3430

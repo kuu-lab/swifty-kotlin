@@ -3449,7 +3449,7 @@ expr e15 name(mm) type=Class#277<String, Int> ref=s3427
 expr e16 string(w) type=String
 expr e17 indexedAccess receiver=e15 indices=[e16] type=_
 expr e18 int(40) type=Int
-expr e19 indexedAssign receiver=e15 indices=[e16] value=e18 type=Unit call=s278 map=[0->0,1->1] targs=[String,Int]
+expr e19 indexedAssign receiver=e15 indices=[e16] value=e18 type=Unit call=s280 map=[0->0,1->1] targs=[String,Int]
 expr e20 name(println) type=_
 expr e21 name(mm) type=Class#277<String, Int> ref=s3427
 expr e22 memberCall recv=e21 callee=size args=[] type=Int
@@ -3474,7 +3474,7 @@ expr e40 memberCall recv=e38 callee=containsValue args=[_:e39] type=Boolean call
 expr e41 call callee=e37 args=[_:e40] type=Unit call=s1628 map=[0->0] targs=[]
 expr e42 name(hm) type=Class#277<String, Int> ref=s3426
 expr e43 string(y) type=String
-expr e44 memberCall recv=e42 callee=remove args=[_:e43] type=Int? call=s280 map=[0->0] targs=[String,Int]
+expr e44 memberCall recv=e42 callee=remove args=[_:e43] type=Int? call=s282 map=[0->0] targs=[String,Int]
 expr e45 name(println) type=_
 expr e46 name(hm) type=Class#277<String, Int> ref=s3426
 expr e47 memberCall recv=e46 callee=size args=[] type=Int
