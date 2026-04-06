@@ -420,7 +420,7 @@ final class RuntimeSequenceTests: XCTestCase {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0
         for (index, element) in elements.enumerated() {
-            _ = kk_array_set(arrayRaw, index, element, &thrown)
+            _ = _ = kk_array_set(arrayRaw, index, element, &thrown)
             XCTAssertEqual(thrown, 0)
         }
         return arrayRaw
@@ -660,8 +660,8 @@ final class RuntimeSequenceTests: XCTestCase {
             // Create a list [10, 20]
             let arr = kk_array_new(2)
             var thrown = 0
-            _ = kk_array_set(arr, 0, 10, &thrown)
-            _ = kk_array_set(arr, 1, 20, &thrown)
+            _ = _ = kk_array_set(arr, 0, 10, &thrown)
+            _ = _ = kk_array_set(arr, 1, 20, &thrown)
             let list = kk_list_of(arr, 2)
             _ = kk_sequence_builder_yieldAll(builderRaw, list)
             _ = kk_sequence_builder_yield(builderRaw, 30)
@@ -997,8 +997,8 @@ final class RuntimeSequenceTests: XCTestCase {
             // Create a list [value, value * 10]
             let arr = kk_array_new(2)
             var thrown = 0
-            _ = kk_array_set(arr, 0, value, &thrown)
-            _ = kk_array_set(arr, 1, value * 10, &thrown)
+            _ = _ = kk_array_set(arr, 0, value, &thrown)
+            _ = _ = kk_array_set(arr, 1, value * 10, &thrown)
             return kk_list_of(arr, 2)
         }
         
@@ -1126,8 +1126,8 @@ final class RuntimeSequenceTests: XCTestCase {
             // Create a list [value, value * 10]
             let arr = kk_array_new(2)
             var thrown = 0
-            _ = kk_array_set(arr, 0, value, &thrown)
-            _ = kk_array_set(arr, 1, value * 10, &thrown)
+            _ = _ = kk_array_set(arr, 0, value, &thrown)
+            _ = _ = kk_array_set(arr, 1, value * 10, &thrown)
             return kk_list_of(arr, 2)
         }
         let flatMapped = kk_sequence_flatMap(

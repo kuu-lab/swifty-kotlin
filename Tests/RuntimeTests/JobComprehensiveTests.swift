@@ -327,7 +327,7 @@ final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
         expectation.expectedFulfillmentCount = 10
         
         // Concurrent state queries
-        for i in 0..<10 {
+        for _ in 0..<10 {
             DispatchQueue.global().async {
                 let active = kk_job_is_active(jobHandle)
                 let completed = kk_job_is_completed(jobHandle)
