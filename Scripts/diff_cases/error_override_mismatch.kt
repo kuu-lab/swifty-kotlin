@@ -29,13 +29,23 @@ class BadImpl : IBase {
     fun interfaceMethod(): String = "wrong return type"  // KSWIFTK-SEMA-0033: 'interfaceMethod' clashes with method in IBase
 }
 
-// ERROR: Override of property with var when base is val
+// Overriding val with var is explicitly allowed in Kotlin (widening is permitted).
+// This is NOT an error:
 open class PropBase {
     open val readOnly: Int = 0
 }
 
 class PropChild : PropBase() {
-    override var readOnly: Int = 0  // KSWIFTK-SEMA-0034: var cannot override val
+    override var readOnly: Int = 0  // OK: widening val -> var is valid in Kotlin
+}
+
+// ERROR: Override changes property type to an incompatible (non-subtype) type
+open class TypeBase {
+    open val count: Number = 0
+}
+
+class TypeChild : TypeBase() {
+    override val count: String = "wrong"  // KSWIFTK-SEMA-0031: type of 'count' is not a subtype of the overridden property type
 }
 
 fun main() {}
