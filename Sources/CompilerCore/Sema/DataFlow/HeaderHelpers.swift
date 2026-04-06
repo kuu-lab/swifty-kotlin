@@ -165,7 +165,11 @@ extension DataFlowSemaPhase {
             guard let record = recordsBySymbol[symbol.id] else {
                 continue
             }
-            var annotations = symbols.annotations(for: symbol.id)
+            // Strip any existing kotlin.Metadata annotation before appending the new one
+            // to prevent infinite nesting when the symbol is re-processed.
+            var annotations = symbols.annotations(for: symbol.id).filter {
+                !KnownCompilerAnnotation.metadata.matches($0.annotationFQName)
+            }
             annotations.append(encoder.metadataAnnotationRecord(for: record))
             symbols.setAnnotations(annotations, for: symbol.id)
         }
