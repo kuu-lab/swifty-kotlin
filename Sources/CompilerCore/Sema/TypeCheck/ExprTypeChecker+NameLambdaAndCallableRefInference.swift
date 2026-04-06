@@ -861,7 +861,8 @@ extension ExprTypeChecker {
             let memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                 named: member,
                 receiverType: nonNullReceiver,
-                sema: sema
+                sema: sema,
+                interner: interner
             )
             if !memberCandidates.isEmpty {
                 candidates = memberCandidates
@@ -1323,7 +1324,8 @@ extension ExprTypeChecker {
             candidateSymbols = driver.helpers.collectMemberFunctionCandidates(
                 named: calleeName,
                 receiverType: receiverType,
-                sema: sema
+                sema: sema,
+                interner: ctx.interner
             )
         }
 
