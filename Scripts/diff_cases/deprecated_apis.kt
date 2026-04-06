@@ -1,7 +1,5 @@
-import kotlin.io.createTempDir
-import kotlin.io.createTempFile
+import java.nio.file.Files
 
-@Suppress("DEPRECATION_ERROR", "KSWIFTK-SEMA-DEPRECATED")
 fun main() {
     val legacyChar = 65.toChar()
     println(legacyChar)
@@ -9,11 +7,11 @@ fun main() {
     val legacySlice = "kotlin".subSequence(1, 4)
     println(legacySlice)
 
-    val tempDir = createTempDir(prefix = "kswiftk-", suffix = "-dir")
+    val tempDir = Files.createTempDirectory("kswiftk-").toFile()
     println(tempDir.exists())
     println(tempDir.isDirectory)
 
-    val tempFile = createTempFile(prefix = "kswiftk-", suffix = ".tmp", directory = tempDir)
+    val tempFile = Files.createTempFile(tempDir.toPath(), "kswiftk-", ".tmp").toFile()
     println(tempFile.exists())
     println(tempFile.isFile)
 
