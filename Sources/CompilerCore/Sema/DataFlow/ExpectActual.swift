@@ -566,13 +566,11 @@ extension DataFlowSemaPhase {
                 return underlyingType
             }
             
-            // In CI environments, use shorter delays and avoid Thread.sleep
-            // which can cause issues in certain CI configurations
+            // In CI environments, use shorter delays to avoid timing issues
             if attempt < maxRetries - 1 {
-                // Minimal delay for CI environments
-                let delay = attempt == 0 ? 0.0001 : 0.001
-                // Use usleep for more precise timing in CI
-                usleep(useconds_t(delay * 1_000_000))
+                // Minimal delay for CI environments with exponential backoff
+                let delay = baseDelay * pow(2.0, Double(attempt))
+                Thread.sleep(forTimeInterval: delay)
             }
         }
         return nil
