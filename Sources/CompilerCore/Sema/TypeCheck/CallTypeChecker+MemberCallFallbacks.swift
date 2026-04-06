@@ -463,6 +463,7 @@ extension CallTypeChecker {
         if let fallbackCallee = resolveCollectionFallbackCallee(
             memberName: calleeName,
             receiverID: receiverID,
+            argExprs: args.map(\.expr),
             argCount: args.count,
             sema: sema
         ) {
@@ -508,6 +509,7 @@ extension CallTypeChecker {
     private func resolveCollectionFallbackCallee(
         memberName: InternedString,
         receiverID: ExprID,
+        argExprs: [ExprID] = [],
         argCount: Int,
         sema: SemaModule
     ) -> SymbolID? {
@@ -534,6 +536,23 @@ extension CallTypeChecker {
                     return false
                 }
                 return true
+            }
+            // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
+            // IntRange overload (kk_list_slice) when the first argument is a range expression,
+            // and the Iterable overload (kk_list_slice_iterable) otherwise.
+            if argCount == 1,
+               allCandidates.count > 1,
+               let firstArgExpr = argExprs.first,
+               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_slice" }),
+               allCandidates.contains(where: { sema.symbols.externalLinkName(for: $0) == "kk_list_slice_iterable" })
+            {
+                let isRangeArg = sema.bindings.isRangeExpr(firstArgExpr)
+                let targetLinkName = isRangeArg ? "kk_list_slice" : "kk_list_slice_iterable"
+                if let sliceMatch = allCandidates.first(where: { candidate in
+                    sema.symbols.externalLinkName(for: candidate) == targetLinkName
+                }) {
+                    return sliceMatch
+                }
             }
             // Prefer the overload whose parameter count matches the call-site
             // argument count so that e.g. windowed(3, 2, true) resolves to the
@@ -659,6 +678,7 @@ extension CallTypeChecker {
         ]
         let listOnlyMembers: Set = [
             interner.intern("subList"),
+            interner.intern("slice"),
             interner.intern("getOrNull"),
             interner.intern("elementAtOrNull"),
             interner.intern("binarySearch"),
@@ -732,7 +752,7 @@ extension CallTypeChecker {
             interner.intern("onEach"), interner.intern("onEachIndexed"),
             interner.intern("filterIsInstance"),
             interner.intern("takeWhile"), interner.intern("dropWhile"),
-            interner.intern("subList"),
+            interner.intern("subList"), interner.intern("slice"),
             interner.intern("intersect"), interner.intern("union"), interner.intern("subtract"),
             interner.intern("scan"), interner.intern("scanIndexed"),
             interner.intern("runningFold"), interner.intern("runningFoldIndexed"),
@@ -825,6 +845,8 @@ extension CallTypeChecker {
             return isMapReceiver && argCount == 1
         case interner.intern("fold"), interner.intern("foldIndexed"), interner.intern("scan"), interner.intern("scanIndexed"), interner.intern("runningFold"), interner.intern("runningFoldIndexed"), interner.intern("subList"):
             return argCount == 2
+        case interner.intern("slice"):
+            return argCount == 1
         case interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
