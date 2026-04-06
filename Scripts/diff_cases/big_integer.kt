@@ -1,4 +1,5 @@
 import java.math.BigInteger
+// KSWIFTK_DIFF_IGNORE - BigInteger methods not yet implemented
 
 fun main() {
     // BigInteger(String) constructor

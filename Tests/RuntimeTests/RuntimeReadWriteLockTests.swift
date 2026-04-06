@@ -5,9 +5,9 @@ import XCTest
 private let runtimeReadWriteLockStateLock = NSLock()
 nonisolated(unsafe) private var _runtimeReadWriteLockActiveReaders = 0
 nonisolated(unsafe) private var _runtimeReadWriteLockMaxReaders = 0
-private var runtimeReadWriteLockReadEnteredSemaphore = DispatchSemaphore(value: 0)
-private var runtimeReadWriteLockReadReleaseSemaphore = DispatchSemaphore(value: 0)
-private var runtimeReadWriteLockWriterEnteredSemaphore = DispatchSemaphore(value: 0)
+nonisolated(unsafe) private var runtimeReadWriteLockReadEnteredSemaphore = DispatchSemaphore(value: 0)
+nonisolated(unsafe) private var runtimeReadWriteLockReadReleaseSemaphore = DispatchSemaphore(value: 0)
+nonisolated(unsafe) private var runtimeReadWriteLockWriterEnteredSemaphore = DispatchSemaphore(value: 0)
 
 private var runtimeReadWriteLockActiveReaders: Int {
     get {
@@ -165,8 +165,8 @@ final class RuntimeReadWriteLockLegacyTests: XCTestCase {
     }
 }
 
-private var readWriteLockHandle: Int = 0
-private var capturedReadClosureRaw: Int = 0
+nonisolated(unsafe) private var readWriteLockHandle: Int = 0
+nonisolated(unsafe) private var capturedReadClosureRaw: Int = 0
 
 private let readEchoThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, outThrown in
     capturedReadClosureRaw = closureRaw
