@@ -1050,6 +1050,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-140: String.getOrNull(Int): Char? ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "getOrNull",
+            externalLinkName: "kk_string_getOrNull",
+            receiverType: stringType,
+            parameters: [
+                ("index", intType, false, false),
+            ],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-191: prependIndent / replaceIndent ---
 
         registerSyntheticStringExtensionFunction(
