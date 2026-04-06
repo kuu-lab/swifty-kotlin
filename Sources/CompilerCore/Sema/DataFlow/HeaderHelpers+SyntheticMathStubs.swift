@@ -109,6 +109,9 @@ extension DataFlowSemaPhase {
             // STDLIB-MATH-109: Hyperbolic and cbrt Float overloads
             ("sinh", "kk_math_sinh_float"), ("cosh", "kk_math_cosh_float"),
             ("tanh", "kk_math_tanh_float"), ("cbrt", "kk_math_cbrt_float"),
+            // STDLIB-MATH-113: Inverse hyperbolic Float overloads
+            ("acosh", "kk_math_acosh_float"), ("asinh", "kk_math_asinh_float"),
+            ("atanh", "kk_math_atanh_float"),
         ] {
             registerSyntheticMathTopLevelFunction(
                 named: name,
@@ -477,6 +480,38 @@ extension DataFlowSemaPhase {
             parameterType: types.doubleType,
             returnType: types.doubleType,
             externalLinkName: "kk_math_cbrt",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-MATH-113: Inverse hyperbolic functions (Double)
+        registerSyntheticMathTopLevelFunction(
+            named: "acosh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_acosh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "asinh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_asinh",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticMathTopLevelFunction(
+            named: "atanh",
+            packageFQName: kotlinMathPkg,
+            parameterName: "x",
+            parameterType: types.doubleType,
+            returnType: types.doubleType,
+            externalLinkName: "kk_math_atanh",
             symbols: symbols,
             interner: interner
         )
