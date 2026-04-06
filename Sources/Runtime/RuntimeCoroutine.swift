@@ -391,6 +391,15 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
     /// to avoid double-releasing the original passRetained.
     private var isConsumedByUserCode = false
+    /// Set when the async body is actually scheduled (`KxMiniRuntime.launch` / dispatcher queue).
+    /// Keeps `kk_job_is_active` aligned with `RuntimeJobHandle` (inactive until `markStarted`).
+    private var isBodyStarted = false
+
+    func markStarted() {
+        lock.lock()
+        isBodyStarted = true
+        lock.unlock()
+    }
 
     func markConsumedByUserCode() {
         lock.lock()
@@ -418,12 +427,11 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         return isCancelled
     }
 
-    /// Thread-safe snapshot of the active state (not completed AND not cancelled).
-    /// Reads both flags under a single lock acquisition to avoid TOCTOU races.
+    /// Thread-safe snapshot of the active state (started, not completed, not cancelled).
     func isActiveSnapshot() -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return !isCompleted && !isCancelled
+        return isBodyStarted && !isCompleted && !isCancelled
     }
 
     /// Thread-safe snapshot for `kk_job_is_failed` (aligned with `RuntimeJobHandle.isFailedSnapshot`).
@@ -1328,6 +1336,7 @@ public func kk_kxmini_async(_ entryPointRaw: Int, _ functionID: Int) -> Int {
     }
 
     KxMiniRuntime.launch {
+        task.markStarted()
         let result = runSuspendEntryLoopWithContinuation(
             entryPointRaw: entryPointRaw, continuation: continuation
         )
@@ -1438,6 +1447,7 @@ public func kk_kxmini_async_with_cont(_ entryPointRaw: Int, _ continuation: Int)
     }
 
     KxMiniRuntime.launch {
+        task.markStarted()
         // Propagate scope to GCD thread so nested launch/async discover the parent.
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
@@ -1754,6 +1764,7 @@ public func kk_kxmini_async_with_dispatcher(_ dispatcherTag: Int, _ entryPointRa
     let queue = dispatchQueue(for: dispatcherTag)
 
     queue.async {
+        task.markStarted()
         RuntimeCoroutineScope.current = callerScope
         let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
         RuntimeCoroutineScope.current = nil
@@ -5341,8 +5352,8 @@ public func kk_coroutine_scope_register_child(_ scopeHandle: Int, _ childHandle:
 /// This consumes the handle (balances the passRetained from launch).
 @_cdecl("kk_job_join")
 public func kk_job_join(_ jobHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_job_join received invalid job handle")
+    guard jobHandle != 0, let ptr = UnsafeMutableRawPointer(bitPattern: jobHandle) else {
+        return 0
     }
     // Mark on the handle object itself that user code is consuming the passRetained.
     // This is checked by scope's waitForChildren to avoid double-release.
