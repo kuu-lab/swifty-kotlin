@@ -945,6 +945,65 @@ public final class SymbolTable {
         defer { lock.unlock() }
         return expectActualLinks[expect]
     }
+    
+    /// Validate the consistency of expect/actual links for debugging purposes
+    public func validateExpectActualLinks() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        
+        var issues: [String] = []
+        
+        for (expectId, actualId) in expectActualLinks {
+            // Check if both symbols exist
+            guard let expectSymbol = symbol(expectId) else {
+                issues.append("Expect symbol \(expectId) not found in symbol table")
+                continue
+            }
+            
+            guard let actualSymbol = symbol(actualId) else {
+                issues.append("Actual symbol \(actualId) not found in symbol table")
+                continue
+            }
+            
+            // Check if expect symbol has expect flag
+            if !expectSymbol.flags.contains(.expectDeclaration) {
+                issues.append("Symbol \(expectId) lacks expect declaration flag")
+            }
+            
+            // Check if actual symbol has actual flag
+            if !actualSymbol.flags.contains(.actualDeclaration) {
+                issues.append("Symbol \(actualId) lacks actual declaration flag")
+            }
+            
+            // Check if FQ names match (for same-package expect/actual)
+            if expectSymbol.fqName == actualSymbol.fqName {
+                // Same package expect/actual should have compatible kinds
+                if !areKindsCompatibleForExpectActual(expect: expectSymbol.kind, actual: actualSymbol.kind) {
+                    issues.append("Incompatible kinds: expect=\(expectSymbol.kind), actual=\(actualSymbol.kind)")
+                }
+            }
+        }
+        
+        return issues
+    }
+    
+    /// Check if two symbol kinds are compatible for expect/actual relationship
+    private func areKindsCompatibleForExpectActual(expect: SymbolKind, actual: SymbolKind) -> Bool {
+        switch (expect, actual) {
+        case (.annotationClass, .annotationClass), (.annotationClass, .typeAlias):
+            return true
+        case (.function, .function), (.constructor, .constructor):
+            return true
+        case (.property, .property), (.field, .field):
+            return true
+        case (.class, .class), (.interface, .interface), (.object, .object):
+            return true
+        case (.enumClass, .enumClass):
+            return true
+        default:
+            return expect == actual
+        }
+    }
 
     public func setContractNonNullEffect(_ effect: ContractNonNullEffect, for function: SymbolID) {
         contractNonNullEffects[function] = effect

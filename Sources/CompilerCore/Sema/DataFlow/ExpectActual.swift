@@ -39,9 +39,26 @@ extension DataFlowSemaPhase {
                 .joined(separator: ".")
 
             guard let actualSym = compatibleCandidates.first else {
+                // Enhanced diagnostic with detailed failure information
+                let candidateCount = candidates.count
+                let compatibleCount = compatibleCandidates.count
+                
+                var diagnosticMessage = "Missing matching 'actual' declaration for expect symbol '\(rendered)'."
+                if candidateCount == 0 {
+                    diagnosticMessage += " No actual candidates found with same FQ name."
+                } else if compatibleCount == 0 {
+                    diagnosticMessage += " Found \(candidateCount) actual candidates but none were compatible."
+                }
+                
+                // Add debug information about candidates
+                if !candidates.isEmpty {
+                    let candidateKinds = candidates.map { "\($0.kind)" }.joined(separator: ", ")
+                    diagnosticMessage += " Candidate kinds: [\(candidateKinds)]."
+                }
+                
                 diagnostics.error(
                     "KSWIFTK-MPP-UNRESOLVED",
-                    "Missing matching 'actual' declaration for expect symbol '\(rendered)'.",
+                    diagnosticMessage,
                     range: expectSym.declSite
                 )
                 continue
@@ -68,12 +85,20 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         if expect.kind == .annotationClass, actual.kind == .typeAlias {
             // Check if the typealias's underlying type points to an annotation class
-            guard let underlyingType = symbols.typeAliasUnderlyingType(for: actual.id) else {
+            // Use retry mechanism for robust resolution in concurrent environments
+            let underlyingType = getTypeAliasUnderlyingTypeWithRetry(
+                for: actual.id,
+                symbols: symbols,
+                maxRetries: 3,
+                baseDelay: 0.001
+            )
+            
+            guard let resolvedType = underlyingType else {
                 return false
             }
             
             // The underlying type should be a class type pointing to an annotation class
-            if case let .classType(classType) = types.kind(of: underlyingType) {
+            if case let .classType(classType) = types.kind(of: resolvedType) {
                 guard classType.nullability == .nonNull,
                       let underlyingSymbol = symbols.symbol(classType.classSymbol)
                 else {
@@ -522,6 +547,28 @@ extension DataFlowSemaPhase {
         default:
             return false
         }
+    }
+    
+    /// Retry mechanism for getting typealias underlying type with exponential backoff
+    private func getTypeAliasUnderlyingTypeWithRetry(
+        for symbol: SymbolID,
+        symbols: SymbolTable,
+        maxRetries: Int,
+        baseDelay: TimeInterval
+    ) -> TypeID? {
+        for attempt in 0..<maxRetries {
+            if let underlyingType = symbols.typeAliasUnderlyingType(for: symbol) {
+                return underlyingType
+            }
+            
+            // Exponential backoff with jitter
+            if attempt < maxRetries - 1 {
+                let delay = baseDelay * pow(2.0, Double(attempt))
+                let jitter = delay * 0.1 * Double.random(in: -1...1)
+                Thread.sleep(forTimeInterval: delay + jitter)
+            }
+        }
+        return nil
     }
 
     private func expectActualNominalSymbolsMatch(
