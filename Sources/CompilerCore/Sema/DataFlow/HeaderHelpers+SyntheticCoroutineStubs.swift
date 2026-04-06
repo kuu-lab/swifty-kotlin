@@ -1957,11 +1957,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let kotlinCoroutinesCancellationPkg = ensureSyntheticPackage(
-            kotlinCoroutinesPkg + [interner.intern("cancellation")],
-            symbols: symbols,
-            interner: interner
-        )
         registerSyntheticCoroutineExtensionFunction(
             named: "cancel",
             packageFQName: kotlinCoroutinesCancellationPkg,
