@@ -221,11 +221,17 @@ public func kk_jvm_record_create(
             componentValues: []
         ))
     }
-    let componentNames = namesBox.elements.compactMap { raw -> String? in
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-        return extractString(from: ptr)
+    // Build both arrays together via zip so the indices always stay in sync.
+    // If extractString fails for a name we drop both the name and its value,
+    // avoiding the desynchronisation that a solo compactMap would cause.
+    let pairs: [(String, Int)] = zip(namesBox.elements, valuesBox.elements).compactMap { (rawName, rawValue) -> (String, Int)? in
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: rawName),
+              let name = extractString(from: ptr)
+        else { return nil }
+        return (name, rawValue)
     }
-    let componentValues = valuesBox.elements
+    let componentNames = pairs.map { $0.0 }
+    let componentValues = pairs.map { $0.1 }
     return registerRuntimeObject(RuntimeJvmRecordBox(
         qualifiedName: name,
         componentNames: componentNames,
@@ -421,19 +427,19 @@ func jvmTextBlockNormalize(_ raw: String) -> String {
     if nonBlank.isEmpty {
         commonPrefix = ""
     } else {
-        func leadingSpaces(_ s: String) -> Int {
-            var count = 0
-            for ch in s {
-                if ch == " " || ch == "\t" {
-                    count += 1
-                } else {
-                    break
-                }
-            }
-            return count
+        func leadingWhitespace(_ s: String) -> Substring {
+            let end = s.firstIndex(where: { $0 != " " && $0 != "\t" }) ?? s.endIndex
+            return s[s.startIndex..<end]
         }
-        let minIndent = nonBlank.map { leadingSpaces($0) }.min() ?? 0
-        commonPrefix = minIndent > 0 ? String(repeating: " ", count: minIndent) : ""
+        let minIndent = nonBlank.map { leadingWhitespace($0).count }.min() ?? 0
+        // Build the common prefix by taking the first `minIndent` characters
+        // from the first non-blank line. This preserves the actual whitespace
+        // characters (spaces *and* tabs) rather than replacing them all with spaces.
+        if minIndent > 0, let first = nonBlank.first {
+            commonPrefix = String(leadingWhitespace(first).prefix(minIndent))
+        } else {
+            commonPrefix = ""
+        }
     }
 
     // Step 5: remove common prefix from each line
