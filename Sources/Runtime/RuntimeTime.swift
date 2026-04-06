@@ -321,9 +321,10 @@ public func kk_java_instant_of_epoch_second(_ epochSeconds: Int, _ nanoOfSecond:
 /// Kotlin/JVM: java.time.Instant.ofEpochMilli(epochMilli)
 @_cdecl("kk_java_instant_of_epoch_milli")
 public func kk_java_instant_of_epoch_milli(_ epochMillis: Int) -> Int {
-    let epochSec = Int64(epochMillis) / 1_000
-    let nanoRem = Int32(Int64(epochMillis) % 1_000) * 1_000_000
-    return registerRuntimeObject(RuntimeJavaInstantBox(epochSeconds: epochSec, nanoOfSecond: nanoRem))
+    let ms = Int64(epochMillis)
+    let seconds = ms >= 0 ? ms / 1_000 : (ms - 999) / 1_000
+    let nanoOfSecond = Int32((ms - seconds * 1_000) * 1_000_000)
+    return registerRuntimeObject(RuntimeJavaInstantBox(epochSeconds: seconds, nanoOfSecond: nanoOfSecond))
 }
 
 /// Returns a human-readable ISO-8601 string for a java.time.Instant.
@@ -398,8 +399,9 @@ public func kk_java_duration_of_seconds(_ seconds: Int, _ nanoAdjustment: Int) -
 /// Kotlin/JVM: java.time.Duration.ofMillis(millis)
 @_cdecl("kk_java_duration_of_millis")
 public func kk_java_duration_of_millis(_ millis: Int) -> Int {
-    let seconds = Int64(millis) / 1_000
-    let nanoAdjustment = Int32(Int64(millis) % 1_000) * 1_000_000
+    let ms = Int64(millis)
+    let seconds = ms >= 0 ? ms / 1_000 : (ms - 999) / 1_000
+    let nanoAdjustment = Int32((ms - seconds * 1_000) * 1_000_000)
     return registerRuntimeObject(RuntimeJavaDurationBox(seconds: seconds, nanoAdjustment: nanoAdjustment))
 }
 
