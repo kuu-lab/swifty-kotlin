@@ -5865,6 +5865,14 @@ extension CallLowerer {
                     return interner.intern("kk_uint_range_windowed")
                 }
                 return interner.intern("kk_range_windowed")
+            case "take":
+                return interner.intern("kk_range_take")
+            case "drop":
+                return interner.intern("kk_range_drop")
+            case "average":
+                return interner.intern("kk_range_average")
+            case "sorted":
+                return interner.intern("kk_range_sorted")
             case "reversed":
                 if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
                     return interner.intern("kk_ulong_range_reversed")

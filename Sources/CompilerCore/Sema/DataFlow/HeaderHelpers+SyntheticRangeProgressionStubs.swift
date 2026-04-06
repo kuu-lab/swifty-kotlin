@@ -952,6 +952,50 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticIntRangeMethod(
+            named: "take",
+            ownerSymbol: classSymbol,
+            classFQName: classFQName,
+            receiverType: intRangeType,
+            parameterTypes: [types.intType],
+            returnType: syntheticListType(elementType: types.intType, symbols: symbols, types: types, interner: interner),
+            externalLinkName: "kk_range_take",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticIntRangeMethod(
+            named: "drop",
+            ownerSymbol: classSymbol,
+            classFQName: classFQName,
+            receiverType: intRangeType,
+            parameterTypes: [types.intType],
+            returnType: syntheticListType(elementType: types.intType, symbols: symbols, types: types, interner: interner),
+            externalLinkName: "kk_range_drop",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticIntRangeMethod(
+            named: "average",
+            ownerSymbol: classSymbol,
+            classFQName: classFQName,
+            receiverType: intRangeType,
+            parameterTypes: [],
+            returnType: types.doubleType,
+            externalLinkName: "kk_range_average",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticIntRangeMethod(
+            named: "sorted",
+            ownerSymbol: classSymbol,
+            classFQName: classFQName,
+            receiverType: intRangeType,
+            parameterTypes: [],
+            returnType: syntheticListType(elementType: types.intType, symbols: symbols, types: types, interner: interner),
+            externalLinkName: "kk_range_sorted",
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func registerSyntheticIntRangeConstructor(

@@ -2694,6 +2694,31 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
+        // take/drop/average/sorted — IntRange only (STDLIB-RANGE-TDS)
+        if callee == lookup.takeName, arguments.count == 1, !isULongRange, !isUIntRange, !isCharRange {
+            loweredBody.append(.call(symbol: nil, callee: lookup.kkRangeTakeName,
+                arguments: [receiver] + arguments, result: result, canThrow: false, thrownResult: nil))
+            if let result { listExprIDs.insert(result.rawValue) }
+            return true
+        }
+        if callee == lookup.dropName, arguments.count == 1, !isULongRange, !isUIntRange, !isCharRange {
+            loweredBody.append(.call(symbol: nil, callee: lookup.kkRangeDropName,
+                arguments: [receiver] + arguments, result: result, canThrow: false, thrownResult: nil))
+            if let result { listExprIDs.insert(result.rawValue) }
+            return true
+        }
+        if callee == lookup.averageName, arguments.isEmpty, !isULongRange, !isUIntRange, !isCharRange {
+            loweredBody.append(.call(symbol: nil, callee: lookup.kkRangeAverageName,
+                arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
+            return true
+        }
+        if callee == lookup.sortedName, arguments.isEmpty, !isULongRange, !isUIntRange, !isCharRange {
+            loweredBody.append(.call(symbol: nil, callee: lookup.kkRangeSortedName,
+                arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
+            if let result { listExprIDs.insert(result.rawValue) }
+            return true
+        }
+
         // reversed — returns a range (STDLIB-093)
         if callee == lookup.reversedName, arguments.isEmpty {
             let reversedName = isULongRange ? lookup.kkULongRangeReversedName : (isUIntRange ? interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
