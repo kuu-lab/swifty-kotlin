@@ -30,11 +30,11 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(channelHandle, 0)
 
         let expectation = XCTestExpectation(description: "receive completes")
-        var receivedValue = 0
+        let receivedValue = ThreadSafeInt()
 
         // Receive on a background thread (will suspend until a sender pairs).
         DispatchQueue.global().async {
-            receivedValue = kk_channel_receive(channelHandle, 0)
+            receivedValue.set(kk_channel_receive(channelHandle, 0)
             expectation.fulfill()
         }
 
@@ -46,7 +46,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(sendResult.get(), 42, "send should return the sent value")
 
         wait(for: [expectation], timeout: 2.0)
-        XCTAssertEqual(receivedValue, 42, "receiver should get the sent value")
+        XCTAssertEqual(receivedValue.get(), 42, "receiver should get the sent value")
 
         _ = kk_channel_close(channelHandle)
     }
@@ -144,10 +144,10 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         let channelHandle = kk_channel_create(0)
 
         let receiveDone = XCTestExpectation(description: "receive wakes on close")
-        var receivedValue = 0
+        let receivedValue = ThreadSafeInt()
 
         DispatchQueue.global().async {
-            receivedValue = kk_channel_receive(channelHandle, 0)
+            receivedValue.set(kk_channel_receive(channelHandle, 0)
             receiveDone.fulfill()
         }
 
@@ -334,16 +334,16 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
 
         let recv1Done = XCTestExpectation(description: "receiver 1 completes")
         let recv2Done = XCTestExpectation(description: "receiver 2 completes")
-        var received1 = 0
-        var received2 = 0
+        let received1 = ThreadSafeInt()
+        let received2 = ThreadSafeInt()
 
         DispatchQueue.global().async {
-            received1 = kk_channel_receive(channelHandle, 0)
+            received1.set(kk_channel_receive(channelHandle, 0)
             recv1Done.fulfill()
         }
         Thread.sleep(forTimeInterval: 0.02)
         DispatchQueue.global().async {
-            received2 = kk_channel_receive(channelHandle, 0)
+            received2.set(kk_channel_receive(channelHandle, 0)
             recv2Done.fulfill()
         }
         Thread.sleep(forTimeInterval: 0.02)
@@ -390,7 +390,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         job.continuationState = contState
 
         // Cancel the job.
-        job.cancel()
+        _ = job.cancel()
 
         // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
@@ -417,7 +417,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         job.continuationState = contState
 
         // Cancel the job.
-        job.cancel()
+        _ = job.cancel()
 
         // Get the continuation as an opaque Int.
         let contPtr = Unmanaged.passRetained(contState).toOpaque()
@@ -457,7 +457,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         let sendDone = XCTestExpectation(description: "send completes")
         let receiveDone = XCTestExpectation(description: "receive completes")
         let sendResult = ThreadSafeInt()
-        var receivedValue = 0
+        let receivedValue = ThreadSafeInt()
 
         // Create a job handle that we'll cancel while send is suspended
         let job = RuntimeJobHandle()
@@ -478,18 +478,18 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         Thread.sleep(forTimeInterval: 0.05)
 
         // Cancel the job while sender is suspended
-        job.cancel()
+        _ = job.cancel()
 
         // Now add a receiver - the rendezvous completes before cancellation can
         // affect the next suspension point, so the send still succeeds.
         DispatchQueue.global().async {
-            receivedValue = kk_channel_receive(ch, 0)
+            receivedValue.set(kk_channel_receive(ch, 0)
             receiveDone.fulfill()
         }
 
         wait(for: [sendDone, receiveDone], timeout: 2.0)
         XCTAssertEqual(sendResult.get(), 42, "Send should succeed once the value is delivered")
-        XCTAssertEqual(receivedValue, 42, "Receiver should observe the delivered value")
+        XCTAssertEqual(receivedValue.get(), 42, "Receiver should observe the delivered value")
 
         // Clean up
         Unmanaged<RuntimeContinuationState>.fromOpaque(contPtr).release()
@@ -526,7 +526,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
         Thread.sleep(forTimeInterval: 0.05)
 
         // Cancel the job while receiver is suspended
-        job.cancel()
+        _ = job.cancel()
 
         // Now add a sender - the rendezvous completes before cancellation can
         // retroactively discard the received value.
