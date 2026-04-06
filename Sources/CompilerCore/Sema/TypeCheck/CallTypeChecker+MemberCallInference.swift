@@ -691,7 +691,8 @@ extension CallTypeChecker {
                 !driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: receiverType,
-                    sema: sema
+                    sema: sema,
+                    interner: interner
                 ).isEmpty
             } else {
                 false
@@ -1016,7 +1017,8 @@ extension CallTypeChecker {
                 !driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
                     receiverType: receiverType,
-                    sema: sema
+                    sema: sema,
+                    interner: interner
                 ).isEmpty
             } else {
                 false
@@ -2156,7 +2158,7 @@ extension CallTypeChecker {
                 if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                     let comparableElementType = sema.types.make(.classType(ClassType(
                         classSymbol: comparableSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.in(collectionElementType)],
                         nullability: .nonNull
                     )))
                     if !sema.types.isSubtype(collectionElementType, comparableElementType) {
@@ -2216,7 +2218,7 @@ extension CallTypeChecker {
                     if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                         let comparableSelectorType = sema.types.make(.classType(ClassType(
                             classSymbol: comparableSymbol,
-                            args: [.invariant(selectorType)],
+                            args: [.in(selectorType)],
                             nullability: .nonNull
                         )))
                         isNominalComparable = sema.types.isSubtype(selectorType, comparableSelectorType)
@@ -2304,7 +2306,7 @@ extension CallTypeChecker {
                         if let comparableSymbol = sema.types.comparableInterfaceSymbol {
                             let comparableSelectorType = sema.types.make(.classType(ClassType(
                                 classSymbol: comparableSymbol,
-                                args: [.invariant(selectorType)],
+                                args: [.in(selectorType)],
                                 nullability: .nonNull
                             )))
                             isNominalComparable = sema.types.isSubtype(selectorType, comparableSelectorType)
@@ -2777,6 +2779,37 @@ extension CallTypeChecker {
             return finalType
         }
 
+        // STDLIB-NUM-130: Early resolution for Double/Float extension functions
+        // This handles the case where primitive types don't have owner symbols
+        let doubleType = sema.types.make(.primitive(.double, .nonNull))
+        let floatType = sema.types.make(.primitive(.float, .nonNull))
+        let receiverForCheck = safeCall
+            ? sema.types.makeNonNullable(lookupReceiverType)
+            : lookupReceiverType
+        
+        if receiverForCheck == doubleType || receiverForCheck == floatType {
+            let calleeStr = interner.resolve(calleeName)
+            
+            // Handle zero-parameter extension functions for Double/Float
+            if args.isEmpty && (calleeStr == "isNaN" || calleeStr == "isInfinite" || calleeStr == "isFinite" ||
+                               calleeStr == "toBits" || calleeStr == "toRawBits" || calleeStr == "ulp" ||
+                               calleeStr == "nextUp" || calleeStr == "nextDown") {
+                
+                let resultType: TypeID = switch calleeStr {
+                case "isNaN", "isInfinite", "isFinite": sema.types.booleanType
+                case "toBits", "toRawBits": receiverForCheck == doubleType ? sema.types.longType : sema.types.intType
+                case "ulp", "nextUp", "nextDown": receiverForCheck
+                default: sema.types.errorType
+                }
+                
+                if resultType != sema.types.errorType {
+                    let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
+                }
+            }
+        }
+
         // Int/Long/Double/Float.coerceIn(min, max) (STDLIB-150, STDLIB-500)
         if interner.resolve(calleeName) == "coerceIn", args.count == 2 {
             let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -2886,6 +2919,8 @@ extension CallTypeChecker {
                 }
             }
         }
+
+        // STDLIB-NUM-130: Double/Float extension functions - Direct resolution (moved earlier, removed duplicate)
 
         let anyFallbackReceiverType = safeCall
             ? sema.types.makeNonNullable(lookupReceiverType)
@@ -3422,7 +3457,8 @@ extension CallTypeChecker {
                 named: calleeName,
                 receiverType: memberLookupType,
                 sema: sema,
-                allowedOwnerSymbols: allowedOwnerSymbols
+                allowedOwnerSymbols: allowedOwnerSymbols,
+                interner: interner
             )
             if !memberCandidates.isEmpty {
                 // Check if the found candidates belong to a companion object so we
@@ -4758,7 +4794,8 @@ extension CallTypeChecker {
                 let invokeCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: invokeName,
                     receiverType: propResult.type,
-                    sema: sema
+                    sema: sema,
+                    interner: interner
                 ).filter { candidateID in
                     guard let sym = sema.symbols.symbol(candidateID) else { return false }
                     return sym.flags.contains(.operatorFunction)
