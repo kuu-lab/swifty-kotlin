@@ -1,3 +1,4 @@
+// SKIP-DIFF: requires kotlinx-serialization jar not available in the kotlinc diff harness
 import kotlinx.serialization.Decoder
 import kotlinx.serialization.Encoder
 import kotlinx.serialization.KSerializer
