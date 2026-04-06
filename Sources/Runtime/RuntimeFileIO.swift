@@ -691,7 +691,7 @@ public func kk_file_bufferedWriter(_ fileRaw: Int, _ outThrown: UnsafeMutablePoi
     }
     let url = URL(fileURLWithPath: file.path)
     if !FileManager.default.fileExists(atPath: file.path) {
-        FileManager.default.createFile(atPath: file.path, contents: Data())
+        _ = FileManager.default.createFile(atPath: file.path, contents: Data())
     }
     do {
         let handle = try FileHandle(forWritingTo: url)
@@ -792,7 +792,7 @@ public func kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePoint
     }
     let url = URL(fileURLWithPath: file.path)
     if !FileManager.default.fileExists(atPath: file.path) {
-        FileManager.default.createFile(atPath: file.path, contents: Data())
+        _ = FileManager.default.createFile(atPath: file.path, contents: Data())
     }
     do {
         let handle = try FileHandle(forWritingTo: url)
