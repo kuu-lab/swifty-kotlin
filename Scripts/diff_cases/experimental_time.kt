@@ -1,6 +1,6 @@
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
-import kotlin.time.milliseconds
 
 @OptIn(ExperimentalTime::class)
 fun main() {
