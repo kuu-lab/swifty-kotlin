@@ -1,4 +1,4 @@
-import java.nio.file.Files
+import java.io.File
 
 fun main() {
     val legacyChar = 65.toChar()
@@ -7,11 +7,13 @@ fun main() {
     val legacySlice = "kotlin".subSequence(1, 4)
     println(legacySlice)
 
-    val tempDir = Files.createTempDirectory("kswiftk-").toFile()
+    val tempDir = File("/tmp/kswiftk-deprecated-test-dir")
+    tempDir.mkdirs()
     println(tempDir.exists())
     println(tempDir.isDirectory)
 
-    val tempFile = Files.createTempFile(tempDir.toPath(), "kswiftk-", ".tmp").toFile()
+    val tempFile = File("/tmp/kswiftk-deprecated-test-dir/kswiftk-deprecated.tmp")
+    tempFile.createNewFile()
     println(tempFile.exists())
     println(tempFile.isFile)
 
