@@ -363,6 +363,23 @@ public func kk_math_cbrt(_ value: Int) -> Int {
     kk_double_to_bits(cbrt(kk_bits_to_double(value)))
 }
 
+// MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Double)
+
+@_cdecl("kk_math_acosh")
+public func kk_math_acosh(_ value: Int) -> Int {
+    kk_double_to_bits(acosh(kk_bits_to_double(value)))
+}
+
+@_cdecl("kk_math_asinh")
+public func kk_math_asinh(_ value: Int) -> Int {
+    kk_double_to_bits(asinh(kk_bits_to_double(value)))
+}
+
+@_cdecl("kk_math_atanh")
+public func kk_math_atanh(_ value: Int) -> Int {
+    kk_double_to_bits(atanh(kk_bits_to_double(value)))
+}
+
 @_cdecl("kk_math_asin")
 public func kk_math_asin(_ value: Int) -> Int {
     kk_double_to_bits(asin(kk_bits_to_double(value)))
@@ -487,6 +504,23 @@ public func kk_math_tanh_float(_ v: Int) -> Int {
 @_cdecl("kk_math_cbrt_float")
 public func kk_math_cbrt_float(_ v: Int) -> Int {
     applyFloatUnaryOp(v, cbrtf)
+}
+
+// MARK: - STDLIB-MATH-113: Inverse hyperbolic functions (Float)
+
+@_cdecl("kk_math_acosh_float")
+public func kk_math_acosh_float(_ v: Int) -> Int {
+    applyFloatUnaryOp(v, acoshf)
+}
+
+@_cdecl("kk_math_asinh_float")
+public func kk_math_asinh_float(_ v: Int) -> Int {
+    applyFloatUnaryOp(v, asinhf)
+}
+
+@_cdecl("kk_math_atanh_float")
+public func kk_math_atanh_float(_ v: Int) -> Int {
+    applyFloatUnaryOp(v, atanhf)
 }
 
 @_cdecl("kk_math_asin_float")
