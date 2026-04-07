@@ -1817,6 +1817,7 @@ private enum RuntimeFlowTag: Int {
     case debounce = 17
     case sample = 18
     case delayEach = 19
+    case onCompletion = 20
 }
 
 private struct RuntimeFlowEvent {
@@ -2085,7 +2086,7 @@ private func runtimeFlowApplyElementOp(
     var current = event
     for (index, op) in ops.enumerated() {
         switch op.kind {
-        case .emit, .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
+        case .emit, .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach, .onCompletion:
             continue
         case .map, .transform:
             let result = runtimeFlowCallUnary(op.argument, value: current.value)
@@ -2625,6 +2626,10 @@ private func runtimeFlowApplyOpsLazy(
         case .catchHandler, .retry, .retryWhen, .onErrorReturn, .onErrorResume:
             continue
 
+        case .onCompletion:
+            // onCompletion is a completion-only handler; pass elements through unchanged.
+            continue
+
         case .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
             continue
         }
@@ -2753,6 +2758,27 @@ private func runtimeFlowRunSourceStage(
 
 private func runtimeFlowHasErrorHandlers(_ ops: [RuntimeFlowOp]) -> Bool {
     ops.contains { runtimeFlowErrorHandler(for: $0) != nil }
+}
+
+/// Invoke all onCompletion handlers in the op chain.
+/// `failure`: nil on success, non-zero exception pointer on error.
+/// Returns the first exception thrown by a handler, or nil if all handlers completed normally.
+@discardableResult
+private func runtimeFlowFireCompletionHandlers(_ ops: [RuntimeFlowOp], failure: Int?) -> Int? {
+    var firstThrown: Int? = nil
+    for op in ops where op.kind == .onCompletion {
+        guard op.argument != 0 else { continue }
+        let handler = unsafeBitCast(
+            op.argument,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var thrown = 0
+        _ = handler(0, failure ?? 0, &thrown)
+        if thrown != 0 && firstThrown == nil {
+            firstThrown = thrown
+        }
+    }
+    return firstThrown
 }
 
 private func runtimeFlowInvokeCatchHandler(_ handlerFnPtr: Int, failure: Int) -> Int? {
@@ -2904,8 +2930,16 @@ private func runtimeFlowCollectLazy(
     collectorFnPtr: Int,
     continuation: Int
 ) -> Int {
+    let hasOnCompletion = flow.opChain.contains { $0.kind == .onCompletion }
     if !runtimeFlowHasErrorHandlers(flow.opChain) {
-        return runtimeFlowCollectStreaming(flow, collectorFnPtr: collectorFnPtr, continuation: continuation)
+        let retVal = runtimeFlowCollectStreaming(flow, collectorFnPtr: collectorFnPtr, continuation: continuation)
+        if hasOnCompletion {
+            let streamingFailure: Int? = retVal != 0 ? retVal : nil
+            if let handlerException = runtimeFlowFireCompletionHandlers(flow.opChain, failure: streamingFailure) {
+                return handlerException
+            }
+        }
+        return retVal
     }
     let result = runtimeFlowEvaluate(flow: flow)
     for value in result.values {
@@ -2915,10 +2949,20 @@ private func runtimeFlowCollectLazy(
             continuation: continuation
         )
         if !delivered {
+            if hasOnCompletion {
+                if let handlerException = runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure) {
+                    return handlerException
+                }
+            }
             return 0
         }
     }
-    return 0
+    if hasOnCompletion {
+        if let handlerException = runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure) {
+            return handlerException
+        }
+    }
+    return result.failure ?? 0
 }
 
 private func runtimeFlowCollectStreaming(
@@ -3369,7 +3413,9 @@ public func kk_flow_to_list(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: runtimeFlowEvaluate(flow: flow).values))
+    let result = runtimeFlowEvaluate(flow: flow)
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
+    return registerRuntimeObject(RuntimeListBox(elements: result.values))
 }
 
 /// Return the first emitted value after applying the operator chain, or 0 if empty.
@@ -3378,7 +3424,9 @@ public func kk_flow_first(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
     }
-    return runtimeFlowEvaluate(flow: flow).values.first ?? 0
+    let result = runtimeFlowEvaluate(flow: flow)
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
+    return result.values.first ?? 0
 }
 
 @_cdecl("kk_flow_single")
@@ -3386,14 +3434,15 @@ public func kk_flow_single(_ flowHandle: Int, _: Int, _ outThrown: UnsafeMutable
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
     }
-    let values = runtimeFlowEvaluate(flow: flow).values
-    guard values.count == 1 else {
+    let result = runtimeFlowEvaluate(flow: flow)
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
+    guard result.values.count == 1 else {
         outThrown?.pointee = runtimeAllocateThrowable(
             message: "NoSuchElementException: Flow does not contain exactly one element."
         )
         return 0
     }
-    return values[0]
+    return result.values[0]
 }
 
 /// Count the number of elements emitted after applying the operator chain.
@@ -3402,7 +3451,9 @@ public func kk_flow_count(_ flowHandle: Int, _: Int) -> Int {
     guard let flow = runtimeFlowHandle(from: flowHandle) else {
         return 0
     }
-    return runtimeFlowEvaluate(flow: flow).values.count
+    let result = runtimeFlowEvaluate(flow: flow)
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
+    return result.values.count
 }
 
 /// Fold: accumulate values with an initial value and an operation.
@@ -3421,14 +3472,17 @@ public func kk_flow_fold(_ flowHandle: Int, _ initial: Int, _ operationFnPtr: In
         to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
     )
 
+    let result = runtimeFlowEvaluate(flow: flow)
     var accumulator = initial
-    for value in runtimeFlowEvaluate(flow: flow).values {
+    for value in result.values {
         var thrown = 0
         accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
         if thrown != 0 {
+            runtimeFlowFireCompletionHandlers(flow.opChain, failure: thrown)
             return accumulator
         }
     }
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: result.failure)
     return accumulator
 }
 
@@ -3454,13 +3508,16 @@ public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> 
     }
 
     var accumulator = first
+    var thrownOnReduce: Int? = nil
     for value in values.dropFirst() {
         var thrown = 0
         accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))
         if thrown != 0 {
-            return accumulator
+            thrownOnReduce = thrown
+            break
         }
     }
+    runtimeFlowFireCompletionHandlers(flow.opChain, failure: thrownOnReduce)
     return accumulator
 }
 
