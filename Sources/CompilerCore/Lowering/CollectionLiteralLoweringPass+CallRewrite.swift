@@ -2707,11 +2707,13 @@ extension CollectionLiteralLoweringPass {
                                 let kkName: InternedString = switch callee {
                                 case lookup.mapName: lookup.kkMapMapName
                                 case lookup.filterName: lookup.kkMapFilterName
+                                case lookup.filterNotName: lookup.kkMapFilterNotName
                                 case lookup.filterKeysName: lookup.kkMapFilterKeysName
                                 case lookup.filterValuesName: lookup.kkMapFilterValuesName
                                 case lookup.forEachName: lookup.kkMapForEachName
                                 case lookup.mapValuesName: lookup.kkMapMapValuesName
                                 case lookup.mapKeysName: lookup.kkMapMapKeysName
+                                case lookup.mapNotNullName: lookup.kkMapMapNotNullName
                                 case lookup.flatMapName: lookup.kkMapFlatMapName
                                 case lookup.maxByOrNullName: lookup.kkMapMaxByOrNullName
                                 case lookup.minByOrNullName: lookup.kkMapMinByOrNullName
@@ -2734,7 +2736,7 @@ extension CollectionLiteralLoweringPass {
                                     canThrow: canThrow,
                                     thrownResult: thrownResult
                                 ))
-                                if callee == lookup.mapName || callee == lookup.flatMapName, let result {
+                                if callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName, let result {
                                     listExprIDs.insert(result.rawValue)
                                     listExprIDs.insert(hofResult.rawValue)
                                 }
@@ -2742,7 +2744,7 @@ extension CollectionLiteralLoweringPass {
                                     mapExprIDs.insert(result.rawValue)
                                     mapExprIDs.insert(hofResult.rawValue)
                                 }
-                                if callee == lookup.filterName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
+                                if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
                                     mapExprIDs.insert(result.rawValue)
                                     mapExprIDs.insert(hofResult.rawValue)
                                 }
