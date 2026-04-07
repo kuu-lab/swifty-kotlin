@@ -1018,7 +1018,9 @@ extension CallTypeChecker {
             return sema.types.nullableAnyType
         }
 
-        if (memberName == interner.intern("toList") || memberName == interner.intern("subList")),
+        if (memberName == interner.intern("toList")
+            || memberName == interner.intern("subList")
+            || memberName == interner.intern("slice")),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             return sema.types.make(.classType(ClassType(
