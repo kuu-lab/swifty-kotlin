@@ -3916,8 +3916,13 @@ extension DataFlowSemaPhase {
             )
         }
 
-        let zipWithNextTransformFQName = zipWithNextFQName + [interner.intern("transform")]
-        if symbols.lookup(fqName: zipWithNextTransformFQName) == nil {
+        let zipWithNextTransformFQName = listFQName + [zipWithNextName]
+        let existingZipWithNextOverloads = symbols.lookupAll(fqName: zipWithNextTransformFQName)
+        let hasZipWithNextTransform = existingZipWithNextOverloads.contains { symID in
+            guard let sig = symbols.functionSignature(for: symID) else { return false }
+            return sig.parameterTypes.count == 1
+        }
+        if !hasZipWithNextTransform {
             let rName = interner.intern("R")
             let rSymbol = symbols.define(
                 kind: .typeParameter,
