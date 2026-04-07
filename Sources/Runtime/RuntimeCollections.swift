@@ -445,6 +445,56 @@ public func kk_list_singleOrNull(_ listRaw: Int) -> Int {
     return list.elements[0]
 }
 
+// STDLIB-214: List.slice(indices: IntRange)
+@_cdecl("kk_list_slice")
+public func kk_list_slice(_ listRaw: Int, _ rangeRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let size = list.elements.count
+    let first = range.first
+    let last = range.last
+    let step = range.step > 0 ? range.step : 1
+    guard first <= last, first >= 0, first < size else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    var result: [Int] = []
+    var i = first
+    while i <= last && i < size {
+        result.append(list.elements[i])
+        i += step
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
+// STDLIB-214: List.slice(indices: Iterable<Int>)
+@_cdecl("kk_list_slice_iterable")
+public func kk_list_slice_iterable(_ listRaw: Int, _ indicesRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    let size = list.elements.count
+    let indexElements: [Int]
+    if let indexList = runtimeListBox(from: indicesRaw) {
+        indexElements = indexList.elements
+    } else if let indexSet = runtimeSetBox(from: indicesRaw) {
+        indexElements = indexSet.elements
+    } else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    var result: [Int] = []
+    for rawIdx in indexElements {
+        let idx = kk_unbox_int(rawIdx)
+        if idx >= 0 && idx < size {
+            result.append(list.elements[idx])
+        }
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: result))
+}
+
 // STDLIB-213: List.subList(fromIndex, toIndex)
 @_cdecl("kk_list_subList")
 public func kk_list_subList(_ listRaw: Int, _ fromIndex: Int, _ toIndex: Int) -> Int {

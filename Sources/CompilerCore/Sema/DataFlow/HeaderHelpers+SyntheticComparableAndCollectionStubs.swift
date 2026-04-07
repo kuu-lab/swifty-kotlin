@@ -2690,6 +2690,64 @@ extension DataFlowSemaPhase {
         )
         registerMember(name: "subList", parameterTypes: [types.intType, types.intType], externalLinkName: "kk_list_subList")
 
+        // STDLIB-214: List.slice(indices: IntRange) and List.slice(indices: Iterable<Int>)
+        // IntRange expressions are typed as intType at the ABI level, so the IntRange overload
+        // is registered with parameterType=intType.  The Iterable<Int> overload uses List<out Int>.
+        // resolveCollectionFallbackCallee distinguishes the two via isRangeExpr on the argument.
+        do {
+            let sliceName = interner.intern("slice")
+            let sliceFQName = listFQName + [sliceName]
+            let listOfIntType = types.make(.classType(ClassType(
+                classSymbol: listInterfaceSymbol,
+                args: [.out(types.intType)],
+                nullability: .nonNull
+            )))
+            // IntRange overload: parameterType = intType
+            let existingSlice = symbols.lookupAll(fqName: sliceFQName)
+            let hasIntRangeSlice = existingSlice.contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else { return false }
+                return sig.parameterTypes == [types.intType] &&
+                    symbols.externalLinkName(for: symID) == "kk_list_slice"
+            }
+            if !hasIntRangeSlice {
+                let sym = symbols.define(
+                    kind: .function, name: sliceName, fqName: sliceFQName,
+                    declSite: nil, visibility: .public, flags: [.synthetic]
+                )
+                symbols.setParentSymbol(listInterfaceSymbol, for: sym)
+                symbols.setExternalLinkName("kk_list_slice", for: sym)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType, parameterTypes: [types.intType],
+                        returnType: listReturnType, typeParameterSymbols: [listTypeParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: sym
+                )
+            }
+            // Iterable<Int> overload: parameterType = List<out Int>
+            let hasIterableSlice = existingSlice.contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else { return false }
+                return sig.parameterTypes == [listOfIntType]
+            }
+            if !hasIterableSlice {
+                let sym = symbols.define(
+                    kind: .function, name: sliceName, fqName: sliceFQName,
+                    declSite: nil, visibility: .public, flags: [.synthetic]
+                )
+                symbols.setParentSymbol(listInterfaceSymbol, for: sym)
+                symbols.setExternalLinkName("kk_list_slice_iterable", for: sym)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType, parameterTypes: [listOfIntType],
+                        returnType: listReturnType, typeParameterSymbols: [listTypeParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: sym
+                )
+            }
+        }
+
         // chunked(size, transform) — HOF overload (STDLIB-548)
         // Kotlin signature: fun <T, R> Iterable<T>.chunked(size: Int, transform: (List<T>) -> R): List<R>
         // The transform receives a List<T> chunk and returns R. Since R is erased at the
