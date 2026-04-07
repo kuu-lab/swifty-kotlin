@@ -302,7 +302,15 @@ extension ABILoweringPass {
             interner.intern("kk_uint_range_next"),
             interner.intern("kk_uint_range_reversed"),
             interner.intern("kk_uint_range_toList"),
+            interner.intern("kk_uint_range_take"),
+            interner.intern("kk_uint_range_drop"),
+            interner.intern("kk_uint_range_average"),
+            interner.intern("kk_uint_range_sorted"),
             interner.intern("kk_ulong_range_toULongArray"),
+            interner.intern("kk_ulong_range_take"),
+            interner.intern("kk_ulong_range_drop"),
+            interner.intern("kk_ulong_range_average"),
+            interner.intern("kk_ulong_range_sorted"),
             // LongRange properties and methods (STDLIB-RANGE-035)
             interner.intern("kk_long_rangeTo"),
             interner.intern("kk_long_range_contains"),
@@ -315,6 +323,14 @@ extension ABILoweringPass {
             interner.intern("kk_long_range_reversed"),
             interner.intern("kk_long_range_toList"),
             interner.intern("kk_long_range_iterator"),
+            interner.intern("kk_long_range_take"),
+            interner.intern("kk_long_range_drop"),
+            interner.intern("kk_long_range_average"),
+            interner.intern("kk_long_range_sorted"),
+            // CharRange take/drop/sorted (STDLIB-RANGE-TDS)
+            interner.intern("kk_char_range_take"),
+            interner.intern("kk_char_range_drop"),
+            interner.intern("kk_char_range_sorted"),
             // kk_property_access removed — PropertyLowering now emits direct accessor
             // calls with synthetic symbols; canThrow is handled via symbol check below.
             interner.intern("kk_lambda_invoke"),
