@@ -1049,6 +1049,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.mapNotNullName
+            || callee == lookup.filterNotName
             || callee == lookup.forEachName || callee == lookup.onEachName
             || callee == lookup.flatMapName || callee == lookup.anyName || callee == lookup.noneName
             || callee == lookup.allName
@@ -1060,6 +1061,7 @@ extension CollectionLiteralLoweringPass {
         let kkName: InternedString = switch callee {
         case lookup.mapName: lookup.kkListMapName
         case lookup.filterName: lookup.kkListFilterName
+        case lookup.filterNotName: lookup.kkListFilterNotName
         case lookup.mapNotNullName: lookup.kkListMapNotNullName
         case lookup.forEachName: lookup.kkListForEachName
         case lookup.onEachName: lookup.kkListOnEachName
@@ -1076,6 +1078,7 @@ extension CollectionLiteralLoweringPass {
         let needsListTag = callee == lookup.mapName
             || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName || callee == lookup.filterName
+            || callee == lookup.filterNotName
             || callee == lookup.onEachName
             || callee == lookup.takeWhileName || callee == lookup.dropWhileName
             || callee == lookup.takeLastWhileName || callee == lookup.dropLastWhileName
