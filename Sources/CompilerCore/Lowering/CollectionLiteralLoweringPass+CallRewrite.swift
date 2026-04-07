@@ -2639,7 +2639,11 @@ extension CollectionLiteralLoweringPass {
                         if arguments.count == 2 || arguments.count == 3 {
                             let receiverID = arguments[0]
                             let lambdaID = arguments[1]
-                            if listExprIDs.contains(receiverID.rawValue) {
+                            // countName with a List receiver is handled by the dedicated count/first/last
+                            // handler below, which correctly rewrites it to kk_list_count.
+                            // Entering this generic list-HOF path for countName would emit a call with
+                            // the un-rewritten "count" callee and then `continue`, skipping that handler.
+                            if listExprIDs.contains(receiverID.rawValue) && callee != lookup.countName {
                                 let closureRawID: KIRExprID
                                 if arguments.count == 3 {
                                     closureRawID = arguments[2]
