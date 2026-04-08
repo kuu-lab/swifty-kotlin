@@ -1747,14 +1747,17 @@ public func kk_list_average(_ listRaw: Int) -> Int {
             if isObj {
                 if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
                     sum += doubleBox.value
+                    continue
                 } else if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
                     sum += Double(floatBox.value)
+                    continue
                 } else if let longBox = tryCast(ptr, to: RuntimeLongBox.self) {
                     sum += Double(longBox.value)
+                    continue
                 } else if let intBox = tryCast(ptr, to: RuntimeIntBox.self) {
                     sum += Double(intBox.value)
+                    continue
                 }
-                continue
             }
         }
         // Unboxed raw integer (plain Int list element)
