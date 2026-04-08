@@ -23,6 +23,15 @@ final class RuntimeDecimalFormatBox {
         let subPatterns = pattern.components(separatedBy: ";")
         let positivePattern = subPatterns[0]
 
+        // Percent / per-mille — must be applied first so subsequent property writes override
+        // the defaults that .percent style resets.
+        if positivePattern.contains("%") {
+            formatter.numberStyle = .percent
+            formatter.multiplier = 100
+        } else if positivePattern.contains("‰") {
+            formatter.multiplier = 1000
+        }
+
         // Detect grouping separator in the integer part
         let integerPart: String
         let fractionPart: String
@@ -54,14 +63,6 @@ final class RuntimeDecimalFormatBox {
         formatter.minimumFractionDigits = minFrac
         formatter.maximumFractionDigits = maxFrac
 
-        // Percent / per-mille
-        if positivePattern.contains("%") {
-            formatter.numberStyle = .percent
-            formatter.multiplier = 100
-        } else if positivePattern.contains("‰") {
-            formatter.multiplier = 1000
-        }
-
         // Prefix / suffix (characters that are not pattern chars)
         let patternChars = CharacterSet(charactersIn: "0#,.E-+;@%‰")
         func extractAffix(_ s: String) -> (prefix: String, suffix: String) {
@@ -92,7 +93,7 @@ final class RuntimeDecimalFormatBox {
             formatter.negativePrefix = negativePrefix
             formatter.negativeSuffix = negativeSuffix
         } else {
-            formatter.negativePrefix = formatter.positivePrefix + "-"
+            formatter.negativePrefix = "-" + formatter.positivePrefix
             formatter.negativeSuffix = formatter.positiveSuffix
         }
     }
