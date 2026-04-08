@@ -91,7 +91,7 @@ public func kk_native_heap_free(_ handle: Int) -> Int {
         return 0
     }
     // Release the box; its deinit frees the underlying C memory.
-    let _ = Unmanaged<RuntimeNativeHeapAllocationBox>.fromOpaque(ptr)
+    Unmanaged<RuntimeNativeHeapAllocationBox>.fromOpaque(ptr).release()
     runtimeStorage.withLock { state in
         state.objectPointers.remove(UInt(bitPattern: ptr))
     }

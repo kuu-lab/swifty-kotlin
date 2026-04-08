@@ -330,19 +330,19 @@ public func kk_java_instant_of_epoch_second(_ epochSeconds: Int, _ nanoOfSecond:
 /// Kotlin/JVM: java.time.Instant.ofEpochMilli(epochMilli)
 @_cdecl("kk_java_instant_of_epoch_milli")
 public func kk_java_instant_of_epoch_milli(_ epochMillis: Int) -> Int {
-    let ms = Int64(epochMillis)
-    // Use floor division so that nanoOfSecond is always in [0, 999_999_999].
-    // For negative ms, truncation-toward-zero gives wrong results.
-    // Guard against Int64.min overflow before subtracting 999.
-    let seconds: Int64
-    if ms >= 0 {
-        seconds = ms / 1_000
+    let epochMillis64 = Int64(epochMillis)
+    let nanoRem = epochMillis64 % 1_000
+    let secs = epochMillis64 / 1_000
+    let nanoOfSecond: Int32
+    let epochSecs: Int64
+    if nanoRem < 0 {
+        nanoOfSecond = Int32((nanoRem + 1_000) * 1_000_000)
+        epochSecs = secs - 1
     } else {
-        let (adjusted, overflow) = ms.subtractingReportingOverflow(999)
-        seconds = overflow ? Int64.min / 1_000 : adjusted / 1_000
+        nanoOfSecond = Int32(nanoRem * 1_000_000)
+        epochSecs = secs
     }
-    let nanoOfSecond = Int32((ms - seconds * 1_000) * 1_000_000)
-    return registerRuntimeObject(RuntimeJavaInstantBox(epochSeconds: seconds, nanoOfSecond: nanoOfSecond))
+    return registerRuntimeObject(RuntimeJavaInstantBox(epochSeconds: epochSecs, nanoOfSecond: nanoOfSecond))
 }
 
 /// Returns a human-readable ISO-8601 string for a java.time.Instant.
@@ -417,18 +417,18 @@ public func kk_java_duration_of_seconds(_ seconds: Int, _ nanoAdjustment: Int) -
 /// Kotlin/JVM: java.time.Duration.ofMillis(millis)
 @_cdecl("kk_java_duration_of_millis")
 public func kk_java_duration_of_millis(_ millis: Int) -> Int {
-    let ms = Int64(millis)
-    // Use floor division so that nanoAdjustment is always in [0, 999_999_999].
-    // For negative ms, truncation-toward-zero gives wrong results.
-    // Guard against Int64.min overflow before subtracting 999.
+    let millis64 = Int64(millis)
+    let nanoRem = millis64 % 1_000
+    let secs = millis64 / 1_000
+    let nanoAdjustment: Int32
     let seconds: Int64
-    if ms >= 0 {
-        seconds = ms / 1_000
+    if nanoRem < 0 {
+        nanoAdjustment = Int32((nanoRem + 1_000) * 1_000_000)
+        seconds = secs - 1
     } else {
-        let (adjusted, overflow) = ms.subtractingReportingOverflow(999)
-        seconds = overflow ? Int64.min / 1_000 : adjusted / 1_000
+        nanoAdjustment = Int32(nanoRem * 1_000_000)
+        seconds = secs
     }
-    let nanoAdjustment = Int32((ms - seconds * 1_000) * 1_000_000)
     return registerRuntimeObject(RuntimeJavaDurationBox(seconds: seconds, nanoAdjustment: nanoAdjustment))
 }
 
