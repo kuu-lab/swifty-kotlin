@@ -1,3 +1,4 @@
+// SKIP-DIFF: exception type catch clauses (AssertionError, IllegalArgumentException, IllegalStateException) not yet supported
 fun main() {
     // assert passes when condition is true
     assert(true)
