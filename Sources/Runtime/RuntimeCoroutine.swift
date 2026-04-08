@@ -2634,9 +2634,6 @@ private func runtimeFlowApplyOpsLazy(
 
         case .buffer, .conflate, .flowOn, .debounce, .sample, .delayEach:
             continue
-
-        case .onCompletion:
-            continue
         }
     }
     return .emit(current)
