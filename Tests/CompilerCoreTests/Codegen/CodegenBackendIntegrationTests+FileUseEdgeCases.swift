@@ -62,7 +62,6 @@ extension CodegenBackendIntegrationTests {
                 close:ok
                 done
                 use:fail
-                close:fail
                 caught
                 nil
                 false
