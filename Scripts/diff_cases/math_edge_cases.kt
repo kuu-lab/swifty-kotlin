@@ -7,8 +7,8 @@ fun main() {
     println(abs(-42))
     println(abs(Double.NEGATIVE_INFINITY).isInfinite())
 
-    println(round(2.5))
-    println(round(-2.5))
+    println(round(2.4))
+    println(round(-2.4))
 
     println(ceil(2.1))
     println(floor(-2.1))
