@@ -16,7 +16,7 @@ extension CodegenBackendIntegrationTests {
             )
 
             val chained = compareBy<Entry> { it.group }
-                .thenComparator { a, b -> b.score.compareTo(a.score) }
+                .thenBy { -it.score }
             println(values.sortedWith(chained).map { "${it.group}:${it.score}" })
 
             println(values.sortedWith(chained.reversed()).map { "${it.group}:${it.score}" })
