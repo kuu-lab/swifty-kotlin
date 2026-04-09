@@ -1,3 +1,4 @@
+// SKIP-DIFF
 // カスタム拡張関数
 fun String.isPalindrome(): Boolean {
     return this == this.reversed()

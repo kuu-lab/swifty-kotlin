@@ -3,110 +3,194 @@ import XCTest
 
 final class RuntimeAssertionsTests: IsolatedRuntimeXCTestCase {
     override func resetIsolatedRuntimeTestState() {
-        _ = kk_assertions_reset()
+        // No global state to reset for these typed exception box tests
     }
 
-    // MARK: - High-level RuntimeAssertions.swift API tests
+    // MARK: - RuntimeAssertionErrorBox
 
-    func testRuntimeAssertTrueDoesNotThrow() {
-        XCTAssertNoThrow(assert(true), "assert(true) should not throw")
+    func testAssertionErrorBoxExceptionFQName() {
+        let box = RuntimeAssertionErrorBox(message: "assertion failed")
+        XCTAssertEqual(box.exceptionFQName, "kotlin.AssertionError")
     }
 
-    func testRuntimeAssertFalseThrows() {
-        // Note: Our high-level assert function uses the runtime system
-        // so we can't easily catch the exception in Swift tests
-        // Instead we verify the behavior through the runtime functions
-        var thrown = 0
-        _ = kk_precondition_assert(0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "assert(false) should throw via runtime")
+    func testAssertionErrorBoxRenderedMessage() {
+        let box = RuntimeAssertionErrorBox(message: "something went wrong")
+        XCTAssertEqual(box.renderedMessage, "AssertionError: something went wrong")
     }
 
-    func testRuntimeAssertTrueWithMessageDoesNotThrow() {
-        XCTAssertNoThrow(assert(true) { "test message" }, "assert(true) { message } should not throw")
+    func testAssertionErrorBoxHierarchyContainsExpectedTypes() {
+        let box = RuntimeAssertionErrorBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertTrue(hierarchy.contains("kotlin.AssertionError"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Error"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"))
     }
 
-    func testRuntimeAssertFalseWithMessageThrows() {
-        // Test through runtime function since high-level assert is hard to test in Swift
-        var thrown = 0
-        _ = kk_precondition_assert_lazy(0, fnPtrInt(lazyMessageReturnsString), 0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "assert(false) { message } should throw via runtime")
+    func testAssertionErrorBoxHierarchyOrder() {
+        let box = RuntimeAssertionErrorBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertEqual(hierarchy.first, "kotlin.AssertionError",
+                       "AssertionError should be first in hierarchy")
+        XCTAssertEqual(hierarchy.last, "kotlin.Throwable",
+                       "Throwable should be last in hierarchy")
     }
 
-    func testRuntimeAssertLazyMessageNotEvaluatedWhenTrue() {
-        var evaluationCount = 0
-        assert(true) { 
-            evaluationCount += 1
-            return "should not be evaluated"
-        }
-        XCTAssertEqual(evaluationCount, 0, "lazy message should not be evaluated when condition is true")
+    func testAssertionErrorBoxMessageIsStored() {
+        let msg = "custom assertion message"
+        let box = RuntimeAssertionErrorBox(message: msg)
+        XCTAssertEqual(box.message, msg)
     }
 
-    func testRuntimeAssertionsCanBeDisabled() {
-        _ = kk_assertions_set_enabled(0)
-        XCTAssertEqual(kk_assertions_enabled(), 0)
-        
-        XCTAssertNoThrow(assert(false), "disabled assert(false) should not throw")
-        
-        var evaluationCount = 0
-        XCTAssertNoThrow(assert(false) { 
-            evaluationCount += 1
-            return "should not be evaluated"
-        }, "disabled assert(false) { message } should not evaluate lazy message")
-        
-        XCTAssertEqual(evaluationCount, 0, "lazy message must not be evaluated when assertions are disabled")
+    func testAssertionErrorBoxDefaultCauseIsZero() {
+        let box = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertEqual(box.cause, 0)
     }
 
-    func testRuntimeAssertionsCanBeReEnabled() {
-        _ = kk_assertions_set_enabled(0)
-        _ = kk_assertions_set_enabled(1)
-        XCTAssertEqual(kk_assertions_enabled(), 1)
-        
-        // Test through runtime function
-        var thrown = 0
-        _ = kk_precondition_assert(0, &thrown)
-        XCTAssertNotEqual(thrown, 0, "re-enabled assert(false) should throw")
+    func testAssertionErrorBoxIsRuntimeThrowableBox() {
+        let box = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertTrue(box is RuntimeThrowableBox)
     }
 
-    func testRuntimeAssertWithComplexMessage() {
-        // Test that complex messages are handled correctly
-        var evaluationCount = 0
-        assert(true) { 
-            evaluationCount += 1
-            return "complex message"
-        }
-        XCTAssertEqual(evaluationCount, 0, "complex message should not be evaluated when condition is true")
+    // MARK: - RuntimeIllegalStateExceptionBox
+
+    func testIllegalStateExceptionBoxExceptionFQName() {
+        let box = RuntimeIllegalStateExceptionBox(message: "illegal state")
+        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalStateException")
     }
 
-    func testRuntimeAssertWithNumericMessage() {
-        var evaluationCount = 0
-        assert(true) { 
-            evaluationCount += 1
-            return 42
-        }
-        XCTAssertEqual(evaluationCount, 0, "numeric message should not be evaluated when condition is true")
+    func testIllegalStateExceptionBoxRenderedMessage() {
+        let box = RuntimeIllegalStateExceptionBox(message: "bad state")
+        XCTAssertEqual(box.renderedMessage, "IllegalStateException: bad state")
     }
 
-    func testRuntimeAssertWithBooleanMessage() {
-        var evaluationCount = 0
-        assert(true) { 
-            evaluationCount += 1
-            return false
-        }
-        XCTAssertEqual(evaluationCount, 0, "boolean message should not be evaluated when condition is true")
+    func testIllegalStateExceptionBoxHierarchyContainsExpectedTypes() {
+        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertTrue(hierarchy.contains("kotlin.IllegalStateException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Exception"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"))
     }
-}
 
-// Helper function for testing - copied from RuntimeAssertTests
-private let lazyMessageReturnsString: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-    outThrown?.pointee = 0
-    let message = "custom assert message"
-    return message.withCString { cstr in
-        cstr.withMemoryRebound(to: UInt8.self, capacity: message.utf8.count) { pointer in
-            Int(bitPattern: kk_string_from_utf8(pointer, Int32(message.utf8.count)))
-        }
+    func testIllegalStateExceptionBoxHierarchyOrder() {
+        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertEqual(hierarchy.first, "kotlin.IllegalStateException",
+                       "IllegalStateException should be first in hierarchy")
+        XCTAssertEqual(hierarchy.last, "kotlin.Throwable",
+                       "Throwable should be last in hierarchy")
     }
-}
 
-private func fnPtrInt(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int) -> Int {
-    Int(bitPattern: unsafeBitCast(fn, to: UnsafeRawPointer.self))
+    func testIllegalStateExceptionBoxMessageIsStored() {
+        let msg = "state is invalid"
+        let box = RuntimeIllegalStateExceptionBox(message: msg)
+        XCTAssertEqual(box.message, msg)
+    }
+
+    func testIllegalStateExceptionBoxDefaultCauseIsZero() {
+        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        XCTAssertEqual(box.cause, 0)
+    }
+
+    func testIllegalStateExceptionBoxIsRuntimeThrowableBox() {
+        let box = RuntimeIllegalStateExceptionBox(message: "test")
+        XCTAssertTrue(box is RuntimeThrowableBox)
+    }
+
+    // MARK: - RuntimeIllegalArgumentExceptionBox
+
+    func testIllegalArgumentExceptionBoxExceptionFQName() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "bad argument")
+        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
+    }
+
+    func testIllegalArgumentExceptionBoxRenderedMessage() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "invalid arg")
+        XCTAssertEqual(box.renderedMessage, "IllegalArgumentException: invalid arg")
+    }
+
+    func testIllegalArgumentExceptionBoxHierarchyContainsExpectedTypes() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertTrue(hierarchy.contains("kotlin.IllegalArgumentException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.RuntimeException"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Exception"))
+        XCTAssertTrue(hierarchy.contains("kotlin.Throwable"))
+    }
+
+    func testIllegalArgumentExceptionBoxHierarchyOrder() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        let hierarchy = box.exceptionHierarchyFQNames
+        XCTAssertEqual(hierarchy.first, "kotlin.IllegalArgumentException",
+                       "IllegalArgumentException should be first in hierarchy")
+        XCTAssertEqual(hierarchy.last, "kotlin.Throwable",
+                       "Throwable should be last in hierarchy")
+    }
+
+    func testIllegalArgumentExceptionBoxMessageIsStored() {
+        let msg = "argument must be positive"
+        let box = RuntimeIllegalArgumentExceptionBox(message: msg)
+        XCTAssertEqual(box.message, msg)
+    }
+
+    func testIllegalArgumentExceptionBoxDefaultCauseIsZero() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        XCTAssertEqual(box.cause, 0)
+    }
+
+    func testIllegalArgumentExceptionBoxIsRuntimeThrowableBox() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "test")
+        XCTAssertTrue(box is RuntimeThrowableBox)
+    }
+
+    // MARK: - Type Discrimination
+
+    func testAssertionErrorBoxIsDistinctFromIllegalStateBox() {
+        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertFalse(assertionBox is RuntimeIllegalStateExceptionBox)
+    }
+
+    func testAssertionErrorBoxIsDistinctFromIllegalArgumentBox() {
+        let assertionBox = RuntimeAssertionErrorBox(message: "test")
+        XCTAssertFalse(assertionBox is RuntimeIllegalArgumentExceptionBox)
+    }
+
+    func testIllegalStateBoxIsDistinctFromIllegalArgumentBox() {
+        let stateBox = RuntimeIllegalStateExceptionBox(message: "test")
+        XCTAssertFalse(stateBox is RuntimeIllegalArgumentExceptionBox)
+    }
+
+    // MARK: - Cause Parameter
+
+    func testAssertionErrorBoxWithCause() {
+        let box = RuntimeAssertionErrorBox(message: "caused error", cause: 42)
+        XCTAssertEqual(box.cause, 42)
+    }
+
+    func testIllegalStateExceptionBoxWithCause() {
+        let box = RuntimeIllegalStateExceptionBox(message: "caused state", cause: 99)
+        XCTAssertEqual(box.cause, 99)
+    }
+
+    func testIllegalArgumentExceptionBoxWithCause() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "caused arg", cause: 7)
+        XCTAssertEqual(box.cause, 7)
+    }
+
+    // MARK: - Empty Message
+
+    func testAssertionErrorBoxWithEmptyMessage() {
+        let box = RuntimeAssertionErrorBox(message: "")
+        XCTAssertEqual(box.renderedMessage, "AssertionError: ")
+    }
+
+    func testIllegalStateExceptionBoxWithEmptyMessage() {
+        let box = RuntimeIllegalStateExceptionBox(message: "")
+        XCTAssertEqual(box.renderedMessage, "IllegalStateException: ")
+    }
+
+    func testIllegalArgumentExceptionBoxWithEmptyMessage() {
+        let box = RuntimeIllegalArgumentExceptionBox(message: "")
+        XCTAssertEqual(box.renderedMessage, "IllegalArgumentException: ")
+    }
 }

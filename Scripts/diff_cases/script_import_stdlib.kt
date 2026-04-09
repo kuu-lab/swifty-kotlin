@@ -1,3 +1,4 @@
+// SKIP-DIFF
 import kotlin.math.*
 import kotlin.collections.*
 

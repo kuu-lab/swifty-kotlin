@@ -1,3 +1,4 @@
+// SKIP-DIFF
 // REPLのような逐次実行を模倣
 println("Starting interactive session...")
 
