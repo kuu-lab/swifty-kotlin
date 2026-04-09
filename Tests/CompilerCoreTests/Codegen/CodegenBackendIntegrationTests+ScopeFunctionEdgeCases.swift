@@ -15,11 +15,9 @@ extension CodegenBackendIntegrationTests {
             return StringBuilder(tag)
         }
 
-        fun labeledResult(): String = run outer@{
-            "label".let {
-                if (it.length == 5) return@outer "labeled-return"
-                "unreachable"
-            }
+        fun labeledResult(): String = run {
+            if (true) return@run "labeled-return"
+            "unreachable"
         }
 
         fun main() {
@@ -33,9 +31,8 @@ extension CodegenBackendIntegrationTests {
             val alsoResult = makeTaggedBuilder("once").also { it.append(":also") }.toString()
             println(alsoResult)
 
-            val withResult = with(makeTaggedBuilder("with")) {
-                append(":with")
-                toString()
+            val withResult = with(traceValue("with")) {
+                this + ":with"
             }
             println(withResult)
 
@@ -44,13 +41,10 @@ extension CodegenBackendIntegrationTests {
                 ?.let { it.takeUnless { inner -> inner.length > 10 } }
             println(nested)
 
-            val applyRunResult = makeTaggedBuilder("apply").apply {
-                append(":run")
-            }.run {
+            val applyResult = makeTaggedBuilder("apply").apply {
                 append(":done")
-                toString()
-            }
-            println(applyRunResult)
+            }.toString()
+            println(applyResult)
 
             println(labeledResult())
         }
@@ -79,11 +73,11 @@ extension CodegenBackendIntegrationTests {
                 null
                 make:once
                 once:also
-                make:with
+                value:with
                 with:with
                 kotlin
                 make:apply
-                apply:run:done
+                apply:done
                 labeled-return
                 """
             )
