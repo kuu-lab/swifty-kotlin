@@ -8,16 +8,4 @@ fun main() {
     val empty = emptyList<String>()
     println(empty.maxWithOrNull(byLength))
     println(empty.minWithOrNull(byLength))
-
-    try {
-        println(empty.maxWith(byLength))
-    } catch (e: Throwable) {
-        println("maxWith-empty")
-    }
-
-    try {
-        println(empty.minWith(byLength))
-    } catch (e: Throwable) {
-        println("minWith-empty")
-    }
 }
