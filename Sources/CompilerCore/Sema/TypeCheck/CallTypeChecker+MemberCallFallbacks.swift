@@ -473,17 +473,6 @@ extension CallTypeChecker {
                 fallbackCallee: fallbackCallee,
                 sema: sema,
                 interner: interner
-            ) {
-                ctx.semaCtx.diagnostics.emit(projectionDiagnostic)
-                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
-            }
-
-            let parameterMapping = buildCollectionFallbackParameterMapping(
-                memberName: calleeName,
-                args: args,
-                fallbackCallee: fallbackCallee,
-                sema: sema,
-                interner: interner
             )
             sema.bindings.bindCall(
                 id,
