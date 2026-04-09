@@ -2140,8 +2140,6 @@ private func runtimeFlowApplyElementOp(
             state.dropWhileFinished[index] = true
         case .catchHandler, .retry, .retryWhen, .onErrorReturn, .onErrorResume:
             continue
-        case .onCompletion:
-            continue
         }
     }
     if runtimeFlowElementStateHasExhaustedTake(state) {
@@ -2759,7 +2757,7 @@ private func runtimeFlowRunSourceStage(
 }
 
 private func runtimeFlowHasErrorHandlers(_ ops: [RuntimeFlowOp]) -> Bool {
-    ops.contains { runtimeFlowErrorHandler(for: $0) != nil }
+    ops.contains { runtimeFlowErrorHandler(for: $0) != nil || $0.kind == .onCompletion }
 }
 
 /// Invoke all onCompletion handlers in the op chain.
@@ -2926,12 +2924,13 @@ private func runtimeFlowExecuteStages(
             } else {
                 current = runtimeFlowRunSourceStage(flow, ops: stage.normalOps)
             }
-            stageAttemptProvider = { [weak flow] in
-                guard let flow else { return RuntimeFlowExecutionResult(values: [], failure: nil) }
-                if let advanced = runtimeFlowRunAdvancedSource(flow, ops: stage.normalOps) {
+            let capturedFlow = flow
+            let capturedOps = stage.normalOps
+            stageAttemptProvider = {
+                if let advanced = runtimeFlowRunAdvancedSource(capturedFlow, ops: capturedOps) {
                     return advanced
                 }
-                return runtimeFlowRunSourceStage(flow, ops: stage.normalOps)
+                return runtimeFlowRunSourceStage(capturedFlow, ops: capturedOps)
             }
         } else {
             current = runtimeFlowRunNormalStage(current, ops: stage.normalOps)
