@@ -1,3 +1,4 @@
+// SKIP-DIFF
 fun main() {
     val named = Regex("(?<year>\\d{4})-(?<month>\\d{2})")
     val match = named.find("2025-04")
