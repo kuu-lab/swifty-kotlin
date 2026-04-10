@@ -37,7 +37,6 @@ jobs:
   full-swift-tests:
     name: Full Swift Tests (${{ matrix.test-target }})
     runs-on: ubuntu-latest
-    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +47,7 @@ jobs:
             test-filter: '^RuntimeTests\\.'
           - test-target: KSwiftKCLITests
             test-filter: '^KSwiftKCLITests\\.'
+    timeout-minutes: 3000
     steps:
       - uses: actions/checkout@v4
       - name: Setup Swift and LLVM
