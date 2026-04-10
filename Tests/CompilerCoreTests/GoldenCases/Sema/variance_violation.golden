@@ -3585,7 +3585,7 @@ file f0 package=golden.sema
   decl d8 class BadConsumer sym=s3573
 expr e0 name(Producer) type=_
 expr e1 int(42) type=Int
-expr e2 call callee=e0 args=[_:e1] type=<error>
+expr e2 call callee=e0 args=[_:e1] type=Class#3557<Any> call=s3559 map=[0->0] targs=[Any]
 expr e3 localDecl p mutable=0 type=t3 init=e2 type=Unit ref=s3577
 expr e4 name(Consumer) type=_
 expr e5 call callee=e4 args=[] type=<error>
