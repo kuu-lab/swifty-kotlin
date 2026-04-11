@@ -5,12 +5,19 @@ import FoundationNetworking
 @testable import Runtime
 import XCTest
 
+fileprivate struct MockURLProtocolResult {
+    let response: HTTPURLResponse?
+    let data: Data?
+    let delay: TimeInterval
+    let error: Error?
+}
+
 // Top-level so NSStringFromClass() works on Linux (nested classes are unsupported).
 final class MockURLProtocol: URLProtocol {
     private static let handlerLock = NSLock()
-    nonisolated(unsafe) private static var _handler: ((URLRequest) -> (HTTPURLResponse, Data?, TimeInterval)?)?
+    nonisolated(unsafe) private static var _handler: ((URLRequest) -> MockURLProtocolResult?)?
 
-    static var handler: ((URLRequest) -> (HTTPURLResponse, Data?, TimeInterval)?)? {
+    fileprivate static var handler: ((URLRequest) -> MockURLProtocolResult?)? {
         get {
             handlerLock.lock()
             defer { handlerLock.unlock() }
@@ -33,19 +40,25 @@ final class MockURLProtocol: URLProtocol {
 
     override func startLoading() {
         guard let handler = Self.handler,
-              let (response, data, delay) = handler(request)
+              let result = handler(request)
         else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }
-        if delay > 0 {
-            Thread.sleep(forTimeInterval: delay)
+        if result.delay > 0 {
+            Thread.sleep(forTimeInterval: result.delay)
         }
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        if let data {
+        if let response = result.response {
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        }
+        if let data = result.data {
             client?.urlProtocol(self, didLoad: data)
         }
-        client?.urlProtocolDidFinishLoading(self)
+        if let error = result.error {
+            client?.urlProtocol(self, didFailWithError: error)
+        } else {
+            client?.urlProtocolDidFinishLoading(self)
+        }
     }
 
     override func stopLoading() {}
@@ -79,7 +92,7 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
                     httpVersion: nil,
                     headerFields: ["Location": "https://example.com/final"]
                 )!
-                return (response, nil, 0)
+                return MockURLProtocolResult(response: response, data: nil, delay: 0, error: nil)
             }
             let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
             let response = HTTPURLResponse(
@@ -92,7 +105,7 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
                 ]
             )!
             let body = "method=\(request.httpMethod ?? "GET");auth=\(auth)"
-            return (response, Data(body.utf8), 0)
+            return MockURLProtocolResult(response: response, data: Data(body.utf8), delay: 0, error: nil)
         }
 
         let clientRaw = kk_http_client_new()
@@ -133,14 +146,8 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
             MockURLProtocol.handler = nil
             unsetenv("KSWIFTK_HTTP_PROTOCOL_CLASS")
         }
-        MockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!,
-                statusCode: 200,
-                httpVersion: nil,
-                headerFields: ["Content-Type": "text/plain"]
-            )!
-            return (response, Data("slow".utf8), 0.2)
+        MockURLProtocol.handler = { _ in
+            MockURLProtocolResult(response: nil, data: nil, delay: 0, error: URLError(.timedOut))
         }
 
         let clientRaw = kk_http_client_new()
