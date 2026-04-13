@@ -51,6 +51,10 @@ private let throwingThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> I
 }
 
 final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
+    override func resetIsolatedRuntimeTestState() {
+        capturedClosureRaw = 0
+    }
+
     private final class DurationResultsBox: @unchecked Sendable {
         private let lock = NSLock()
         private var values: [Int] = []
