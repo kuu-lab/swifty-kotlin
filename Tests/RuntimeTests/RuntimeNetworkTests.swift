@@ -4,6 +4,8 @@ import XCTest
 
 final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
     private final class HTTPTestServer {
+        private static let serverStartupTimeout: TimeInterval = 5
+        private static let serverShutdownPollInterval: TimeInterval = 0.05
         let process = Process()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -22,7 +24,7 @@ final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
             try process.run()
-            port = try Self.readPort(from: stdoutPipe.fileHandleForReading)
+            port = try Self.readPort(from: stdoutPipe.fileHandleForReading, process: process)
         }
 
         deinit {
@@ -32,14 +34,31 @@ final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
         func stop() {
             if process.isRunning {
                 process.terminate()
-                process.waitUntilExit()
+                let deadline = Date().addingTimeInterval(Self.serverStartupTimeout)
+                while process.isRunning, Date() < deadline {
+                    Thread.sleep(forTimeInterval: Self.serverShutdownPollInterval)
+                }
+                if process.isRunning {
+                    process.interrupt()
+                }
             }
             try? FileManager.default.removeItem(at: directoryURL)
         }
 
-        private static func readPort(from handle: FileHandle) throws -> Int {
+        private static func readPort(from handle: FileHandle, process: Process) throws -> Int {
             var bytes = Data()
+            let deadline = Date().addingTimeInterval(serverStartupTimeout)
             while true {
+                if Date() >= deadline {
+                    throw NSError(domain: "RuntimeNetworkTests", code: 2, userInfo: [
+                        NSLocalizedDescriptionKey: "Timed out waiting for HTTP test server port"
+                    ])
+                }
+                if !process.isRunning, bytes.isEmpty {
+                    throw NSError(domain: "RuntimeNetworkTests", code: 3, userInfo: [
+                        NSLocalizedDescriptionKey: "HTTP test server exited before reporting a port"
+                    ])
+                }
                 let chunk = try handle.read(upToCount: 1) ?? Data()
                 if chunk.isEmpty { break }
                 if chunk[chunk.startIndex] == 10 { break }
