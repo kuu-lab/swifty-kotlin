@@ -5,6 +5,7 @@ import XCTest
 final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
     private final class HTTPTestServer {
         private static let serverStartupTimeout: TimeInterval = 5
+        private static let serverShutdownTimeout: TimeInterval = 5
         private static let serverShutdownPollInterval: TimeInterval = 0.05
         let process = Process()
         let stdoutPipe = Pipe()
@@ -34,7 +35,7 @@ final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
         func stop() {
             if process.isRunning {
                 process.terminate()
-                let deadline = Date().addingTimeInterval(Self.serverStartupTimeout)
+                let deadline = Date().addingTimeInterval(Self.serverShutdownTimeout)
                 while process.isRunning, Date() < deadline {
                     Thread.sleep(forTimeInterval: Self.serverShutdownPollInterval)
                 }
