@@ -14,7 +14,7 @@ final class RuntimeDigitalSignatureTests: IsolatedRuntimeXCTestCase {
     private func runtimeBytes(_ bytes: [UInt8]) -> Int {
         let box = RuntimeArrayBox(length: bytes.count)
         for (index, byte) in bytes.enumerated() {
-            box.elements[index] = Int(Int8(bitPattern: byte))
+                box.elements[index] = Int(byte)
         }
         return registerRuntimeObject(box)
     }
@@ -35,17 +35,29 @@ final class RuntimeDigitalSignatureTests: IsolatedRuntimeXCTestCase {
 
     private func signatureRoundTrip(algorithm: String, message: [UInt8]) -> Bool {
         let keyPair = makeKeyPair()
-        XCTAssertNotEqual(keyPair, 0, "Key pair generation failed")
+        guard keyPair != 0 else {
+            XCTFail("Key pair generation failed")
+            return false
+        }
         let publicKey = kk_keypair_publicKey(keyPair, nil)
-        XCTAssertNotEqual(publicKey, 0, "Public key extraction failed")
+        guard publicKey != 0 else {
+            XCTFail("Public key extraction failed")
+            return false
+        }
         let privateKey = kk_keypair_privateKey(keyPair, nil)
-        XCTAssertNotEqual(privateKey, 0, "Private key extraction failed")
+        guard privateKey != 0 else {
+            XCTFail("Private key extraction failed")
+            return false
+        }
 
         let signer = kk_signature_getInstance(0, runtimeString(algorithm), nil)
         _ = kk_signature_initSign(signer, privateKey, nil)
         _ = kk_signature_update(signer, runtimeBytes(message), nil)
         let signatureBytes = kk_signature_sign(signer, nil)
-        XCTAssertNotEqual(signatureBytes, 0, "Signature creation returned null")
+        guard signatureBytes != 0 else {
+            XCTFail("Signature creation returned null")
+            return false
+        }
 
         let verifier = kk_signature_getInstance(0, runtimeString(algorithm), nil)
         _ = kk_signature_initVerify(verifier, publicKey, nil)
