@@ -13,7 +13,9 @@ fileprivate struct MockURLProtocolResult {
 }
 
 // Top-level so NSStringFromClass() works on Linux (nested classes are unsupported).
-final class MockURLProtocol: URLProtocol {
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+@objcMembers
+private final class MockURLProtocol: URLProtocol {
     private static let handlerLock = NSLock()
     nonisolated(unsafe) private static var _handler: ((URLRequest) -> MockURLProtocolResult?)?
 
@@ -63,8 +65,15 @@ final class MockURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 }
+#endif
 
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
+    override func resetIsolatedRuntimeTestState() {
+        MockURLProtocol.handler = nil
+        unsetenv("KSWIFTK_HTTP_PROTOCOL_CLASS")
+    }
+
     private func runtimeString(_ text: String) -> Int {
         text.withCString { cstr in
             cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
@@ -77,12 +86,24 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
+    private func installMockURLProtocol(file: StaticString = #filePath, line: UInt = #line) {
+        let className = NSStringFromClass(MockURLProtocol.self)
+        let resolvedClass = NSClassFromString(className) as? URLProtocol.Type
+        XCTAssertNotNil(resolvedClass, "MockURLProtocol should resolve from NSStringFromClass()", file: file, line: line)
+        setenv("KSWIFTK_HTTP_PROTOCOL_CLASS", className, 1)
+    }
+
+    func testMockURLProtocolClassNameRoundTripsThroughNSClassFromString() {
+        let className = NSStringFromClass(MockURLProtocol.self)
+        let resolvedClass: AnyClass? = NSClassFromString(className)
+        XCTAssertEqual(
+            resolvedClass.map(ObjectIdentifier.init),
+            ObjectIdentifier(MockURLProtocol.self)
+        )
+    }
+
     func testHTTPClientSupportsAuthRedirectsAndAsyncRequests() {
-        setenv("KSWIFTK_HTTP_PROTOCOL_CLASS", NSStringFromClass(MockURLProtocol.self), 1)
-        defer {
-            MockURLProtocol.handler = nil
-            unsetenv("KSWIFTK_HTTP_PROTOCOL_CLASS")
-        }
+        installMockURLProtocol()
         MockURLProtocol.handler = { request in
             let url = request.url?.absoluteString ?? ""
             if url == "https://example.com/redirect" {
@@ -141,13 +162,15 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
     }
 
     func testHTTPClientEncodesTimeoutAsResponseState() {
-        setenv("KSWIFTK_HTTP_PROTOCOL_CLASS", NSStringFromClass(MockURLProtocol.self), 1)
-        defer {
-            MockURLProtocol.handler = nil
-            unsetenv("KSWIFTK_HTTP_PROTOCOL_CLASS")
-        }
-        MockURLProtocol.handler = { _ in
-            MockURLProtocolResult(response: nil, data: nil, delay: 0, error: URLError(.timedOut))
+        installMockURLProtocol()
+        MockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/plain"]
+            )!
+            return MockURLProtocolResult(response: response, data: Data("slow".utf8), delay: 0.2, error: nil)
         }
 
         let clientRaw = kk_http_client_new()
@@ -160,3 +183,4 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(stringValue(kk_http_response_errorMessage(responseRaw)).isEmpty == false)
     }
 }
+#endif
