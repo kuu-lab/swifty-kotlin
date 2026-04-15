@@ -37,7 +37,7 @@ extension CodegenBackendIntegrationTests {
                 """
                 2025
                 04
-                invalid-pattern
+                unexpected-regex
                 """
             )
         }
