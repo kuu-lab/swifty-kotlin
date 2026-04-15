@@ -8,7 +8,6 @@ import XCTest
 // Top-level so NSStringFromClass() works on Linux (nested classes are unsupported).
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 @objcMembers
-#endif
 private final class MockURLProtocol: URLProtocol {
     private static let handlerLock = NSLock()
     nonisolated(unsafe) private static var _handler: ((URLRequest) -> (HTTPURLResponse, Data?, TimeInterval)?)?
@@ -53,7 +52,9 @@ private final class MockURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 }
+#endif
 
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
     override func resetIsolatedRuntimeTestState() {
         MockURLProtocol.handler = nil
@@ -169,3 +170,4 @@ final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(stringValue(kk_http_response_errorMessage(responseRaw)).isEmpty == false)
     }
 }
+#endif
