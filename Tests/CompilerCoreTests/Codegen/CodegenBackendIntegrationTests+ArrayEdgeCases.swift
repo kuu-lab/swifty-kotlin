@@ -49,7 +49,9 @@ extension CodegenBackendIntegrationTests {
             try LinkPhase().run(ctx)
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "
+", with: "
+")
             XCTAssertEqual(
                 normalizedStdout,
                 """
@@ -63,6 +65,8 @@ extension CodegenBackendIntegrationTests {
                 oob-get
                 oob-set
                 """
+                + "
+"
             )
         }
     }
