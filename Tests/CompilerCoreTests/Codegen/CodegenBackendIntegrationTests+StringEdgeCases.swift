@@ -20,12 +20,12 @@ extension CodegenBackendIntegrationTests {
             println("".replaceFirstChar { 'X' })
 
             dumpLines("lines-empty", "".lines())
-            dumpLines("lines-ascii", "a\\nb\\n".lines())
-            dumpLines("lines-unicode", "こんにちは\\n世界".lines())
+            dumpLines("lines-ascii", "a\nb\n".lines())
+            dumpLines("lines-unicode", "こんにちは\n世界".lines())
 
             dumpLines("seq-empty", "".lineSequence().toList())
-            dumpLines("seq-mixed", "a\\r\\nb\\nc".lineSequence().toList())
-            dumpLines("seq-head-tail", "\\nalpha\\n".lineSequence().toList())
+            dumpLines("seq-mixed", "a\r\nb\nc".lineSequence().toList())
+            dumpLines("seq-head-tail", "\nalpha\n".lineSequence().toList())
         }
         """
 
@@ -58,8 +58,7 @@ extension CodegenBackendIntegrationTests {
                 seq-mixed:a|b|c
                 seq-head-tail:|alpha|
                 """
-                + "
-"
+                + "\n"
             )
         }
     }
