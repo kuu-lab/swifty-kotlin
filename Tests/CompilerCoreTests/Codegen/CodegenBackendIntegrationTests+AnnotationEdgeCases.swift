@@ -4,7 +4,7 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesAnnotationEdgeCases() throws {
-        throw XCTSkip("Annotation feature not yet implemented")
+        throw XCTSkip("Annotation diagnostic edge cases not yet implemented")
         let source = """
         @Target(AnnotationTarget.CLASS, AnnotationTarget.PROPERTY)
         @Retention(AnnotationRetention.RUNTIME)
