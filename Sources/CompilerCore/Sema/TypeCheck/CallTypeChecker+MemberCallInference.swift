@@ -773,6 +773,12 @@ extension CallTypeChecker {
                         ? sema.types.makeNullable(nonNullReceiverType)
                         : nonNullReceiverType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    // Propagate collection marking: apply returns receiver unchanged,
+                    // so chained member calls (e.g. .let { it.size }) must still see
+                    // the collection type. (STDLIB-002-BUG-01)
+                    if isCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                        sema.bindings.markCollectionExpr(id)
+                    }
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
@@ -790,6 +796,12 @@ extension CallTypeChecker {
                         ? sema.types.makeNullable(nonNullReceiverType)
                         : nonNullReceiverType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    // Propagate collection marking: also returns receiver unchanged,
+                    // so chained member calls (e.g. .let { it.size }) must still see
+                    // the collection type. (STDLIB-002-BUG-01)
+                    if isCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                        sema.bindings.markCollectionExpr(id)
+                    }
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
 
@@ -2910,16 +2922,30 @@ extension CallTypeChecker {
             if args.isEmpty && (calleeStr == "isNaN" || calleeStr == "isInfinite" || calleeStr == "isFinite" ||
                                calleeStr == "toBits" || calleeStr == "toRawBits" || calleeStr == "ulp" ||
                                calleeStr == "nextUp" || calleeStr == "nextDown") {
-                
+
                 let resultType: TypeID = switch calleeStr {
                 case "isNaN", "isInfinite", "isFinite": sema.types.booleanType
                 case "toBits", "toRawBits": receiverForCheck == doubleType ? sema.types.longType : sema.types.intType
                 case "ulp", "nextUp", "nextDown": receiverForCheck
                 default: sema.types.errorType
                 }
-                
+
                 if resultType != sema.types.errorType {
                     let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                    // Bind the synthetic coercion function so the KIR lowerer
+                    // emits the correct external link name (e.g. kk_double_isNaN).
+                    let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+                    let funcFQName = kotlinPkg + [calleeName]
+                    if let chosen = sema.symbols.lookupAll(fqName: funcFQName).first(where: { symbolID in
+                        guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                        return sig.receiverType == receiverForCheck
+                    }) {
+                        sema.bindings.bindCall(id, binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: [],
+                            parameterMapping: [:]
+                        ))
+                    }
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType
                 }
@@ -3843,6 +3869,19 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: finalType)
                         return finalType
                     }
+                }
+            }
+            // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) — 1-arg overload
+            if args.count == 1, interner.resolve(calleeName) == "digitToInt" {
+                let receiverTypeForCheck = safeCall
+                    ? sema.types.makeNonNullable(lookupReceiverType)
+                    : lookupReceiverType
+                if receiverTypeForCheck == sema.types.charType {
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                    let intType = sema.types.intType
+                    let finalType = safeCall ? sema.types.makeNullable(intType) : intType
+                    sema.bindings.bindExprType(id, type: finalType)
+                    return finalType
                 }
             }
             // Boolean.not() / Boolean.and(other) / Boolean.or(other) / Boolean.xor(other) (STDLIB-308)
@@ -6498,6 +6537,19 @@ extension CallTypeChecker {
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
         if sema.types.isSubtype(nonNullReceiver, closeableType) {
             return true
+        }
+        // STDLIB-030-BUG-01: When the receiver is a type parameter (e.g. `T` in
+        // `fun <T : AutoCloseable> useIt(t: T)`), the general isSubtype now traverses
+        // upper bounds (see Subtyping.swift). As an explicit fallback, also check directly:
+        // if any registered upper bound of T is a subtype of Closeable, accept it.
+        if case let .typeParam(typeParam) = sema.types.kind(of: nonNullReceiver) {
+            let upperBounds = sema.symbols.typeParameterUpperBounds(for: typeParam.symbol)
+            for bound in upperBounds {
+                let nonNullBound = sema.types.makeNonNullable(bound)
+                if sema.types.isSubtype(nonNullBound, closeableType) {
+                    return true
+                }
+            }
         }
         // Fallback: check if the class explicitly declares Closeable or AutoCloseable
         // in its registered supertype list.  This handles synthetic IO types
