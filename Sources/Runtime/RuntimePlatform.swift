@@ -109,3 +109,19 @@ public func kk_platform_getAvailableProcessors(_ platformRaw: Int) -> Int {
     _ = platformRaw
     return max(1, ProcessInfo.processInfo.processorCount)
 }
+
+// MemoryModel ordinals: EXPERIMENTAL=0, STRICT=1, RELAXED=2
+// This runtime always uses EXPERIMENTAL (the default Kotlin/Native memory model).
+private let runtimePlatformMemoryModelBoxed: Int = kk_box_int(0)
+
+@_cdecl("kk_platform_memoryModel")
+public func kk_platform_memoryModel(_ platformRaw: Int) -> Int {
+    _ = platformRaw
+    return runtimePlatformMemoryModelBoxed
+}
+
+@_cdecl("kk_platform_isDebugBinary")
+public func kk_platform_isDebugBinary(_ platformRaw: Int) -> Int {
+    _ = platformRaw
+    return _isDebugAssertConfiguration() ? 1 : 0
+}
