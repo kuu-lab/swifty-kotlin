@@ -16,8 +16,14 @@ final class RuntimePlatformInfoTests: XCTestCase {
     func testOsFamilyOnMacOSReturnsMACOSX() {
         let ordinal = kk_platform_osFamily(0)
         let unboxed = kk_unbox_int(ordinal)
+#if os(macOS)
         // OsFamily.macosx == 1
         XCTAssertEqual(unboxed, 1, "Expected OsFamily.MACOSX (1) on macOS, got \(unboxed)")
+#else
+        // On non-macOS platforms (e.g. Linux CI), the ordinal will reflect the host OS.
+        XCTAssertGreaterThanOrEqual(unboxed, 0, "OsFamily ordinal must be non-negative")
+        XCTAssertLessThanOrEqual(unboxed, 8, "OsFamily ordinal must be within the defined range [0,8]")
+#endif
     }
 
     /// The ordinal must be within the known enum range [0, 8].
@@ -81,10 +87,14 @@ final class RuntimePlatformInfoTests: XCTestCase {
 
     // MARK: - isLittleEndian
 
-    /// All Apple platforms (macOS arm64 and x86_64) are little-endian.
+    /// Apple platforms (macOS arm64 and x86_64) and Linux x86_64 are little-endian.
     func testIsLittleEndianIsTrueOnApplePlatforms() {
         let result = kk_platform_isLittleEndian(0)
-        XCTAssertEqual(result, 1, "Expected isLittleEndian == true on Apple platforms, got \(result)")
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || (os(Linux) && (arch(x86_64) || arch(arm64)))
+        XCTAssertEqual(result, 1, "Expected isLittleEndian == true on this platform, got \(result)")
+#else
+        XCTAssertTrue(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
+#endif
     }
 
     /// The result must be a boolean-like integer: 0 or 1.
