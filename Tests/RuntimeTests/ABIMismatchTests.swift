@@ -669,6 +669,39 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.returnType, .intptr)
     }
 
+    // MARK: - Delegate ABI Regression (#1283 follow-up)
+
+    /// Regression: `kk_notNull_get_value` must declare `outThrown` so the
+    /// compiler emits the correct 2-argument call site.  Without this the
+    /// compiler produced UB by calling a 2-arg function with only 1 arg.
+    func testNotNullGetValueHasOutThrownParameter() throws {
+        let spec = try requireSpec("kk_notNull_get_value")
+        XCTAssertEqual(
+            spec.parameters.count, 2,
+            "kk_notNull_get_value must take (handle, outThrown) — was the outThrown param accidentally dropped?"
+        )
+        XCTAssertEqual(spec.parameters[0].name, "handle")
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].name, "outThrown",
+                       "Second parameter of kk_notNull_get_value must be outThrown")
+        XCTAssertEqual(spec.parameters[1].type, .nullableIntptrPointer,
+                       "outThrown parameter must be intptr_t * _Nullable")
+    }
+
+    /// Regression: `kk_delegate_get_value` (generic bridge shim) must also
+    /// carry `outThrown` in its ABI spec to stay consistent with the runtime
+    /// implementation.
+    func testDelegateGetValueHasOutThrownParameter() throws {
+        let spec = try requireSpec("kk_delegate_get_value")
+        XCTAssertEqual(
+            spec.parameters.count, 4,
+            "kk_delegate_get_value must take (delegateRaw, thisRef, property, outThrown)"
+        )
+        XCTAssertEqual(spec.parameters.last?.name, "outThrown",
+                       "Last parameter of kk_delegate_get_value must be outThrown")
+        XCTAssertEqual(spec.parameters.last?.type, .nullableIntptrPointer)
+    }
+
     // MARK: - C Declaration Generation
 
     func testCDeclarationForKKAlloc() throws {

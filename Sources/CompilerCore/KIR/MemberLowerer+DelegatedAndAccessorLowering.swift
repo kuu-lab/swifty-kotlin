@@ -106,6 +106,10 @@ extension MemberLowerer {
                 .temporary(Int32(arena.expressions.count)),
                 type: propertyType
             )
+            // kk_notNull_get_value now takes outThrown; mark canThrow so
+            // ABILoweringPass injects the argument.  Other built-in delegate
+            // getters (lazy, observable, vetoable) remain non-throwing.
+            let getterCanThrow = delegateKind == .notNull
             body.append(
                 .call(
                     symbol: delegateKind == .custom ? customGetValueSymbol : delegateStorageSymbol,
@@ -118,7 +122,7 @@ extension MemberLowerer {
                         body: &body
                     ) : [],
                     result: resultExprID,
-                    canThrow: false,
+                    canThrow: getterCanThrow,
                     thrownResult: nil
                 )
             )

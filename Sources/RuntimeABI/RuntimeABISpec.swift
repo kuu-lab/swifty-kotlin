@@ -2639,7 +2639,7 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "initial", type: .intptr),
                 RuntimeABIParameter(name: "operationFnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -5213,6 +5213,7 @@ public enum RuntimeABISpec {
             name: "kk_notNull_get_value",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Delegate"

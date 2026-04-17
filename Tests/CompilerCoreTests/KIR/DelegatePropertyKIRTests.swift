@@ -323,6 +323,50 @@ final class DelegatePropertyKIRTests: XCTestCase {
         }
     }
 
+    // MARK: - notNull ABI: outThrown injection (#1283 follow-up)
+
+    /// Regression: `kk_notNull_get_value` now carries `outThrown`.
+    /// The synthesized getter must be emitted with `canThrow: true` so
+    /// ABILoweringPass injects the extra argument.
+    func testNotNullDelegateGetterIsMarkedThrowing() throws {
+        let source = """
+        import kotlin.properties.Delegates
+        var name: String by Delegates.notNull()
+        fun main() {
+            name = "hi"
+            println(name)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            // The synthesized getter function is what calls kk_notNull_get_value.
+            // Find any function body containing that callee and verify it is
+            // NOT in the non-throwing set (i.e., canThrow must be true at ABI time).
+            let allFunctions = module.arena.declarations.compactMap {
+                if case .function(let f) = $0 { return f } else { return nil }
+            }
+            var getterThrowFlags: [Bool] = []
+            for fn in allFunctions {
+                let flags = extractThrowFlags(from: fn.body, interner: ctx.interner)
+                if let notNullFlags = flags["kk_notNull_get_value"] {
+                    getterThrowFlags.append(contentsOf: notNullFlags)
+                }
+            }
+            XCTAssertFalse(
+                getterThrowFlags.isEmpty,
+                "Expected to find a kk_notNull_get_value call site in KIR"
+            )
+            XCTAssertTrue(
+                getterThrowFlags.contains(true),
+                "kk_notNull_get_value call must be marked canThrow=true so ABILoweringPass injects outThrown; " +
+                "got flags: \(getterThrowFlags)"
+            )
+        }
+    }
+
     // MARK: - End-to-End: Lazy Delegate Compilation
 
     func testLazyDelegateEndToEndCompilesToExecutable() throws {
