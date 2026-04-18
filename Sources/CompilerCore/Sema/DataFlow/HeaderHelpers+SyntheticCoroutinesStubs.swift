@@ -61,6 +61,8 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
+        symbols.setDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
+        types.setNominalDirectSupertypes([coroutineContextSymbol], for: coroutineContextElementSymbol)
 
         // Key<E : Element> (nested interface) ────────────────────────────────
         let keyFQName = coroutineContextFQName + [interner.intern("Key")]
@@ -96,6 +98,8 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setTypeParameterUpperBounds([coroutineContextElementType], for: keyTypeParamSymbol)
+        types.setNominalTypeParameterSymbols([keyTypeParamSymbol], for: coroutineContextKeySymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
         let coroutineContextKeyType = types.make(.classType(ClassType(
             classSymbol: coroutineContextKeySymbol,
             args: [.invariant(keyTypeParamType)],

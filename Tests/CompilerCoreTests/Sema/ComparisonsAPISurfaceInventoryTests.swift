@@ -22,7 +22,7 @@ import XCTest
 //
 // Gap convention:
 //   APIs not yet registered by the sema layer are marked with `_Gap` suffix and
-//   assert the *current absence* with a TODO comment. Flip `XCTAssertNil` /
+//   assert the *current absence* with a short follow-up note. Flip `XCTAssertNil` /
 //   `XCTAssertTrue(links.isEmpty)` to the positive assertion once implemented.
 
 final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
