@@ -366,7 +366,7 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
     // MARK: - 20. minOf / maxOf with Comparator (2-arg comparator overload)
 
     /// True when a 3-parameter overload exists whose last parameter is `kotlin.Comparator`
-    /// (excludes primitive-only 3-arg overloads).
+    /// (excludes primitive-only 3-arg overloads such as `minOf(a, b, c)`).
     private func hasThreeParamComparatorOverload(
         comparisonsName: String,
         sema: SemaModule,

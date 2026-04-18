@@ -17,7 +17,9 @@ private func runtimeThrowNotNullUninitialized(
     guard let outThrown else {
         // Call sites compiled before STDLIB-PROP-ABI-001 omit the outThrown slot;
         // keep a hard trap so executables still fail fast (DelegatePropertyKIRTests).
-        fatalError("IllegalStateException: \(message)")
+        let full = "IllegalStateException: \(message)"
+        FileHandle.standardError.write(Data((full + "\n").utf8))
+        fatalError(full)
     }
     outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
     return 0
