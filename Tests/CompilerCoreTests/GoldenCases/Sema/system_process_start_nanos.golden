@@ -3574,24 +3574,38 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3577 kind=local fq=__local_2.startNanos vis=private flags=_ type=Long
-symbol s3578 kind=local fq=__local_5.now vis=private flags=_ type=Long
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3591 kind=local fq=__local_2.startNanos vis=private flags=_ type=Long
+symbol s3592 kind=local fq=__local_5.now vis=private flags=_ type=Long
 file f0 package=_
-  decl d0 fun main suspend=0 inline=0 sym=s3576
+  decl d0 fun main suspend=0 inline=0 sym=s3590
 expr e0 name(System) type=Class#1806 ref=s1806
 expr e1 memberCall recv=e0 callee=processStartNanos args=[] type=Long call=s1809 map=[] targs=[]
-expr e2 localDecl startNanos mutable=0 type=t0 init=e1 type=Unit ref=s3577
+expr e2 localDecl startNanos mutable=0 type=t0 init=e1 type=Unit ref=s3591
 expr e3 name(System) type=Class#1806 ref=s1806
 expr e4 memberCall recv=e3 callee=nanoTime args=[] type=Long call=s1808 map=[] targs=[]
-expr e5 localDecl now mutable=0 type=t1 init=e4 type=Unit ref=s3578
+expr e5 localDecl now mutable=0 type=t1 init=e4 type=Unit ref=s3592
 expr e6 name(println) type=_
-expr e7 name(startNanos) type=Long ref=s3577
+expr e7 name(startNanos) type=Long ref=s3591
 expr e8 int(0) type=Int
 expr e9 binary(greaterThan) lhs=e7 rhs=e8 type=Boolean
 expr e10 call callee=e6 args=[_:e9] type=Unit call=s1732 map=[0->0] targs=[]
 expr e11 name(println) type=_
-expr e12 name(now) type=Long ref=s3578
-expr e13 name(startNanos) type=Long ref=s3577
+expr e12 name(now) type=Long ref=s3592
+expr e13 name(startNanos) type=Long ref=s3591
 expr e14 binary(greaterOrEqual) lhs=e12 rhs=e13 type=Boolean
 expr e15 call callee=e11 args=[_:e14] type=Unit call=s1732 map=[0->0] targs=[]

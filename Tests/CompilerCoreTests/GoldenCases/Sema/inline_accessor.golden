@@ -3574,22 +3574,36 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=class fq=test.Rect vis=public flags=_
-symbol s3577 kind=constructor fq=test.Rect.<init> vis=public flags=_ sig=recv=Class#3576 params=[Int,Int] ret=Class#3576 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s3578 kind=valueParameter fq=test.Rect.<init>.$3577.width vis=private flags=_
-symbol s3579 kind=valueParameter fq=test.Rect.<init>.$3577.height vis=private flags=_
-symbol s3580 kind=property fq=test.Rect.width vis=public flags=_ type=Int
-symbol s3581 kind=property fq=test.Rect.height vis=public flags=_ type=Int
-symbol s3582 kind=property fq=test.Rect.area vis=public flags=_ type=Int
-symbol s3583 kind=property fq=test.Rect.label vis=public flags=mutable type=String
-symbol s3584 kind=backingField fq=test.Rect.$backing_label vis=private flags=mutable type=String
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=class fq=test.Rect vis=public flags=_
+symbol s3591 kind=constructor fq=test.Rect.<init> vis=public flags=_ sig=recv=Class#3590 params=[Int,Int] ret=Class#3590 suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3592 kind=valueParameter fq=test.Rect.<init>.$3591.width vis=private flags=_
+symbol s3593 kind=valueParameter fq=test.Rect.<init>.$3591.height vis=private flags=_
+symbol s3594 kind=property fq=test.Rect.width vis=public flags=_ type=Int
+symbol s3595 kind=property fq=test.Rect.height vis=public flags=_ type=Int
+symbol s3596 kind=property fq=test.Rect.area vis=public flags=_ type=Int
+symbol s3597 kind=property fq=test.Rect.label vis=public flags=mutable type=String
+symbol s3598 kind=backingField fq=test.Rect.$backing_label vis=private flags=mutable type=String
 file f0 package=test
-  decl d4 class Rect sym=s3576
-expr e0 name(width) type=Int ref=s3580
-expr e1 name(height) type=Int ref=s3581
+  decl d4 class Rect sym=s3590
+expr e0 name(width) type=Int ref=s3594
+expr e1 name(height) type=Int ref=s3595
 expr e2 binary(multiply) lhs=e0 rhs=e1 type=Int
 expr e3 name(field) type=_
-expr e4 name(value) type=String ref=s-43583
-expr e5 localAssign field value=e4 type=Unit ref=s3584
-expr e6 name(field) type=String ref=s3584
+expr e4 name(value) type=String ref=s-43597
+expr e5 localAssign field value=e4 type=Unit ref=s3598
+expr e6 name(field) type=String ref=s3598
 expr e7 string() type=String

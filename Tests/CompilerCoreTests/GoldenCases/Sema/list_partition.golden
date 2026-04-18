@@ -3574,12 +3574,26 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3577 kind=local fq=__local_7.list vis=private flags=_ type=Class#123<out Int>
-symbol s3578 kind=local fq=__destructuring_21.evens vis=private flags=_ type=T#76
-symbol s3579 kind=local fq=__destructuring_21.odds vis=private flags=_ type=T#77
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3591 kind=local fq=__local_7.list vis=private flags=_ type=Class#123<out Int>
+symbol s3592 kind=local fq=__destructuring_21.evens vis=private flags=_ type=Class#123<Int>
+symbol s3593 kind=local fq=__destructuring_21.odds vis=private flags=_ type=Class#123<Int>
 file f0 package=_
-  decl d0 fun main suspend=0 inline=0 sym=s3576
+  decl d0 fun main suspend=0 inline=0 sym=s3590
 expr e0 name(listOf) type=_
 expr e1 int(1) type=Int
 expr e2 int(2) type=Int
@@ -3587,8 +3601,8 @@ expr e3 int(3) type=Int
 expr e4 int(4) type=Int
 expr e5 int(5) type=Int
 expr e6 call callee=e0 args=[_:e1,_:e2,_:e3,_:e4,_:e5] type=Class#123<out Int>
-expr e7 localDecl list mutable=0 type=_ init=e6 type=Unit ref=s3577
-expr e8 name(list) type=Class#123<out Int> ref=s3577
+expr e7 localDecl list mutable=0 type=_ init=e6 type=Unit ref=s3591
+expr e8 name(list) type=Class#123<out Int> ref=s3591
 expr e9 name(it) type=_
 expr e10 int(2) type=_
 expr e11 binary(modulo) lhs=e9 rhs=e10 type=_
@@ -3603,8 +3617,8 @@ expr e19 lambda params=[] body=e18 label=partition type=(Int) -> Boolean
 expr e20 memberCall recv=e8 callee=partition args=[_:e19] type=Class#75<Class#123<Int>, Class#123<Int>>
 expr e21 destructuringDecl names=[evens,odds] mutable=0 init=e20 type=Unit
 expr e22 name(println) type=_
-expr e23 name(evens) type=T#76 ref=s3578
+expr e23 name(evens) type=Class#123<Int> ref=s3592
 expr e24 call callee=e22 args=[_:e23] type=Unit call=s1732 map=[0->0] targs=[]
 expr e25 name(println) type=_
-expr e26 name(odds) type=T#77 ref=s3579
+expr e26 name(odds) type=Class#123<Int> ref=s3593
 expr e27 call callee=e25 args=[_:e26] type=Unit call=s1732 map=[0->0] targs=[]

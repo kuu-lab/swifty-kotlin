@@ -3574,36 +3574,50 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=class fq=golden.sema.Animal vis=public flags=openType
-symbol s3577 kind=constructor fq=golden.sema.Animal.<init> vis=public flags=_ sig=recv=Class#3576 params=[] ret=Class#3576 suspend=0 defaults=[] vararg=[]
-symbol s3578 kind=class fq=golden.sema.Dog vis=public flags=_
-symbol s3579 kind=constructor fq=golden.sema.Dog.<init> vis=public flags=_ sig=recv=Class#3578 params=[] ret=Class#3578 suspend=0 defaults=[] vararg=[]
-symbol s3580 kind=function fq=golden.sema.accept vis=public flags=_ sig=recv=_ params=[T#3581] ret=T#3581 suspend=0 defaults=[0] vararg=[0] bounds=[Class#3576]
-symbol s3581 kind=typeParameter fq=golden.sema.accept.$3580.T vis=private flags=_
-symbol s3582 kind=valueParameter fq=golden.sema.accept.$3580.x vis=private flags=_
-symbol s3583 kind=function fq=golden.sema.callValid vis=public flags=_ sig=recv=_ params=[] ret=Class#3576 suspend=0 defaults=[] vararg=[]
-symbol s3584 kind=function fq=golden.sema.unbounded vis=public flags=_ sig=recv=_ params=[T#3585] ret=T#3585 suspend=0 defaults=[0] vararg=[0]
-symbol s3585 kind=typeParameter fq=golden.sema.unbounded.$3584.T vis=private flags=_
-symbol s3586 kind=valueParameter fq=golden.sema.unbounded.$3584.x vis=private flags=_
-symbol s3587 kind=function fq=golden.sema.callUnbounded vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s3588 kind=function fq=golden.sema.acceptWhere vis=public flags=_ sig=recv=_ params=[T#3589] ret=T#3589 suspend=0 defaults=[0] vararg=[0] bounds=[Class#3576]
-symbol s3589 kind=typeParameter fq=golden.sema.acceptWhere.$3588.T vis=private flags=_
-symbol s3590 kind=valueParameter fq=golden.sema.acceptWhere.$3588.x vis=private flags=_
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=class fq=golden.sema.Animal vis=public flags=openType
+symbol s3591 kind=constructor fq=golden.sema.Animal.<init> vis=public flags=_ sig=recv=Class#3590 params=[] ret=Class#3590 suspend=0 defaults=[] vararg=[]
+symbol s3592 kind=class fq=golden.sema.Dog vis=public flags=_
+symbol s3593 kind=constructor fq=golden.sema.Dog.<init> vis=public flags=_ sig=recv=Class#3592 params=[] ret=Class#3592 suspend=0 defaults=[] vararg=[]
+symbol s3594 kind=function fq=golden.sema.accept vis=public flags=_ sig=recv=_ params=[T#3595] ret=T#3595 suspend=0 defaults=[0] vararg=[0] bounds=[Class#3590]
+symbol s3595 kind=typeParameter fq=golden.sema.accept.$3594.T vis=private flags=_
+symbol s3596 kind=valueParameter fq=golden.sema.accept.$3594.x vis=private flags=_
+symbol s3597 kind=function fq=golden.sema.callValid vis=public flags=_ sig=recv=_ params=[] ret=Class#3590 suspend=0 defaults=[] vararg=[]
+symbol s3598 kind=function fq=golden.sema.unbounded vis=public flags=_ sig=recv=_ params=[T#3599] ret=T#3599 suspend=0 defaults=[0] vararg=[0]
+symbol s3599 kind=typeParameter fq=golden.sema.unbounded.$3598.T vis=private flags=_
+symbol s3600 kind=valueParameter fq=golden.sema.unbounded.$3598.x vis=private flags=_
+symbol s3601 kind=function fq=golden.sema.callUnbounded vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s3602 kind=function fq=golden.sema.acceptWhere vis=public flags=_ sig=recv=_ params=[T#3603] ret=T#3603 suspend=0 defaults=[0] vararg=[0] bounds=[Class#3590]
+symbol s3603 kind=typeParameter fq=golden.sema.acceptWhere.$3602.T vis=private flags=_
+symbol s3604 kind=valueParameter fq=golden.sema.acceptWhere.$3602.x vis=private flags=_
 file f0 package=golden.sema
-  decl d0 class Animal sym=s3576
-  decl d1 class Dog sym=s3578
-  decl d2 fun accept suspend=0 inline=0 sym=s3580
-  decl d3 fun callValid suspend=0 inline=0 sym=s3583
-  decl d4 fun unbounded suspend=0 inline=0 sym=s3584
-  decl d5 fun callUnbounded suspend=0 inline=0 sym=s3587
-  decl d6 fun acceptWhere suspend=0 inline=0 sym=s3588
-expr e0 name(x) type=T#3581 ref=s3582
+  decl d0 class Animal sym=s3590
+  decl d1 class Dog sym=s3592
+  decl d2 fun accept suspend=0 inline=0 sym=s3594
+  decl d3 fun callValid suspend=0 inline=0 sym=s3597
+  decl d4 fun unbounded suspend=0 inline=0 sym=s3598
+  decl d5 fun callUnbounded suspend=0 inline=0 sym=s3601
+  decl d6 fun acceptWhere suspend=0 inline=0 sym=s3602
+expr e0 name(x) type=T#3595 ref=s3596
 expr e1 name(accept) type=_
 expr e2 name(Dog) type=_
-expr e3 call callee=e2 args=[] type=Class#3578 call=s3579 map=[] targs=[]
-expr e4 call callee=e1 args=[_:e3] type=Class#3578 call=s3580 map=[0->0] targs=[Class#3578]
-expr e5 name(x) type=T#3585 ref=s3586
+expr e3 call callee=e2 args=[] type=Class#3592 call=s3593 map=[] targs=[]
+expr e4 call callee=e1 args=[_:e3] type=Class#3592 call=s3594 map=[0->0] targs=[Class#3592]
+expr e5 name(x) type=T#3599 ref=s3600
 expr e6 name(unbounded) type=_
 expr e7 int(42) type=Int
-expr e8 call callee=e6 args=[_:e7] type=Int call=s3584 map=[0->0] targs=[Int]
-expr e9 name(x) type=T#3589 ref=s3590
+expr e8 call callee=e6 args=[_:e7] type=Int call=s3598 map=[0->0] targs=[Int]
+expr e9 name(x) type=T#3603 ref=s3604

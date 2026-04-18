@@ -3574,31 +3574,45 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3577 kind=local fq=__local_3.f vis=private flags=_ type=Class#1848
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3591 kind=local fq=__local_3.f vis=private flags=_ type=Class#1848
 file f0 package=_
-  decl d0 fun main suspend=0 inline=0 sym=s3576
+  decl d0 fun main suspend=0 inline=0 sym=s3590
 expr e0 name(File) type=_
 expr e1 string(/tmp/golden_test.txt) type=String
 expr e2 call callee=e0 args=[_:e1] type=Class#1848 call=s1863 map=[0->0] targs=[]
-expr e3 localDecl f mutable=0 type=_ init=e2 type=Unit ref=s3577
+expr e3 localDecl f mutable=0 type=_ init=e2 type=Unit ref=s3591
 expr e4 name(println) type=_
-expr e5 name(f) type=Class#1848 ref=s3577
+expr e5 name(f) type=Class#1848 ref=s3591
 expr e6 memberCall recv=e5 callee=name args=[] type=String ref=s2539
 expr e7 call callee=e4 args=[_:e6] type=Unit call=s1732 map=[0->0] targs=[]
 expr e8 name(println) type=_
-expr e9 name(f) type=Class#1848 ref=s3577
+expr e9 name(f) type=Class#1848 ref=s3591
 expr e10 memberCall recv=e9 callee=path args=[] type=String ref=s2540
 expr e11 call callee=e8 args=[_:e10] type=Unit call=s1732 map=[0->0] targs=[]
 expr e12 name(println) type=_
-expr e13 name(f) type=Class#1848 ref=s3577
+expr e13 name(f) type=Class#1848 ref=s3591
 expr e14 memberCall recv=e13 callee=exists args=[] type=Boolean call=s2544 map=[] targs=[]
 expr e15 call callee=e12 args=[_:e14] type=Unit call=s1732 map=[0->0] targs=[]
 expr e16 name(println) type=_
-expr e17 name(f) type=Class#1848 ref=s3577
+expr e17 name(f) type=Class#1848 ref=s3591
 expr e18 memberCall recv=e17 callee=isFile args=[] type=Boolean call=s2545 map=[] targs=[]
 expr e19 call callee=e16 args=[_:e18] type=Unit call=s1732 map=[0->0] targs=[]
 expr e20 name(println) type=_
-expr e21 name(f) type=Class#1848 ref=s3577
+expr e21 name(f) type=Class#1848 ref=s3591
 expr e22 memberCall recv=e21 callee=isDirectory args=[] type=Boolean call=s2546 map=[] targs=[]
 expr e23 call callee=e20 args=[_:e22] type=Unit call=s1732 map=[0->0] targs=[]

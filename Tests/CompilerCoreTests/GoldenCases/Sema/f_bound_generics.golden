@@ -3574,29 +3574,43 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=function fq=golden.sema.max vis=public flags=_ sig=recv=_ params=[T#3577,T#3577] ret=T#3577 suspend=0 defaults=[0,0] vararg=[0,0] bounds=[Class#134<T#3577>]
-symbol s3577 kind=typeParameter fq=golden.sema.max.$3576.T vis=private flags=_
-symbol s3578 kind=valueParameter fq=golden.sema.max.$3576.a vis=private flags=_
-symbol s3579 kind=valueParameter fq=golden.sema.max.$3576.b vis=private flags=_
-symbol s3580 kind=function fq=golden.sema.useMax vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3581 kind=local fq=__local_10.m1 vis=private flags=_ type=Int
-symbol s3582 kind=local fq=__local_15.m2 vis=private flags=_ type=String
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=function fq=golden.sema.max vis=public flags=_ sig=recv=_ params=[T#3591,T#3591] ret=T#3591 suspend=0 defaults=[0,0] vararg=[0,0] bounds=[Class#134<T#3591>]
+symbol s3591 kind=typeParameter fq=golden.sema.max.$3590.T vis=private flags=_
+symbol s3592 kind=valueParameter fq=golden.sema.max.$3590.a vis=private flags=_
+symbol s3593 kind=valueParameter fq=golden.sema.max.$3590.b vis=private flags=_
+symbol s3594 kind=function fq=golden.sema.useMax vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3595 kind=local fq=__local_10.m1 vis=private flags=_ type=Int
+symbol s3596 kind=local fq=__local_15.m2 vis=private flags=_ type=String
 file f0 package=golden.sema
-  decl d0 fun max suspend=0 inline=0 sym=s3576
-  decl d1 fun useMax suspend=0 inline=0 sym=s3580
-expr e0 name(a) type=T#3577 ref=s3578
-expr e1 name(b) type=T#3577 ref=s3579
-expr e2 binary(greaterThan) lhs=e0 rhs=e1 type=Boolean call=s136 map=[0->0] targs=[T#3577]
-expr e3 name(a) type=T#3577 ref=s3578
-expr e4 name(b) type=T#3577 ref=s3579
-expr e5 if cond=e2 then=e3 else=e4 type=T#3577
+  decl d0 fun max suspend=0 inline=0 sym=s3590
+  decl d1 fun useMax suspend=0 inline=0 sym=s3594
+expr e0 name(a) type=T#3591 ref=s3592
+expr e1 name(b) type=T#3591 ref=s3593
+expr e2 binary(greaterThan) lhs=e0 rhs=e1 type=Boolean call=s136 map=[0->0] targs=[T#3591]
+expr e3 name(a) type=T#3591 ref=s3592
+expr e4 name(b) type=T#3591 ref=s3593
+expr e5 if cond=e2 then=e3 else=e4 type=T#3591
 expr e6 name(max) type=_
 expr e7 int(1) type=Int
 expr e8 int(2) type=Int
-expr e9 call callee=e6 args=[_:e7,_:e8] type=Int call=s3576 map=[0->0,1->1] targs=[Int]
-expr e10 localDecl m1 mutable=0 type=_ init=e9 type=Unit ref=s3581
+expr e9 call callee=e6 args=[_:e7,_:e8] type=Int call=s3590 map=[0->0,1->1] targs=[Int]
+expr e10 localDecl m1 mutable=0 type=_ init=e9 type=Unit ref=s3595
 expr e11 name(max) type=_
 expr e12 string(a) type=String
 expr e13 string(b) type=String
-expr e14 call callee=e11 args=[_:e12,_:e13] type=String call=s3576 map=[0->0,1->1] targs=[String]
-expr e15 localDecl m2 mutable=0 type=_ init=e14 type=Unit ref=s3582
+expr e14 call callee=e11 args=[_:e12,_:e13] type=String call=s3590 map=[0->0,1->1] targs=[String]
+expr e15 localDecl m2 mutable=0 type=_ init=e14 type=Unit ref=s3596

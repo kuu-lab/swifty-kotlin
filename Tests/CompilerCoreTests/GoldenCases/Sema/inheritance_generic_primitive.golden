@@ -3574,16 +3574,30 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=interface fq=test.Container vis=public flags=_
-symbol s3577 kind=typeParameter fq=test.Container.$iface3576.T vis=private flags=_
-symbol s3578 kind=class fq=test.IntContainer vis=public flags=_
-symbol s3579 kind=constructor fq=test.IntContainer.<init> vis=public flags=_ sig=recv=Class#3578 params=[] ret=Class#3578 suspend=0 defaults=[] vararg=[]
-symbol s3580 kind=class fq=test.StringContainer vis=public flags=_
-symbol s3581 kind=constructor fq=test.StringContainer.<init> vis=public flags=_ sig=recv=Class#3580 params=[] ret=Class#3580 suspend=0 defaults=[] vararg=[]
-symbol s3582 kind=class fq=test.BoolContainer vis=public flags=_
-symbol s3583 kind=constructor fq=test.BoolContainer.<init> vis=public flags=_ sig=recv=Class#3582 params=[] ret=Class#3582 suspend=0 defaults=[] vararg=[]
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=interface fq=test.Container vis=public flags=_
+symbol s3591 kind=typeParameter fq=test.Container.$iface3590.T vis=private flags=_
+symbol s3592 kind=class fq=test.IntContainer vis=public flags=_
+symbol s3593 kind=constructor fq=test.IntContainer.<init> vis=public flags=_ sig=recv=Class#3592 params=[] ret=Class#3592 suspend=0 defaults=[] vararg=[]
+symbol s3594 kind=class fq=test.StringContainer vis=public flags=_
+symbol s3595 kind=constructor fq=test.StringContainer.<init> vis=public flags=_ sig=recv=Class#3594 params=[] ret=Class#3594 suspend=0 defaults=[] vararg=[]
+symbol s3596 kind=class fq=test.BoolContainer vis=public flags=_
+symbol s3597 kind=constructor fq=test.BoolContainer.<init> vis=public flags=_ sig=recv=Class#3596 params=[] ret=Class#3596 suspend=0 defaults=[] vararg=[]
 file f0 package=test
-  decl d0 interface Container sym=s3576
-  decl d1 class IntContainer sym=s3578
-  decl d2 class StringContainer sym=s3580
-  decl d3 class BoolContainer sym=s3582
+  decl d0 interface Container sym=s3590
+  decl d1 class IntContainer sym=s3592
+  decl d2 class StringContainer sym=s3594
+  decl d3 class BoolContainer sym=s3596

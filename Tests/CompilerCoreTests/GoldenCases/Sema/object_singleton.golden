@@ -3574,25 +3574,39 @@ symbol s3572 kind=constructor fq=java.util.concurrent.locks.ReentrantReadWriteLo
 symbol s3573 kind=function fq=kotlin.concurrent.read vis=public flags=inlineFunction|synthetic sig=recv=Class#3571 params=[() -> T#3574] ret=T#3574 suspend=0 defaults=[0] vararg=[0]
 symbol s3574 kind=typeParameter fq=kotlin.concurrent.read.T vis=private flags=synthetic
 symbol s3575 kind=valueParameter fq=kotlin.concurrent.read.action vis=private flags=synthetic
-symbol s3576 kind=object fq=golden.sema.Counter vis=public flags=_
-symbol s3577 kind=function fq=golden.sema.Counter.increment vis=public flags=_ sig=recv=Class#3576 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3578 kind=property fq=golden.sema.Counter.label vis=public flags=_ type=String
-symbol s3579 kind=property fq=golden.sema.Counter.n vis=public flags=mutable type=Int
-symbol s3580 kind=function fq=golden.sema.useCounter vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3576 kind=package fq=kotlin.native.ref vis=public flags=synthetic
+symbol s3577 kind=package fq=kotlin.native.runtime vis=public flags=synthetic
+symbol s3578 kind=class fq=kotlin.native.ref.WeakReference vis=public flags=synthetic type=Class#3578<T#3579>
+symbol s3579 kind=typeParameter fq=kotlin.native.ref.WeakReference.T vis=private flags=_
+symbol s3580 kind=function fq=kotlin.native.ref.WeakReference.get vis=public flags=synthetic sig=recv=Class#3578<T#3579> params=[] ret=T#3579? suspend=0 defaults=[] vararg=[]
+symbol s3581 kind=function fq=kotlin.native.ref.createCleaner vis=public flags=synthetic sig=recv=_ params=[Any,(Any) -> Unit] ret=Any suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3582 kind=valueParameter fq=kotlin.native.ref.createCleaner.value vis=private flags=synthetic
+symbol s3583 kind=valueParameter fq=kotlin.native.ref.createCleaner.block vis=private flags=synthetic
+symbol s3584 kind=object fq=kotlin.native.runtime.GC vis=public flags=synthetic type=Class#3584
+symbol s3585 kind=function fq=kotlin.native.runtime.GC.collect vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3586 kind=function fq=kotlin.native.runtime.GC.schedule vis=public flags=synthetic sig=recv=Class#3584 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3587 kind=object fq=kotlin.native.runtime.Debugging vis=public flags=synthetic type=Class#3587
+symbol s3588 kind=property fq=kotlin.native.runtime.Debugging.isThreadStateRunnable vis=public flags=synthetic type=Boolean
+symbol s3589 kind=property fq=kotlin.native.runtime.Debugging.gcSuspendCount vis=public flags=synthetic type=Int
+symbol s3590 kind=object fq=golden.sema.Counter vis=public flags=_
+symbol s3591 kind=function fq=golden.sema.Counter.increment vis=public flags=_ sig=recv=Class#3590 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3592 kind=property fq=golden.sema.Counter.label vis=public flags=_ type=String
+symbol s3593 kind=property fq=golden.sema.Counter.n vis=public flags=mutable type=Int
+symbol s3594 kind=function fq=golden.sema.useCounter vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
 file f0 package=golden.sema
-  decl d3 object Counter sym=s3576
-  decl d4 fun useCounter suspend=0 inline=0 sym=s3580
+  decl d3 object Counter sym=s3590
+  decl d4 fun useCounter suspend=0 inline=0 sym=s3594
 expr e0 string(counter) type=String
 expr e1 int(0) type=Int
 expr e2 name(n) type=_
-expr e3 name(n) type=Int ref=s3579
+expr e3 name(n) type=Int ref=s3593
 expr e4 int(1) type=Int
 expr e5 binary(add) lhs=e3 rhs=e4 type=Int
-expr e6 localAssign n value=e5 type=Unit ref=s3579
+expr e6 localAssign n value=e5 type=Unit ref=s3593
 expr e7 name(n) type=_
 expr e8 int(1) type=Int
-expr e9 localAssign n value=e8 type=Unit ref=s3579
-expr e10 name(Counter) type=Class#3576 ref=s3576
-expr e11 memberCall recv=e10 callee=increment args=[] type=Unit call=s3577 map=[] targs=[]
-expr e12 name(Counter) type=Class#3576 ref=s3576
-expr e13 memberCall recv=e12 callee=increment args=[] type=Unit call=s3577 map=[] targs=[]
+expr e9 localAssign n value=e8 type=Unit ref=s3593
+expr e10 name(Counter) type=Class#3590 ref=s3590
+expr e11 memberCall recv=e10 callee=increment args=[] type=Unit call=s3591 map=[] targs=[]
+expr e12 name(Counter) type=Class#3590 ref=s3590
+expr e13 memberCall recv=e12 callee=increment args=[] type=Unit call=s3591 map=[] targs=[]
