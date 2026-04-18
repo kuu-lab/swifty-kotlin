@@ -25,6 +25,7 @@ private func runtimeThrowNotNullUninitialized(
         outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
         return 0
     } else {
+        FileHandle.standardError.write(Data((runtimeNotNullUninitializedMessage + "\n").utf8))
         fatalError(runtimeNotNullUninitializedMessage)
     }
 }
