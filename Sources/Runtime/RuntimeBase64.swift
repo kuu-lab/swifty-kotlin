@@ -62,13 +62,16 @@ private func stripPadding(_ s: String) -> String {
 private func addPadding(_ s: String) -> String {
     let rem = s.count % 4
     guard rem != 0 else { return s }
-    return s + String(repeating: "=", with: 4 - rem)
+    return s + String(repeating: "=", count: 4 - rem)
 }
 
-extension String {
-    fileprivate init(repeating scalar: Character, with count: Int) {
-        self = String(repeating: scalar, count: count)
-    }
+private let mimeBase64ScalarSet = CharacterSet(
+    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+)
+
+/// MIME decoders ignore every character outside the Base64 alphabet (RFC 2045).
+private func mimeFilterBase64Alphabet(_ s: String) -> String {
+    String(s.unicodeScalars.filter { mimeBase64ScalarSet.contains($0) })
 }
 
 /// Validates that no padding characters appear in the string.
@@ -205,13 +208,8 @@ public func kk_base64_decode_mime(
             message: "Invalid base64 string: null input")
         return runtimeNullSentinelInt
     }
-    // MIME tolerates whitespace — strip CR/LF/spaces before decoding
-    let sanitized = input
-        .replacingOccurrences(of: "\r\n", with: "")
-        .replacingOccurrences(of: "\r", with: "")
-        .replacingOccurrences(of: "\n", with: "")
-        .replacingOccurrences(of: " ", with: "")
-        .replacingOccurrences(of: "\t", with: "")
+    // MIME: ignore all non-alphabet characters (whitespace, control chars, etc.).
+    let sanitized = mimeFilterBase64Alphabet(input)
     let option = paddingOption(from: paddingOptionRaw)
     return decodeBase64String(sanitized, option: option, alphabet: .standard, outThrown: outThrown)
 }
@@ -296,8 +294,11 @@ private func decodeBase64String(
     let padded = addPadding(normalised)
 
     guard let data = Data(base64Encoded: padded) else {
+        let len = input.count
+        let prefix = String(input.prefix(24))
         outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "Illegal base64 character in input: \"\(input)\"")
+            message: "Illegal base64 character in input (length=\(len), prefix=\(prefix))"
+        )
         return runtimeNullSentinelInt
     }
     return base64MakeByteArrayRaw(Array(data))

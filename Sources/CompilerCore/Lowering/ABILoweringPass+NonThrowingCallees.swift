@@ -496,7 +496,6 @@ extension ABILoweringPass {
             interner.intern("kk_vetoable_get_value"),
             interner.intern("kk_vetoable_set_value"),
             interner.intern("kk_notNull_create"),
-            interner.intern("kk_notNull_get_value"),
             interner.intern("kk_notNull_set_value"),
             interner.intern("kk_custom_delegate_create"),
             interner.intern("kk_custom_delegate_get_value"),

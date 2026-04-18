@@ -198,10 +198,10 @@ extension DataFlowSemaPhase {
     ) {
         let intType = types.intType
         let entries: [(name: String, externalLinkName: String)] = [
-            ("Base64PaddingOptionPresent",         "kk_base64_padding_present"),
-            ("Base64PaddingOptionAbsent",          "kk_base64_padding_absent"),
+            ("Base64PaddingOptionPresent", "kk_base64_padding_present"),
+            ("Base64PaddingOptionAbsent", "kk_base64_padding_absent"),
             ("Base64PaddingOptionPresentOptional", "kk_base64_padding_present_optional"),
-            ("Base64PaddingOptionAbsentOptional",  "kk_base64_padding_absent_optional"),
+            ("Base64PaddingOptionAbsentOptional", "kk_base64_padding_absent_optional"),
         ]
         for entry in entries {
             let name = interner.intern(entry.name)

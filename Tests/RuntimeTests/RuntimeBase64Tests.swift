@@ -42,8 +42,13 @@ final class RuntimeBase64Tests: XCTestCase {
 
     private func makeRuntimeString(_ s: String) -> Int {
         let utf8 = Array(s.utf8)
+        if utf8.isEmpty {
+            var nul: UInt8 = 0
+            return Int(bitPattern: kk_string_from_utf8(&nul, 0))
+        }
         return utf8.withUnsafeBufferPointer { buf in
-            Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
+            guard let base = buf.baseAddress else { return 0 }
+            return Int(bitPattern: kk_string_from_utf8(base, Int32(buf.count)))
         }
     }
 
