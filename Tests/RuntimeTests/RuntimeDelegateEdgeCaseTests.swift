@@ -118,17 +118,17 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testNotNullSetThenGetReturnsValue() {
         let handle = kk_notNull_create()
         _ = kk_notNull_set_value(handle, 42)
-        XCTAssertEqual(kk_notNull_get_value(handle, nil), 42)
+        XCTAssertEqual(kk_notNull_get_value(handle), 42)
     }
 
     // notNull allows re-assignment after first set.
     func testNotNullAllowsReassignment() {
         let handle = kk_notNull_create()
         _ = kk_notNull_set_value(handle, 10)
-        XCTAssertEqual(kk_notNull_get_value(handle, nil), 10)
+        XCTAssertEqual(kk_notNull_get_value(handle), 10)
 
         _ = kk_notNull_set_value(handle, 20)
-        XCTAssertEqual(kk_notNull_get_value(handle, nil), 20,
+        XCTAssertEqual(kk_notNull_get_value(handle), 20,
                        "notNull should allow overwriting the already-set value")
     }
 
@@ -141,7 +141,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         // BUG-CANDIDATE: RuntimeDelegates.swift stores Int? and checks guard let value.
         // If the runtime treats 0 as nil (which it does not currently), this would trap.
         // Verified: box.currentValue = newValue regardless of value, so 0 is stored safely.
-        XCTAssertEqual(kk_notNull_get_value(handle, nil), 0,
+        XCTAssertEqual(kk_notNull_get_value(handle), 0,
                        "notNull must store integer 0 (not confuse it with nil)")
     }
 
@@ -149,7 +149,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     func testNotNullViaGenericShimGetSet() {
         let handle = kk_notNull_create()
-        _ = kk_delegate_set_value(handle, 0, 0, 99)
+        _ = kk_delegate_set_value(handle, 0, 0, 99, nil)
         let result = kk_delegate_get_value(handle, 0, 0, nil)
         XCTAssertEqual(result, 99,
                        "kk_delegate_get_value shim should dispatch to notNull box")
@@ -219,7 +219,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let handle = kk_observable_create(100, cbPtr)
         gEdgeState.withLock { $0.observableHandleRef = handle }
 
-        _ = kk_delegate_set_value(handle, 0, 0, 200)
+        _ = kk_delegate_set_value(handle, 0, 0, 200, nil)
         XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 200)
         let count = gEdgeState.withLock { $0.observableCallCount }
         XCTAssertEqual(count, 1, "Generic shim must trigger observable callback")
@@ -315,7 +315,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let handle = kk_vetoable_create(0, cbPtr)
         gEdgeState.withLock { $0.vetoableHandleRef = handle }
 
-        _ = kk_delegate_set_value(handle, 0, 0, 55)
+        _ = kk_delegate_set_value(handle, 0, 0, 55, nil)
         XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 55)
     }
 
@@ -323,7 +323,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let cbPtr = unsafeBitCast(vetoableEdgeReject, to: Int.self)
         let handle = kk_vetoable_create(7, cbPtr)
 
-        _ = kk_delegate_set_value(handle, 0, 0, 99)
+        _ = kk_delegate_set_value(handle, 0, 0, 99, nil)
         XCTAssertEqual(kk_delegate_get_value(handle, 0, 0, nil), 7,
                        "Generic shim veto should keep original value")
     }
@@ -430,7 +430,7 @@ final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
     func testAllDelegateShimsHandleZeroHandleGracefully() {
         // kk_delegate_get_value and kk_delegate_set_value with handle == 0.
         XCTAssertEqual(kk_delegate_get_value(0, 0, 0, nil), 0)
-        XCTAssertEqual(kk_delegate_set_value(0, 0, 0, 42), 0)
+        XCTAssertEqual(kk_delegate_set_value(0, 0, 0, 42, nil), 0)
     }
 
     func testObservableSetValueWithInvalidHandleReturnsZero() {
