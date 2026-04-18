@@ -862,7 +862,7 @@ extension DataFlowSemaPhase {
             fqName: propertyFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: [.synthetic, .mutable]
         )
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setExternalLinkName(getterLinkName, for: propertySymbol)
