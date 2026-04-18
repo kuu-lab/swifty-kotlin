@@ -73,27 +73,6 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
         return sema.symbols.lookup(fqName: interned) != nil
     }
 
-    /// `kotlin.comparisons.<name>(T, T, Comparator<T>)` style overload (third parameter is Comparator).
-    private func hasComparatorThirdParameterOverload(
-        named functionBaseName: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        let comparatorFQ = ["kotlin", "Comparator"].map { interner.intern($0) }
-        guard let comparatorSym = sema.symbols.lookup(fqName: comparatorFQ) else {
-            return false
-        }
-        let fq = ["kotlin", "comparisons", functionBaseName].map { interner.intern($0) }
-        let syms = sema.symbols.lookupAll(fqName: fq)
-        return syms.contains { sym in
-            guard let sig = sema.symbols.functionSignature(for: sym) else { return false }
-            guard sig.parameterTypes.count == 3 else { return false }
-            let third = sig.parameterTypes[2]
-            guard case let .classType(ct) = sema.types.kind(of: third) else { return false }
-            return ct.classSymbol == comparatorSym
-        }
-    }
-
     // MARK: - 1. kotlin.Comparator interface
 
     func testComparatorInterfaceIsRegistered() throws {
@@ -388,26 +367,31 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
 
     func testMaxOfWithComparatorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "comparisons", "maxOf"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        // 3-param overload: (T, T, Comparator<T>)
+        let hasComparatorOverload = syms.contains { sym in
+            guard let sig = sema.symbols.functionSignature(for: sym) else { return false }
+            return sig.parameterTypes.count == 3
+        }
         XCTAssertTrue(
-            hasComparatorThirdParameterOverload(named: "maxOf", sema: sema, interner: interner),
-            "kotlin.comparisons.maxOf must have a (T, T, Comparator<T>) overload"
+            hasComparatorOverload,
+            "kotlin.comparisons.maxOf must have a 3-param (a, b, comparator) overload"
         )
     }
 
-    func testMinOfWithComparatorOverloadIsRegistered_Gap() throws {
-        // TODO(STDLIB-COMP-001): minOf with Comparator is not yet registered in the sema layer.
-        // When implemented, flip to asserting the symbol exists with the correct arity.
+    func testMinOfWithComparatorOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
-        let hasComparatorOverload = hasComparatorThirdParameterOverload(
-            named: "minOf",
-            sema: sema,
-            interner: interner
-        )
-        // Documenting the gap: minOf(a, b, comparator) is not yet implemented.
-        // TODO(STDLIB-COMP-001): Change XCTAssertFalse to XCTAssertTrue when implemented.
-        XCTAssertFalse(
+        let fq = ["kotlin", "comparisons", "minOf"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        // 3-param overload: (T, T, Comparator<T>)
+        let hasComparatorOverload = syms.contains { sym in
+            guard let sig = sema.symbols.functionSignature(for: sym) else { return false }
+            return sig.parameterTypes.count == 3
+        }
+        XCTAssertTrue(
             hasComparatorOverload,
-            "minOf(a, b, Comparator<T>) is not yet registered (expected gap)"
+            "kotlin.comparisons.minOf must have a 3-param (a, b, comparator) overload"
         )
     }
 
