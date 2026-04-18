@@ -51,6 +51,18 @@
 - [ ] STDLIB-GAP-PH2: `kotlin.collections` / `kotlin.sequences` / `kotlin.ranges` の未対応を潰す
 - [ ] STDLIB-020: `Sequence` の lazy 性と builder 系 API の評価順を固定
 - [ ] STDLIB-021: mutable collection 変換 API と destination variant の差分を潰す
+- [ ] STDLIB-SEQ-001: `Sequence.map/filter + take` の lazy short-circuit を追加する
+- [ ] STDLIB-SEQ-002: `generateSequence` の null 終端と infinite source + `take` を追加する
+- [ ] STDLIB-SEQ-003: `sequence { yieldAll(...) }` builder semantics を追加する
+- [ ] STDLIB-SEQ-004: `Sequence.flatMap` / `distinct` / `zip` / `drop` を追加する
+- [ ] STDLIB-SEQ-005: `Sequence.count` / `forEach` / `fold` / `first` / `firstOrNull` を追加する
+- [ ] STDLIB-SEQ-006: `Iterable.asSequence()` と `Sequence.constrainOnce()` を追加する
+- [ ] STDLIB-SEQ-007: `Sequence.any` / `all` / `find` の short-circuit を追加する
+- [ ] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する
+- [ ] STDLIB-COL-DEST-002: `mapTo` / `mapIndexedTo` / `mapNotNullTo` を追加する
+- [ ] STDLIB-COL-DEST-003: `flatMapTo` / `flatMapIndexedTo` を追加する
+- [ ] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
+- [ ] STDLIB-COL-DEST-005: `toCollection(destination)` を追加する
 - [ ] STDLIB-022: range / progression / unsigned range の網羅性を上げる
 
 ### Phase 3: I/O・パス・時間・並行（common）
