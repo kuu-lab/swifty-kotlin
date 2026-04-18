@@ -770,7 +770,14 @@ public func kk_delegate_get_value(_ handle: Int, _: Int, _ property: Int, _ outT
 /// Bridges compiler-emitted delegated property setters that still lower to
 /// `setValue` instead of direct runtime helper names.
 @_cdecl("kk_delegate_set_value")
-public func kk_delegate_set_value(_ handle: Int, _: Int, _ property: Int, _ newValue: Int) -> Int {
+public func kk_delegate_set_value(
+    _ handle: Int,
+    _: Int,
+    _ property: Int,
+    _ newValue: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         return 0
     }
