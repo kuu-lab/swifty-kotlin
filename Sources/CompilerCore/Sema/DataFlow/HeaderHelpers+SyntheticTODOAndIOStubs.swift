@@ -2517,6 +2517,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> (STDLIB-SEQ-012)
+        registerSequenceMemberStub(
+            named: "partition",
+            externalLinkName: "kk_sequence_partition",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.anyType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // foldIndexed(initial, operation): R
         registerSequenceMemberStub(
             named: "foldIndexed",

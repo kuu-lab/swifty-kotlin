@@ -2432,6 +2432,50 @@ public func kk_sequence_minus(_ seqRaw: Int, _ element: Int) -> Int {
     return registerRuntimeObject(newSeq)
 }
 
+// MARK: - Sequence partition (STDLIB-SEQ-012)
+//
+// Eagerly materialises the sequence and partitions elements into two lists:
+// the first list contains elements for which the predicate returns true,
+// the second list contains elements for which the predicate returns false.
+// The result is a Pair<List<T>, List<T>> heap object.
+
+@_cdecl("kk_sequence_partition")
+public func kk_sequence_partition(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let elements: [Int]
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        elements = evaluateSequence(seq)
+    } else if let list = runtimeListBox(from: seqRaw) {
+        elements = list.elements
+    } else if let array = runtimeArrayBox(from: seqRaw) {
+        elements = array.elements
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_partition received invalid sequence handle")
+    }
+    var matching: [Int] = []
+    var nonMatching: [Int] = []
+    for elem in elements {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeExceptionCaughtSentinel
+        }
+        if maybeUnbox(result) != 0 {
+            matching.append(elem)
+        } else {
+            nonMatching.append(elem)
+        }
+    }
+    let matchingList = registerRuntimeObject(RuntimeListBox(elements: matching))
+    let nonMatchingList = registerRuntimeObject(RuntimeListBox(elements: nonMatching))
+    return kk_pair_new(matchingList, nonMatchingList)
+}
+
 // MARK: - Sequence Builder (sequence { yield(x) })
 
 @_cdecl("kk_sequence_builder_create")
