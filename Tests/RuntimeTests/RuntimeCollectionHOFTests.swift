@@ -78,6 +78,11 @@ private let foldOrder: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?
     acc * 10 + value
 }
 
+// Windowed transform callback used by the runtime tests.
+private let windowSum: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, windowRaw, _ in
+    kk_list_sum(windowRaw)
+}
+
 private let addCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, value, outThrown in
     var thrown = 0
     let capture = kk_array_get(closureRaw, 0, &thrown)
@@ -243,6 +248,42 @@ final class RuntimeCollectionHOFTests: XCTestCase {
 
         let sorted = kk_list_sortedBy(makeList([22, 12, 21, 11]), unsafeBitCast(sortedByTens, to: Int.self), 0, nil as UnsafeMutablePointer<Int>?)
         XCTAssertEqual(listElements(sorted), [12, 11, 22, 21])
+    }
+
+    func testWindowedTransformProducesExpectedWindows() {
+        let source = makeList([1, 2, 3, 4, 5])
+        var thrown = 0
+
+        let result = kk_list_windowed_transform(
+            source,
+            3,
+            2,
+            1,
+            unsafeBitCast(windowSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(result), [6, 12, 5])
+    }
+
+    func testWindowedTransformPropagatesThrowingLambda() {
+        let source = makeList([1, 2, 3, 4, 5])
+        var thrown = 0
+
+        let result = kk_list_windowed_transform(
+            source,
+            3,
+            2,
+            1,
+            unsafeBitCast(throwingHOFLambda, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
     }
 
     func testCollectionMapNotNullPassesSentinelInputsToTransform() {

@@ -479,6 +479,7 @@ extension CallTypeChecker {
             isMutableMapReceiver: isMutableMapReceiver,
             isMutableSetReceiver: isMutableSetReceiver,
             isMutableListReceiver: isMutableListReceiver,
+            isSequenceReceiver: isSequenceReceiver,
             interner: interner
         )
         else {
@@ -1039,6 +1040,7 @@ extension CallTypeChecker {
         isMutableMapReceiver: Bool,
         isMutableSetReceiver: Bool = false,
         isMutableListReceiver: Bool,
+        isSequenceReceiver: Bool,
         interner: StringInterner
     ) -> Bool {
         let knownNames = KnownCompilerNames(interner: interner)
@@ -1106,9 +1108,9 @@ extension CallTypeChecker {
         case interner.intern("reduceRight"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
-            return argCount == 1 || argCount == 2 || argCount == 3
+            return argCount == 1 || argCount == 2 || argCount == 3 || (!isSequenceReceiver && argCount == 4)
         case interner.intern("chunked"):
-            return argCount == 1 || argCount == 2
+            return argCount == 1 || (!isSequenceReceiver && argCount == 2)
         case interner.intern("count"), interner.intern("first"), interner.intern("last"),
              interner.intern("single"):
             return argCount == 0 || argCount == 1
@@ -1145,6 +1147,19 @@ extension CallTypeChecker {
         // sum() returns the element type (Int for List<Int>, Long for List<Long>, etc.)
         if memberName == interner.intern("sum") {
             return receiverElementType
+        }
+
+        if (memberName == interner.intern("chunked") && args.count == 2 && !isSequenceReceiver)
+            || (memberName == interner.intern("windowed") && args.count == 4 && !isSequenceReceiver)
+        {
+            if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.out(sema.types.anyType)],
+                    nullability: .nonNull
+                )))
+            }
+            return sema.types.anyType
         }
 
         let boolReturningMembers: Set = [
@@ -1855,6 +1870,30 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 1, expectedType: expectedType)
+        }
+
+        if memberName == interner.intern("windowed"), argCount == 4 {
+            let listType: TypeID
+            if let listSymbol = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("List"),
+            ]) {
+                listType = sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(sema.types.anyType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                listType = sema.types.anyType
+            }
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [listType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 3, expectedType: expectedType)
         }
 
         if memberName == interner.intern("fold"), argCount == 2 {

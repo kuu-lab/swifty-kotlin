@@ -3555,6 +3555,56 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_windowed_partial",
             returnTypeOverride: listOfListReturnType
         )
+
+        // STDLIB-COL-WIN-001: windowed(size, step, partialWindows, transform)
+        // The transform overload erases R at the ABI level, so it returns List<Any>.
+        do {
+            let windowedTransformName = interner.intern("windowed")
+            let windowedTransformFQName = listFQName + [windowedTransformName]
+            let existingWindowedOverloads = symbols.lookupAll(fqName: windowedTransformFQName)
+            let hasFourParamWindowed = existingWindowedOverloads.contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else { return false }
+                return sig.parameterTypes.count == 4
+            }
+            if !hasFourParamWindowed {
+                let invariantListType = types.make(.classType(ClassType(
+                    classSymbol: listInterfaceSymbol,
+                    args: [.invariant(listTypeParamType)],
+                    nullability: .nonNull
+                )))
+                let transformType = types.make(.functionType(FunctionType(
+                    params: [invariantListType],
+                    returnType: types.anyType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                let listOfAnyReturnType = types.make(.classType(ClassType(
+                    classSymbol: listInterfaceSymbol,
+                    args: [.out(types.anyType)],
+                    nullability: .nonNull
+                )))
+                let memberSymbol = symbols.define(
+                    kind: .function,
+                    name: windowedTransformName,
+                    fqName: windowedTransformFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .inlineFunction]
+                )
+                symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+                symbols.setExternalLinkName("kk_list_windowed_transform", for: memberSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [types.intType, types.intType, types.booleanType, transformType],
+                        returnType: listOfAnyReturnType,
+                        typeParameterSymbols: [listTypeParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: memberSymbol
+                )
+            }
+        }
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],

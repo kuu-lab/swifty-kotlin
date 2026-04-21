@@ -2256,6 +2256,29 @@ public func kk_list_windowed_partial(_ listRaw: Int, _ size: Int, _ step: Int, _
     return registerRuntimeObject(RuntimeListBox(elements: windows))
 }
 
+@_cdecl("kk_list_windowed_transform")
+public func kk_list_windowed_transform(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    let elements = _listBox.elements
+    let clampedSize = max(1, size)
+    let clampedStep = max(1, step)
+    let partial = partialWindows != 0
+    var windows: [Int] = []
+    var i = 0
+    while i < elements.count {
+        let end = min(i + clampedSize, elements.count)
+        if !partial && end - i < clampedSize { break }
+        let window = Array(elements[i ..< end])
+        let windowList = registerRuntimeObject(RuntimeListBox(elements: window))
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: windowList, outThrown: &thrown)
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        windows.append(maybeUnbox(transformed))
+        i += clampedStep
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: windows))
+}
+
 @_cdecl("kk_list_indexOf")
 public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
     if let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
