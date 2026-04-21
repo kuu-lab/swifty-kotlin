@@ -5484,8 +5484,8 @@ extension CallLowerer {
                 "fold", "foldIndexed", "find", "findLast", "firstOrNull",
                 "lastOrNull", "any", "all", "none", "chunked", "windowed",
                 "reversed",
-                "random",
                 "take", "drop", "average", "sorted",
+                "random",
             ]
             if rangeMembers.contains(calleeText) {
                 arguments.insert(loweredReceiverID, at: 0)
@@ -6058,8 +6058,15 @@ extension CallLowerer {
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
             interner.intern("kk_range_random"),
+            interner.intern("kk_range_random_random"),
             interner.intern("kk_range_reduce"),
             interner.intern("kk_range_reduceIndexed"),
+            interner.intern("kk_long_range_random"),
+            interner.intern("kk_long_range_random_random"),
+            interner.intern("kk_uint_range_random"),
+            interner.intern("kk_uint_range_random_random"),
+            interner.intern("kk_ulong_range_random"),
+            interner.intern("kk_ulong_range_random_random"),
             interner.intern("kk_int_progression_fromClosedRange"),
             interner.intern("kk_long_progression_fromClosedRange"),
             interner.intern("kk_uint_progression_fromClosedRange"),
@@ -7022,15 +7029,15 @@ extension CallLowerer {
                     return interner.intern("kk_range_random_random")
                 }
                 if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
-                    return interner.intern("kk_ulong_range_random")
+                    return interner.intern(argumentCount > 0 ? "kk_ulong_range_random_random" : "kk_ulong_range_random")
                 }
                 if sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType {
-                    return interner.intern("kk_uint_range_random")
+                    return interner.intern(argumentCount > 0 ? "kk_uint_range_random_random" : "kk_uint_range_random")
                 }
                 if nonNullReceiverType == sema.types.longType {
-                    return interner.intern("kk_long_range_random")
+                    return interner.intern(argumentCount > 0 ? "kk_long_range_random_random" : "kk_long_range_random")
                 }
-                return interner.intern("kk_range_random")
+                return interner.intern(argumentCount > 0 ? "kk_range_random_random" : "kk_range_random")
             case "contains":
                 if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
                     return interner.intern("kk_ulong_range_contains")

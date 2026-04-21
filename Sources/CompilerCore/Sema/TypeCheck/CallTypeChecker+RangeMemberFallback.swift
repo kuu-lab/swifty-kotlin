@@ -86,6 +86,17 @@ extension CallTypeChecker {
             )
         }
 
+        if memberName == "random",
+           args.count == 1
+        {
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: rangeMemberRandomType(sema: sema, interner: interner)
+            )
+        }
+
         if isRangeMemberReturningCollection(memberName) {
             sema.bindings.markCollectionExpr(id)
         }
@@ -280,6 +291,25 @@ extension CallTypeChecker {
         default:
             return sema.types.anyType
         }
+    }
+
+    private func rangeMemberRandomType(
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let randomFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("random"),
+            interner.intern("Random"),
+        ]
+        guard let randomSymbol = sema.symbols.lookup(fqName: randomFQName) else {
+            return sema.types.anyType
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: randomSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
     }
 
     private func rangeMemberListType(

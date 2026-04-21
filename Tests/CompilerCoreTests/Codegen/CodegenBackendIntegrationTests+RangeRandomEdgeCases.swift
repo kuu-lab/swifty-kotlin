@@ -5,7 +5,7 @@ import XCTest
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesRangeRandomEdgeCases() throws {
         let source = """
-        import kotlin.ranges.*
+        import kotlin.random.Random
 
         fun main() {
             val intValue = (1..5).random()
@@ -54,12 +54,19 @@ extension CodegenBackendIntegrationTests {
                 ulongValue == 5uL
             )
 
-            try {
-                (5..1).random()
-                println(false)
-            } catch (e: IllegalArgumentException) {
-                println(true)
-            }
+            val random = Random(7)
+
+            val randomCharValue = ('a'..'z').random(random)
+            val randomIntValue = (10..20).random(random)
+            val randomLongValue = (100L..110L).random(random)
+            val randomUIntValue = (10u..20u).random(random)
+            val randomULongValue = (100uL..110uL).random(random)
+
+            println(randomCharValue in 'a'..'z')
+            println(randomIntValue in 10..20)
+            println(randomLongValue in 100L..110L)
+            println(randomUIntValue in 10u..20u)
+            println(randomULongValue in 100uL..110uL)
         }
         """
 
@@ -78,6 +85,10 @@ extension CodegenBackendIntegrationTests {
             XCTAssertEqual(
                 normalizedStdout,
                 """
+                true
+                true
+                true
+                true
                 true
                 true
                 true

@@ -64,6 +64,43 @@ final class RuntimeRandomTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0, "from>until should produce an exception")
     }
 
+    // MARK: - range.random(random)
+
+    func testRangeRandomReturnsValuesWithinRange() {
+        let random = kk_random_create_seeded(7)
+        var thrown: Int = 0
+
+        let intRange = kk_op_rangeTo(10, 20)
+        let intValue = kk_range_random_random(intRange, random, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_range_contains(intRange, intValue), 1)
+
+        thrown = 0
+        let longRange = kk_long_rangeTo(100, 110)
+        let longValue = kk_long_range_random_random(longRange, random, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_long_range_contains(longRange, longValue), 1)
+
+        thrown = 0
+        let uintRange = kk_uint_rangeTo(10, 20)
+        let uintValue = kk_uint_range_random_random(uintRange, random, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_uint_range_contains(uintRange, uintValue), 1)
+
+        thrown = 0
+        let ulongRange = kk_ulong_rangeTo(100, 110)
+        let ulongValue = kk_ulong_range_random_random(ulongRange, random, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_ulong_range_contains(ulongRange, ulongValue), 1)
+
+        thrown = 0
+        let charRange = kk_char_rangeTo(kk_box_char(Int(Character("a").unicodeScalars.first!.value)),
+                                        kk_box_char(Int(Character("z").unicodeScalars.first!.value)))
+        let charValue = kk_range_random_random(charRange, random, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_range_contains(charRange, charValue), 1)
+    }
+
     // MARK: - nextFloat
 
     func testNextFloatReturnsRawBitsInUnitRange() {
