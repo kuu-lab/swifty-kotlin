@@ -43,6 +43,53 @@ final class UnsignedPrimitiveMemberCallTests: XCTestCase {
         }
     }
 
+    func testUnsignedCoercionMemberCallsInferExpectedTypes() throws {
+        let source = """
+        fun sample(ub: UByte, us: UShort, ui: UInt, ul: ULong) {
+            ub.coerceAtLeast(1u)
+            us.coerceAtMost(2u)
+            ui.coerceIn(1u, 3u)
+            ui.coerceIn(1u..3u)
+            ul.coerceIn(1uL, 3uL)
+            ul.coerceIn(1uL..3uL)
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let ast = try XCTUnwrap(ctx.ast)
+        let sema = try XCTUnwrap(ctx.sema)
+
+        let checks: [(member: String, receiverType: TypeID, argumentCount: Int)] = [
+            ("coerceAtLeast", sema.types.ubyteType, 1),
+            ("coerceAtMost", sema.types.ushortType, 1),
+            ("coerceIn", sema.types.uintType, 2),
+            ("coerceIn", sema.types.uintType, 1),
+            ("coerceIn", sema.types.ulongType, 2),
+            ("coerceIn", sema.types.ulongType, 1),
+        ]
+
+        for check in checks {
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(receiver, callee, _, args, _) = expr else {
+                        return false
+                    }
+                    return ctx.interner.resolve(callee) == check.member
+                        && args.count == check.argumentCount
+                        && sema.bindings.exprTypes[receiver] == check.receiverType
+                },
+                "Expected a call expression for \(check.member)"
+            )
+            XCTAssertEqual(
+                sema.bindings.exprTypes[callExpr],
+                check.receiverType,
+                "\(check.member) should infer the unsigned receiver type"
+            )
+        }
+    }
+
     func testUnsignedMemberCallsRejectMixedWidths() {
         let source = """
         fun sample(ub: UByte, us: UShort) {

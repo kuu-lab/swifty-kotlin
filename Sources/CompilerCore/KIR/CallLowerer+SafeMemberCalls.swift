@@ -574,14 +574,14 @@ extension CallLowerer {
             }
         }
 
-        // Int/Long.coerceIn(range) — single ClosedRange argument (STDLIB-525)
-        // Only Int and Long are supported; Double/Float receivers must not enter
-        // this path because kk_range_first/kk_range_last return integer-typed
-        // bounds that would be incorrect for floating-point coercion.
+        // Int/Long/UInt/ULong.coerceIn(range) — single ClosedRange argument (STDLIB-525)
+        // Only integer-typed receivers are supported here; floating-point
+        // receivers must not enter this path because kk_range_first/kk_range_last
+        // return integer-typed bounds that would be incorrect for float coercion.
         if args.count == 1, interner.resolve(effectiveCalleeName) == "coerceIn" {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             if let prefix = numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema),
-               prefix == "kk_int" || prefix == "kk_long" {
+               prefix == "kk_int" || prefix == "kk_long" || prefix == "kk_uint" || prefix == "kk_ulong" {
                 let argExprID = args[0].expr
                 if sema.bindings.isRangeExpr(argExprID) {
                     let callLabel = driver.ctx.makeLoopLabel()

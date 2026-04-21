@@ -527,8 +527,14 @@ final class SafeMemberCallLowerer {
                 }
             } else if args.count == 1 {
                 let receiverType = arena.exprType(loweredReceiverID) ?? sema.types.anyType
-                if let prefix = CallLoweringHelpers.numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema),
-                   prefix == "kk_int" || prefix == "kk_long" {
+                let intType = sema.types.intType
+                let longType = sema.types.longType
+                let uintType = sema.types.uintType
+                let ulongType = sema.types.ulongType
+                let supportsRangeCoercion = receiverType == intType || receiverType == longType
+                    || receiverType == uintType || receiverType == ulongType
+                if supportsRangeCoercion,
+                   let prefix = CallLoweringHelpers.numericCoercionRuntimePrefix(receiverType: receiverType, sema: sema) {
 
                     // rangeベースの強制（単一引数の coerceIn はRange引数を期待する）
                     let callLabel = coordinator.driver.ctx.makeLoopLabel()

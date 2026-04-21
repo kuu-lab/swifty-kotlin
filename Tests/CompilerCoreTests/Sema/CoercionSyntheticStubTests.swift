@@ -24,6 +24,36 @@ final class CoercionSyntheticStubTests: XCTestCase {
         return sema.symbols.lookupAll(fqName: fq)
     }
 
+    private func assertCoercionStub(
+        member: String,
+        receiverType: TypeID,
+        parameterTypes: [TypeID],
+        returnType: TypeID,
+        expectedLink: String,
+        sema: SemaModule,
+        interner: StringInterner,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let symbols = coercionSymbols(for: member, sema: sema, interner: interner)
+        let matchingSymbol = symbols.first { symbolID in
+            guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == receiverType
+                && sig.parameterTypes == parameterTypes
+                && sig.returnType == returnType
+        }
+        let sym = try XCTUnwrap(matchingSymbol, "Expected \(expectedLink) coercion stub", file: file, line: line)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: sym),
+            expectedLink,
+            "\(expectedLink) should be registered for \(member)",
+            file: file,
+            line: line
+        )
+    }
+
+    // Byte and Short are normalized to Int in the compiler, so they reuse the
+    // Int coercion stubs rather than registering separate symbols.
     // MARK: - Int coercion stubs
 
     func testIntCoercionStubsHaveCorrectExternalLinks() throws {
@@ -340,9 +370,44 @@ final class CoercionSyntheticStubTests: XCTestCase {
         XCTAssertEqual(sig.returnType, sema.types.floatType)
     }
 
-    // MARK: - Cross-type: all four types register distinct overloads
+    // MARK: - Unsigned coercion stubs
 
-    func testAllFourTypesRegisterDistinctCoerceInOverloads() throws {
+    func testUnsignedCoercionStubsHaveCorrectExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(member: String, receiverType: TypeID, parameterTypes: [TypeID], link: String)] = [
+            ("coerceIn", sema.types.ubyteType, [sema.types.ubyteType, sema.types.ubyteType], "kk_ubyte_coerceIn"),
+            ("coerceAtLeast", sema.types.ubyteType, [sema.types.ubyteType], "kk_ubyte_coerceAtLeast"),
+            ("coerceAtMost", sema.types.ubyteType, [sema.types.ubyteType], "kk_ubyte_coerceAtMost"),
+            ("coerceIn", sema.types.ushortType, [sema.types.ushortType, sema.types.ushortType], "kk_ushort_coerceIn"),
+            ("coerceAtLeast", sema.types.ushortType, [sema.types.ushortType], "kk_ushort_coerceAtLeast"),
+            ("coerceAtMost", sema.types.ushortType, [sema.types.ushortType], "kk_ushort_coerceAtMost"),
+            ("coerceIn", sema.types.uintType, [sema.types.uintType, sema.types.uintType], "kk_uint_coerceIn"),
+            ("coerceIn", sema.types.uintType, [sema.types.uintType], "kk_uint_coerceIn"),
+            ("coerceAtLeast", sema.types.uintType, [sema.types.uintType], "kk_uint_coerceAtLeast"),
+            ("coerceAtMost", sema.types.uintType, [sema.types.uintType], "kk_uint_coerceAtMost"),
+            ("coerceIn", sema.types.ulongType, [sema.types.ulongType, sema.types.ulongType], "kk_ulong_coerceIn"),
+            ("coerceIn", sema.types.ulongType, [sema.types.ulongType], "kk_ulong_coerceIn"),
+            ("coerceAtLeast", sema.types.ulongType, [sema.types.ulongType], "kk_ulong_coerceAtLeast"),
+            ("coerceAtMost", sema.types.ulongType, [sema.types.ulongType], "kk_ulong_coerceAtMost"),
+        ]
+
+        for entry in expected {
+            try assertCoercionStub(
+                member: entry.member,
+                receiverType: entry.receiverType,
+                parameterTypes: entry.parameterTypes,
+                returnType: entry.receiverType,
+                expectedLink: entry.link,
+                sema: sema,
+                interner: interner
+            )
+        }
+    }
+
+    // MARK: - Cross-type: all numeric types register distinct overloads
+
+    func testAllNumericTypesRegisterDistinctCoerceInOverloads() throws {
         let (sema, interner) = try makeSema()
 
         let symbols = coercionSymbols(for: "coerceIn", sema: sema, interner: interner)
@@ -351,6 +416,10 @@ final class CoercionSyntheticStubTests: XCTestCase {
             sema.types.longType,
             sema.types.doubleType,
             sema.types.floatType,
+            sema.types.ubyteType,
+            sema.types.ushortType,
+            sema.types.uintType,
+            sema.types.ulongType,
         ]
 
         var foundReceiverTypes: Set<TypeID> = []
@@ -365,11 +434,11 @@ final class CoercionSyntheticStubTests: XCTestCase {
         XCTAssertEqual(
             foundReceiverTypes,
             expectedReceiverTypes,
-            "coerceIn should have stubs for Int, Long, Double, and Float"
+            "coerceIn should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
-    func testAllFourTypesRegisterDistinctCoerceAtLeastOverloads() throws {
+    func testAllNumericTypesRegisterDistinctCoerceAtLeastOverloads() throws {
         let (sema, interner) = try makeSema()
 
         let symbols = coercionSymbols(for: "coerceAtLeast", sema: sema, interner: interner)
@@ -378,6 +447,10 @@ final class CoercionSyntheticStubTests: XCTestCase {
             sema.types.longType,
             sema.types.doubleType,
             sema.types.floatType,
+            sema.types.ubyteType,
+            sema.types.ushortType,
+            sema.types.uintType,
+            sema.types.ulongType,
         ]
 
         var foundReceiverTypes: Set<TypeID> = []
@@ -392,11 +465,11 @@ final class CoercionSyntheticStubTests: XCTestCase {
         XCTAssertEqual(
             foundReceiverTypes,
             expectedReceiverTypes,
-            "coerceAtLeast should have stubs for Int, Long, Double, and Float"
+            "coerceAtLeast should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
-    func testAllFourTypesRegisterDistinctCoerceAtMostOverloads() throws {
+    func testAllNumericTypesRegisterDistinctCoerceAtMostOverloads() throws {
         let (sema, interner) = try makeSema()
 
         let symbols = coercionSymbols(for: "coerceAtMost", sema: sema, interner: interner)
@@ -405,6 +478,10 @@ final class CoercionSyntheticStubTests: XCTestCase {
             sema.types.longType,
             sema.types.doubleType,
             sema.types.floatType,
+            sema.types.ubyteType,
+            sema.types.ushortType,
+            sema.types.uintType,
+            sema.types.ulongType,
         ]
 
         var foundReceiverTypes: Set<TypeID> = []
@@ -419,7 +496,7 @@ final class CoercionSyntheticStubTests: XCTestCase {
         XCTAssertEqual(
             foundReceiverTypes,
             expectedReceiverTypes,
-            "coerceAtMost should have stubs for Int, Long, Double, and Float"
+            "coerceAtMost should have stubs for Int, Long, Double, Float, UByte, UShort, UInt, and ULong"
         )
     }
 
