@@ -444,11 +444,23 @@ extension CallTypeChecker {
 
         let memberName = interner.resolve(calleeName)
         let isArrayReceiver = isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+        let isIterableWindowedTransformCall: Bool = {
+            guard memberName == "windowed",
+                  (2...4).contains(args.count),
+                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  let lastArgExpr = args.last?.expr,
+                  let lastArgExprNode = ctx.ast.arena.expr(lastArgExpr)
+            else {
+                return false
+            }
+            return lastArgExprNode.isLambdaOrCallableRef
+        }()
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
+                || isIterableWindowedTransformCall
         else {
             return nil
         }
@@ -495,6 +507,7 @@ extension CallTypeChecker {
             isMapReceiver: isMapReceiver,
             isMutableMapReceiver: isMutableMapReceiver,
             args: args,
+            ctx: ctx,
             interner: interner,
             sema: sema
         ),
@@ -526,6 +539,7 @@ extension CallTypeChecker {
             receiverID: receiverID,
             argExprs: args.map(\.expr),
             argCount: args.count,
+            ctx: ctx,
             sema: sema
         ) {
             if let invalidFallbackType = validateCollectionFallbackCallee(
@@ -563,6 +577,7 @@ extension CallTypeChecker {
             isSetReceiver: isSetReceiver,
             isSequenceReceiver: isSequenceReceiver,
             args: args,
+            ctx: ctx,
             sema: sema,
             interner: interner
         )
@@ -739,6 +754,7 @@ extension CallTypeChecker {
         receiverID: ExprID,
         argExprs: [ExprID] = [],
         argCount: Int,
+        ctx: TypeInferenceContext,
         sema: SemaModule
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
@@ -782,20 +798,43 @@ extension CallTypeChecker {
                     return sliceMatch
                 }
             }
-            // Prefer the overload whose parameter count matches the call-site
-            // argument count so that e.g. windowed(3, 2, true) resolves to the
-            // 3-param overload (kk_list_windowed_partial) instead of the 2-param
-            // one (kk_list_windowed).
-            if let exactMatch = allCandidates.first(where: { candidate in
-                guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
-                return sig.parameterTypes.count == argCount
-            }) {
-                return exactMatch
-            }
-            if let first = allCandidates.first {
-                return first
-            }
-            queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
+        let lastArgIsFunctionLike: Bool = if let lastExpr = argExprs.last,
+                                             let lastExprNode = ctx.ast.arena.expr(lastExpr) {
+            lastExprNode.isLambdaOrCallableRef
+        } else {
+            false
+        }
+        if lastArgIsFunctionLike,
+           let lambdaMatch = allCandidates.first(where: { candidate in
+               guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+               guard sig.parameterTypes.count == argCount,
+                     let lastParamType = sig.parameterTypes.last
+               else {
+                   return false
+               }
+               switch sema.types.kind(of: sema.types.makeNonNullable(lastParamType)) {
+               case .functionType:
+                   return true
+               default:
+                   return false
+               }
+           }) {
+            return lambdaMatch
+        }
+        // Prefer the overload whose parameter count matches the call-site
+        // argument count so that e.g. windowed(3, 2, true) resolves to the
+        // 3-param overload (kk_list_windowed_partial) instead of the 2-param
+        // one (kk_list_windowed).
+        if let exactMatch = allCandidates.first(where: { candidate in
+            guard let sig = sema.symbols.functionSignature(for: candidate) else { return false }
+            return sig.parameterTypes.count == argCount
+        }) {
+            return exactMatch
+        }
+        if let first = allCandidates.first {
+            return first
+        }
+        queue.append(contentsOf: sema.symbols.directSupertypes(for: owner))
         }
         return nil
     }
@@ -1108,7 +1147,7 @@ extension CallTypeChecker {
         case interner.intern("reduceRight"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
-            return argCount == 1 || argCount == 2 || argCount == 3 || (!isSequenceReceiver && argCount == 4)
+            return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4
         case interner.intern("chunked"):
             return argCount == 1 || (!isSequenceReceiver && argCount == 2)
         case interner.intern("count"), interner.intern("first"), interner.intern("last"),
@@ -1126,6 +1165,7 @@ extension CallTypeChecker {
         isSetReceiver: Bool,
         isSequenceReceiver: Bool = false,
         args: [CallArgument],
+        ctx: TypeInferenceContext,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
@@ -1149,9 +1189,7 @@ extension CallTypeChecker {
             return receiverElementType
         }
 
-        if (memberName == interner.intern("chunked") && args.count == 2 && !isSequenceReceiver)
-            || (memberName == interner.intern("windowed") && args.count == 4 && !isSequenceReceiver)
-        {
+        if memberName == interner.intern("chunked") && args.count == 2 && !isSequenceReceiver {
             if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                 return sema.types.make(.classType(ClassType(
                     classSymbol: listSymbol,
@@ -1606,6 +1644,7 @@ extension CallTypeChecker {
         isMapReceiver: Bool,
         isMutableMapReceiver: Bool,
         args: [CallArgument],
+        ctx: TypeInferenceContext,
         interner: StringInterner,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
@@ -1872,28 +1911,37 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("windowed"), argCount == 4 {
-            let listType: TypeID
-            if let listSymbol = sema.symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                interner.intern("List"),
-            ]) {
-                listType = sema.types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.invariant(sema.types.anyType)],
+        // windowed(size, step, partialWindows, transform): transform receives List<T> and returns R
+        if memberName == interner.intern("windowed"), (2...4).contains(argCount) {
+            let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
+                                                 let lastExprNode = ctx.ast.arena.expr(lastExpr) {
+                lastExprNode.isLambdaOrCallableRef
+            } else {
+                false
+            }
+            if lastArgIsFunctionLike {
+                let listType: TypeID
+                if let listSymbol = sema.symbols.lookup(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ]) {
+                    listType = sema.types.make(.classType(ClassType(
+                        classSymbol: listSymbol,
+                        args: [.invariant(receiverElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    listType = sema.types.anyType
+                }
+                let expectedType = sema.types.make(.functionType(FunctionType(
+                    params: [listType],
+                    returnType: sema.types.anyType,
+                    isSuspend: false,
                     nullability: .nonNull
                 )))
-            } else {
-                listType = sema.types.anyType
+                return (argumentIndex: argCount - 1, expectedType: expectedType)
             }
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [listType],
-                returnType: sema.types.anyType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            return (argumentIndex: 3, expectedType: expectedType)
         }
 
         if memberName == interner.intern("fold"), argCount == 2 {
@@ -2147,6 +2195,25 @@ extension CallTypeChecker {
         }
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         return isCollectionLikeType(receiverType, sema: sema, interner: interner)
+    }
+
+    func isIterableLikeReceiver(
+        receiverID: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.name == interner.intern("Iterable")
+            || symbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]
     }
 
     private func isSequenceLikeReceiver(

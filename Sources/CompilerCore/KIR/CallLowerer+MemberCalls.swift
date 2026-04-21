@@ -3724,8 +3724,15 @@ extension CallLowerer {
             }
         }
 
+        let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
+
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
-        if (1...3).contains(args.count), calleeName == interner.intern("windowed") {
+        // Lambda-bearing `windowed` calls use the synthetic iterable HOF overload
+        // and must not be rewritten to the sequence ABI here.
+        if !hasHOFLambdaArg,
+           (1...3).contains(args.count),
+           calleeName == interner.intern("windowed")
+        {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner)
@@ -4190,7 +4197,7 @@ extension CallLowerer {
             "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
             "ifEmpty",
-            "chunked",
+            "chunked", "windowed",
             "onSuccess", "onFailure", "recover",
         ].contains(interner.resolve(calleeName))
     }
@@ -5262,6 +5269,7 @@ extension CallLowerer {
         sourceArgExprs: [ExprID] = []
     ) {
         var finalArguments = arguments
+        let hasHOFLambdaArg = sourceArgExprs.contains { sema.bindings.isCollectionHOFLambdaExpr($0) }
         if normalized.defaultMask != 0,
            let chosenCallee,
            sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_joinToString"
@@ -5320,7 +5328,6 @@ extension CallLowerer {
             arguments: &finalArguments
         )
 
-        let hasHOFLambdaArg = sourceArgExprs.contains { sema.bindings.isCollectionHOFLambdaExpr($0) }
         var loweredCallee = loweredMemberCalleeName(
             chosenCallee: chosenCallee,
             fallback: calleeName,
@@ -5369,6 +5376,36 @@ extension CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArguments
             )
+        }
+        if loweredCallee == interner.intern("kk_list_windowed_transform") {
+            let originalArgumentCount = finalArguments.count
+            if originalArgumentCount >= 3 {
+                let lambdaArgIndex = originalArgumentCount - 1
+                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    finalArguments[lambdaArgIndex],
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                finalArguments[lambdaArgIndex] = fnPtrExpr
+                finalArguments.append(envPtrExpr)
+            }
+            if originalArgumentCount == 3 {
+                // `windowed(size, transform)` expands to `windowed(size, 1, false, transform)`.
+                let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+                instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                finalArguments.insert(oneExpr, at: 2)
+                finalArguments.insert(zeroExpr, at: 3)
+            } else if originalArgumentCount == 4 {
+                // `windowed(size, step, transform)` expands to
+                // `windowed(size, step, false, transform)`.
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                finalArguments.insert(zeroExpr, at: 3)
+            }
         }
         if let primitiveKind = collectionElementPrimitiveCompareKind(
             of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
@@ -5649,6 +5686,7 @@ extension CallLowerer {
             interner.intern("kk_sequence_last"),
             interner.intern("kk_sequence_firstOrNull"),
             interner.intern("kk_sequence_count"),
+            interner.intern("kk_list_windowed_transform"),
             interner.intern("kk_mutable_list_replaceAll"),
             interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),

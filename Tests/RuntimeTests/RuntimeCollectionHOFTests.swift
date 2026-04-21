@@ -70,17 +70,17 @@ private let flatMapPair: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -
     return kk_list_of(array, 2)
 }
 
+private let windowSum: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, windowRaw, _ in
+    guard let windowBox = runtimeListBox(from: windowRaw) else { return 0 }
+    return windowBox.elements.reduce(0, +)
+}
+
 private let foldSum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
     acc + value
 }
 
 private let foldOrder: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
     acc * 10 + value
-}
-
-// Windowed transform callback used by the runtime tests.
-private let windowSum: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, windowRaw, _ in
-    kk_list_sum(windowRaw)
 }
 
 private let addCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, value, outThrown in
@@ -250,22 +250,54 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(listElements(sorted), [12, 11, 22, 21])
     }
 
-    func testWindowedTransformProducesExpectedWindows() {
+    func testWindowedTransformReturnsExpectedWindows() {
         let source = makeList([1, 2, 3, 4, 5])
-        var thrown = 0
 
-        let result = kk_list_windowed_transform(
+        let defaultStep = kk_list_windowed_transform(
+            source,
+            3,
+            1,
+            0,
+            unsafeBitCast(windowSum, to: Int.self),
+            0,
+            nil as UnsafeMutablePointer<Int>?
+        )
+        XCTAssertEqual(listElements(defaultStep), [6, 9, 12])
+
+        let explicitStep = kk_list_windowed_transform(
+            source,
+            3,
+            2,
+            0,
+            unsafeBitCast(windowSum, to: Int.self),
+            0,
+            nil as UnsafeMutablePointer<Int>?
+        )
+        XCTAssertEqual(listElements(explicitStep), [6, 12])
+
+        let partialWindows = kk_list_windowed_transform(
             source,
             3,
             2,
             1,
             unsafeBitCast(windowSum, to: Int.self),
             0,
-            &thrown
+            nil as UnsafeMutablePointer<Int>?
         )
+        XCTAssertEqual(listElements(partialWindows), [6, 12, 5])
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [6, 12, 5])
+        let arraySource = makeArray([1, 2, 3, 4, 5])
+        let arrayWindows = kk_list_windowed_transform(
+            arraySource,
+            3,
+            1,
+            0,
+            unsafeBitCast(windowSum, to: Int.self),
+            0,
+            nil as UnsafeMutablePointer<Int>?
+        )
+        XCTAssertEqual(listElements(arrayWindows), [6, 9, 12])
+
     }
 
     func testWindowedTransformPropagatesThrowingLambda() {
