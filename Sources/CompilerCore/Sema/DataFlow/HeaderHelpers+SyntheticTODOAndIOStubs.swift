@@ -2279,6 +2279,9 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([tParamSymbol, kParamSymbol], for: groupingSymbol)
         types.setNominalTypeParameterVariances([.out, .out], for: groupingSymbol)
 
+        let tTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol)))
+        let kTypeParam = types.make(.typeParam(TypeParamType(symbol: kParamSymbol)))
+
         let groupingType = types.make(.classType(ClassType(
             classSymbol: groupingSymbol,
             args: [],
@@ -2289,8 +2292,6 @@ extension DataFlowSemaPhase {
         let mapName = interner.intern("Map")
         let mapSymbol = symbols.lookup(fqName: collectionsPkg + [mapName])
             ?? symbols.lookupByShortName(mapName).first
-
-        let kTypeParam = types.make(.typeParam(TypeParamType(symbol: kParamSymbol)))
 
         // eachCount() -> Map<K, Int>
         let eachCountReturnType: TypeID
@@ -2342,6 +2343,54 @@ extension DataFlowSemaPhase {
             ],
             returnType: foldReturnType,
             externalLinkName: "kk_grouping_fold",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // foldTo(destination, initialValue, operation) -> destination
+        let foldToOperationType = types.make(.functionType(FunctionType(
+            params: [types.anyType, tTypeParam],
+            returnType: types.anyType
+        )))
+        registerGroupingMember(
+            named: "foldTo",
+            groupingFQName: groupingFQName,
+            groupingSymbol: groupingSymbol,
+            receiverType: groupingType,
+            parameters: [
+                (name: "destination", type: types.anyType),
+                (name: "initialValue", type: types.anyType),
+                (name: "operation", type: foldToOperationType),
+            ],
+            returnType: types.anyType,
+            externalLinkName: "kk_grouping_foldTo",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // foldTo(destination, initialValueSelector, operation) -> destination
+        let foldToInitialValueSelectorType = types.make(.functionType(FunctionType(
+            params: [kTypeParam, tTypeParam],
+            returnType: types.anyType
+        )))
+        let foldToKeyedOperationType = types.make(.functionType(FunctionType(
+            params: [kTypeParam, types.anyType, tTypeParam],
+            returnType: types.anyType
+        )))
+        registerGroupingMember(
+            named: "foldTo",
+            groupingFQName: groupingFQName,
+            groupingSymbol: groupingSymbol,
+            receiverType: groupingType,
+            parameters: [
+                (name: "destination", type: types.anyType),
+                (name: "initialValueSelector", type: foldToInitialValueSelectorType),
+                (name: "operation", type: foldToKeyedOperationType),
+            ],
+            returnType: types.anyType,
+            externalLinkName: "kk_grouping_foldTo_selector",
             symbols: symbols,
             types: types,
             interner: interner
@@ -2423,7 +2472,16 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern(name)
         let memberFQName = groupingFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return existingSignature.parameterTypes == parameters.map(\.type)
+                && existingSignature.returnType == returnType
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,

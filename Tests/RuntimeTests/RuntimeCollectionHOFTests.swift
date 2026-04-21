@@ -78,6 +78,17 @@ private let foldOrder: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?
     acc * 10 + value
 }
 
+private let groupingFoldToInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, key, element, _ in
+    gHOFState.addCall()
+    return key * 100 + element
+}
+
+private let groupingFoldToSelectorOperation: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, key, accumulator, element, _ in
+    accumulator + key + element
+}
+
 private let addCapture: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { closureRaw, value, outThrown in
     var thrown = 0
     let capture = kk_array_get(closureRaw, 0, &thrown)
@@ -473,6 +484,48 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(result, dest)
         XCTAssertEqual(mapKeys(result), [1])
         XCTAssertEqual(kk_map_get(result, 1), 10)
+    }
+
+    func testGroupingFoldToWithInitialValueMutatesDestination() {
+        let source = makeList([3, 1, 4, 2, 5])
+        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
+        let dest = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [1000]))
+
+        let result = kk_grouping_foldTo(
+            grouping,
+            dest,
+            10,
+            unsafeBitCast(foldSum, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(result, dest)
+        XCTAssertEqual(mapKeys(result), [1, 0])
+        XCTAssertEqual(kk_map_get(result, 1), 1009)
+        XCTAssertEqual(kk_map_get(result, 0), 16)
+    }
+
+    func testGroupingFoldToWithInitialValueSelectorUsesExistingValues() {
+        let source = makeList([3, 1, 4, 2])
+        let grouping = kk_list_groupingBy(source, unsafeBitCast(groupByParity, to: Int.self), 0)
+        let dest = registerRuntimeObject(RuntimeMapBox(keys: [0], values: [500]))
+
+        let result = kk_grouping_foldTo_selector(
+            grouping,
+            dest,
+            unsafeBitCast(groupingFoldToInitialValueSelector, to: Int.self),
+            0,
+            unsafeBitCast(groupingFoldToSelectorOperation, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(result, dest)
+        XCTAssertEqual(mapKeys(result), [0, 1])
+        XCTAssertEqual(kk_map_get(result, 0), 506)
+        XCTAssertEqual(kk_map_get(result, 1), 109)
+        XCTAssertEqual(gHOFState.callsSnapshot(), 1)
     }
 
     func testMapForEachFilterAndMapUsePairEntries() {
