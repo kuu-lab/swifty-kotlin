@@ -1734,8 +1734,6 @@ extension CallLowerer {
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_last"
                             : (isLongRange ? "kk_long_range_last" : "kk_range_last")))
-                case "endExclusive":
-                    interner.intern("kk_range_endExclusive")
                 case "first":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
@@ -5331,7 +5329,7 @@ extension CallLowerer {
         let calleeText = interner.resolve(calleeName)
         if sema.bindings.isRangeExpr(receiverExpr) {
             let rangeMembers: Set<String> = [
-                "first", "last", "endExclusive", "step", "contains", "isEmpty", "sum", "count",
+                "first", "last", "step", "contains", "isEmpty", "sum", "count",
                 "toList", "forEach", "map", "mapIndexed", "mapNotNull",
                 "filter", "filterIndexed", "filterNot", "reduce", "reduceIndexed",
                 "fold", "foldIndexed", "find", "findLast", "firstOrNull",
@@ -6511,8 +6509,6 @@ extension CallLowerer {
                     return interner.intern("kk_long_range_isEmpty")
                 }
                 return interner.intern("kk_range_isEmpty")
-            case "endExclusive":
-                return interner.intern("kk_range_endExclusive")
             case "sum":
                 if sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType {
                     return interner.intern("kk_uint_range_sum")

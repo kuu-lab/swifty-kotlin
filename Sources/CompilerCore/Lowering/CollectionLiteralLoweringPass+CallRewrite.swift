@@ -1371,14 +1371,10 @@ extension CollectionLiteralLoweringPass {
                                 continue
                             }
                             if rangeExprIDs.contains(receiverID.rawValue),
-                               callee == lookup.firstName || callee == lookup.lastName || callee == lookup.endExclusiveName
+                               callee == lookup.firstName || callee == lookup.lastName
                             {
-                                let kkName: InternedString = switch callee {
-                                case lookup.firstName: lookup.kkRangeFirstName
-                                case lookup.lastName: lookup.kkRangeLastName
-                                case lookup.endExclusiveName: lookup.kkRangeEndExclusiveName
-                                default: callee
-                                }
+                                let kkName = callee == lookup.firstName
+                                    ? lookup.kkRangeFirstName : lookup.kkRangeLastName
                                 loweredBody.append(.call(
                                     symbol: nil,
                                     callee: kkName,

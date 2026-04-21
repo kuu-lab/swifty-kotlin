@@ -1,10 +1,9 @@
 // swiftlint:disable file_length
 import Foundation
 
-/// Centralized FQ-name suffixes used to discriminate the binarySearch
-/// overloads from the element-based one.
+/// Centralized FQ-name suffix used to discriminate the comparison-based
+/// `binarySearch` overload from the element-based one.
 private let binarySearchCompareFQSuffix = "binarySearch$compare"
-private let binarySearchComparatorFQSuffix = "binarySearch$comparator"
 
 extension DataFlowSemaPhase {
     /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
@@ -70,15 +69,9 @@ extension DataFlowSemaPhase {
             tParamSymbol: tParamSymbol,
             tParamType: tParamType
         )
-        registerOpenEndRangeComparableUpperBound(
-            comparableSymbol: comparableSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        
         // Set up primitive types to implement Comparable<Self>
         setupPrimitiveComparableImplementations(symbols: symbols, types: types, interner: interner, comparableSymbol: comparableSymbol)
-        patchSyntheticClosedRangeTypeParameterUpperBound(symbols: symbols, types: types, interner: interner)
     }
 
     /// Set up primitive types to implement Comparable<Self>
@@ -203,6 +196,7 @@ extension DataFlowSemaPhase {
 
         guard symbols.lookup(fqName: functionFQName) == nil else { return }
 
+        let nullableTParamType = types.makeNullable(tParamType)
         let nullableIntType = types.makeNullable(types.intType)
 
         let functionSymbol = symbols.define(
@@ -308,13 +302,6 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             collectionInterfaceSymbol: collectionInterfaceSymbol
-        )
-
-        registerIterableWindowedTransformMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol
         )
 
         // --- STDLIB-533: List?.orEmpty() ---
@@ -469,6 +456,109 @@ extension DataFlowSemaPhase {
         )
     }
     
+    /// Register toList methods for primitive arrays
+    private func registerArrayToListMethods(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        
+        // --- Primitive arrays toList() ---
+        let primitiveArrayNames = [
+            "IntArray", "LongArray", "UIntArray", "ULongArray", "DoubleArray", 
+            "FloatArray", "BooleanArray", "CharArray", "ByteArray", "ShortArray",
+            "UByteArray", "UShortArray"
+        ]
+        
+        for name in primitiveArrayNames {
+            let primName = interner.intern(name)
+            let fqName = kotlinPkg + [primName]
+            guard let sym = symbols.lookup(fqName: fqName) else { 
+                continue 
+            }
+            
+            let primToListName = interner.intern("toList")
+            let primToListFQName = fqName + [primToListName]
+            if symbols.lookup(fqName: primToListFQName) == nil {
+                let primToListSym = symbols.define(
+                    kind: .function,
+                    name: primToListName,
+                    fqName: primToListFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(sym, for: primToListSym)
+                
+                let externalLinkName: String = switch name {
+                case "IntArray": "kk_intArray_toList"
+                case "LongArray": "kk_longArray_toList"
+                case "ByteArray": "kk_byteArray_toList"
+                case "ShortArray": "kk_shortArray_toList"
+                case "UIntArray": "kk_uIntArray_toList"
+                case "ULongArray": "kk_uLongArray_toList"
+                case "DoubleArray": "kk_doubleArray_toList"
+                case "FloatArray": "kk_floatArray_toList"
+                case "BooleanArray": "kk_booleanArray_toList"
+                case "CharArray": "kk_charArray_toList"
+                case "UByteArray": "kk_uByteArray_toList"
+                case "UShortArray": "kk_uShortArray_toList"
+                default: "kk_array_toList"
+                }
+                symbols.setExternalLinkName(externalLinkName, for: primToListSym)
+                
+                let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
+                guard let listSymbol = symbols.lookup(fqName: listFQName) else {
+                    // Don't return, continue to next array
+                    continue
+                }
+                
+                let elementType: TypeID = switch name {
+                case "IntArray": types.intType
+                case "LongArray": types.longType
+                case "ByteArray": types.intType
+                case "ShortArray": types.intType
+                case "UIntArray": types.uintType
+                case "ULongArray": types.ulongType
+                case "DoubleArray": types.doubleType
+                case "FloatArray": types.floatType
+                case "BooleanArray": types.booleanType
+                case "CharArray": types.charType
+                case "UByteArray": types.ubyteType
+                case "UShortArray": types.ushortType
+                default: types.intType
+                }
+                
+                let listReturnType = types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(elementType)],
+                    nullability: .nonNull
+                )))
+                
+                let arrayReceiverType = types.make(.classType(ClassType(
+                    classSymbol: sym,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: arrayReceiverType,
+                        parameterTypes: [],
+                        returnType: listReturnType,
+                        isSuspend: false,
+                        valueParameterSymbols: [],
+                        valueParameterHasDefaultValues: [],
+                        valueParameterIsVararg: [],
+                        typeParameterSymbols: []
+                    ),
+                    for: primToListSym
+                )
+                }
+        }
+    }
+
     private func registerSyntheticPairStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1653,90 +1743,6 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    /// Register `Iterable<E>.windowed(size, step, partialWindows, transform)` HOF overload (STDLIB-COL-WIN-001).
-    ///
-    /// Kotlin signature:
-    /// `fun <T, R> Iterable<T>.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false, transform: (List<T>) -> R): List<R>`
-    ///
-    /// The runtime ABI erases `R`, so the return type is modeled as `List<Any>`.
-    private func registerIterableWindowedTransformMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID,
-        listInterfaceSymbol: SymbolID
-    ) {
-        guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
-        let memberName = interner.intern("windowed")
-        let memberFQName = iterableFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName ?? kotlinCollectionsPkg + [interner.intern("List")]
-        let listTypeParamFQName = listFQName + [interner.intern("E")]
-        guard let listTypeParamSymbol = symbols.lookup(fqName: listTypeParamFQName) else { return }
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbol,
-            nullability: .nonNull
-        )))
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: iterableInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let transformParameterType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let transformType = types.make(.functionType(FunctionType(
-            params: [transformParameterType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let listOfAnyReturnType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(types.anyType)],
-            nullability: .nonNull
-        )))
-
-        func registerWindowedTransformOverload(_ parameterTypes: [TypeID]) {
-            let existingOverloads = symbols.lookupAll(fqName: memberFQName)
-            let alreadyRegistered = existingOverloads.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes == parameterTypes
-                    && symbols.externalLinkName(for: symID) == "kk_list_windowed_transform"
-            }
-            guard !alreadyRegistered else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_windowed_transform", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: listOfAnyReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        registerWindowedTransformOverload([types.intType, transformType])
-        registerWindowedTransformOverload([types.intType, types.intType, transformType])
-        registerWindowedTransformOverload([types.intType, types.intType, types.booleanType, transformType])
     }
 
     func registerLateListIndexedMembers(
@@ -3188,7 +3194,6 @@ extension DataFlowSemaPhase {
             returnTypeOverride: TypeID? = nil,
             typeParameterSymbols: [SymbolID]? = nil,
             typeParameterUpperBoundsList: [[TypeID]]? = nil,
-            flags: SymbolFlags = [.synthetic],
             reifiedTypeParameterIndices: Set<Int> = []
         ) {
             let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
@@ -3202,7 +3207,7 @@ extension DataFlowSemaPhase {
                 fqName: memberFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: flags
+                flags: [.synthetic]
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
             symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
@@ -3210,7 +3215,7 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     parameterTypes: parameterTypes,
-                    returnType: returnTypeOverride ?? receiverType,
+                    returnType: returnTypeOverride ?? listReturnType,
                     typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
                     reifiedTypeParameterIndices: reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
@@ -3544,56 +3549,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_list_windowed_partial",
             returnTypeOverride: listOfListReturnType
         )
-
-        // STDLIB-COL-WIN-001: windowed(size, step, partialWindows, transform)
-        // The transform overload erases R at the ABI level, so it returns List<Any>.
-        do {
-            let windowedTransformName = interner.intern("windowed")
-            let windowedTransformFQName = listFQName + [windowedTransformName]
-            let existingWindowedOverloads = symbols.lookupAll(fqName: windowedTransformFQName)
-            let hasFourParamWindowed = existingWindowedOverloads.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes.count == 4
-            }
-            if !hasFourParamWindowed {
-                let invariantListType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSymbol,
-                    args: [.invariant(listTypeParamType)],
-                    nullability: .nonNull
-                )))
-                let transformType = types.make(.functionType(FunctionType(
-                    params: [invariantListType],
-                    returnType: types.anyType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-                let listOfAnyReturnType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSymbol,
-                    args: [.out(types.anyType)],
-                    nullability: .nonNull
-                )))
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: windowedTransformName,
-                    fqName: windowedTransformFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName("kk_list_windowed_transform", for: memberSymbol)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [types.intType, types.intType, types.booleanType, transformType],
-                        returnType: listOfAnyReturnType,
-                        typeParameterSymbols: [listTypeParamSymbol],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-        }
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],
@@ -4315,118 +4270,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        func registerMemberOverload(
-            memberName: InternedString,
-            memberFQName: [InternedString],
-            parameterTypes: [TypeID],
-            externalLinkName: String,
-            returnTypeOverride: TypeID? = nil,
-            typeParameterSymbols: [SymbolID]? = nil,
-            typeParameterUpperBoundsList: [[TypeID]]? = nil,
-            flags: SymbolFlags = [.synthetic],
-            reifiedTypeParameterIndices: Set<Int> = []
-        ) {
-            let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
-                guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-                return sig.parameterTypes == parameterTypes
-            }
-            guard !alreadyRegistered else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: flags
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: returnTypeOverride ?? receiverType,
-                    typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
-                    reifiedTypeParameterIndices: reifiedTypeParameterIndices,
-                    typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // STDLIB-COL-BSEARCH-001: binarySearchBy(key, fromIndex, toIndex, selector)
-        // The Kotlin stdlib models the omitted fromIndex/toIndex values as defaults,
-        // but this compiler keeps the resolution shape explicit with 2/3/4-argument
-        // overloads so the lambda always stays in the final slot.
-        let binarySearchByName = interner.intern("binarySearchBy")
-        let binarySearchByFQName = listFQName + [binarySearchByName]
-        let binarySearchByKeyTypeParamName = interner.intern("R")
-        let binarySearchByKeyTypeParamFQName = binarySearchByFQName + [binarySearchByKeyTypeParamName]
-        let binarySearchByKeyTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: binarySearchByKeyTypeParamName,
-            fqName: binarySearchByKeyTypeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let binarySearchByKeyTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: binarySearchByKeyTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let binarySearchByComparableBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
-            [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.invariant(binarySearchByKeyTypeParamType)],
-                nullability: .nonNull
-            )))]
-        } else {
-            []
-        }
-        let binarySearchByKeyType: TypeID
-        let binarySearchByTypeParameterSymbols: [SymbolID]
-        let binarySearchByTypeParameterUpperBoundsList: [[TypeID]]
-        binarySearchByKeyType = types.makeNullable(binarySearchByKeyTypeParamType)
-        binarySearchByTypeParameterSymbols = [listTypeParamSymbol, binarySearchByKeyTypeParamSymbol]
-        binarySearchByTypeParameterUpperBoundsList = [[], binarySearchByComparableBounds]
-        let binarySearchBySelectorType = types.make(.functionType(FunctionType(
-            params: [listTypeParamType],
-            returnType: binarySearchByKeyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, types.intType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy_fromIndex",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-        registerMemberOverload(
-            memberName: binarySearchByName,
-            memberFQName: binarySearchByFQName,
-            parameterTypes: [binarySearchByKeyType, types.intType, types.intType, binarySearchBySelectorType],
-            externalLinkName: "kk_list_binarySearchBy_range",
-            returnTypeOverride: types.intType,
-            typeParameterSymbols: binarySearchByTypeParameterSymbols,
-            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
-            flags: [.synthetic, .inlineFunction]
-        )
-
         // STDLIB-547: binarySearch(comparison: (T) -> Int) — HOF, comparison lambda
         let binarySearchCompareName = interner.intern("binarySearch")
         // Use a distinct FQ name to differentiate from the element-based overload
@@ -4453,76 +4296,6 @@ extension DataFlowSemaPhase {
                     receiverType: receiverType,
                     parameterTypes: [comparisonType],
                     returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        // STDLIB-COL-BSEARCH-002: binarySearch(element, comparator, fromIndex, toIndex)
-        // comparator object overload with defaulted search range.
-        let binarySearchComparatorName = interner.intern("binarySearch")
-        let binarySearchComparatorFQName = listFQName + [interner.intern(binarySearchComparatorFQSuffix)]
-        if symbols.lookup(fqName: binarySearchComparatorFQName) == nil {
-            let comparatorType: TypeID = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
-                types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(listTypeParamType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                types.make(.functionType(FunctionType(
-                    params: [listTypeParamType, listTypeParamType],
-                    returnType: types.intType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: binarySearchComparatorName,
-                fqName: binarySearchComparatorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_binarySearch_comparator", for: memberSymbol)
-
-            let parameterSpecs: [(name: String, type: TypeID, hasDefault: Bool)] = [
-                ("element", listTypeParamType, false),
-                ("comparator", comparatorType, false),
-                ("fromIndex", types.intType, true),
-                ("toIndex", types.intType, true),
-            ]
-            var parameterTypes: [TypeID] = []
-            var parameterSymbols: [SymbolID] = []
-            var parameterDefaults: [Bool] = []
-            for parameter in parameterSpecs {
-                let parameterName = interner.intern(parameter.name)
-                let parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: parameterName,
-                    fqName: binarySearchComparatorFQName + [parameterName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                parameterTypes.append(parameter.type)
-                parameterSymbols.append(parameterSymbol)
-                parameterDefaults.append(parameter.hasDefault)
-            }
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: types.intType,
-                    valueParameterSymbols: parameterSymbols,
-                    valueParameterHasDefaultValues: parameterDefaults,
-                    valueParameterIsVararg: Array(repeating: false, count: parameterSpecs.count),
                     typeParameterSymbols: [listTypeParamSymbol],
                     classTypeParameterCount: 1
                 ),
@@ -8687,10 +8460,6 @@ extension DataFlowSemaPhase {
         )
         types.setNominalTypeParameterSymbols([tParamSymbol], for: arraySymbol)
         types.setNominalTypeParameterVariances([.invariant], for: arraySymbol)
-        let arrayTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol,
-            nullability: .nonNull
-        )))
 
         // Register size property for Array<T>
         let sizeReturnType = types.intType
@@ -8984,51 +8753,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if types.comparableInterfaceSymbol == nil {
-            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
-        }
-        let comparableElementBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
-            [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.in(arrayTypeParamType)],
-                nullability: .nonNull
-            )))]
-        } else {
-            []
-        }
-
-        // binarySearch(element, fromIndex, toIndex)
-        let elementBinarySearchName = interner.intern("binarySearch")
-        let elementBinarySearchFQName = arrayFQName + [elementBinarySearchName]
-        if symbols.lookup(fqName: elementBinarySearchFQName) == nil {
-            let binarySearchSymbol = symbols.define(
-                kind: .function,
-                name: elementBinarySearchName,
-                fqName: elementBinarySearchFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: binarySearchSymbol)
-            symbols.setExternalLinkName("kk_array_binarySearch", for: binarySearchSymbol)
-            let binarySearchReceiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.out(arrayTypeParamType)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: binarySearchReceiverType,
-                    parameterTypes: [arrayTypeParamType, types.intType, types.intType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [tParamSymbol],
-                    typeParameterUpperBoundsList: [comparableElementBounds],
-                    classTypeParameterCount: 1
-                ),
-                for: binarySearchSymbol
-            )
-        }
-
         // --- Primitive array types: IntArray, LongArray, etc. ---
         let primitiveArrayNames = [
             "IntArray",
@@ -9043,6 +8767,7 @@ extension DataFlowSemaPhase {
             "ShortArray",
             "UByteArray",
             "UShortArray",
+            "UIntArray",
         ]
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
@@ -9249,78 +8974,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register binarySearch(element, fromIndex, toIndex) for primitive arrays.
-        for name in primitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
-                continue
-            }
-
-            let binarySearchName = interner.intern("binarySearch")
-            let binarySearchFQName = fqName + [binarySearchName]
-            if symbols.lookup(fqName: binarySearchFQName) == nil {
-                let binarySearchSym = symbols.define(
-                    kind: .function,
-                    name: binarySearchName,
-                    fqName: binarySearchFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: binarySearchSym)
-
-                let externalLinkName: String = switch name {
-                case "IntArray": "kk_intArray_binarySearch"
-                case "LongArray": "kk_longArray_binarySearch"
-                case "ByteArray": "kk_byteArray_binarySearch"
-                case "ShortArray": "kk_shortArray_binarySearch"
-                case "UIntArray": "kk_uIntArray_binarySearch"
-                case "ULongArray": "kk_uLongArray_binarySearch"
-                case "DoubleArray": "kk_doubleArray_binarySearch"
-                case "FloatArray": "kk_floatArray_binarySearch"
-                case "BooleanArray": "kk_booleanArray_binarySearch"
-                case "CharArray": "kk_charArray_binarySearch"
-                case "UByteArray": "kk_uByteArray_binarySearch"
-                case "UShortArray": "kk_uShortArray_binarySearch"
-                default: "kk_array_binarySearch"
-                }
-                symbols.setExternalLinkName(externalLinkName, for: binarySearchSym)
-
-                let elementType: TypeID = switch name {
-                case "IntArray": types.intType
-                case "LongArray": types.longType
-                case "ByteArray": types.intType
-                case "ShortArray": types.intType
-                case "UIntArray": types.uintType
-                case "ULongArray": types.ulongType
-                case "DoubleArray": types.doubleType
-                case "FloatArray": types.floatType
-                case "BooleanArray": types.booleanType
-                case "CharArray": types.charType
-                case "UByteArray": types.ubyteType
-                case "UShortArray": types.ushortType
-                default: types.intType
-                }
-
-                let arrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: [elementType, types.intType, types.intType],
-                        returnType: types.intType,
-                        isSuspend: false
-                    ),
-                    for: binarySearchSym
-                )
-            }
-        }
-
         let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [
             ("intArrayOf", "IntArray", types.intType),
             ("longArrayOf", "LongArray", types.longType),
@@ -9333,7 +8986,6 @@ extension DataFlowSemaPhase {
             ("ubyteArrayOf", "UByteArray", types.ubyteType),
             ("ushortArrayOf", "UShortArray", types.ushortType),
             ("uintArrayOf", "UIntArray", types.uintType),
-            ("ulongArrayOf", "ULongArray", types.ulongType),
         ]
         for (factoryName, arrayName, elementType) in primitiveArrayFactoryTypes {
             guard let primitiveArraySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern(arrayName)]) else {

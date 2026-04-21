@@ -75,9 +75,6 @@ extension DeclTypeChecker {
                             interner: ctx.interner
                         )
                         locals[param.name] = (type, paramSymbol, false, true)
-                        if driver.helpers.isOpenEndRangeType(type, sema: sema, interner: ctx.interner) {
-                            sema.bindings.markRangeSymbol(paramSymbol)
-                        }
                         if index < signature.valueParameterIsVararg.count,
                            signature.valueParameterIsVararg[index]
                         {
@@ -233,9 +230,6 @@ extension DeclTypeChecker {
                 interner: ctx.interner
             )
             locals[param.name] = (type, paramSymbol, false, true)
-            if driver.helpers.isOpenEndRangeType(type, sema: sema, interner: ctx.interner) {
-                sema.bindings.markRangeSymbol(paramSymbol)
-            }
             if index < signature.valueParameterIsVararg.count,
                signature.valueParameterIsVararg[index]
             {
@@ -247,9 +241,6 @@ extension DeclTypeChecker {
             let thisName = ctx.interner.intern("this")
             let syntheticThisSymbol = SyntheticSymbolScheme.receiverParameterSymbol(for: symbol)
             locals[thisName] = (receiverType, syntheticThisSymbol, false, true)
-            if driver.helpers.isOpenEndRangeType(receiverType, sema: sema, interner: ctx.interner) {
-                sema.bindings.markRangeSymbol(syntheticThisSymbol)
-            }
         }
 
         let functionScope = FunctionScope(parent: ctx.scope, symbols: sema.symbols)
