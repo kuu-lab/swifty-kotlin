@@ -3700,26 +3700,97 @@ symbol s3698 kind=annotationClass fq=kotlin.ExperimentalSubclassOptIn vis=public
 symbol s3699 kind=annotationClass fq=kotlin.uuid.ExperimentalUuidApi vis=public flags=synthetic
 symbol s3700 kind=package fq=kotlin.io.encoding vis=public flags=synthetic
 symbol s3701 kind=annotationClass fq=kotlin.io.encoding.ExperimentalEncodingApi vis=public flags=synthetic
-symbol s3702 kind=class fq=Animal vis=public flags=sealedType|abstractType|openType
-symbol s3703 kind=constructor fq=Animal.<init> vis=protected flags=_ sig=recv=Class#3702 params=[] ret=Class#3702 suspend=0 defaults=[] vararg=[]
-symbol s3704 kind=class fq=Dog vis=public flags=_
-symbol s3705 kind=constructor fq=Dog.<init> vis=public flags=_ sig=recv=Class#3704 params=[] ret=Class#3704 suspend=0 defaults=[] vararg=[]
-symbol s3706 kind=class fq=Cat vis=public flags=_
-symbol s3707 kind=constructor fq=Cat.<init> vis=public flags=_ sig=recv=Class#3706 params=[] ret=Class#3706 suspend=0 defaults=[] vararg=[]
-symbol s3708 kind=class fq=Bird vis=public flags=_
-symbol s3709 kind=constructor fq=Bird.<init> vis=public flags=_ sig=recv=Class#3708 params=[] ret=Class#3708 suspend=0 defaults=[] vararg=[]
-symbol s3710 kind=function fq=describeAnimal vis=public flags=_ sig=recv=_ params=[Class#3702] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s3711 kind=valueParameter fq=describeAnimal.$3710.a vis=private flags=_
+symbol s3702 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3703 kind=local fq=__local_7.s vis=private flags=_ type=Class#114<out Int>
+symbol s3704 kind=local fq=__local_21.hasEven vis=private flags=_ type=Boolean
+symbol s3705 kind=local fq=__local_31.allPositive vis=private flags=_ type=Boolean
+symbol s3706 kind=local fq=__local_41.noneNegative vis=private flags=_ type=Boolean
+symbol s3707 kind=local fq=__local_55.firstEven vis=private flags=_ type=Int?
+symbol s3708 kind=local fq=__local_58.nonEmpty vis=private flags=_ type=Boolean
+symbol s3709 kind=local fq=__local_61.emptySeq vis=private flags=_ type=Class#114<out Int>
+symbol s3710 kind=local fq=__local_64.isEmpty vis=private flags=_ type=Boolean
 file f0 package=_
-  decl d0 class Animal sym=s3702
-  decl d1 class Dog sym=s3704
-  decl d2 class Cat sym=s3706
-  decl d3 class Bird sym=s3708
-  decl d4 fun describeAnimal suspend=0 inline=0 sym=s3710
-expr e0 name(a) type=Class#3702 ref=s3711
-expr e1 isCheck expr=e0 type=t5 type=Boolean
-expr e2 string(dog) type=String
-expr e3 isCheck expr=e0 type=t6 type=Boolean
-expr e4 string(cat) type=String
-expr e5 when subject=e0 branches=[e1->e2,e3->e4] else=_ type=String
-expr e6 return value=e5 type=Nothing
+  decl d0 fun main suspend=0 inline=0 sym=s3702
+expr e0 name(sequenceOf) type=_
+expr e1 int(1) type=Int
+expr e2 int(2) type=Int
+expr e3 int(3) type=Int
+expr e4 int(4) type=Int
+expr e5 int(5) type=Int
+expr e6 call callee=e0 args=[_:e1,_:e2,_:e3,_:e4,_:e5] type=Class#114<out Int> call=s1787 map=[0->0,1->0,2->0,3->0,4->0] targs=[Int]
+expr e7 localDecl s mutable=0 type=_ init=e6 type=Unit ref=s3703
+expr e8 name(s) type=Class#114<out Int> ref=s3703
+expr e9 name(it) type=_
+expr e10 int(2) type=_
+expr e11 binary(modulo) lhs=e9 rhs=e10 type=_
+expr e12 int(0) type=_
+expr e13 binary(equal) lhs=e11 rhs=e12 type=_
+expr e14 name(it) type=Int ref=s-1004864
+expr e15 int(2) type=Int
+expr e16 binary(modulo) lhs=e14 rhs=e15 type=Int
+expr e17 int(0) type=Int
+expr e18 binary(equal) lhs=e16 rhs=e17 type=Boolean
+expr e19 lambda params=[] body=e18 label=any type=(Int) -> Boolean
+expr e20 memberCall recv=e8 callee=any args=[_:e19] type=Boolean
+expr e21 localDecl hasEven mutable=0 type=_ init=e20 type=Unit ref=s3704
+expr e22 name(s) type=Class#114<out Int> ref=s3703
+expr e23 name(it) type=_
+expr e24 int(0) type=_
+expr e25 binary(greaterThan) lhs=e23 rhs=e24 type=_
+expr e26 name(it) type=Int ref=s-1007424
+expr e27 int(0) type=Int
+expr e28 binary(greaterThan) lhs=e26 rhs=e27 type=Boolean
+expr e29 lambda params=[] body=e28 label=all type=(Int) -> Boolean
+expr e30 memberCall recv=e22 callee=all args=[_:e29] type=Boolean
+expr e31 localDecl allPositive mutable=0 type=_ init=e30 type=Unit ref=s3705
+expr e32 name(s) type=Class#114<out Int> ref=s3703
+expr e33 name(it) type=_
+expr e34 int(0) type=_
+expr e35 binary(lessThan) lhs=e33 rhs=e34 type=_
+expr e36 name(it) type=Int ref=s-1009984
+expr e37 int(0) type=Int
+expr e38 binary(lessThan) lhs=e36 rhs=e37 type=Boolean
+expr e39 lambda params=[] body=e38 label=none type=(Int) -> Boolean
+expr e40 memberCall recv=e32 callee=none args=[_:e39] type=Boolean
+expr e41 localDecl noneNegative mutable=0 type=_ init=e40 type=Unit ref=s3706
+expr e42 name(s) type=Class#114<out Int> ref=s3703
+expr e43 name(it) type=_
+expr e44 int(2) type=_
+expr e45 binary(modulo) lhs=e43 rhs=e44 type=_
+expr e46 int(0) type=_
+expr e47 binary(equal) lhs=e45 rhs=e46 type=_
+expr e48 name(it) type=Int ref=s-1013568
+expr e49 int(2) type=Int
+expr e50 binary(modulo) lhs=e48 rhs=e49 type=Int
+expr e51 int(0) type=Int
+expr e52 binary(equal) lhs=e50 rhs=e51 type=Boolean
+expr e53 lambda params=[] body=e52 label=find type=(Int) -> Any
+expr e54 memberCall recv=e42 callee=find args=[_:e53] type=Int?
+expr e55 localDecl firstEven mutable=0 type=_ init=e54 type=Unit ref=s3707
+expr e56 name(s) type=Class#114<out Int> ref=s3703
+expr e57 memberCall recv=e56 callee=any args=[] type=Boolean
+expr e58 localDecl nonEmpty mutable=0 type=_ init=e57 type=Unit ref=s3708
+expr e59 name(emptySequence) type=_
+expr e60 call callee=e59 args=[] type=Class#114<out Int> call=s1790 map=[] targs=[Int]
+expr e61 localDecl emptySeq mutable=0 type=_ init=e60 type=Unit ref=s3709
+expr e62 name(emptySeq) type=Class#114<out Int> ref=s3709
+expr e63 memberCall recv=e62 callee=none args=[] type=Boolean
+expr e64 localDecl isEmpty mutable=0 type=_ init=e63 type=Unit ref=s3710
+expr e65 name(println) type=_
+expr e66 name(hasEven) type=Boolean ref=s3704
+expr e67 call callee=e65 args=[_:e66] type=Unit call=s1764 map=[0->0] targs=[]
+expr e68 name(println) type=_
+expr e69 name(allPositive) type=Boolean ref=s3705
+expr e70 call callee=e68 args=[_:e69] type=Unit call=s1764 map=[0->0] targs=[]
+expr e71 name(println) type=_
+expr e72 name(noneNegative) type=Boolean ref=s3706
+expr e73 call callee=e71 args=[_:e72] type=Unit call=s1764 map=[0->0] targs=[]
+expr e74 name(println) type=_
+expr e75 name(firstEven) type=Int? ref=s3707
+expr e76 call callee=e74 args=[_:e75] type=Unit call=s1764 map=[0->0] targs=[]
+expr e77 name(println) type=_
+expr e78 name(nonEmpty) type=Boolean ref=s3708
+expr e79 call callee=e77 args=[_:e78] type=Unit call=s1764 map=[0->0] targs=[]
+expr e80 name(println) type=_
+expr e81 name(isEmpty) type=Boolean ref=s3710
+expr e82 call callee=e80 args=[_:e81] type=Unit call=s1764 map=[0->0] targs=[]

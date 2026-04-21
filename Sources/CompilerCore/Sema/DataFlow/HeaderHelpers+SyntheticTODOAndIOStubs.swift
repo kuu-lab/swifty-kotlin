@@ -2649,6 +2649,62 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // any(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "any",
+            externalLinkName: "kk_sequence_any",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // all(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "all",
+            externalLinkName: "kk_sequence_all",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // none(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "none",
+            externalLinkName: "kk_sequence_none",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // find(predicate: (T) -> Boolean): T?  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "find",
+            externalLinkName: "kk_sequence_find",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.makeNullable(typeParamType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // zipWithNext(): List<Pair<T, T>>
         let zipWithNextName = interner.intern("zipWithNext")
         let zipWithNextFQName = sequenceFQName + [zipWithNextName]

@@ -3229,6 +3229,12 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_associate"
                 } else if calleeName == associateByName {
                     runtimeCallee = "kk_sequence_associateBy"
+                } else if calleeName == interner.intern("any") {
+                    runtimeCallee = "kk_sequence_any"
+                } else if calleeName == interner.intern("all") {
+                    runtimeCallee = "kk_sequence_all"
+                } else if calleeName == interner.intern("none") {
+                    runtimeCallee = "kk_sequence_none"
                 } else if calleeName == interner.intern("find") {
                     runtimeCallee = "kk_sequence_find"
                 } else if calleeName == interner.intern("mapNotNull") {
@@ -3255,6 +3261,9 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_associate"
                         || runtimeCallee == "kk_sequence_associateBy"
                         || runtimeCallee == "kk_sequence_find"
+                        || runtimeCallee == "kk_sequence_any"
+                        || runtimeCallee == "kk_sequence_all"
+                        || runtimeCallee == "kk_sequence_none"
                         || runtimeCallee == "kk_sequence_mapNotNull"
                         || runtimeCallee == "kk_sequence_mapIndexed"
                         || runtimeCallee == "kk_sequence_onEach"
@@ -3622,6 +3631,26 @@ extension CallLowerer {
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: canThrow,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                // STDLIB-SEQ-007: any() / none() no-predicate on sequences
+                // Pass fnPtr=0, closureRaw=0 to signal no-predicate variant
+                let anyID = interner.intern("any")
+                let noneID = interner.intern("none")
+                if calleeName == anyID || calleeName == noneID {
+                    let seqAnyNoneCallee = calleeName == anyID
+                        ? interner.intern("kk_sequence_any")
+                        : interner.intern("kk_sequence_none")
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: seqAnyNoneCallee,
+                        arguments: [loweredReceiverID, zeroExpr, zeroExpr],
+                        result: result,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                     return result
@@ -6437,6 +6466,12 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_associate")
             case associateByName:
                 return interner.intern("kk_sequence_associateBy")
+            case interner.intern("any"):
+                return interner.intern("kk_sequence_any")
+            case interner.intern("all"):
+                return interner.intern("kk_sequence_all")
+            case interner.intern("none"):
+                return interner.intern("kk_sequence_none")
             case interner.intern("find"):
                 return interner.intern("kk_sequence_find")
             case interner.intern("mapNotNull"):
