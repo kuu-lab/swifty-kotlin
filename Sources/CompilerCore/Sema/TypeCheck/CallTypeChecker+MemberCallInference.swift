@@ -4638,6 +4638,26 @@ extension CallTypeChecker {
                         sema.bindings.bindExprType(id, type: finalType)
                         return finalType
                     }
+                    // STDLIB-TEXT-EDGE-008: removeRange(range: IntRange)
+                    if calleeStr == "removeRange", sema.bindings.isRangeExpr(args[0].expr) {
+                        if let boundType = tryBindSyntheticStringMemberFallback(
+                            id,
+                            calleeName: calleeName,
+                            receiverType: receiverTypeForCheck,
+                            args: args,
+                            argTypes: argTypes,
+                            range: range,
+                            ctx: ctx,
+                            expectedType: expectedType,
+                            explicitTypeArgs: explicitTypeArgs,
+                            safeCall: safeCall
+                        ) {
+                            return boundType
+                        }
+                        let finalType = safeCall ? sema.types.makeNullable(sema.types.stringType) : sema.types.stringType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
                 }
             }
             // String stdlib: equals(other: String?) / equals(other, ignoreCase) (STDLIB-192)
@@ -5040,6 +5060,8 @@ extension CallTypeChecker {
                     case "indexOf" where sema.types.isSubtype(arg1Type, sema.types.intType):
                         sema.types.intType
                     case "substring" where sema.types.isSubtype(arg1Type, sema.types.intType):
+                        sema.types.stringType
+                    case "removeRange" where sema.types.isSubtype(arg1Type, sema.types.intType):
                         sema.types.stringType
                     case "padStart" where arg1Type == sema.types.charType:
                         sema.types.stringType

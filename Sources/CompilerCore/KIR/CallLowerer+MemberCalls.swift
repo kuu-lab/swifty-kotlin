@@ -2691,6 +2691,41 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                // STDLIB-TEXT-EDGE-008: removeRange(range: IntRange)
+                // Expands IntRange to (first, last+1) and calls kk_string_removeRange.
+                if calleeStr == "removeRange", sema.bindings.isRangeExpr(args[0].expr) {
+                    let firstExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+                    let lastExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_range_first"),
+                        arguments: [loweredArgIDs[0]],
+                        result: firstExpr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_range_last"),
+                        arguments: [loweredArgIDs[0]],
+                        result: lastExpr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    let oneExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
+                    instructions.append(.constValue(result: oneExpr, value: .intLiteral(1)))
+                    let endExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.intType)
+                    instructions.append(.binary(op: .add, lhs: lastExpr, rhs: oneExpr, result: endExpr))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_removeRange"),
+                        arguments: [loweredReceiverID, firstExpr, endExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "windowed" {
                     instructions.append(.call(
                         symbol: nil,
@@ -2948,6 +2983,20 @@ extension CallLowerer {
                     symbol: nil,
                     callee: interner.intern("kk_string_substring"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], hasEndExpr],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            // STDLIB-TEXT-EDGE-008: removeRange(startIndex, endIndex)
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               calleeStr == "removeRange"
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_removeRange"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,
                     thrownResult: nil
