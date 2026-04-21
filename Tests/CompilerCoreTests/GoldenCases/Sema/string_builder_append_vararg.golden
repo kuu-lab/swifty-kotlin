@@ -3693,22 +3693,51 @@ symbol s3691 kind=annotationClass fq=kotlin.ExperimentalSubclassOptIn vis=public
 symbol s3692 kind=annotationClass fq=kotlin.uuid.ExperimentalUuidApi vis=public flags=synthetic
 symbol s3693 kind=package fq=kotlin.io.encoding vis=public flags=synthetic
 symbol s3694 kind=annotationClass fq=kotlin.io.encoding.ExperimentalEncodingApi vis=public flags=synthetic
-symbol s3695 kind=class fq=golden.sema.MyAutoResource vis=public flags=_
-symbol s3696 kind=constructor fq=golden.sema.MyAutoResource.<init> vis=public flags=_ sig=recv=Class#3695 params=[] ret=Class#3695 suspend=0 defaults=[] vararg=[]
-symbol s3697 kind=function fq=golden.sema.MyAutoResource.close vis=public flags=overrideMember sig=recv=Class#3695 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s3698 kind=function fq=golden.sema.useIt vis=public flags=_ sig=recv=_ params=[T#3699] ret=Unit suspend=0 defaults=[0] vararg=[0] bounds=[Class#2506]
-symbol s3699 kind=typeParameter fq=golden.sema.useIt.$3698.T vis=private flags=_
-symbol s3700 kind=valueParameter fq=golden.sema.useIt.$3698.t vis=private flags=_
-symbol s3701 kind=function fq=golden.sema.callSite vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3695 kind=function fq=golden.sema.useAppendVarargStrings vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s3696 kind=function fq=golden.sema.useAppendVarargAny vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s3697 kind=function fq=golden.sema.useAppendVarargSpread vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s3698 kind=local fq=__local_2.sb vis=private flags=_ type=Class#1724
+symbol s3699 kind=local fq=__local_13.sb vis=private flags=_ type=Class#1724
+symbol s3700 kind=local fq=__local_24.sb vis=private flags=_ type=Class#1724
+symbol s3701 kind=local fq=__local_30.parts vis=private flags=_ type=Class#399<String>
 file f0 package=golden.sema
-  decl d1 class MyAutoResource sym=s3695
-  decl d2 fun useIt suspend=0 inline=0 sym=s3698
-  decl d3 fun callSite suspend=0 inline=0 sym=s3701
-expr e0 name(t) type=T#3699 ref=s3700
-expr e1 blockExpr stmts=[] trailing=_ type=Unit
-expr e2 lambda params=[] body=e1 label=use type=(T#3699) -> Any
-expr e3 memberCall recv=e0 callee=use args=[_:e2] type=Any
-expr e4 name(useIt) type=_
-expr e5 name(MyAutoResource) type=_
-expr e6 call callee=e5 args=[] type=Class#3695 call=s3696 map=[] targs=[]
-expr e7 call callee=e4 args=[_:e6] type=<error>
+  decl d0 fun useAppendVarargStrings suspend=0 inline=0 sym=s3695
+  decl d1 fun useAppendVarargAny suspend=0 inline=0 sym=s3696
+  decl d2 fun useAppendVarargSpread suspend=0 inline=0 sym=s3697
+expr e0 name(StringBuilder) type=Any ref=s1724
+expr e1 call callee=e0 args=[] type=Class#1724
+expr e2 localDecl sb mutable=0 type=_ init=e1 type=Unit ref=s3698
+expr e3 name(sb) type=Class#1724 ref=s3698
+expr e4 string(a) type=String
+expr e5 string(b) type=String
+expr e6 string(c) type=String
+expr e7 memberCall recv=e3 callee=append args=[_:e4,_:e5,_:e6] type=Class#1724 call=s1759 map=[0->0,1->0,2->0] targs=[]
+expr e8 name(sb) type=Class#1724 ref=s3698
+expr e9 memberCall recv=e8 callee=toString args=[] type=String call=s1727 map=[] targs=[]
+expr e10 return value=e9 type=Nothing
+expr e11 name(StringBuilder) type=Any ref=s1724
+expr e12 call callee=e11 args=[] type=Class#1724
+expr e13 localDecl sb mutable=0 type=_ init=e12 type=Unit ref=s3699
+expr e14 name(sb) type=Class#1724 ref=s3699
+expr e15 string(hello) type=String
+expr e16 int(42) type=Int
+expr e17 bool(true) type=Boolean
+expr e18 memberCall recv=e14 callee=append args=[_:e15,_:e16,_:e17] type=<error>
+expr e19 name(sb) type=Class#1724 ref=s3699
+expr e20 memberCall recv=e19 callee=toString args=[] type=String call=s1727 map=[] targs=[]
+expr e21 return value=e20 type=Nothing
+expr e22 name(StringBuilder) type=Any ref=s1724
+expr e23 call callee=e22 args=[] type=Class#1724
+expr e24 localDecl sb mutable=0 type=_ init=e23 type=Unit ref=s3700
+expr e25 name(arrayOf) type=_
+expr e26 string(x) type=String
+expr e27 string(y) type=String
+expr e28 string(z) type=String
+expr e29 call callee=e25 args=[_:e26,_:e27,_:e28] type=Class#399<String> call=s405 map=[0->0,1->0,2->0] targs=[String]
+expr e30 localDecl parts mutable=0 type=_ init=e29 type=Unit ref=s3701
+expr e31 name(sb) type=Class#1724 ref=s3700
+expr e32 name(parts) type=Class#399<String> ref=s3701
+expr e33 memberCall recv=e31 callee=append args=[_:e32] type=Class#1724 call=s1759 map=[0->0] targs=[]
+expr e34 name(sb) type=Class#1724 ref=s3700
+expr e35 memberCall recv=e34 callee=toString args=[] type=String call=s1727 map=[] targs=[]
+expr e36 return value=e35 type=Nothing
