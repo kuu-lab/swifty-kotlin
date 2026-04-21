@@ -5149,6 +5149,7 @@ extension CallLowerer {
                 "fold", "foldIndexed", "find", "findLast", "firstOrNull",
                 "lastOrNull", "any", "all", "none", "chunked", "windowed",
                 "reversed",
+                "random",
                 "take", "drop", "average", "sorted",
             ]
             if rangeMembers.contains(calleeText) {
@@ -5588,6 +5589,7 @@ extension CallLowerer {
             interner.intern("kk_list_scanIndexed"),
             interner.intern("kk_range_first_predicate"),
             interner.intern("kk_range_last_predicate"),
+            interner.intern("kk_range_random"),
             interner.intern("kk_range_reduce"),
             interner.intern("kk_range_reduceIndexed"),
             interner.intern("kk_int_progression_fromClosedRange"),
@@ -5597,6 +5599,9 @@ extension CallLowerer {
             interner.intern("kk_sequence_foldIndexed"),
             interner.intern("kk_sequence_reduceIndexed"),
             interner.intern("kk_sequence_reduceIndexedOrNull"),
+            interner.intern("kk_long_range_random"),
+            interner.intern("kk_uint_range_random"),
+            interner.intern("kk_ulong_range_random"),
             interner.intern("kk_sequence_sortedBy"),
             interner.intern("kk_sequence_sumOf"),
             interner.intern("kk_sequence_associate"),
@@ -6030,6 +6035,17 @@ extension CallLowerer {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if sema.bindings.isRangeExpr(receiverExpr) {
             switch memberName {
+            case "random":
+                if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
+                    return interner.intern("kk_ulong_range_random")
+                }
+                if sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType {
+                    return interner.intern("kk_uint_range_random")
+                }
+                if nonNullReceiverType == sema.types.longType {
+                    return interner.intern("kk_long_range_random")
+                }
+                return interner.intern("kk_range_random")
             case "contains":
                 if sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType {
                     return interner.intern("kk_ulong_range_contains")

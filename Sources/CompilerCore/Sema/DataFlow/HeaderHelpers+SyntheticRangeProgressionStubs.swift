@@ -688,6 +688,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerProgressionMethod(
+            named: "random",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: types.uintType,
+            externalLinkName: "kk_uint_range_random",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticConstructor(
             ownerSymbol: classSymbol,
             ownerType: rangeType,
@@ -934,6 +944,16 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_ulong_range_sorted",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "random",
+            ownerSymbol: classSymbol,
+            receiverType: rangeType,
+            parameterTypes: [],
+            returnType: types.ulongType,
+            externalLinkName: "kk_ulong_range_random",
             symbols: symbols,
             interner: interner
         )
@@ -1339,6 +1359,17 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.intType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_range_sorted",
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticIntRangeMethod(
+            named: "random",
+            ownerSymbol: classSymbol,
+            classFQName: classFQName,
+            receiverType: intRangeType,
+            parameterTypes: [],
+            returnType: types.intType,
+            externalLinkName: "kk_range_random",
             symbols: symbols,
             interner: interner
         )
@@ -1819,6 +1850,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerProgressionMethod(
+            named: "random",
+            ownerSymbol: classSymbol,
+            receiverType: longRangeType,
+            parameterTypes: [],
+            returnType: types.longType,
+            externalLinkName: "kk_long_range_random",
+            symbols: symbols,
+            interner: interner
+        )
 
         // Constructor: LongRange(start, end)
         registerSyntheticConstructor(
@@ -2035,6 +2076,16 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.charType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_char_range_sorted",
+            symbols: symbols,
+            interner: interner
+        )
+        registerProgressionMethod(
+            named: "random",
+            ownerSymbol: classSymbol,
+            receiverType: charRangeType,
+            parameterTypes: [],
+            returnType: types.charType,
+            externalLinkName: "kk_range_random",
             symbols: symbols,
             interner: interner
         )
