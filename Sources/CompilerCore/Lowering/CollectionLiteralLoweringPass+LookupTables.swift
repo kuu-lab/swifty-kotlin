@@ -252,6 +252,7 @@ struct CollectionLiteralLookupTables {
     // Sequence ABI names (STDLIB-095/096/097)
     let kkSequenceOfName: InternedString
     let kkSequenceGenerateName: InternedString
+    let kkSequenceGenerateNoArgName: InternedString
     let kkSequenceForEachName: InternedString
     let kkSequenceFlatMapName: InternedString
     let kkSequenceDropName: InternedString
@@ -631,6 +632,7 @@ struct CollectionLiteralLookupTables {
     let buildSetName: InternedString
     let buildMapName: InternedString
     let kkBuildStringName: InternedString
+    let kkBuildStringWithCapacityName: InternedString
     let kkBuildListName: InternedString
     let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
@@ -977,6 +979,7 @@ struct CollectionLiteralLookupTables {
 
         kkSequenceOfName = interner.intern("kk_sequence_of")
         kkSequenceGenerateName = interner.intern("kk_sequence_generate")
+        kkSequenceGenerateNoArgName = interner.intern("kk_sequence_generate_noarg")
         kkSequenceForEachName = interner.intern("kk_sequence_forEach")
         kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
         kkSequenceDropName = interner.intern("kk_sequence_drop")
@@ -1340,6 +1343,7 @@ struct CollectionLiteralLookupTables {
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
         kkBuildStringName = interner.intern("kk_build_string")
+        kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
         kkBuildListName = interner.intern("kk_build_list")
         kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("kk_build_set")
@@ -1476,6 +1480,7 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceIndent"),
             kkStringFilterName,
             interner.intern("kk_build_string"),
+            interner.intern("kk_build_string_with_capacity"),
         ]
     }
 }

@@ -52,7 +52,7 @@
 - [ ] STDLIB-TEXT-EDGE-007: `buildString(capacity, builderAction)` overload を追加する
 - [x] STDLIB-TEXT-EDGE-008: `CharSequence` / `String`.`removeRange(startIndex, endIndex)` / `removeRange(range)` overload 群を追加する
 - [x] STDLIB-TEXT-EDGE-009: `CharSequence?.contentEquals(other)` / `contentEquals(other, ignoreCase)` を追加する
-- [ ] STDLIB-TEXT-EDGE-010: `CharSequence.removePrefix` / `removeSuffix` / `removeSurrounding` overload 群を追加する
+- [x] STDLIB-TEXT-EDGE-010: `CharSequence.removePrefix` / `removeSuffix` / `removeSurrounding` overload 群を追加する
 - [ ] STDLIB-TEXT-EDGE-011: `CharSequence.zipWithNext()` / `zipWithNext(transform)` を追加する
 - [x] STDLIB-TEXT-EDGE-012: `Appendable.append(vararg CharSequence?)` と `StringBuilder.append(vararg String? / Any?)` を追加する
 
@@ -61,12 +61,12 @@
 - [x] STDLIB-020: `Sequence` の lazy 性と builder 系 API の評価順を固定
 - [ ] STDLIB-021: mutable collection 変換 API と destination variant の差分を潰す
 - [ ] STDLIB-SEQ-001: `Sequence.map/filter + take` の lazy short-circuit を追加する
-- [ ] STDLIB-SEQ-002: `generateSequence` の null 終端と infinite source + `take` を追加する
+- [x] STDLIB-SEQ-002: `generateSequence` の null 終端と infinite source + `take` を追加する
 - [ ] STDLIB-SEQ-003: `sequence { yieldAll(...) }` builder semantics を追加する
 - [ ] STDLIB-SEQ-004: `Sequence.flatMap` / `distinct` / `zip` / `drop` を追加する
 - [ ] STDLIB-SEQ-005: `Sequence.count` / `forEach` / `fold` / `first` / `firstOrNull` を追加する
 - [ ] STDLIB-SEQ-006: `Iterable.asSequence()` と `Sequence.constrainOnce()` を追加する
-- [ ] STDLIB-SEQ-007: `Sequence.any` / `all` / `find` の short-circuit を追加する
+- [x] STDLIB-SEQ-007: `Sequence.any` / `all` / `find` の short-circuit を追加する
 - [ ] STDLIB-SEQ-008: `Sequence.chunked(size, transform)` overload を追加する
 - [ ] STDLIB-SEQ-009: `Sequence.windowed(size, step, partialWindows, transform)` overload を追加する
 - [ ] STDLIB-SEQ-010: `Sequence.onEachIndexed(action)` を追加する
@@ -88,7 +88,7 @@
 - [ ] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する
 - [ ] STDLIB-COL-DEST-002: `mapTo` / `mapIndexedTo` / `mapNotNullTo` を追加する
 - [x] STDLIB-COL-DEST-003: `flatMapTo` / `flatMapIndexedTo` を追加する
-- [ ] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
+- [x] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
 - [ ] STDLIB-COL-DEST-005: `toCollection(destination)` を追加する
 - [ ] STDLIB-COL-U-001: `Collection<UByte>` / `Collection<UShort>` / `Collection<UInt>` / `Collection<ULong>` の `toU*Array()` conversion を追加する
 - [ ] STDLIB-COL-U-002: `ByteArray.asUByteArray()` / `ShortArray.asUShortArray()` / `IntArray.asUIntArray()` / `LongArray.asULongArray()` view conversion を追加する

@@ -160,6 +160,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
+        registerSyntheticGenerateSequenceNoArgFunction(
+            named: "generateSequence",
+            packageFQName: kotlinSequencesPkg,
+            sequenceSymbol: sequenceSymbol,
+            externalLinkName: "kk_sequence_generate_noarg",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         // STDLIB-331/564: iterator {} builder → Iterator<T>
         // Registered with SequenceScope<T> receiver so yield() resolves inside the lambda.
         registerSyntheticIteratorBuilderStub(
@@ -1575,6 +1586,98 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// STDLIB-SEQ-002: Register the 1-arg overload `generateSequence(nextFunction: () -> T?)`.
+    /// This overload takes a no-argument function that is called repeatedly until it returns null.
+    private func registerSyntheticGenerateSequenceNoArgFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        sequenceSymbol: SymbolID,
+        externalLinkName: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+
+        // Skip if an overload with exactly 1 parameter already exists.
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return existingSignature.parameterTypes.count == 1
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        let typeParamName = interner.intern("T")
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: functionFQName + [typeParamName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
+
+        let elementType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let nullableElementType = types.makeNullable(elementType)
+        // The no-arg nextFunction type: () -> T?
+        let nextFunctionType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: nullableElementType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let returnType = types.make(.classType(ClassType(
+            classSymbol: sequenceSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+
+        let nextFunctionName = interner.intern("nextFunction")
+        let nextFunctionSymbol = symbols.define(
+            kind: .valueParameter,
+            name: nextFunctionName,
+            fqName: functionFQName + [nextFunctionName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: nextFunctionSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [nextFunctionType],
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: [nextFunctionSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [typeParamSymbol]
+            ),
+            for: functionSymbol
+        )
+    }
+
     private func registerSyntheticTopLevelFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -2359,19 +2462,6 @@ extension DataFlowSemaPhase {
             args: [.out(typeParamType)],
             nullability: .nonNull
         )))
-        let listReturnType: TypeID = if let listSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("List"),
-        ]) {
-            types.make(.classType(ClassType(
-                classSymbol: listSymbol,
-                args: [.out(typeParamType)],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
         let predicateType = types.make(.functionType(FunctionType(
             params: [typeParamType],
             returnType: types.booleanType,
@@ -2390,6 +2480,36 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        func nominalCollectionType(_ fqName: [InternedString], elementType: TypeID, invariant: Bool = false) -> TypeID {
+            guard let symbol = symbols.lookup(fqName: fqName) else {
+                return types.anyType
+            }
+            return types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: [invariant ? .invariant(elementType) : .out(elementType)],
+                nullability: .nonNull
+            )))
+        }
+        let listReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ], elementType: typeParamType)
+        let mutableListReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ], elementType: typeParamType, invariant: true)
+        let setReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Set"),
+        ], elementType: typeParamType)
+        let mutableSetReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableSet"),
+        ], elementType: typeParamType, invariant: true)
 
         // first(): T
         registerSequenceMemberStub(
@@ -2475,6 +2595,132 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // contains(element: T): Boolean
+        registerSequenceMemberStub(
+            named: "contains",
+            externalLinkName: "kk_sequence_contains",
+            receiverType: receiverType,
+            parameters: [("element", typeParamType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // any(): Boolean
+        registerSequenceMemberStub(
+            named: "any",
+            externalLinkName: "kk_sequence_any",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // indexOf(element: T): Int
+        registerSequenceMemberStub(
+            named: "indexOf",
+            externalLinkName: "kk_sequence_indexOf",
+            receiverType: receiverType,
+            parameters: [("element", typeParamType)],
+            returnType: types.intType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // elementAtOrNull(index: Int): T?
+        registerSequenceMemberStub(
+            named: "elementAtOrNull",
+            externalLinkName: "kk_sequence_elementAtOrNull",
+            receiverType: receiverType,
+            parameters: [("index", types.intType)],
+            returnType: types.makeNullable(typeParamType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // none(): Boolean
+        registerSequenceMemberStub(
+            named: "none",
+            externalLinkName: "kk_sequence_none",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // elementAt(index: Int): T
+        registerSequenceMemberStub(
+            named: "elementAt",
+            externalLinkName: "kk_sequence_elementAt",
+            receiverType: receiverType,
+            parameters: [("index", types.intType)],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
+        // findLast(predicate: (T) -> Boolean): T?
+        registerSequenceMemberStub(
+            named: "findLast",
+            externalLinkName: "kk_sequence_findLast",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.makeNullable(typeParamType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
+        // sum()/average()
+        registerSequenceMemberStub(
+            named: "sum",
+            externalLinkName: "kk_sequence_sum",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: types.intType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSequenceMemberStub(
+            named: "average",
+            externalLinkName: "kk_sequence_average",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: types.doubleType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // toList(): List<T>
         registerSequenceMemberStub(
             named: "toList",
@@ -2489,6 +2735,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // toMutableList(): MutableList<T>
+        registerSequenceMemberStub(
+            named: "toMutableList",
+            externalLinkName: "kk_sequence_toMutableList",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: mutableListReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // asIterable(): Iterable<T>
         registerSequenceMemberStub(
             named: "asIterable",
@@ -2496,6 +2756,20 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [],
             returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // toMutableSet(): MutableSet<T>
+        registerSequenceMemberStub(
+            named: "toMutableSet",
+            externalLinkName: "kk_sequence_toMutableSet",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: mutableSetReturnType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -2545,13 +2819,239 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // partition(predicate): Pair<List<T>, List<T>>
+        if let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")]) {
+            let partitionReturnType = types.make(.classType(ClassType(
+                classSymbol: pairSymbol,
+                args: [.out(listReturnType), .out(listReturnType)],
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "partition",
+                externalLinkName: "kk_sequence_partition",
+                receiverType: receiverType,
+                parameters: [("predicate", predicateType)],
+                returnType: partitionReturnType,
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true
+            )
+        }
+
+        // associateWith(valueSelector): Map<T, R>
+        if let mapSymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Map"),
+        ]) {
+            let associateWithFQName = sequenceFQName + [interner.intern("associateWith")]
+            if symbols.lookup(fqName: associateWithFQName) == nil {
+                let rName = interner.intern("R")
+                let rFQName = associateWithFQName + [rName]
+                let rSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: rName,
+                    fqName: rFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+                let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+                let valueSelectorType = types.make(.functionType(FunctionType(
+                    params: [typeParamType],
+                    returnType: rType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                let returnType = types.make(.classType(ClassType(
+                    classSymbol: mapSymbol,
+                    args: [.out(typeParamType), .out(rType)],
+                    nullability: .nonNull
+                )))
+                let associateWithSymbol = symbols.define(
+                    kind: .function,
+                    name: interner.intern("associateWith"),
+                    fqName: associateWithFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .operatorFunction]
+                )
+                symbols.setParentSymbol(sequenceSymbol, for: associateWithSymbol)
+                symbols.setExternalLinkName("kk_sequence_associateWith", for: associateWithSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [valueSelectorType],
+                        returnType: returnType,
+                        canThrow: true,
+                        typeParameterSymbols: [typeParamSymbol, rSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: associateWithSymbol
+                )
+            }
+        }
+
+        // maxByOrNull / minByOrNull / maxOf / minOf (STDLIB-301)
+        do {
+            func registerComparableSelectorMember(
+                name: String,
+                externalLinkName: String,
+                returnTypeBuilder: (TypeID) -> TypeID
+            ) {
+                let memberName = interner.intern(name)
+                let memberFQName = sequenceFQName + [memberName]
+                guard symbols.lookup(fqName: memberFQName) == nil else { return }
+                let selectorReturnType: TypeID
+                let extraTypeParamSymbols: [SymbolID]
+                let extraUpperBoundsList: [[TypeID]]
+                if let rParam = makeComparableTypeParam(
+                    symbols: symbols, types: types, interner: interner,
+                    memberFQName: memberFQName
+                ) {
+                    selectorReturnType = rParam.type
+                    extraTypeParamSymbols = [rParam.symbol]
+                    extraUpperBoundsList = [rParam.upperBounds]
+                } else {
+                    selectorReturnType = types.anyType
+                    extraTypeParamSymbols = []
+                    extraUpperBoundsList = []
+                }
+                let selectorType = types.make(.functionType(FunctionType(
+                    params: [typeParamType],
+                    returnType: selectorReturnType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                registerSequenceMemberStub(
+                    named: name,
+                    externalLinkName: externalLinkName,
+                    receiverType: receiverType,
+                    parameters: [("selector", selectorType)],
+                    returnType: returnTypeBuilder(selectorReturnType),
+                    sequenceSymbol: sequenceSymbol,
+                    sequenceFQName: sequenceFQName,
+                    typeParamSymbol: typeParamSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    canThrow: true,
+                    additionalTypeParameterSymbols: extraTypeParamSymbols,
+                    additionalTypeParameterUpperBoundsList: extraUpperBoundsList
+                )
+            }
+
+            registerComparableSelectorMember(
+                name: "maxByOrNull",
+                externalLinkName: "kk_sequence_maxByOrNull",
+                returnTypeBuilder: { _ in types.makeNullable(typeParamType) }
+            )
+            registerComparableSelectorMember(
+                name: "minByOrNull",
+                externalLinkName: "kk_sequence_minByOrNull",
+                returnTypeBuilder: { _ in types.makeNullable(typeParamType) }
+            )
+            registerComparableSelectorMember(
+                name: "maxOf",
+                externalLinkName: "kk_sequence_maxOf",
+                returnTypeBuilder: { selectorResultType in selectorResultType }
+            )
+            registerComparableSelectorMember(
+                name: "minOf",
+                externalLinkName: "kk_sequence_minOf",
+                returnTypeBuilder: { selectorResultType in selectorResultType }
+            )
+        }
+
+        // unzip(): Pair<List<A>, List<B>> for Sequence<Pair<A, B>>
+        let unzipName = interner.intern("unzip")
+        let unzipFQName = sequenceFQName + [unzipName]
+        if symbols.lookup(fqName: unzipFQName) == nil {
+            let aName = interner.intern("A")
+            let aSymbol = symbols.define(
+                kind: .typeParameter,
+                name: aName,
+                fqName: unzipFQName + [aName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let bName = interner.intern("B")
+            let bSymbol = symbols.define(
+                kind: .typeParameter,
+                name: bName,
+                fqName: unzipFQName + [bName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let aType = types.make(.typeParam(TypeParamType(symbol: aSymbol, nullability: .nonNull)))
+            let bType = types.make(.typeParam(TypeParamType(symbol: bSymbol, nullability: .nonNull)))
+            let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")])
+                ?? symbols.lookupByShortName(interner.intern("Pair")).first
+            let specializedReceiverType: TypeID
+            let returnType: TypeID
+            if let pairSymbol {
+                let pairElementType = types.make(.classType(ClassType(
+                    classSymbol: pairSymbol,
+                    args: [.out(aType), .out(bType)],
+                    nullability: .nonNull
+                )))
+                specializedReceiverType = types.make(.classType(ClassType(
+                    classSymbol: sequenceSymbol,
+                    args: [.out(pairElementType)],
+                    nullability: .nonNull
+                )))
+                let firstListType = nominalCollectionType([
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ], elementType: aType)
+                let secondListType = nominalCollectionType([
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("List"),
+                ], elementType: bType)
+                returnType = types.make(.classType(ClassType(
+                    classSymbol: pairSymbol,
+                    args: [.out(firstListType), .out(secondListType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                specializedReceiverType = receiverType
+                returnType = types.anyType
+            }
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: unzipName,
+                fqName: unzipFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_sequence_unzip", for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: specializedReceiverType,
+                    parameterTypes: [],
+                    returnType: returnType,
+                    typeParameterSymbols: [aSymbol, bSymbol],
+                    classTypeParameterCount: 0
+                ),
+                for: memberSymbol
+            )
+        }
+
         // toSet(): Set<T>
         registerSequenceMemberStub(
             named: "toSet",
             externalLinkName: "kk_sequence_toSet",
             receiverType: receiverType,
             parameters: [],
-            returnType: types.anyType,
+            returnType: setReturnType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -2642,6 +3142,62 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [("action", forEachIndexedActionType)],
             returnType: types.unitType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // any(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "any",
+            externalLinkName: "kk_sequence_any",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // all(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "all",
+            externalLinkName: "kk_sequence_all",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // none(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "none",
+            externalLinkName: "kk_sequence_none",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.booleanType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // find(predicate: (T) -> Boolean): T?  (STDLIB-SEQ-007)
+        registerSequenceMemberStub(
+            named: "find",
+            externalLinkName: "kk_sequence_find",
+            receiverType: receiverType,
+            parameters: [("predicate", predicateType)],
+            returnType: types.makeNullable(typeParamType),
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -2926,7 +3482,10 @@ extension DataFlowSemaPhase {
         sequenceFQName: [InternedString],
         typeParamSymbol: SymbolID,
         symbols: SymbolTable,
-        interner: StringInterner
+        interner: StringInterner,
+        canThrow: Bool = false,
+        additionalTypeParameterSymbols: [SymbolID] = [],
+        additionalTypeParameterUpperBoundsList: [[TypeID]] = []
     ) {
         let memberName = interner.intern(name)
         let memberFQName = sequenceFQName + [memberName]
@@ -2965,10 +3524,12 @@ extension DataFlowSemaPhase {
                 receiverType: receiverType,
                 parameterTypes: parameterTypes,
                 returnType: returnType,
+                canThrow: canThrow,
                 valueParameterSymbols: parameterSymbols,
                 valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
                 valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                typeParameterSymbols: [typeParamSymbol],
+                typeParameterSymbols: [typeParamSymbol] + additionalTypeParameterSymbols,
+                typeParameterUpperBoundsList: [[]] + additionalTypeParameterUpperBoundsList,
                 classTypeParameterCount: 1
             ),
             for: memberSymbol
