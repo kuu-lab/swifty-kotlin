@@ -525,7 +525,8 @@ extension CallTypeChecker {
             receiverID: receiverID,
             argExprs: args.map(\.expr),
             argCount: args.count,
-            sema: sema
+            sema: sema,
+            interner: interner
         ) {
             if let invalidFallbackType = validateCollectionFallbackCallee(
                 fallbackCallee,
@@ -738,7 +739,8 @@ extension CallTypeChecker {
         receiverID: ExprID,
         argExprs: [ExprID] = [],
         argCount: Int,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         guard let root = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types) else {
@@ -754,7 +756,7 @@ extension CallTypeChecker {
                 continue
             }
             let memberFQName = ownerSymbol.fqName + [memberName]
-            let allCandidates = sema.symbols.lookupAll(fqName: memberFQName).filter { candidate in
+            var allCandidates = sema.symbols.lookupAll(fqName: memberFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.parentSymbol(for: candidate) == owner,
@@ -763,6 +765,17 @@ extension CallTypeChecker {
                     return false
                 }
                 return true
+            }
+            for candidate in sema.symbols.lookupByShortName(memberName) {
+                guard !allCandidates.contains(candidate),
+                      let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.parentSymbol(for: candidate) == owner,
+                      sema.symbols.functionSignature(for: candidate) != nil
+                else {
+                    continue
+                }
+                allCandidates.append(candidate)
             }
             // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
             // IntRange overload (kk_list_slice) when the first argument is a range expression,
@@ -779,6 +792,24 @@ extension CallTypeChecker {
                     sema.symbols.externalLinkName(for: candidate) == targetLinkName
                 }) {
                     return sliceMatch
+                }
+            }
+            if memberName == interner.intern("binarySearch") {
+                let hasLambdaArg = argExprs.first.map { sema.bindings.isCollectionHOFLambdaExpr($0) } ?? false
+                if argCount == 1,
+                   hasLambdaArg,
+                   let compareMatch = allCandidates.first(where: { candidate in
+                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_compare"
+                   })
+                {
+                    return compareMatch
+                }
+                if argCount >= 2,
+                   let comparatorMatch = allCandidates.first(where: { candidate in
+                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_comparator"
+                   })
+                {
+                    return comparatorMatch
                 }
             }
             // Prefer the overload whose parameter count matches the call-site
@@ -1072,6 +1103,9 @@ extension CallTypeChecker {
              interner.intern("maxWith"), interner.intern("maxWithOrNull"),
              interner.intern("minWith"), interner.intern("minWithOrNull"),
              interner.intern("elementAt"):
+            if memberName == interner.intern("binarySearch") {
+                return (1...4).contains(argCount)
+            }
             return argCount == 1
         case interner.intern("toCollection"), interner.intern("filterIsInstanceTo"), interner.intern("filterNotNullTo"):
             return argCount == 1

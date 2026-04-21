@@ -33,6 +33,10 @@ extension ABIMismatchTests {
             "kk_readlnOrNull",
             // Comparator (STDLIB-176)
             "kk_comparator_then_comparator",
+            // Collection (binarySearch)
+            "kk_list_binarySearch",
+            "kk_list_binarySearch_compare",
+            "kk_list_binarySearch_comparator",
             "kk_sequence_of",
             "kk_sequence_generate",
             "kk_system_exitProcess",
