@@ -110,7 +110,11 @@ final class CallTypeChecker {
             {
                 let lambdaArgumentIndex: Int? = switch builderKind {
                 case .buildString, .buildSet, .buildMap:
-                    args.count == 1 ? 0 : nil
+                    switch args.count {
+                    case 1: 0
+                    case 2: 1
+                    default: nil
+                    }
                 case .buildList:
                     switch args.count {
                     case 1: 0
@@ -127,7 +131,7 @@ final class CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                if builderKind == .buildList, args.count == 2 {
+                if (builderKind == .buildList || builderKind == .buildString), args.count == 2 {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
                 }
                 let argumentExprID = args[lambdaArgumentIndex].expr
