@@ -3751,6 +3751,7 @@ extension CallLowerer {
                 let averageID = interner.intern("average")
                 let toMutableListID = interner.intern("toMutableList")
                 let toMutableSetID = interner.intern("toMutableSet")
+                let toHashSetID = interner.intern("toHashSet")
                 let unzipID = interner.intern("unzip")
                 let anyID = interner.intern("any")
                 let noneID = interner.intern("none")
@@ -3796,6 +3797,8 @@ extension CallLowerer {
                     interner.intern("kk_sequence_toMutableList")
                 case toMutableSetID:
                     interner.intern("kk_sequence_toMutableSet")
+                case toHashSetID:
+                    interner.intern("kk_sequence_toHashSet")
                 case unzipID:
                     interner.intern("kk_sequence_unzip")
                 case anyID:
@@ -6758,6 +6761,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toMutableList")
             case interner.intern("toMutableSet"):
                 return interner.intern("kk_sequence_toMutableSet")
+            case interner.intern("toHashSet"):
+                return interner.intern("kk_sequence_toHashSet")
             case interner.intern("partition"):
                 return interner.intern("kk_sequence_partition")
             case interner.intern("minByOrNull"):
