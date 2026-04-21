@@ -66,12 +66,12 @@
 - [ ] STDLIB-SEQ-004: `Sequence.flatMap` / `distinct` / `zip` / `drop` を追加する
 - [ ] STDLIB-SEQ-005: `Sequence.count` / `forEach` / `fold` / `first` / `firstOrNull` を追加する
 - [ ] STDLIB-SEQ-006: `Iterable.asSequence()` と `Sequence.constrainOnce()` を追加する
-- [ ] STDLIB-SEQ-007: `Sequence.any` / `all` / `find` の short-circuit を追加する
+- [x] STDLIB-SEQ-007: `Sequence.any` / `all` / `find` の short-circuit を追加する
 - [ ] STDLIB-SEQ-008: `Sequence.chunked(size, transform)` overload を追加する
 - [ ] STDLIB-SEQ-009: `Sequence.windowed(size, step, partialWindows, transform)` overload を追加する
 - [ ] STDLIB-SEQ-010: `Sequence.onEachIndexed(action)` を追加する
 - [ ] STDLIB-SEQ-011: `Sequence<T>?.orEmpty()` を追加する
-- [ ] STDLIB-SEQ-012: `Sequence.partition(predicate)` を追加する
+- [x] STDLIB-SEQ-012: `Sequence.partition(predicate)` を追加する
 - [ ] STDLIB-SEQ-013: `Sequence.plus(element)` / `Sequence.plusElement(element)` を追加する
 - [ ] STDLIB-SEQ-014: `Sequence.requireNoNulls()` を追加する
 - [ ] STDLIB-SEQ-015: `Sequence.reduceIndexedOrNull()` を追加する
@@ -88,7 +88,7 @@
 - [ ] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する
 - [ ] STDLIB-COL-DEST-002: `mapTo` / `mapIndexedTo` / `mapNotNullTo` を追加する
 - [x] STDLIB-COL-DEST-003: `flatMapTo` / `flatMapIndexedTo` を追加する
-- [ ] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
+- [x] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
 - [ ] STDLIB-COL-DEST-005: `toCollection(destination)` を追加する
 - [ ] STDLIB-COL-U-001: `Collection<UByte>` / `Collection<UShort>` / `Collection<UInt>` / `Collection<ULong>` の `toU*Array()` conversion を追加する
 - [ ] STDLIB-COL-U-002: `ByteArray.asUByteArray()` / `ShortArray.asUShortArray()` / `IntArray.asUIntArray()` / `LongArray.asULongArray()` view conversion を追加する

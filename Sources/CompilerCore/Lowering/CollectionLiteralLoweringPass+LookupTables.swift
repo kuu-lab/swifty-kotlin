@@ -302,6 +302,8 @@ struct CollectionLiteralLookupTables {
     let kkSequenceMinusName: InternedString
     let kkSequenceOfSingleName: InternedString
 
+    // STDLIB-SEQ-012: Sequence partition
+    let kkSequencePartitionName: InternedString
     // STDLIB-SEQ-021: Sequence destination-collection filter operations
     let kkSequenceFilterToName: InternedString
     let kkSequenceFilterNotToName: InternedString
@@ -632,6 +634,7 @@ struct CollectionLiteralLookupTables {
     let buildSetName: InternedString
     let buildMapName: InternedString
     let kkBuildStringName: InternedString
+    let kkBuildStringWithCapacityName: InternedString
     let kkBuildListName: InternedString
     let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
@@ -1025,6 +1028,7 @@ struct CollectionLiteralLookupTables {
         kkSequencePlusName = interner.intern("kk_sequence_plus")
         kkSequenceMinusName = interner.intern("kk_sequence_minus")
         kkSequenceOfSingleName = interner.intern("kk_sequence_of_single")
+        kkSequencePartitionName = interner.intern("kk_sequence_partition")
 
         // STDLIB-SEQ-021: Sequence destination-collection filter operations
         kkSequenceFilterToName = interner.intern("kk_sequence_filterTo")
@@ -1342,6 +1346,7 @@ struct CollectionLiteralLookupTables {
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
         kkBuildStringName = interner.intern("kk_build_string")
+        kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
         kkBuildListName = interner.intern("kk_build_list")
         kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("kk_build_set")
@@ -1478,6 +1483,7 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceIndent"),
             kkStringFilterName,
             interner.intern("kk_build_string"),
+            interner.intern("kk_build_string_with_capacity"),
         ]
     }
 }

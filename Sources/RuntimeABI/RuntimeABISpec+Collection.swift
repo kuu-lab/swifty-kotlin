@@ -1210,6 +1210,17 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
+        // buildString(capacity, builderAction) overload (STDLIB-TEXT-EDGE-007)
+        RuntimeABIFunctionSpec(
+            name: "kk_build_string_with_capacity",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_build_list",
             parameters: [
@@ -1404,6 +1415,28 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_mutable_list_replaceAll",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_mutable_list_removeIf",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_mutable_list_removeAt",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -1416,6 +1449,15 @@ public extension RuntimeABISpec {
             name: "kk_mutable_list_clear",
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_mutable_list_fill",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection"

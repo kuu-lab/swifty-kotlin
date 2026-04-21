@@ -779,6 +779,17 @@ public enum RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_split_limit",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "delimRaw", type: .intptr),
+                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+                RuntimeABIParameter(name: "limitRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_toInt",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
@@ -4521,6 +4532,32 @@ public enum RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_char_range_take",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "n", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_char_range_drop",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "n", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_char_range_sorted",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_range_firstOrNull",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
@@ -5747,7 +5784,7 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "startValue", type: .intptr),
                 RuntimeABIParameter(name: "endValue", type: .intptr),
             ],
-            returnType: .opaquePointer,
+            returnType: .intptr,
             section: "Char"
         ),
     ]
