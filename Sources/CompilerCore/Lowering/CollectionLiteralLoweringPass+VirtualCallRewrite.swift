@@ -920,6 +920,26 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
+        // runningFoldIndexed on sequence → kk_sequence_runningFoldIndexed (STDLIB-SEQ-016)
+        // Args: initial, lambda (2 from Kotlin: initial + operation)
+        if callee == lookup.runningFoldIndexedName, arguments.count == 2,
+           sequenceExprIDs.contains(receiver.rawValue)
+        {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            emitHOFCall(
+                kkName: lookup.kkSequenceRunningFoldIndexedName,
+                receiver: receiver,
+                arguments: [arguments[0]] + [arguments[1]] + [zeroExpr],
+                result: result,
+                origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult,
+                module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+
         // reduceIndexed on sequence → kk_sequence_reduceIndexed (STDLIB-556)
         // Args: lambda (1 from Kotlin: operation)
         if callee == lookup.reduceIndexedName, arguments.count == 1,
