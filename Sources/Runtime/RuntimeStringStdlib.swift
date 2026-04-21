@@ -1091,62 +1091,73 @@ public func kk_string_lastIndexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
 // MARK: - STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
 
 @_cdecl("kk_string_indexOf_ignoreCase")
-public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    if ignoreCaseRaw == 0 {
-        // case-sensitive: delegate to scalar-based implementation
-        return kk_string_indexOf(strRaw, otherRaw)
-    }
-    if other.isEmpty {
-        return 0
-    }
-    let sourceLower = source.lowercased()
-    let otherLower = other.lowercased()
-    guard let range = sourceLower.range(of: otherLower) else {
-        return -1
-    }
-    return sourceLower.distance(from: sourceLower.startIndex, to: range.lowerBound)
-}
+    let ignoreCase = ignoreCaseRaw != 0
 
-@_cdecl("kk_string_indexOf_from_ignoreCase")
-public func kk_string_indexOf_from_ignoreCase(
-    _ strRaw: Int, _ otherRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int
-) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    if ignoreCaseRaw == 0 {
-        return kk_string_indexOf_from(strRaw, otherRaw, startIndex)
-    }
     if other.isEmpty {
-        return max(0, min(startIndex, source.count))
+        let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
+        return start
     }
-    let sourceLower = source.lowercased()
-    let otherLower = other.lowercased()
-    let clampedStart = max(0, min(startIndex, sourceLower.count))
-    let startIdx = sourceLower.index(sourceLower.startIndex, offsetBy: clampedStart)
-    guard let range = sourceLower.range(of: otherLower, range: startIdx ..< sourceLower.endIndex) else {
+
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+    let start = max(0, min(startIndexRaw, sourceScalars.count))
+
+    if otherScalars.count > sourceScalars.count - start {
         return -1
     }
-    return sourceLower.distance(from: sourceLower.startIndex, to: range.lowerBound)
+
+    for offset in start ... (sourceScalars.count - otherScalars.count) {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches: Bool
+        if ignoreCase {
+            matches = zip(slice, otherScalars).allSatisfy {
+                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+            }
+        } else {
+            matches = slice.elementsEqual(otherScalars)
+        }
+        if matches { return offset }
+    }
+    return -1
 }
 
 @_cdecl("kk_string_lastIndexOf_ignoreCase")
-public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    if ignoreCaseRaw == 0 {
-        return kk_string_lastIndexOf(strRaw, otherRaw)
-    }
+    let ignoreCase = ignoreCaseRaw != 0
+
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+
     if other.isEmpty {
-        return source.count
+        let start = max(0, min(startIndexRaw, sourceScalars.count))
+        return start
     }
-    let sourceLower = source.lowercased()
-    let otherLower = other.lowercased()
-    guard let range = sourceLower.range(of: otherLower, options: .backwards) else {
+    if otherScalars.count > sourceScalars.count {
         return -1
     }
-    return sourceLower.distance(from: sourceLower.startIndex, to: range.lowerBound)
+
+    let maxOffset = sourceScalars.count - otherScalars.count
+    let start = max(0, min(startIndexRaw, maxOffset))
+
+    var lastIndex = -1
+    for offset in 0 ... start {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches: Bool
+        if ignoreCase {
+            matches = zip(slice, otherScalars).allSatisfy {
+                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+            }
+        } else {
+            matches = slice.elementsEqual(otherScalars)
+        }
+        if matches { lastIndex = offset }
+    }
+    return lastIndex
 }
 
 @_cdecl("kk_string_get")
