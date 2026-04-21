@@ -2857,6 +2857,65 @@ extension CallLowerer {
             }
         }
 
+        // STDLIB-TEXT-EDGE-001: split(delimiter, ignoreCase) — 2-arg overload
+        if args.count == 2, interner.resolve(calleeName) == "split" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let firstArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+            )
+            let secondArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[1].expr] ?? sema.types.anyType
+            )
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               sema.types.isSubtype(firstArgType, sema.types.stringType),
+               sema.types.isSubtype(secondArgType, sema.types.booleanType)
+            {
+                // limit = 0 means "no limit" for Kotlin's split overload.
+                let zeroLimitExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroLimitExpr, value: .intLiteral(0)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_split_limit"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], zeroLimitExpr],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
+        // STDLIB-TEXT-EDGE-001: split(delimiter, ignoreCase, limit) — 3-arg overload
+        if args.count == 3, interner.resolve(calleeName) == "split" {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            let firstArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
+            )
+            let secondArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[1].expr] ?? sema.types.anyType
+            )
+            let thirdArgType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[args[2].expr] ?? sema.types.anyType
+            )
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               sema.types.isSubtype(firstArgType, sema.types.stringType),
+               sema.types.isSubtype(secondArgType, sema.types.booleanType),
+               sema.types.isSubtype(thirdArgType, sema.types.intType)
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_split_limit"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        }
+
         // String stdlib: 2-arg overloads (STDLIB-009, STDLIB-549)
         // KNOWN LIMITATION: The dispatch below matches purely on function name + receiver
         // type (String). User-defined extension functions with the same name (e.g.
