@@ -3696,14 +3696,24 @@ symbol s3694 kind=annotationClass fq=kotlin.ExperimentalSubclassOptIn vis=public
 symbol s3695 kind=annotationClass fq=kotlin.uuid.ExperimentalUuidApi vis=public flags=synthetic
 symbol s3696 kind=package fq=kotlin.io.encoding vis=public flags=synthetic
 symbol s3697 kind=annotationClass fq=kotlin.io.encoding.ExperimentalEncodingApi vis=public flags=synthetic
-symbol s3698 kind=function fq=golden.sema.suppressedCast vis=public flags=_ sig=recv=_ params=[Any] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s3699 kind=valueParameter fq=golden.sema.suppressedCast.$3698.x vis=private flags=_
-symbol s3700 kind=function fq=golden.sema.unsuppressedCast vis=public flags=_ sig=recv=_ params=[Any] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s3701 kind=valueParameter fq=golden.sema.unsuppressedCast.$3700.x vis=private flags=_
+symbol s3698 kind=function fq=golden.sema.useSplitIgnoreCase vis=public flags=_ sig=recv=_ params=[] ret=Class#123<String> suspend=0 defaults=[] vararg=[]
+symbol s3699 kind=function fq=golden.sema.useSplitIgnoreCaseLimit vis=public flags=_ sig=recv=_ params=[] ret=Class#123<String> suspend=0 defaults=[] vararg=[]
+symbol s3700 kind=function fq=golden.sema.useSplitLimit vis=public flags=_ sig=recv=_ params=[] ret=Class#123<String> suspend=0 defaults=[] vararg=[]
 file f0 package=golden.sema
-  decl d0 fun suppressedCast suspend=0 inline=0 sym=s3698
-  decl d1 fun unsuppressedCast suspend=0 inline=0 sym=s3700
-expr e0 name(x) type=Any ref=s3699
-expr e1 asCast expr=e0 type=t2 type=String
-expr e2 name(x) type=Any ref=s3701
-expr e3 asCast expr=e2 type=t5 type=String
+  decl d0 fun useSplitIgnoreCase suspend=0 inline=0 sym=s3698
+  decl d1 fun useSplitIgnoreCaseLimit suspend=0 inline=0 sym=s3699
+  decl d2 fun useSplitLimit suspend=0 inline=0 sym=s3700
+expr e0 string(aXbXc) type=String
+expr e1 string(x) type=String
+expr e2 bool(true) type=Boolean
+expr e3 memberCall recv=e0 callee=split args=[_:e1,ignoreCase:e2] type=Class#123<out String> call=s736 map=[0->0,1->1] targs=[]
+expr e4 string(aXbXcXd) type=String
+expr e5 string(x) type=String
+expr e6 bool(true) type=Boolean
+expr e7 int(2) type=Int
+expr e8 memberCall recv=e4 callee=split args=[_:e5,ignoreCase:e6,limit:e7] type=Class#123<out String> call=s738 map=[0->0,1->1,2->2] targs=[]
+expr e9 string(a,b,c,d) type=String
+expr e10 string(,) type=String
+expr e11 bool(false) type=Boolean
+expr e12 int(3) type=Int
+expr e13 memberCall recv=e9 callee=split args=[_:e10,ignoreCase:e11,limit:e12] type=Class#123<out String> call=s738 map=[0->0,1->1,2->2] targs=[]
