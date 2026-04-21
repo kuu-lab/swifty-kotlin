@@ -4111,7 +4111,8 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions,
             arguments: finalArguments,
-            sourceArgExprs: args.map(\.expr)
+            sourceArgExprs: args.map(\.expr),
+            sourceArgLabels: args.map(\.label)
         )
         return result
     }
@@ -4501,6 +4502,24 @@ extension CallLowerer {
            )
         {
             return [finalArguments[0]] + comparatorArgs
+        }
+
+        if loweredCallee == interner.intern("kk_list_binarySearch_comparator"),
+           finalArguments.count == 5,
+           sourceArgExprs.count >= 2,
+           let comparatorArgs = makeComparatorTrampolineArgument(
+               comparatorExprID: sourceArgExprs[1],
+               loweredComparatorID: finalArguments[2],
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            var adapted: [KIRExprID] = [finalArguments[0], finalArguments[1]]
+            adapted.append(contentsOf: comparatorArgs)
+            adapted.append(contentsOf: finalArguments[3...])
+            return adapted
         }
 
         let comparatorSelectorCallees: Set<InternedString> = [
@@ -5185,7 +5204,8 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction],
         arguments: [KIRExprID],
-        sourceArgExprs: [ExprID] = []
+        sourceArgExprs: [ExprID] = [],
+        sourceArgLabels: [InternedString?] = []
     ) {
         var finalArguments = arguments
         if normalized.defaultMask != 0,
@@ -5256,6 +5276,19 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        if loweredCallee == interner.intern("kk_list_binarySearch_comparator") {
+            materializeBinarySearchDefaultArguments(
+                normalized.defaultMask,
+                receiverExpr: receiver.expr,
+                loweredReceiverID: receiver.loweredID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArguments,
+                sourceArgLabels: sourceArgLabels
+            )
+        }
         if let primitiveSelectorKind = collectionSelectorPrimitiveCompareKind(of: sourceArgExprs.first, sema: sema),
            finalArguments.count >= 3
         {
@@ -5563,6 +5596,7 @@ extension CallLowerer {
             interner.intern("kk_mutable_list_replaceAll"),
             interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),
+            interner.intern("kk_list_binarySearch_comparator"),
             interner.intern("kk_result_getOrThrow"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
@@ -5659,6 +5693,86 @@ extension CallLowerer {
             let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
             instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
             arguments[argumentIndex] = exprID
+        }
+    }
+
+    private func materializeBinarySearchDefaultArguments(
+        _ defaultMask: Int64,
+        receiverExpr: ExprID,
+        loweredReceiverID: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction],
+        arguments: inout [KIRExprID],
+        sourceArgLabels: [InternedString?]
+    ) {
+        let intType = sema.types.intType
+        var cachedZeroExpr: KIRExprID?
+        var cachedSizeExpr: KIRExprID?
+
+        func makeZeroExpr() -> KIRExprID {
+            if let cachedZeroExpr {
+                return cachedZeroExpr
+            }
+            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
+            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            cachedZeroExpr = zeroExpr
+            return zeroExpr
+        }
+
+        func makeSizeExpr() -> KIRExprID {
+            if let cachedSizeExpr {
+                return cachedSizeExpr
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let sizeCallee = unresolvedCollectionMemberCallee(
+                memberName: "size",
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) ?? interner.intern("kk_list_size")
+            let sizeExpr = arena.appendExpr(
+                .temporary(Int32(clamping: arena.expressions.count)),
+                type: intType
+            )
+            instructions.append(.call(
+                symbol: nil,
+                callee: sizeCallee,
+                arguments: [loweredReceiverID],
+                result: sizeExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            cachedSizeExpr = sizeExpr
+            return sizeExpr
+        }
+
+        if defaultMask == 0 {
+            if arguments.count <= 3 {
+                arguments.append(makeZeroExpr())
+                arguments.append(makeSizeExpr())
+            } else if arguments.count == 4 {
+                let explicitLabel = sourceArgLabels.last ?? nil
+                if let explicitLabel, interner.resolve(explicitLabel) == "toIndex" {
+                    arguments.insert(makeZeroExpr(), at: 3)
+                } else {
+                    arguments.append(makeSizeExpr())
+                }
+            }
+            return
+        }
+
+        if (defaultMask & (Int64(1) << 2)) != 0,
+           arguments.count > 3
+        {
+            arguments[3] = makeZeroExpr()
+        }
+
+        if (defaultMask & (Int64(1) << 3)) != 0,
+           arguments.count > 4
+        {
+            arguments[4] = makeSizeExpr()
         }
     }
 
@@ -5794,11 +5908,16 @@ extension CallLowerer {
                     }
                     return interner.intern("kk_range_step")
                 }
-                // STDLIB-547: When the element-based binarySearch overload was
-                // recovered but the call actually has a HOF lambda argument,
-                // redirect to the comparison-based runtime function.
-                if externalLinkName == "kk_list_binarySearch" && hasHOFLambdaArg {
-                    return interner.intern("kk_list_binarySearch_compare")
+                if externalLinkName == "kk_list_binarySearch" {
+                    // STDLIB-547: When the element-based binarySearch overload was
+                    // recovered but the call actually has a HOF lambda argument,
+                    // redirect to the comparison-based runtime function.
+                    if hasHOFLambdaArg && argumentCount == 2 {
+                        return interner.intern("kk_list_binarySearch_compare")
+                    }
+                    if argumentCount > 2 {
+                        return interner.intern("kk_list_binarySearch_comparator")
+                    }
                 }
                 return interner.intern(externalLinkName)
             }
@@ -6419,11 +6538,13 @@ extension CallLowerer {
             case "containsAll":
                 return interner.intern("kk_list_containsAll")
             case "binarySearch":
-                // Use sema-resolved HOF marking to distinguish comparison overload
-                // from element-based overload, rather than relying on argument count.
-                return interner.intern(hasHOFLambdaArg
-                    ? "kk_list_binarySearch_compare"
-                    : "kk_list_binarySearch")
+                if hasHOFLambdaArg && argumentCount == 2 {
+                    return interner.intern("kk_list_binarySearch_compare")
+                }
+                if argumentCount > 2 {
+                    return interner.intern("kk_list_binarySearch_comparator")
+                }
+                return interner.intern("kk_list_binarySearch")
             case "reduceIndexedOrNull":
                 return interner.intern("kk_list_reduceIndexedOrNull")
             case "foldRight":
@@ -6639,9 +6760,13 @@ extension CallLowerer {
         case "containsAll":
             return interner.intern("kk_list_containsAll")
         case "binarySearch":
-            return interner.intern(hasHOFLambdaArg
-                ? "kk_list_binarySearch_compare"
-                : "kk_list_binarySearch")
+            if hasHOFLambdaArg && argumentCount == 2 {
+                return interner.intern("kk_list_binarySearch_compare")
+            }
+            if argumentCount > 2 {
+                return interner.intern("kk_list_binarySearch_comparator")
+            }
+            return interner.intern("kk_list_binarySearch")
         case "groupingBy" where isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner)
             || isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             || sema.bindings.isCollectionExpr(receiverExpr):
