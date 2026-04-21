@@ -1131,7 +1131,7 @@ extension CallTypeChecker {
             "forEachIndexed", "mapIndexed",
             "onEach", "onEachIndexed",
             "sumOf", "maxOrNull", "minOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch",
+            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
             "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
             "maxOf", "minOf",
             "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
@@ -2674,6 +2674,66 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
+
+            case "binarySearchBy":
+                guard (2...4).contains(args.count) else {
+                    sema.bindings.bindExprType(id, type: sema.types.intType)
+                    return sema.types.intType
+                }
+                let keyType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                if args.count >= 3 {
+                    _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                }
+                if args.count == 4 {
+                    _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                }
+                let selectorReturnType: TypeID = if keyType == sema.types.errorType {
+                    sema.types.nullableAnyType
+                } else {
+                    switch sema.types.kind(of: keyType) {
+                    case .nothing:
+                        sema.types.nullableAnyType
+                    default:
+                        sema.types.makeNullable(keyType)
+                    }
+                }
+                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: selectorReturnType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                if let lambdaExpr = ast.arena.expr(args[args.count - 1].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[args.count - 1].expr)
+                }
+                _ = driver.inferExpr(args[args.count - 1].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                resultType = sema.types.intType
+
+                let knownNames = KnownCompilerNames(interner: interner)
+                let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
+                if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { candidate in
+                    guard let signature = sema.symbols.functionSignature(for: candidate) else { return false }
+                    return signature.parameterTypes.count == args.count
+                }) {
+                    let keySubstitution: TypeID = if keyType == sema.types.errorType {
+                        sema.types.nullableAnyType
+                    } else {
+                        switch sema.types.kind(of: keyType) {
+                        case .nothing:
+                            sema.types.nullableAnyType
+                        default:
+                            keyType
+                        }
+                    }
+                    let substitutedTypeArguments = [collectionElementType, keySubstitution]
+                    let parameterMapping = Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
+                    sema.bindings.bindCall(id, binding: CallBinding(
+                        chosenCallee: chosenCallee,
+                        substitutedTypeArguments: substitutedTypeArguments,
+                        parameterMapping: parameterMapping
+                    ))
+                    sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+                }
 
             case "distinctBy":
                  guard args.count == 1 else {

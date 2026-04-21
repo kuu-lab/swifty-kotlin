@@ -162,6 +162,10 @@ extension ABIMismatchTests {
             "kk_json_encodeToString",
             "kk_json_decodeFromString",
             "kk_json_encodeMapToString",
+            // Collection binarySearchBy (STDLIB-COL-BSEARCH-001)
+            "kk_list_binarySearchBy",
+            "kk_list_binarySearchBy_fromIndex",
+            "kk_list_binarySearchBy_range",
         ]
 
         for linkName in syntheticLinkNames {

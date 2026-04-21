@@ -2360,6 +2360,110 @@ public func kk_list_binarySearch_compare(_ listRaw: Int, _ fnPtr: Int, _ closure
     return -(low + 1)
 }
 
+// MARK: - binarySearchBy (STDLIB-COL-BSEARCH-001)
+
+@inline(__always)
+private func runtimeListBinarySearchBy(
+    _ list: RuntimeListBox,
+    key: Int,
+    fromIndex: Int,
+    toIndex: Int,
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let size = list.elements.count
+    let from = max(0, min(fromIndex, size))
+    let to = max(from, min(toIndex, size))
+    var low = from
+    var high = to - 1
+    while low <= high {
+        let mid = low + (high - low) / 2
+        var thrown = 0
+        let selectorValue = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: list.elements[mid],
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        let cmp = runtimeCompareValues(selectorValue, key)
+        if cmp < 0 {
+            low = mid + 1
+        } else if cmp > 0 {
+            high = mid - 1
+        } else {
+            return mid
+        }
+    }
+    return -(low + 1)
+}
+
+@_cdecl("kk_list_binarySearchBy")
+public func kk_list_binarySearchBy(
+    _ listRaw: Int,
+    _ key: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    return runtimeListBinarySearchBy(
+        list,
+        key: key,
+        fromIndex: 0,
+        toIndex: list.elements.count,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_list_binarySearchBy_fromIndex")
+public func kk_list_binarySearchBy_fromIndex(
+    _ listRaw: Int,
+    _ key: Int,
+    _ fromIndex: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    return runtimeListBinarySearchBy(
+        list,
+        key: key,
+        fromIndex: fromIndex,
+        toIndex: list.elements.count,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_list_binarySearchBy_range")
+public func kk_list_binarySearchBy_range(
+    _ listRaw: Int,
+    _ key: Int,
+    _ fromIndex: Int,
+    _ toIndex: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
+    return runtimeListBinarySearchBy(
+        list,
+        key: key,
+        fromIndex: fromIndex,
+        toIndex: toIndex,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
 // MARK: - filterIsInstance (STDLIB-114)
 
 @_cdecl("kk_list_filterIsInstance")

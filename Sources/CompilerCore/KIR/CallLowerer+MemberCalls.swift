@@ -4151,7 +4151,7 @@ extension CallLowerer {
             "maxOf", "minOf",
             "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch", "reduceIndexed", "reduceIndexedOrNull", "foldIndexed", "foldRightIndexed",
+            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "foldIndexed", "foldRightIndexed",
             "sortedByDescending", "sortedWith", "partition", "zipWithNext",
             "takeWhile", "dropWhile", "filterNot", "findLast", "replaceAll", "removeIf",
             "replaceFirstChar",
@@ -5621,6 +5621,9 @@ extension CallLowerer {
             interner.intern("kk_mutable_list_removeIf"),
             interner.intern("kk_list_binarySearch_compare"),
             interner.intern("kk_array_binarySearch_compare"),
+            interner.intern("kk_list_binarySearchBy"),
+            interner.intern("kk_list_binarySearchBy_fromIndex"),
+            interner.intern("kk_list_binarySearchBy_range"),
             interner.intern("kk_result_getOrThrow"),
             interner.intern("kk_reentrant_read_write_lock_read"),
         ])
@@ -6544,6 +6547,17 @@ extension CallLowerer {
                 return interner.intern(hasHOFLambdaArg
                     ? "kk_list_binarySearch_compare"
                     : "kk_list_binarySearch")
+            case "binarySearchBy":
+                switch argumentCount {
+                case 2:
+                    return interner.intern("kk_list_binarySearchBy")
+                case 3:
+                    return interner.intern("kk_list_binarySearchBy_fromIndex")
+                case 4:
+                    return interner.intern("kk_list_binarySearchBy_range")
+                default:
+                    break
+                }
             case "reduceIndexedOrNull":
                 return interner.intern("kk_list_reduceIndexedOrNull")
             case "foldRight":
