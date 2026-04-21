@@ -1,4 +1,4 @@
-symbol s0 kind=package fq=golden.sema vis=public flags=_
+symbol s0 kind=package fq=_root_ vis=public flags=_
 symbol s1 kind=package fq=kotlin vis=public flags=synthetic
 symbol s2 kind=class fq=kotlin.Any vis=public flags=synthetic
 symbol s3 kind=interface fq=kotlin.Annotation vis=public flags=synthetic
@@ -3694,71 +3694,141 @@ symbol s3692 kind=annotationClass fq=kotlin.ExperimentalSubclassOptIn vis=public
 symbol s3693 kind=annotationClass fq=kotlin.uuid.ExperimentalUuidApi vis=public flags=synthetic
 symbol s3694 kind=package fq=kotlin.io.encoding vis=public flags=synthetic
 symbol s3695 kind=annotationClass fq=kotlin.io.encoding.ExperimentalEncodingApi vis=public flags=synthetic
-symbol s3696 kind=function fq=golden.sema.basicIs vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s3697 kind=valueParameter fq=golden.sema.basicIs.$3696.v vis=private flags=_
-symbol s3698 kind=function fq=golden.sema.negatedIs vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s3699 kind=valueParameter fq=golden.sema.negatedIs.$3698.v vis=private flags=_
-symbol s3700 kind=function fq=golden.sema.smartCastAfterIs vis=public flags=_ sig=recv=_ params=[Any] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s3701 kind=valueParameter fq=golden.sema.smartCastAfterIs.$3700.v vis=private flags=_
-symbol s3702 kind=function fq=golden.sema.combinedCondition vis=public flags=_ sig=recv=_ params=[Any] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s3703 kind=valueParameter fq=golden.sema.combinedCondition.$3702.v vis=private flags=_
-symbol s3704 kind=function fq=golden.sema.smartCastAfterNegatedIs vis=public flags=_ sig=recv=_ params=[Any] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s3705 kind=valueParameter fq=golden.sema.smartCastAfterNegatedIs.$3704.v vis=private flags=_
-symbol s3706 kind=function fq=golden.sema.combinedOrCondition vis=public flags=_ sig=recv=_ params=[Any] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s3707 kind=valueParameter fq=golden.sema.combinedOrCondition.$3706.v vis=private flags=_
-file f0 package=golden.sema
-  decl d0 fun basicIs suspend=0 inline=0 sym=s3696
-  decl d1 fun negatedIs suspend=0 inline=0 sym=s3698
-  decl d2 fun smartCastAfterIs suspend=0 inline=0 sym=s3700
-  decl d3 fun combinedCondition suspend=0 inline=0 sym=s3702
-  decl d4 fun smartCastAfterNegatedIs suspend=0 inline=0 sym=s3704
-  decl d5 fun combinedOrCondition suspend=0 inline=0 sym=s3706
-expr e0 name(v) type=Any ref=s3697
-expr e1 isCheck expr=e0 type=t2 type=Boolean
-expr e2 name(v) type=Any ref=s3699
-expr e3 isCheck! expr=e2 type=t5 type=Boolean
-expr e4 name(v) type=Any ref=s3701
-expr e5 isCheck expr=e4 type=t8 type=Boolean
-expr e6 name(v) type=String ref=s3701
-expr e7 memberCall recv=e6 callee=length args=[] type=Int call=s708 map=[] targs=[]
-expr e8 return value=e7 type=Nothing
-expr e9 blockExpr stmts=[] trailing=e8 type=Nothing
-expr e10 if cond=e5 then=e9 else=_ type=Unit
-expr e11 int(0) type=Int
-expr e12 return value=e11 type=Nothing
-expr e13 name(v) type=Any ref=s3703
-expr e14 isCheck expr=e13 type=t11 type=Boolean
-expr e15 name(v) type=String ref=s3703
-expr e16 memberCall recv=e15 callee=length args=[] type=Int call=s708 map=[] targs=[]
-expr e17 int(3) type=Int
-expr e18 binary(greaterThan) lhs=e16 rhs=e17 type=Boolean
-expr e19 binary(logicalAnd) lhs=e14 rhs=e18 type=Boolean
-expr e20 name(v) type=String ref=s3703
-expr e21 return value=e20 type=Nothing
-expr e22 blockExpr stmts=[] trailing=e21 type=Nothing
-expr e23 if cond=e19 then=e22 else=_ type=Unit
-expr e24 string() type=String
-expr e25 return value=e24 type=Nothing
-expr e26 name(v) type=Any ref=s3705
-expr e27 isCheck! expr=e26 type=t14 type=Boolean
-expr e28 int(0) type=Int
-expr e29 return value=e28 type=Nothing
-expr e30 blockExpr stmts=[] trailing=e29 type=Nothing
-expr e31 name(v) type=String ref=s3705
-expr e32 memberCall recv=e31 callee=length args=[] type=Int call=s708 map=[] targs=[]
-expr e33 return value=e32 type=Nothing
-expr e34 blockExpr stmts=[] trailing=e33 type=Nothing
-expr e35 if cond=e27 then=e30 else=e34 type=Nothing
-expr e36 name(v) type=Any ref=s3707
-expr e37 isCheck! expr=e36 type=t17 type=Boolean
-expr e38 name(v) type=String ref=s3707
-expr e39 memberCall recv=e38 callee=length args=[] type=Int call=s708 map=[] targs=[]
-expr e40 int(0) type=Int
-expr e41 binary(equal) lhs=e39 rhs=e40 type=Boolean
-expr e42 binary(logicalOr) lhs=e37 rhs=e41 type=Boolean
-expr e43 string() type=String
-expr e44 return value=e43 type=Nothing
-expr e45 blockExpr stmts=[] trailing=e44 type=Nothing
-expr e46 if cond=e42 then=e45 else=_ type=Unit
-expr e47 name(v) type=Any ref=s3707
-expr e48 return value=e47 type=Nothing
+symbol s3696 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3697 kind=local fq=__local_7.seq vis=private flags=_ type=Class#114<out Int>
+symbol s3698 kind=local fq=__destructuring_21.evens vis=private flags=_ type=Class#123<Int>
+symbol s3699 kind=local fq=__destructuring_21.odds vis=private flags=_ type=Class#123<Int>
+symbol s3700 kind=local fq=__local_30.emptySeq vis=private flags=_ type=Class#114<out Int>
+symbol s3701 kind=local fq=__destructuring_40.matchEmpty vis=private flags=_ type=Class#123<Int>
+symbol s3702 kind=local fq=__destructuring_40.noMatchEmpty vis=private flags=_ type=Class#123<Int>
+symbol s3703 kind=local fq=__local_54.list vis=private flags=_ type=Class#123<out Int>
+symbol s3704 kind=local fq=__destructuring_65.big vis=private flags=_ type=Class#123<Any>
+symbol s3705 kind=local fq=__destructuring_65.small vis=private flags=_ type=Class#123<Any>
+symbol s3706 kind=local fq=__local_89.allMatch vis=private flags=_ type=Class#75<Class#123<Int>, Class#123<Int>>
+symbol s3707 kind=local fq=__local_115.noneMatch vis=private flags=_ type=Class#75<Class#123<Int>, Class#123<Int>>
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s3696
+expr e0 name(sequenceOf) type=_
+expr e1 int(1) type=Int
+expr e2 int(2) type=Int
+expr e3 int(3) type=Int
+expr e4 int(4) type=Int
+expr e5 int(5) type=Int
+expr e6 call callee=e0 args=[_:e1,_:e2,_:e3,_:e4,_:e5] type=Class#114<out Int> call=s1787 map=[0->0,1->0,2->0,3->0,4->0] targs=[Int]
+expr e7 localDecl seq mutable=0 type=_ init=e6 type=Unit ref=s3697
+expr e8 name(seq) type=Class#114<out Int> ref=s3697
+expr e9 name(it) type=_
+expr e10 int(2) type=_
+expr e11 binary(modulo) lhs=e9 rhs=e10 type=_
+expr e12 int(0) type=_
+expr e13 binary(equal) lhs=e11 rhs=e12 type=_
+expr e14 name(it) type=Int ref=s-1004864
+expr e15 int(2) type=Int
+expr e16 binary(modulo) lhs=e14 rhs=e15 type=Int
+expr e17 int(0) type=Int
+expr e18 binary(equal) lhs=e16 rhs=e17 type=Boolean
+expr e19 lambda params=[] body=e18 label=partition type=(Int) -> Boolean
+expr e20 memberCall recv=e8 callee=partition args=[_:e19] type=Class#75<Class#123<Int>, Class#123<Int>>
+expr e21 destructuringDecl names=[evens,odds] mutable=0 init=e20 type=Unit
+expr e22 name(println) type=_
+expr e23 name(evens) type=Class#123<Int> ref=s3698
+expr e24 call callee=e22 args=[_:e23] type=Unit call=s1764 map=[0->0] targs=[]
+expr e25 name(println) type=_
+expr e26 name(odds) type=Class#123<Int> ref=s3699
+expr e27 call callee=e25 args=[_:e26] type=Unit call=s1764 map=[0->0] targs=[]
+expr e28 name(emptySequence) type=_
+expr e29 call callee=e28 args=[] type=Class#114<out Int> call=s1790 map=[] targs=[Int]
+expr e30 localDecl emptySeq mutable=0 type=_ init=e29 type=Unit ref=s3700
+expr e31 name(emptySeq) type=Class#114<out Int> ref=s3700
+expr e32 name(it) type=_
+expr e33 int(0) type=_
+expr e34 binary(greaterThan) lhs=e32 rhs=e33 type=_
+expr e35 name(it) type=Int ref=s-1009728
+expr e36 int(0) type=Int
+expr e37 binary(greaterThan) lhs=e35 rhs=e36 type=Boolean
+expr e38 lambda params=[] body=e37 label=partition type=(Int) -> Boolean
+expr e39 memberCall recv=e31 callee=partition args=[_:e38] type=Class#75<Class#123<Int>, Class#123<Int>>
+expr e40 destructuringDecl names=[matchEmpty,noMatchEmpty] mutable=0 init=e39 type=Unit
+expr e41 name(println) type=_
+expr e42 name(matchEmpty) type=Class#123<Int> ref=s3701
+expr e43 call callee=e41 args=[_:e42] type=Unit call=s1764 map=[0->0] targs=[]
+expr e44 name(println) type=_
+expr e45 name(noMatchEmpty) type=Class#123<Int> ref=s3702
+expr e46 call callee=e44 args=[_:e45] type=Unit call=s1764 map=[0->0] targs=[]
+expr e47 name(listOf) type=_
+expr e48 int(10) type=Int
+expr e49 int(20) type=Int
+expr e50 int(30) type=Int
+expr e51 int(40) type=Int
+expr e52 int(50) type=Int
+expr e53 call callee=e47 args=[_:e48,_:e49,_:e50,_:e51,_:e52] type=Class#123<out Int>
+expr e54 localDecl list mutable=0 type=_ init=e53 type=Unit ref=s3703
+expr e55 name(list) type=Class#123<out Int> ref=s3703
+expr e56 memberCall recv=e55 callee=asSequence args=[] type=Any call=s311 map=[] targs=[]
+expr e57 name(it) type=_
+expr e58 int(30) type=_
+expr e59 binary(greaterOrEqual) lhs=e57 rhs=e58 type=_
+expr e60 name(it) type=Any ref=s-1016128
+expr e61 int(30) type=Int
+expr e62 binary(greaterOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 lambda params=[] body=e62 label=partition type=(Any) -> Boolean
+expr e64 memberCall recv=e56 callee=partition args=[_:e63] type=Class#75<Class#123<Any>, Class#123<Any>>
+expr e65 destructuringDecl names=[big,small] mutable=0 init=e64 type=Unit
+expr e66 name(println) type=_
+expr e67 name(big) type=Class#123<Any> ref=s3704
+expr e68 call callee=e66 args=[_:e67] type=Unit call=s1764 map=[0->0] targs=[]
+expr e69 name(println) type=_
+expr e70 name(small) type=Class#123<Any> ref=s3705
+expr e71 call callee=e69 args=[_:e70] type=Unit call=s1764 map=[0->0] targs=[]
+expr e72 name(sequenceOf) type=_
+expr e73 int(2) type=Int
+expr e74 int(4) type=Int
+expr e75 int(6) type=Int
+expr e76 call callee=e72 args=[_:e73,_:e74,_:e75] type=Class#114<out Int> call=s1787 map=[0->0,1->0,2->0] targs=[Int]
+expr e77 name(it) type=_
+expr e78 int(2) type=_
+expr e79 binary(modulo) lhs=e77 rhs=e78 type=_
+expr e80 int(0) type=_
+expr e81 binary(equal) lhs=e79 rhs=e80 type=_
+expr e82 name(it) type=Int ref=s-1022272
+expr e83 int(2) type=Int
+expr e84 binary(modulo) lhs=e82 rhs=e83 type=Int
+expr e85 int(0) type=Int
+expr e86 binary(equal) lhs=e84 rhs=e85 type=Boolean
+expr e87 lambda params=[] body=e86 label=partition type=(Int) -> Boolean
+expr e88 memberCall recv=e76 callee=partition args=[_:e87] type=Class#75<Class#123<Int>, Class#123<Int>>
+expr e89 localDecl allMatch mutable=0 type=_ init=e88 type=Unit ref=s3706
+expr e90 name(println) type=_
+expr e91 name(allMatch) type=Class#75<Class#123<Int>, Class#123<Int>> ref=s3706
+expr e92 memberCall recv=e91 callee=first args=[] type=T#76 ref=s83
+expr e93 call callee=e90 args=[_:e92] type=Unit call=s1764 map=[0->0] targs=[]
+expr e94 name(println) type=_
+expr e95 name(allMatch) type=Class#75<Class#123<Int>, Class#123<Int>> ref=s3706
+expr e96 memberCall recv=e95 callee=second args=[] type=T#77 ref=s84
+expr e97 call callee=e94 args=[_:e96] type=Unit call=s1764 map=[0->0] targs=[]
+expr e98 name(sequenceOf) type=_
+expr e99 int(1) type=Int
+expr e100 int(3) type=Int
+expr e101 int(5) type=Int
+expr e102 call callee=e98 args=[_:e99,_:e100,_:e101] type=Class#114<out Int> call=s1787 map=[0->0,1->0,2->0] targs=[Int]
+expr e103 name(it) type=_
+expr e104 int(2) type=_
+expr e105 binary(modulo) lhs=e103 rhs=e104 type=_
+expr e106 int(0) type=_
+expr e107 binary(equal) lhs=e105 rhs=e106 type=_
+expr e108 name(it) type=Int ref=s-1028928
+expr e109 int(2) type=Int
+expr e110 binary(modulo) lhs=e108 rhs=e109 type=Int
+expr e111 int(0) type=Int
+expr e112 binary(equal) lhs=e110 rhs=e111 type=Boolean
+expr e113 lambda params=[] body=e112 label=partition type=(Int) -> Boolean
+expr e114 memberCall recv=e102 callee=partition args=[_:e113] type=Class#75<Class#123<Int>, Class#123<Int>>
+expr e115 localDecl noneMatch mutable=0 type=_ init=e114 type=Unit ref=s3707
+expr e116 name(println) type=_
+expr e117 name(noneMatch) type=Class#75<Class#123<Int>, Class#123<Int>> ref=s3707
+expr e118 memberCall recv=e117 callee=first args=[] type=T#76 ref=s83
+expr e119 call callee=e116 args=[_:e118] type=Unit call=s1764 map=[0->0] targs=[]
+expr e120 name(println) type=_
+expr e121 name(noneMatch) type=Class#75<Class#123<Int>, Class#123<Int>> ref=s3707
+expr e122 memberCall recv=e121 callee=second args=[] type=T#77 ref=s84
+expr e123 call callee=e120 args=[_:e122] type=Unit call=s1764 map=[0->0] targs=[]
