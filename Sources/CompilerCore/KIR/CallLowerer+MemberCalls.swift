@@ -6747,6 +6747,8 @@ extension CallLowerer {
                 return interner.intern("kk_grouping_fold")
             case "reduce":
                 return interner.intern("kk_grouping_reduce")
+            case "reduceTo":
+                return interner.intern("kk_grouping_reduceTo")
             default:
                 break
             }
