@@ -5299,6 +5299,7 @@ public enum RuntimeABISpec {
             name: "kk_notNull_get_value",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Delegate"
