@@ -45,26 +45,30 @@ expr e30 int(0) type=_
 expr e31 binary(equal) lhs=e29 rhs=e30 type=_
 expr e32 name(index) type=_
 expr e33 memberCall recv=e32 callee=toString args=[] type=_
-expr e34 name(value) type=_
-expr e35 memberCall recv=e34 callee=toString args=[] type=_
-expr e36 stringTemplate[expr(e33),lit(:),expr(e35)] type=_
-expr e37 name(null) type=_
-expr e38 if cond=e31 then=e36 else=e37 type=_
-expr e39 name(index) type=Int ref=s-1
-expr e40 int(2) type=Int
-expr e41 binary(modulo) lhs=e39 rhs=e40 type=Int
-expr e42 int(0) type=Int
-expr e43 binary(equal) lhs=e41 rhs=e42 type=Boolean
-expr e44 name(index) type=Int ref=s-1
-expr e45 memberCall recv=e44 callee=toString args=[] type=String
-expr e46 name(value) type=Int ref=s-2
+expr e34 string(:) type=_
+expr e35 binary(add) lhs=e33 rhs=e34 type=_
+expr e36 name(value) type=_
+expr e37 memberCall recv=e36 callee=toString args=[] type=_
+expr e38 binary(add) lhs=e35 rhs=e37 type=_
+expr e39 name(null) type=_
+expr e40 if cond=e31 then=e38 else=e39 type=_
+expr e41 name(index) type=Int ref=s-1
+expr e42 int(2) type=Int
+expr e43 binary(modulo) lhs=e41 rhs=e42 type=Int
+expr e44 int(0) type=Int
+expr e45 binary(equal) lhs=e43 rhs=e44 type=Boolean
+expr e46 name(index) type=Int ref=s-1
 expr e47 memberCall recv=e46 callee=toString args=[] type=String
-expr e48 stringTemplate[expr(e45),lit(:),expr(e47)] type=String
-expr e49 name(null) type=Nothing?
-expr e50 if cond=e43 then=e48 else=e49 type=String?
-expr e51 lambda params=[index,value] body=e50 label=mapIndexedNotNullTo type=(Int, Int) -> String?
-expr e52 memberCall recv=e25 callee=mapIndexedNotNullTo args=[_:e26,_:e51] type=Class#1<String>
-expr e53 localDecl result2 mutable=0 type=_ init=e52 type=Unit ref=s10
-expr e54 name(println) type=_
-expr e55 name(result2) type=Class#1<String> ref=s10
-expr e56 call callee=e54 args=[_:e55] type=Unit call=s2 map=[0->0] targs=[]
+expr e48 string(:) type=String
+expr e49 binary(add) lhs=e47 rhs=e48 type=String
+expr e50 name(value) type=Int ref=s-2
+expr e51 memberCall recv=e50 callee=toString args=[] type=String
+expr e52 binary(add) lhs=e49 rhs=e51 type=String
+expr e53 name(null) type=Nothing?
+expr e54 if cond=e45 then=e52 else=e53 type=String?
+expr e55 lambda params=[index,value] body=e54 label=mapIndexedNotNullTo type=(Int, Int) -> String?
+expr e56 memberCall recv=e25 callee=mapIndexedNotNullTo args=[_:e26,_:e55] type=Class#1<String>
+expr e57 localDecl result2 mutable=0 type=_ init=e56 type=Unit ref=s10
+expr e58 name(println) type=_
+expr e59 name(result2) type=Class#1<String> ref=s10
+expr e60 call callee=e58 args=[_:e59] type=Unit call=s2 map=[0->0] targs=[]
