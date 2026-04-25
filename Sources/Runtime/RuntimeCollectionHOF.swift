@@ -3378,6 +3378,32 @@ private func runtimeGroupingBox(from rawValue: Int) -> RuntimeGroupingBox? {
     return tryCast(ptr, to: RuntimeGroupingBox.self)
 }
 
+private func runtimeGroupingKeyIndex(from dest: RuntimeMapBox) -> [RuntimeElementKey: Int] {
+    var keyIndex: [RuntimeElementKey: Int] = [:]
+    for (index, key) in dest.keys.enumerated() {
+        keyIndex[RuntimeElementKey(value: key)] = index
+    }
+    return keyIndex
+}
+
+@discardableResult
+private func runtimeGroupingMapInsertOrUpdate(
+    dest: RuntimeMapBox,
+    keyIndex: inout [RuntimeElementKey: Int],
+    key: RuntimeElementKey,
+    value: Int
+) -> Int {
+    if let index = keyIndex[key] {
+        dest.values[index] = value
+        return index
+    }
+    let newIndex = dest.keys.count
+    dest.keys.append(key.value)
+    dest.values.append(value)
+    keyIndex[key] = newIndex
+    return newIndex
+}
+
 /// `list.groupingBy { keySelector }` — creates a RuntimeGroupingBox capturing the source and key selector.
 @_cdecl("kk_list_groupingBy")
 public func kk_list_groupingBy(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
@@ -3499,6 +3525,114 @@ public func kk_grouping_reduceTo(
         }
     }
     return destRaw
+}
+
+/// `grouping.foldTo(destination, initialValue) { accumulator, element -> ... }`
+/// folds each group into the given destination map, updating entries in place.
+@_cdecl("kk_grouping_foldTo")
+public func kk_grouping_foldTo(
+    _ groupingRaw: Int,
+    _ destinationRaw: Int,
+    _ initial: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let grouping = runtimeGroupingBox(from: groupingRaw) else {
+        invalidContainerPanic(#function, "grouping")
+    }
+    guard let destination = runtimeMapBox(from: destinationRaw) else {
+        invalidContainerPanic(#function, "map")
+    }
+    var keyIndex = runtimeGroupingKeyIndex(from: destination)
+    for elem in grouping.sourceElements {
+        var thrown = 0
+        let key = runtimeInvokeCollectionLambda1(
+            fnPtr: grouping.keyFnPtr, closureRaw: grouping.keyClosureRaw,
+            value: elem, outThrown: &thrown
+        )
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        let normalizedKey = RuntimeElementKey(value: maybeUnbox(key))
+
+        let currentAccumulator: Int
+        if let index = keyIndex[normalizedKey] {
+            currentAccumulator = destination.values[index]
+        } else {
+            currentAccumulator = initial
+        }
+
+        var thrown2 = 0
+        let nextAccumulator = maybeUnbox(runtimeInvokeCollectionLambda2(
+            fnPtr: fnPtr, closureRaw: closureRaw,
+            lhs: currentAccumulator, rhs: elem, outThrown: &thrown2
+        ))
+        if thrown2 != 0 { return handleCollectionLambdaThrow(thrown2, outThrown) }
+        runtimeGroupingMapInsertOrUpdate(
+            dest: destination,
+            keyIndex: &keyIndex,
+            key: normalizedKey,
+            value: nextAccumulator
+        )
+    }
+    return destinationRaw
+}
+
+/// `grouping.foldTo(destination, initialValueSelector) { key, accumulator, element -> ... }`
+/// folds each group into the given destination map, deriving the initial accumulator per key.
+@_cdecl("kk_grouping_foldTo_selector")
+public func kk_grouping_foldTo_selector(
+    _ groupingRaw: Int,
+    _ destinationRaw: Int,
+    _ initialValueSelectorFnPtr: Int,
+    _ initialValueSelectorClosureRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let grouping = runtimeGroupingBox(from: groupingRaw) else {
+        invalidContainerPanic(#function, "grouping")
+    }
+    guard let destination = runtimeMapBox(from: destinationRaw) else {
+        invalidContainerPanic(#function, "map")
+    }
+    var keyIndex = runtimeGroupingKeyIndex(from: destination)
+    for elem in grouping.sourceElements {
+        var thrown = 0
+        let key = runtimeInvokeCollectionLambda1(
+            fnPtr: grouping.keyFnPtr, closureRaw: grouping.keyClosureRaw,
+            value: elem, outThrown: &thrown
+        )
+        if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
+        let normalizedKey = RuntimeElementKey(value: maybeUnbox(key))
+
+        let currentAccumulator: Int
+        if let index = keyIndex[normalizedKey] {
+            currentAccumulator = destination.values[index]
+        } else {
+            var thrown2 = 0
+            currentAccumulator = maybeUnbox(runtimeInvokeCollectionLambda2(
+                fnPtr: initialValueSelectorFnPtr, closureRaw: initialValueSelectorClosureRaw,
+                lhs: normalizedKey.value, rhs: elem, outThrown: &thrown2
+            ))
+            if thrown2 != 0 { return handleCollectionLambdaThrow(thrown2, outThrown) }
+        }
+
+        var thrown3 = 0
+        let nextAccumulator = maybeUnbox(runtimeInvokeCollectionLambda3(
+            fnPtr: fnPtr, closureRaw: closureRaw,
+            arg1: normalizedKey.value, arg2: currentAccumulator, arg3: elem, outThrown: &thrown3
+        ))
+        if thrown3 != 0 { return handleCollectionLambdaThrow(thrown3, outThrown) }
+        runtimeGroupingMapInsertOrUpdate(
+            dest: destination,
+            keyIndex: &keyIndex,
+            key: normalizedKey,
+            value: nextAccumulator
+        )
+    }
+    return destinationRaw
 }
 
 /// `grouping.reduce { acc, element -> ... }` — reduces per key, returns Map<K, T>.

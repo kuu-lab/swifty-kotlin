@@ -6822,6 +6822,10 @@ extension CallLowerer {
                 return interner.intern("kk_grouping_eachCount")
             case "fold":
                 return interner.intern("kk_grouping_fold")
+            case "foldTo":
+                return interner.intern(hasHOFLambdaArg
+                    ? "kk_grouping_foldTo_selector"
+                    : "kk_grouping_foldTo")
             case "reduce":
                 return interner.intern("kk_grouping_reduce")
             case "reduceTo":
