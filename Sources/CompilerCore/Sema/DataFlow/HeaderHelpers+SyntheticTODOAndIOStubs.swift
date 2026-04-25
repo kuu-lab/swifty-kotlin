@@ -2534,6 +2534,11 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("MutableList"),
         ], elementType: typeParamType, invariant: true)
+        let collectionReturnType = nominalCollectionType([
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ], elementType: typeParamType)
         let setReturnType = nominalCollectionType([
             interner.intern("kotlin"),
             interner.intern("collections"),
@@ -2818,6 +2823,20 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [],
             returnType: mutableSetReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // toCollection(destination): Collection<T>
+        registerSequenceMemberStub(
+            named: "toCollection",
+            externalLinkName: "kk_sequence_toCollection",
+            receiverType: receiverType,
+            parameters: [("destination", collectionReturnType)],
+            returnType: collectionReturnType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
