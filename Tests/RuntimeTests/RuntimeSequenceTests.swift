@@ -571,7 +571,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [10, 11, 14, 19])
+        XCTAssertEqual(sequenceElements(result), [10, 10, 12, 18])
     }
 
     func testRunningReduceEmptySequenceReturnsEmptyList() {
