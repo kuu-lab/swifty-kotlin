@@ -2464,6 +2464,18 @@ extension CallTypeChecker {
                 return nil
             }
             if !isGenericArrayReceiver(receiverID: receiverID, sema: sema, interner: interner) {
+                if args.indices.contains(1) {
+                    let secondArgumentType = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals)
+                    if !sema.types.isSubtype(secondArgumentType, sema.types.intType) {
+                        ctx.semaCtx.diagnostics.error(
+                            "KSWIFTK-SEMA-0002",
+                            "No viable overload found for call.",
+                            range: ctx.ast.arena.exprRange(id)
+                        )
+                        sema.bindings.bindExprType(id, type: sema.types.errorType)
+                        return sema.types.errorType
+                    }
+                }
                 return nil
             }
         }
@@ -2632,8 +2644,6 @@ extension CallTypeChecker {
             return sema.types.stringType
         case "get":
             return elementType
-        case "binarySearch":
-            return sema.types.intType
         case "toList":
             if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                 return sema.types.make(.classType(ClassType(
