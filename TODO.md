@@ -85,7 +85,7 @@
 - [ ] STDLIB-SEQ-023: `Sequence.associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
 - [ ] STDLIB-SEQ-024: `Sequence.toCollection(destination)` を追加する
 - [x] STDLIB-SEQ-025: `Sequence.toMutableList()` / `toMutableSet()` / `toHashSet()` を追加する
-- [ ] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する
+- [x] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する
 - [ ] STDLIB-COL-DEST-002: `mapTo` / `mapIndexedTo` / `mapNotNullTo` を追加する
 - [x] STDLIB-COL-DEST-003: `flatMapTo` / `flatMapIndexedTo` を追加する
 - [x] STDLIB-COL-DEST-004: `associateTo` / `associateByTo` / `associateWithTo` / `groupByTo` を追加する
@@ -99,12 +99,15 @@
 - [ ] STDLIB-COL-U-007: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `asList()` view surface を追加する
 - [ ] STDLIB-COL-GROUP-001: `Grouping.aggregate()` / `aggregateTo(destination)` を追加する
 - [ ] STDLIB-COL-GROUP-002: `Grouping.eachCountTo(destination)` を追加する
-- [ ] STDLIB-COL-GROUP-004: `Grouping.foldTo(destination, initialValue, operation)` / `foldTo(destination, initialValueSelector, operation)` を追加する
+- [ ] STDLIB-COL-GROUP-003: `Grouping.fold(initialValueSelector, operation)` overload を追加する
+- [x] STDLIB-COL-GROUP-004: `Grouping.foldTo(destination, initialValue, operation)` / `foldTo(destination, initialValueSelector, operation)` を追加する
 - [x] STDLIB-COL-GROUP-005: `Grouping.reduceTo(destination, operation)` を追加する
-- [ ] STDLIB-COL-BSEARCH-001: `List.binarySearchBy(key, fromIndex, toIndex, selector)` を追加する
+- [x] STDLIB-COL-BSEARCH-001: `List.binarySearchBy(key, fromIndex, toIndex, selector)` を追加する
 - [ ] STDLIB-COL-BSEARCH-002: `List.binarySearch(element, comparator, fromIndex, toIndex)` を追加する
 - [ ] STDLIB-COL-BSEARCH-003: `Array` / primitive array / unsigned array の `binarySearch(element, fromIndex, toIndex)` overload 群を追加する
-- [ ] STDLIB-COL-WIN-001: `Iterable.windowed(size, step, partialWindows, transform)` overload を追加する
+- [ ] STDLIB-COL-BSEARCH-004: `Array.binarySearch(element, comparator, fromIndex, toIndex)` を追加する
+- [x] STDLIB-COL-WIN-001: `Iterable.windowed(size, step, partialWindows, transform)` overload を追加する
+- [ ] STDLIB-022: range / progression / unsigned range の網羅性を上げる
 - [ ] STDLIB-RANGE-IFACE-001: `kotlin.ranges.ClosedRange<T>` interface surface を追加する
 - [ ] STDLIB-RANGE-IFACE-002: `kotlin.ranges.ClosedFloatingPointRange<T>` interface surface を追加する
 - [ ] STDLIB-RANGE-CHAR-001: `kotlin.ranges.CharProgression` / `CharRange` type surface を追加する

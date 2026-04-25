@@ -1301,55 +1301,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerSyntheticVarargFunction(
-        named name: String,
-        packageFQName: [InternedString],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        let paramNameID = interner.intern("elements")
-        let paramSymbol = symbols.define(
-            kind: .valueParameter,
-            name: paramNameID,
-            fqName: functionFQName + [paramNameID],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [types.anyType],
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: [paramSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [true]
-            ),
-            for: functionSymbol
-        )
-    }
-
     private func registerSyntheticGenericSequenceVarargFunction(
         named name: String,
         packageFQName: [InternedString],
@@ -2279,6 +2230,9 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([tParamSymbol, kParamSymbol], for: groupingSymbol)
         types.setNominalTypeParameterVariances([.out, .out], for: groupingSymbol)
 
+        let tTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol)))
+        let kTypeParam = types.make(.typeParam(TypeParamType(symbol: kParamSymbol)))
+
         let groupingType = types.make(.classType(ClassType(
             classSymbol: groupingSymbol,
             args: [],
@@ -2290,8 +2244,6 @@ extension DataFlowSemaPhase {
         let mapSymbol = symbols.lookup(fqName: collectionsPkg + [mapName])
             ?? symbols.lookupByShortName(mapName).first
 
-        let tTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol)))
-        let kTypeParam = types.make(.typeParam(TypeParamType(symbol: kParamSymbol)))
         let groupingTypeParameterSymbols: [SymbolID] = [tParamSymbol, kParamSymbol]
 
         func makeMapType(valueType: TypeID) -> TypeID {
@@ -2400,6 +2352,42 @@ extension DataFlowSemaPhase {
             returnType: makeMapType(valueType: foldRType),
             externalLinkName: "kk_grouping_fold_initialValueSelector",
             typeParameterSymbols: groupingTypeParameterSymbols + [foldRSymbol]
+        )
+
+        // foldTo(destination, initialValue, operation) -> destination
+        let foldToOperationType = types.make(.functionType(FunctionType(
+            params: [types.anyType, tTypeParam],
+            returnType: types.anyType
+        )))
+        registerGroupingMember(
+            named: "foldTo",
+            parameters: [
+                types.anyType,
+                types.anyType,
+                foldToOperationType,
+            ],
+            returnType: types.anyType,
+            externalLinkName: "kk_grouping_foldTo"
+        )
+
+        // foldTo(destination, initialValueSelector, operation) -> destination
+        let foldToInitialValueSelectorType = types.make(.functionType(FunctionType(
+            params: [kTypeParam, tTypeParam],
+            returnType: types.anyType
+        )))
+        let foldToKeyedOperationType = types.make(.functionType(FunctionType(
+            params: [kTypeParam, types.anyType, tTypeParam],
+            returnType: types.anyType
+        )))
+        registerGroupingMember(
+            named: "foldTo",
+            parameters: [
+                types.anyType,
+                foldToInitialValueSelectorType,
+                foldToKeyedOperationType,
+            ],
+            returnType: types.anyType,
+            externalLinkName: "kk_grouping_foldTo_selector"
         )
 
         // reduce(operation: (S, T) -> S) -> Map<K, S>
@@ -3237,6 +3225,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // onEachIndexed(action: (Int, T) -> Unit): Sequence<T>
+        registerSequenceMemberStub(
+            named: "onEachIndexed",
+            externalLinkName: "kk_sequence_onEachIndexed",
+            receiverType: receiverType,
+            parameters: [("action", forEachIndexedActionType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // any(predicate: (T) -> Boolean): Boolean  (STDLIB-SEQ-007)
         registerSequenceMemberStub(
             named: "any",
@@ -3473,27 +3475,6 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
-    }
-
-    private func makeSyntheticIterableType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterable"),
-        ]
-        guard let iterableSymbol = symbols.lookup(fqName: iterableFQName) else {
-            return types.anyType
-        }
-        return types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
     }
 
     private func registerSyntheticDurationMember(
