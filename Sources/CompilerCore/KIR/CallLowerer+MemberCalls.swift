@@ -3952,6 +3952,7 @@ extension CallLowerer {
                 || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
             {
                 let toListID = interner.intern("toList")
+                let constrainOnceID = interner.intern("constrainOnce")
                 let distinctID = interner.intern("distinct")
                 let sortedID = interner.intern("sorted")
                 let sortedDescendingID = interner.intern("sortedDescending")
@@ -3979,10 +3980,13 @@ extension CallLowerer {
                 let seqCountCallee = interner.intern("kk_sequence_count")
                 let seqAnyCallee = interner.intern("kk_sequence_any")
                 let seqNoneCallee = interner.intern("kk_sequence_none")
+                let seqToListCallee = interner.intern("kk_sequence_to_list")
 
                 let runtimeCallee: InternedString? = switch calleeName {
                 case toListID:
-                    interner.intern("kk_sequence_to_list")
+                    seqToListCallee
+                case constrainOnceID:
+                    interner.intern("kk_sequence_constrainOnce")
                 case distinctID:
                     interner.intern("kk_sequence_distinct")
                 case sortedID:
@@ -4044,6 +4048,7 @@ extension CallLowerer {
                         || runtimeCallee == seqLastCallee
                         || runtimeCallee == seqLastOrNullCallee
                         || runtimeCallee == seqCountCallee
+                        || runtimeCallee == seqToListCallee
                     instructions.append(.call(
                         symbol: nil,
                         callee: runtimeCallee,
@@ -5915,6 +5920,7 @@ extension CallLowerer {
             interner.intern("kk_sequence_firstOrNull"),
             interner.intern("kk_sequence_count"),
             interner.intern("kk_string_zipWithNextTransform"),
+            interner.intern("kk_sequence_to_list"),
             interner.intern("kk_list_windowed_transform"),
             interner.intern("kk_mutable_list_replaceAll"),
             interner.intern("kk_mutable_list_removeIf"),
@@ -7366,6 +7372,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_take")
             case toListName:
                 return interner.intern("kk_sequence_to_list")
+            case interner.intern("constrainOnce"):
+                return interner.intern("kk_sequence_constrainOnce")
             case forEachName:
                 return interner.intern("kk_sequence_forEach")
             case flatMapName:

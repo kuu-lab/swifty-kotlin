@@ -244,6 +244,7 @@ struct CollectionLiteralLookupTables {
     let kkSequenceFilterName: InternedString
     let kkSequenceTakeName: InternedString
     let kkSequenceToListName: InternedString
+    let kkSequenceConstrainOnceName: InternedString
     let kkSequenceBuilderBuildName: InternedString
     let kkSequenceBuilderYieldName: InternedString
     let kkSequenceBuilderYieldAllName: InternedString
@@ -594,6 +595,7 @@ struct CollectionLiteralLookupTables {
     // Sequence member names (STDLIB-003)
     let asSequenceName: InternedString
     let toListName: InternedString
+    let constrainOnceName: InternedString
     let toCollectionName: InternedString
     let toULongArrayName: InternedString
     let toIntArrayName: InternedString
@@ -989,6 +991,7 @@ struct CollectionLiteralLookupTables {
         kkSequenceFilterName = interner.intern("kk_sequence_filter")
         kkSequenceTakeName = interner.intern("kk_sequence_take")
         kkSequenceToListName = interner.intern("kk_sequence_to_list")
+        kkSequenceConstrainOnceName = interner.intern("kk_sequence_constrainOnce")
         kkSequenceBuilderBuildName = interner.intern("kk_sequence_builder_build")
         kkSequenceBuilderYieldName = interner.intern("kk_sequence_builder_yield")
         kkSequenceBuilderYieldAllName = interner.intern("kk_sequence_builder_yieldAll")
@@ -1326,6 +1329,7 @@ struct CollectionLiteralLookupTables {
 
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
+        constrainOnceName = interner.intern("constrainOnce")
         toCollectionName = interner.intern("toCollection")
         toULongArrayName = interner.intern("toULongArray")
         toIntArrayName = interner.intern("toIntArray")

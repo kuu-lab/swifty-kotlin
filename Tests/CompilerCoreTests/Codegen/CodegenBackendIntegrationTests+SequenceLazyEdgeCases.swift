@@ -473,7 +473,6 @@ extension CodegenBackendIntegrationTests {
     // MARK: - asSequence() from collection
 
     func testAsSequenceFromList() throws {
-        throw XCTSkip("asSequence() from List not yet implemented")
         let source = """
         fun main() {
             val list = listOf(10, 20, 30)
@@ -503,7 +502,6 @@ extension CodegenBackendIntegrationTests {
     // MARK: - constrainOnce throws on second iteration
 
     func testConstrainOnceThrowsOnSecondIteration() throws {
-        throw XCTSkip("Sequence constrainOnce not yet implemented")
         let source = """
         fun main() {
             val seq = sequenceOf(1, 2, 3).constrainOnce()
