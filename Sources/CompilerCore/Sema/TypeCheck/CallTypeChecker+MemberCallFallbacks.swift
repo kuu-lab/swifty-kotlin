@@ -554,7 +554,8 @@ extension CallTypeChecker {
             argExprs: args.map(\.expr),
             argCount: args.count,
             ctx: ctx,
-            sema: sema
+            sema: sema,
+            interner: interner
         ) {
             if let invalidFallbackType = validateCollectionFallbackCallee(
                 fallbackCallee,
@@ -769,7 +770,8 @@ extension CallTypeChecker {
         argExprs: [ExprID] = [],
         argCount: Int,
         ctx: TypeInferenceContext,
-        sema: SemaModule
+        sema: SemaModule,
+        interner: StringInterner
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         guard let root = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types) else {
@@ -785,7 +787,7 @@ extension CallTypeChecker {
                 continue
             }
             let memberFQName = ownerSymbol.fqName + [memberName]
-            let allCandidates = sema.symbols.lookupAll(fqName: memberFQName).filter { candidate in
+            var allCandidates = sema.symbols.lookupAll(fqName: memberFQName).filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.parentSymbol(for: candidate) == owner,
@@ -794,6 +796,17 @@ extension CallTypeChecker {
                     return false
                 }
                 return true
+            }
+            for candidate in sema.symbols.lookupByShortName(memberName) {
+                guard !allCandidates.contains(candidate),
+                      let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.parentSymbol(for: candidate) == owner,
+                      sema.symbols.functionSignature(for: candidate) != nil
+                else {
+                    continue
+                }
+                allCandidates.append(candidate)
             }
             // STDLIB-214: For slice(IntRange) vs slice(Iterable<Int>), prefer the
             // IntRange overload (kk_list_slice) when the first argument is a range expression,
@@ -812,6 +825,25 @@ extension CallTypeChecker {
                     return sliceMatch
                 }
             }
+            if memberName == interner.intern("binarySearch") {
+                let hasLambdaArg = argExprs.first.map { sema.bindings.isCollectionHOFLambdaExpr($0) } ?? false
+                if argCount == 1,
+                   hasLambdaArg,
+                   let compareMatch = allCandidates.first(where: { candidate in
+                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_compare"
+                   })
+                {
+                    return compareMatch
+                }
+                if argCount >= 2,
+                   let comparatorMatch = allCandidates.first(where: { candidate in
+                       sema.symbols.externalLinkName(for: candidate) == "kk_list_binarySearch_comparator"
+                   })
+                {
+                    return comparatorMatch
+                }
+            }
+
         let lastArgIsFunctionLike: Bool = if let lastExpr = argExprs.last,
                                              let lastExprNode = ctx.ast.arena.expr(lastExpr) {
             lastExprNode.isLambdaOrCallableRef
@@ -1125,9 +1157,12 @@ extension CallTypeChecker {
              interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
              interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"),
              interner.intern("maxOf"), interner.intern("minOf"),
-            interner.intern("maxWith"), interner.intern("maxWithOrNull"),
-            interner.intern("minWith"), interner.intern("minWithOrNull"),
-            interner.intern("elementAt"):
+             interner.intern("maxWith"), interner.intern("maxWithOrNull"),
+             interner.intern("minWith"), interner.intern("minWithOrNull"),
+             interner.intern("elementAt"):
+            if memberName == interner.intern("binarySearch") {
+                return (1...4).contains(argCount)
+            }
             return argCount == 1
         case interner.intern("binarySearchBy"):
             return argCount == 2 || argCount == 3 || argCount == 4

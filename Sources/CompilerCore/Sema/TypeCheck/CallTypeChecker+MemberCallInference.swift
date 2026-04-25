@@ -2935,20 +2935,60 @@ extension CallTypeChecker {
                  }
                  resultType = sema.types.makeNullable(selectorType)
             case "binarySearch":
-                // STDLIB-547: binarySearch(comparison: (T) -> Int) overload
-                guard args.count == 1 else {
+                // STDLIB-547: binarySearch(comparison: (T) -> Int) overload.
+                // STDLIB-COL-BSEARCH-002: binarySearch(element, comparator, fromIndex, toIndex).
+                let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
+                let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: comparatorSymbol,
+                        args: [.invariant(collectionElementType)],
+                        nullability: .nonNull
+                    )))
+                } else {
+                    nil
+                }
+                if args.count == 1 {
+                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType],
+                        returnType: sema.types.intType
+                    )))
+                    if let lambdaExpr = ast.arena.expr(args[0].expr), case .lambdaLiteral = lambdaExpr {
+                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                    } else {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                    }
+                    resultType = sema.types.intType
+                } else if (2...4).contains(args.count) {
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                    if let comparatorLambdaExpr = ast.arena.expr(args[1].expr),
+                       comparatorLambdaExpr.isLambdaOrCallableRef
+                    {
+                        let comparatorLambdaType = sema.types.make(.functionType(FunctionType(
+                            params: [collectionElementType, collectionElementType],
+                            returnType: sema.types.intType
+                        )))
+                        sema.bindings.markCollectionHOFLambdaExpr(args[1].expr)
+                        _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: comparatorLambdaType)
+                    } else {
+                        _ = driver.inferExpr(
+                            args[1].expr,
+                            ctx: ctx,
+                            locals: &locals,
+                            expectedType: comparatorExpectedType
+                        )
+                    }
+                    if args.count >= 3 {
+                        _ = driver.inferExpr(args[2].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                    }
+                    if args.count >= 4 {
+                        _ = driver.inferExpr(args[3].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                    }
+                    resultType = sema.types.intType
+                } else {
                     sema.bindings.bindExprType(id, type: sema.types.intType)
                     return sema.types.intType
                 }
-                let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [collectionElementType],
-                    returnType: sema.types.intType
-                )))
-                if let lambdaExpr = ast.arena.expr(args[0].expr), case .lambdaLiteral = lambdaExpr {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                resultType = sema.types.intType
 
             case "binarySearchBy":
                 guard (2...4).contains(args.count) else {
