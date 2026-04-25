@@ -928,6 +928,7 @@ extension CallTypeChecker {
             interner.intern("getOrNull"),
             interner.intern("elementAtOrNull"),
             interner.intern("binarySearch"),
+            interner.intern("binarySearchBy"),
         ]
         let collectionSpecificMembers: Set = [
             interner.intern("firstOrNull"),
@@ -1069,10 +1070,12 @@ extension CallTypeChecker {
              interner.intern("maxByOrNull"), interner.intern("minByOrNull"),
              interner.intern("maxOfOrNull"), interner.intern("minOfOrNull"),
              interner.intern("maxOf"), interner.intern("minOf"),
-             interner.intern("maxWith"), interner.intern("maxWithOrNull"),
-             interner.intern("minWith"), interner.intern("minWithOrNull"),
-             interner.intern("elementAt"):
+            interner.intern("maxWith"), interner.intern("maxWithOrNull"),
+            interner.intern("minWith"), interner.intern("minWithOrNull"),
+            interner.intern("elementAt"):
             return argCount == 1
+        case interner.intern("binarySearchBy"):
+            return argCount == 2 || argCount == 3 || argCount == 4
         case interner.intern("toCollection"), interner.intern("filterIsInstanceTo"), interner.intern("filterNotNullTo"):
             return argCount == 1
         case interner.intern("filterTo"), interner.intern("filterNotTo"), interner.intern("mapTo"), interner.intern("flatMapTo"), interner.intern("mapNotNullTo"), interner.intern("mapIndexedTo"), interner.intern("flatMapIndexedTo"), interner.intern("associateTo"),
@@ -1137,6 +1140,7 @@ extension CallTypeChecker {
             interner.intern("count"),
             interner.intern("sumOf"),
             interner.intern("binarySearch"),
+            interner.intern("binarySearchBy"),
         ]
         if intReturningMembers.contains(memberName) {
             return sema.types.make(.primitive(.int, .nonNull))
@@ -2043,6 +2047,29 @@ extension CallTypeChecker {
                 nullability: .nonNull
             )))
             return (argumentIndex: 1, expectedType: expectedType)
+        }
+
+        if memberName == interner.intern("binarySearchBy"), (2...4).contains(argCount) {
+            let keyType = args.indices.contains(0)
+                ? (sema.bindings.exprTypes[args[0].expr] ?? sema.types.nullableAnyType)
+                : sema.types.nullableAnyType
+            let selectorReturnType: TypeID = if keyType == sema.types.errorType {
+                sema.types.nullableAnyType
+            } else {
+                switch sema.types.kind(of: keyType) {
+                case .nothing:
+                    sema.types.nullableAnyType
+                default:
+                    sema.types.makeNullable(keyType)
+                }
+            }
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: selectorReturnType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: argCount - 1, expectedType: expectedType)
         }
 
         return nil

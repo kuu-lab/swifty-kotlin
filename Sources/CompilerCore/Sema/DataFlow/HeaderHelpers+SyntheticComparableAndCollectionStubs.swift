@@ -3200,6 +3200,7 @@ extension DataFlowSemaPhase {
             returnTypeOverride: TypeID? = nil,
             typeParameterSymbols: [SymbolID]? = nil,
             typeParameterUpperBoundsList: [[TypeID]]? = nil,
+            flags: SymbolFlags = [.synthetic],
             reifiedTypeParameterIndices: Set<Int> = []
         ) {
             let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
@@ -3213,7 +3214,7 @@ extension DataFlowSemaPhase {
                 fqName: memberFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: [.synthetic]
+                flags: flags
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
             symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
@@ -3221,7 +3222,7 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     parameterTypes: parameterTypes,
-                    returnType: returnTypeOverride ?? listReturnType,
+                    returnType: returnTypeOverride ?? receiverType,
                     typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
                     reifiedTypeParameterIndices: reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
@@ -4275,6 +4276,118 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
+
+        func registerMemberOverload(
+            memberName: InternedString,
+            memberFQName: [InternedString],
+            parameterTypes: [TypeID],
+            externalLinkName: String,
+            returnTypeOverride: TypeID? = nil,
+            typeParameterSymbols: [SymbolID]? = nil,
+            typeParameterUpperBoundsList: [[TypeID]]? = nil,
+            flags: SymbolFlags = [.synthetic],
+            reifiedTypeParameterIndices: Set<Int> = []
+        ) {
+            let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
+                guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes == parameterTypes
+            }
+            guard !alreadyRegistered else { return }
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: flags
+            )
+            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: returnTypeOverride ?? receiverType,
+                    typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
+                    reifiedTypeParameterIndices: reifiedTypeParameterIndices,
+                    typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
+
+        // STDLIB-COL-BSEARCH-001: binarySearchBy(key, fromIndex, toIndex, selector)
+        // The Kotlin stdlib models the omitted fromIndex/toIndex values as defaults,
+        // but this compiler keeps the resolution shape explicit with 2/3/4-argument
+        // overloads so the lambda always stays in the final slot.
+        let binarySearchByName = interner.intern("binarySearchBy")
+        let binarySearchByFQName = listFQName + [binarySearchByName]
+        let binarySearchByKeyTypeParamName = interner.intern("R")
+        let binarySearchByKeyTypeParamFQName = binarySearchByFQName + [binarySearchByKeyTypeParamName]
+        let binarySearchByKeyTypeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: binarySearchByKeyTypeParamName,
+            fqName: binarySearchByKeyTypeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        let binarySearchByKeyTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: binarySearchByKeyTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let binarySearchByComparableBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
+            [types.make(.classType(ClassType(
+                classSymbol: comparableSymbol,
+                args: [.invariant(binarySearchByKeyTypeParamType)],
+                nullability: .nonNull
+            )))]
+        } else {
+            []
+        }
+        let binarySearchByKeyType: TypeID
+        let binarySearchByTypeParameterSymbols: [SymbolID]
+        let binarySearchByTypeParameterUpperBoundsList: [[TypeID]]
+        binarySearchByKeyType = types.makeNullable(binarySearchByKeyTypeParamType)
+        binarySearchByTypeParameterSymbols = [listTypeParamSymbol, binarySearchByKeyTypeParamSymbol]
+        binarySearchByTypeParameterUpperBoundsList = [[], binarySearchByComparableBounds]
+        let binarySearchBySelectorType = types.make(.functionType(FunctionType(
+            params: [listTypeParamType],
+            returnType: binarySearchByKeyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerMemberOverload(
+            memberName: binarySearchByName,
+            memberFQName: binarySearchByFQName,
+            parameterTypes: [binarySearchByKeyType, binarySearchBySelectorType],
+            externalLinkName: "kk_list_binarySearchBy",
+            returnTypeOverride: types.intType,
+            typeParameterSymbols: binarySearchByTypeParameterSymbols,
+            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
+            flags: [.synthetic, .inlineFunction]
+        )
+        registerMemberOverload(
+            memberName: binarySearchByName,
+            memberFQName: binarySearchByFQName,
+            parameterTypes: [binarySearchByKeyType, types.intType, binarySearchBySelectorType],
+            externalLinkName: "kk_list_binarySearchBy_fromIndex",
+            returnTypeOverride: types.intType,
+            typeParameterSymbols: binarySearchByTypeParameterSymbols,
+            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
+            flags: [.synthetic, .inlineFunction]
+        )
+        registerMemberOverload(
+            memberName: binarySearchByName,
+            memberFQName: binarySearchByFQName,
+            parameterTypes: [binarySearchByKeyType, types.intType, types.intType, binarySearchBySelectorType],
+            externalLinkName: "kk_list_binarySearchBy_range",
+            returnTypeOverride: types.intType,
+            typeParameterSymbols: binarySearchByTypeParameterSymbols,
+            typeParameterUpperBoundsList: binarySearchByTypeParameterUpperBoundsList,
+            flags: [.synthetic, .inlineFunction]
+        )
 
         // STDLIB-547: binarySearch(comparison: (T) -> Int) — HOF, comparison lambda
         let binarySearchCompareName = interner.intern("binarySearch")
