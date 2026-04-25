@@ -1447,7 +1447,7 @@ public func kk_range_lastOrNull(_ rangeRaw: Int) -> Int {
 }
 
 @_cdecl("kk_range_random")
-public func kk_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func kk_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_random")
@@ -1456,7 +1456,7 @@ public func kk_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: Unsa
         first: range.first,
         last: range.last,
         step: range.step,
-        randomRaw: randomRaw,
+        randomRaw: 0,
         outThrown: outThrown
     )
 }
@@ -2585,7 +2585,7 @@ public func kk_uint_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int)
 }
 
 @_cdecl("kk_uint_range_random")
-public func kk_uint_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func kk_uint_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_uint_range_random")
@@ -2594,7 +2594,7 @@ public func kk_uint_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown:
         first: UInt(bitPattern: range.first),
         last: UInt(bitPattern: range.last),
         step: range.step,
-        randomRaw: randomRaw,
+        randomRaw: 0,
         outThrown: outThrown
     )
 }
@@ -3170,7 +3170,7 @@ public func kk_ulong_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int
 }
 
 @_cdecl("kk_ulong_range_random")
-public func kk_ulong_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func kk_ulong_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_random")
@@ -3179,7 +3179,7 @@ public func kk_ulong_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown
         first: UInt(bitPattern: range.first),
         last: UInt(bitPattern: range.last),
         step: range.step,
-        randomRaw: randomRaw,
+        randomRaw: 0,
         outThrown: outThrown
     )
 }
@@ -3838,7 +3838,7 @@ public func kk_long_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 }
 
 @_cdecl("kk_long_range_random")
-public func kk_long_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+public func kk_long_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_range_random")
@@ -3847,7 +3847,7 @@ public func kk_long_range_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown:
         first: range.first,
         last: range.last,
         step: range.step,
-        randomRaw: randomRaw,
+        randomRaw: 0,
         outThrown: outThrown
     )
 }

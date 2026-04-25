@@ -4483,7 +4483,6 @@ public enum RuntimeABISpec {
             name: "kk_long_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -4693,7 +4692,6 @@ public enum RuntimeABISpec {
             name: "kk_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -4990,7 +4988,6 @@ public enum RuntimeABISpec {
             name: "kk_uint_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -5302,7 +5299,6 @@ public enum RuntimeABISpec {
             name: "kk_ulong_range_random",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
