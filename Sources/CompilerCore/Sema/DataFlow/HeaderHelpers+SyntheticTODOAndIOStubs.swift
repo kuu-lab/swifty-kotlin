@@ -1808,6 +1808,67 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: sequenceSymbol)
         types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
 
+        let chunkedName = interner.intern("chunked")
+        let chunkedFQName = sequenceFQName + [chunkedName]
+        if let listSymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]) {
+            let typeParamType = types.make(.typeParam(TypeParamType(
+                symbol: typeParamSymbol,
+                nullability: .nonNull
+            )))
+            let chunkType = types.make(.classType(ClassType(
+                classSymbol: listSymbol,
+                args: [.invariant(typeParamType)],
+                nullability: .nonNull
+            )))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [chunkType],
+                returnType: types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(types.anyType)],
+                nullability: .nonNull
+            )))
+            let alreadyRegistered = symbols.lookupAll(fqName: chunkedFQName).contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else { return false }
+                return sig.parameterTypes.count == 2
+                    && symbols.externalLinkName(for: symID) == "kk_sequence_chunked_transform"
+            }
+            if !alreadyRegistered {
+                let memberSymbol = symbols.define(
+                    kind: .function,
+                    name: chunkedName,
+                    fqName: chunkedFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .inlineFunction]
+                )
+                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
+                symbols.setExternalLinkName("kk_sequence_chunked_transform", for: memberSymbol)
+                let receiverType = types.make(.classType(ClassType(
+                    classSymbol: sequenceSymbol,
+                    args: [.out(typeParamType)],
+                    nullability: .nonNull
+                )))
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [types.intType, transformType],
+                        returnType: returnType,
+                        typeParameterSymbols: [typeParamSymbol],
+                        classTypeParameterCount: 1
+                    ),
+                    for: memberSymbol
+                )
+            }
+        }
+
         return sequenceSymbol
     }
 

@@ -3272,6 +3272,36 @@ public func kk_sequence_chunked(_ seqRaw: Int, _ size: Int) -> Int {
     return registerRuntimeObject(resultSeq)
 }
 
+@_cdecl("kk_sequence_chunked_transform")
+public func kk_sequence_chunked_transform(
+    _ seqRaw: Int,
+    _ size: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let chunksRaw = kk_sequence_chunked(seqRaw, size)
+    let chunks = runtimeSequenceSourceElementsOrPanic(from: chunksRaw, caller: #function)
+    var results: [Int] = []
+    results.reserveCapacity(chunks.count)
+    for chunkRaw in chunks {
+        var thrown = 0
+        let transformed = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: chunkRaw,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        results.append(maybeUnbox(transformed))
+    }
+    let resultSeq = RuntimeSequenceBox(steps: [.source(elements: results)])
+    return registerRuntimeObject(resultSeq)
+}
+
 @_cdecl("kk_sequence_windowed")
 public func kk_sequence_windowed(_ seqRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
     let clampedSize = max(1, size)
