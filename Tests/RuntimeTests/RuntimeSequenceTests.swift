@@ -1690,6 +1690,75 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, [1, 10, 2, 20]) // [1, 10] + [2, 20]
     }
 
+    func testSequenceFlatMapIndexedFlattensIterableResults() {
+        let seq = makeSequence([1, 2])
+        let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
+            let arr = kk_array_new(2)
+            var thrown = 0
+            _ = kk_array_set(arr, 0, index, &thrown)
+            _ = kk_array_set(arr, 1, value * 10, &thrown)
+            return kk_list_of(arr, 2)
+        }
+
+        let flatMapped = kk_sequence_flatMapIndexed(
+            seq,
+            unsafeBitCast(flatMapFn, to: Int.self),
+            0
+        )
+
+        XCTAssertEqual(sequenceElements(flatMapped), [0, 10, 1, 20])
+    }
+
+    func testSequenceFlatMapIndexedFlattensSequenceResults() {
+        let seq = makeSequence([1, 2])
+        let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
+            let arr = kk_array_new(2)
+            var thrown = 0
+            _ = kk_array_set(arr, 0, index + value, &thrown)
+            _ = kk_array_set(arr, 1, value * 100, &thrown)
+            return kk_sequence_from_list(kk_list_of(arr, 2))
+        }
+
+        let flatMapped = kk_sequence_flatMapIndexed(
+            seq,
+            unsafeBitCast(flatMapFn, to: Int.self),
+            0
+        )
+
+        XCTAssertEqual(sequenceElements(flatMapped), [1, 100, 3, 200])
+    }
+
+    func testSequenceFlatMapIndexedIsLazy() {
+        _lazyTestYieldCounter = 0
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 3)
+            return 0
+        }
+        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let flatMapFn: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
+            let arr = kk_array_new(2)
+            var thrown = 0
+            _ = kk_array_set(arr, 0, index, &thrown)
+            _ = kk_array_set(arr, 1, value, &thrown)
+            return kk_list_of(arr, 2)
+        }
+
+        let flatMapped = kk_sequence_flatMapIndexed(
+            seq,
+            unsafeBitCast(flatMapFn, to: Int.self),
+            0
+        )
+        let taken = kk_sequence_take(flatMapped, 3)
+
+        XCTAssertEqual(sequenceElements(taken), [0, 1, 1])
+        XCTAssertLessThanOrEqual(_lazyTestYieldCounter, 2)
+    }
+
     func testSequenceWindowedTransformCorrectness() {
         let seq = makeSequence([1, 2, 3, 4, 5])
         let transformed = kk_sequence_windowed_transform(

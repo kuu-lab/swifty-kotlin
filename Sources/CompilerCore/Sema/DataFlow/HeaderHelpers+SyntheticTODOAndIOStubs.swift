@@ -2994,6 +2994,96 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // flatMapIndexed(transform): Sequence<R> for Iterable<R> and Sequence<R> transform results.
+        do {
+            let memberName = interner.intern("flatMapIndexed")
+            let memberFQName = sequenceFQName + [memberName]
+            let rName = interner.intern("R")
+            let rSymbol = symbols.lookup(fqName: memberFQName + [rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: memberFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let sequenceRType = types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(rType)],
+                nullability: .nonNull
+            )))
+
+            func registerFlatMapIndexedOverload(transformReturnType: TypeID) {
+                let transformType = types.make(.functionType(FunctionType(
+                    params: [types.intType, typeParamType],
+                    returnType: transformReturnType,
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
+                    guard let signature = symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == 1,
+                          let parameterType = signature.parameterTypes.first
+                    else { return false }
+                    return parameterType == transformType
+                }
+                guard !alreadyRegistered else { return }
+
+                let memberSymbol = symbols.define(
+                    kind: .function,
+                    name: memberName,
+                    fqName: memberFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .operatorFunction]
+                )
+                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
+                symbols.setExternalLinkName("kk_sequence_flatMapIndexed", for: memberSymbol)
+
+                let transformName = interner.intern("transform")
+                let transformSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: transformName,
+                    fqName: memberFQName + [transformName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(memberSymbol, for: transformSymbol)
+
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [transformType],
+                        returnType: sequenceRType,
+                        canThrow: true,
+                        valueParameterSymbols: [transformSymbol],
+                        valueParameterHasDefaultValues: [false],
+                        valueParameterIsVararg: [false],
+                        typeParameterSymbols: [typeParamSymbol, rSymbol],
+                        typeParameterUpperBoundsList: [[], []],
+                        classTypeParameterCount: 1
+                    ),
+                    for: memberSymbol
+                )
+            }
+
+            if let iterableSymbol = symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterable"),
+            ]) {
+                let iterableRType = types.make(.classType(ClassType(
+                    classSymbol: iterableSymbol,
+                    args: [.out(rType)],
+                    nullability: .nonNull
+                )))
+                registerFlatMapIndexedOverload(transformReturnType: iterableRType)
+            }
+            registerFlatMapIndexedOverload(transformReturnType: sequenceRType)
+        }
+
         // partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> (STDLIB-SEQ-012)
         registerSequenceMemberStub(
             named: "partition",

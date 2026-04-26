@@ -1926,6 +1926,25 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
 
+                    // flatMapIndexed on sequence -> kk_sequence_flatMapIndexed (STDLIB-SEQ-020)
+                    if callee == lookup.flatMapIndexedName,
+                       arguments.count == 2 || arguments.count == 3
+                    {
+                        let receiverID = arguments[0]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSequenceFlatMapIndexedName,
+                                arguments: arguments,
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            if let result { sequenceExprIDs.insert(result.rawValue) }
+                            continue
+                        }
+                    }
+
                     // drop(n) on sequence → kk_sequence_drop (STDLIB-096)
                     if callee == lookup.dropName, arguments.count == 2 {
                         let receiverID = arguments[0]
