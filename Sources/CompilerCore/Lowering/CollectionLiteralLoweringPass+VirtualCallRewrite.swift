@@ -384,6 +384,23 @@ extension CollectionLiteralLoweringPass {
             }
         }
 
+        if callee == lookup.flatMapName || callee == lookup.flatMapIndexedName, arguments.count == 1 {
+            if sequenceExprIDs.contains(receiver.rawValue) {
+                let kkName = callee == lookup.flatMapName
+                    ? lookup.kkSequenceFlatMapName : lookup.kkSequenceFlatMapIndexedName
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: kkName,
+                    arguments: [receiver] + arguments,
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let result { sequenceExprIDs.insert(result.rawValue) }
+                return true
+            }
+        }
+
         if callee == lookup.takeName, arguments.count == 1 {
             if sequenceExprIDs.contains(receiver.rawValue) {
                 loweredBody.append(.call(

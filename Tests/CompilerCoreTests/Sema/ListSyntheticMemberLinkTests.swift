@@ -786,6 +786,49 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testSequenceFlatMapIndexedRegistersIterableAndSequenceOverloads() throws {
+        let source = """
+        fun render(values: Sequence<Int>) {
+            val iterableResult = values.flatMapIndexed { index, value -> listOf(index, value * 10) }
+            val sequenceResult = values.flatMapIndexed { index, value -> sequenceOf(index + value, value * 100) }
+            println(iterableResult.toList())
+            println(sequenceResult.toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("sequences"),
+                ctx.interner.intern("Sequence"),
+                ctx.interner.intern("flatMapIndexed"),
+            ]
+            let symbols = sema.symbols.lookupAll(fqName: memberFQName)
+            XCTAssertEqual(symbols.count, 2, "Expected Iterable and Sequence flatMapIndexed overloads")
+            XCTAssertTrue(symbols.allSatisfy {
+                sema.symbols.externalLinkName(for: $0) == "kk_sequence_flatMapIndexed"
+            })
+
+            let transformReturnTypeNames = symbols.compactMap { symbolID -> String? in
+                guard let parameterType = sema.symbols.functionSignature(for: symbolID)?.parameterTypes.first,
+                      case let .functionType(functionType) = sema.types.kind(of: parameterType),
+                      case let .classType(returnClassType) = sema.types.kind(of: sema.types.makeNonNullable(functionType.returnType)),
+                      let returnSymbol = sema.symbols.symbol(returnClassType.classSymbol)
+                else { return nil }
+                return ctx.interner.resolve(returnSymbol.name)
+            }
+            XCTAssertTrue(transformReturnTypeNames.contains("Iterable"))
+            XCTAssertTrue(transformReturnTypeNames.contains("Sequence"))
+        }
+    }
+
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {

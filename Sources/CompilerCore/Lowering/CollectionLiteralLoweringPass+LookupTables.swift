@@ -259,6 +259,7 @@ struct CollectionLiteralLookupTables {
     let kkSequenceGenerateNoArgName: InternedString
     let kkSequenceForEachName: InternedString
     let kkSequenceFlatMapName: InternedString
+    let kkSequenceFlatMapIndexedName: InternedString
     let kkSequenceDropName: InternedString
     let kkSequenceDistinctName: InternedString
     let kkSequenceZipName: InternedString
@@ -501,6 +502,7 @@ struct CollectionLiteralLookupTables {
     let filterNotNullToName: InternedString
     let forEachName: InternedString
     let flatMapName: InternedString
+    let flatMapIndexedName: InternedString
     let anyName: InternedString
     let noneName: InternedString
     let allName: InternedString
@@ -1017,6 +1019,7 @@ struct CollectionLiteralLookupTables {
         kkSequenceGenerateNoArgName = interner.intern("kk_sequence_generate_noarg")
         kkSequenceForEachName = interner.intern("kk_sequence_forEach")
         kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
+        kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
         kkSequenceDropName = interner.intern("kk_sequence_drop")
         kkSequenceDistinctName = interner.intern("kk_sequence_distinct")
         kkSequenceZipName = interner.intern("kk_sequence_zip")
@@ -1250,6 +1253,7 @@ struct CollectionLiteralLookupTables {
         filterNotNullToName = interner.intern("filterNotNullTo")
         forEachName = interner.intern("forEach")
         flatMapName = interner.intern("flatMap")
+        flatMapIndexedName = interner.intern("flatMapIndexed")
         anyName = interner.intern("any")
         noneName = interner.intern("none")
         allName = interner.intern("all")

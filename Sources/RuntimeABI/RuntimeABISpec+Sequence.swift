@@ -187,6 +187,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Sequence"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sequence_flatMapIndexed",
+            parameters: [
+                RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Sequence"
+        ),
         // Intermediate operations (STDLIB-096)
         RuntimeABIFunctionSpec(
             name: "kk_sequence_drop",

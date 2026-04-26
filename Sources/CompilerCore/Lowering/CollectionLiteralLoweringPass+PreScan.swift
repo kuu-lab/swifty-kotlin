@@ -320,13 +320,14 @@ extension CollectionLiteralLoweringPass {
         } else if callee == lookup.flattenName, sequenceExprIDs.contains(src) {
             sequenceExprIDs.insert(result.rawValue)
         } else if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.takeName
-            || callee == lookup.flatMapName || callee == lookup.dropName
+            || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.dropName
             || callee == lookup.distinctName || callee == lookup.zipName,
             sequenceExprIDs.contains(src)
         {
             sequenceExprIDs.insert(result.rawValue)
         } else if callee == lookup.kkSequenceMapName || callee == lookup.kkSequenceFilterName
             || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
+            || callee == lookup.kkSequenceFlatMapIndexedName
             || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
             || callee == lookup.kkSequenceZipName
         {
@@ -407,7 +408,7 @@ extension CollectionLiteralLoweringPass {
             if callee == lookup.toListName {
                 if let result { listExprIDs.insert(result.rawValue) }
             } else if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.takeName
-                || callee == lookup.flatMapName || callee == lookup.dropName
+                || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.dropName
                 || callee == lookup.distinctName || callee == lookup.zipName
             {
                 if let result { sequenceExprIDs.insert(result.rawValue) }

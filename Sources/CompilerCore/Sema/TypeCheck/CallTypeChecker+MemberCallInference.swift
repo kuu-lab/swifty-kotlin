@@ -1120,7 +1120,7 @@ extension CallTypeChecker {
         // Defer inference of lambda arguments for collection HOFs so that the
         // contextual function type (and thus implicit `it`) is available.
         let collectionHOFNames: Set = [
-            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "any", "none", "all",
+            "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
             "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
             "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
             "groupBy", "groupingBy", "reduceTo", "sortedBy", "count", "first", "last", "find",
@@ -1176,6 +1176,9 @@ extension CallTypeChecker {
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
+        }
+        if !isSequenceReceiver {
+            activeCollectionHOFNames.remove("flatMapIndexed")
         }
         if isMapReceiver {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
@@ -1790,7 +1793,7 @@ extension CallTypeChecker {
                 return finalType
             }
             switch calleeStr {
-            case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "forEach", "flatMap", "any", "none", "all",
+            case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
                  "count", "first", "last", "find", "associateBy", "associateWith", "associate",
                  "mapValues", "mapKeys", "takeWhile", "dropWhile", "onEach":
                 // any(), none(), count(), first(), last() can be called with no args
@@ -1809,8 +1812,11 @@ extension CallTypeChecker {
                     case "mapNotNull": sema.types.nullableAnyType
                     default: sema.types.anyType
                     }
+                    let lambdaParameterTypes = calleeStr == "flatMapIndexed"
+                        ? [sema.types.intType, collectionElementType]
+                        : [collectionElementType]
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType],
+                        params: lambdaParameterTypes,
                         returnType: lambdaReturnType
                     )))
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
@@ -1884,6 +1890,29 @@ extension CallTypeChecker {
                             argExpr: args[0].expr, ast: ast, sema: sema
                         )
                         let innerElementType = extractListElementType(
+                            lambdaBodyType, sema: sema, interner: interner
+                        )
+                        if isSequenceReceiver {
+                            resultType = makeSyntheticSequenceType(
+                                symbols: sema.symbols,
+                                types: sema.types,
+                                interner: interner,
+                                elementType: innerElementType
+                            )
+                        } else if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
+                            resultType = sema.types.make(.classType(ClassType(
+                                classSymbol: listSymbol,
+                                args: [.invariant(innerElementType)],
+                                nullability: .nonNull
+                            )))
+                        } else {
+                            resultType = sema.types.anyType
+                        }
+                    case "flatMapIndexed":
+                        let lambdaBodyType = inferredLambdaReturnType(
+                            argExpr: args[0].expr, ast: ast, sema: sema
+                        )
+                        let innerElementType = extractIterableOrSequenceElementType(
                             lambdaBodyType, sema: sema, interner: interner
                         )
                         if isSequenceReceiver {
@@ -3301,7 +3330,7 @@ extension CallTypeChecker {
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
             if isSyntheticSequenceReceiver,
-               ["map", "filter", "flatMap", "flatten", "sortedBy", "sortedByDescending", "takeWhile", "dropWhile", "onEach", "onEachIndexed", "distinctBy"].contains(calleeStr)
+               ["map", "filter", "flatMap", "flatMapIndexed", "flatten", "sortedBy", "sortedByDescending", "takeWhile", "dropWhile", "onEach", "onEachIndexed", "distinctBy"].contains(calleeStr)
             {
                 sema.bindings.markCollectionExpr(id)
             }
@@ -5834,8 +5863,7 @@ extension CallTypeChecker {
                     case "count": sema.types.intType
                     case "indexOfFirst", "indexOfLast": sema.types.intType
                     case "any", "all", "none": sema.types.booleanType
-                    case "filterIndexed", "filterNot", "takeWhile", "dropWhile",
-                         "trim", "trimStart", "trimEnd": sema.types.stringType
+                    case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
                     case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
                     case "splitToSequence": sequenceStringType
                     case "partition": pairStringStringType
@@ -7735,6 +7763,36 @@ extension CallTypeChecker {
               classType.args.count == 1,
               let firstArg = classType.args.first
         else {
+            return sema.types.anyType
+        }
+        return switch firstArg {
+        case let .invariant(id), let .out(id), let .in(id): id
+        case .star: sema.types.anyType
+        }
+    }
+
+    /// Extract the element type from flattenable Iterable/Sequence-like return types.
+    private func extractIterableOrSequenceElementType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        let knownNames = KnownCompilerNames(interner: interner)
+        let nonNullType = sema.types.makeNonNullable(type)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
+              let symbol = sema.symbols.symbol(classType.classSymbol),
+              classType.args.count == 1,
+              let firstArg = classType.args.first
+        else {
+            return sema.types.anyType
+        }
+        let symbolName = interner.resolve(symbol.name)
+        let isFlattenable = knownNames.isConcreteListLikeSymbol(symbol)
+            || knownNames.isSetLikeSymbol(symbol)
+            || knownNames.isSequenceSymbol(symbol)
+            || symbolName == "Iterable"
+            || symbolName == "Collection"
+        guard isFlattenable else {
             return sema.types.anyType
         }
         return switch firstArg {

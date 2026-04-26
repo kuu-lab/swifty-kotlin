@@ -223,7 +223,7 @@ final class RuntimeEncodeDecodeTests: IsolatedRuntimeXCTestCase {
     func testDecodeToStringRangeNonStrictMalformedUTF8UsesReplacement() {
         var thrown = 0
         let byteArray = makeListRaw([0xC3, 0x28])
-        let result = kk_bytearray_decodeToString_range_throw(byteArray, 0, 2, 0, &thrown)
+        let result = kk_bytearray_decodeToString_range(byteArray, 0, 2, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(extractSwiftString(result), "\u{FFFD}(")
     }

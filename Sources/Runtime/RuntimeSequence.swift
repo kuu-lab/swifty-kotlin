@@ -443,6 +443,42 @@ private func runtimeSequenceTransformElement(
                 return !state.stop
             }
         }
+    case let .flatMapIndexedStep(fnPtr, closureRaw):
+        let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+        let index = state.takeCounts[stepIndex, default: 0]
+        state.takeCounts[stepIndex] = index + 1
+        var thrown = 0
+        let subRaw = lambda(closureRaw, index, element, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            state.stop = true
+            return
+        }
+        if let subElements = runtimeCollectionElements(from: subRaw) {
+            for subElem in subElements {
+                runtimeSequenceTransformElement(
+                    subElem,
+                    steps: steps,
+                    stepIndex: stepIndex + 1,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+                if state.stop { return }
+            }
+        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
+            runtimeTraverseSequence(subSeq, outThrown: outThrown) { subElem in
+                runtimeSequenceTransformElement(
+                    subElem,
+                    steps: steps,
+                    stepIndex: stepIndex + 1,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+                return !state.stop
+            }
+        }
     case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
         runtimeSequenceTransformElement(
             element,
@@ -568,7 +604,7 @@ private func runtimeTraverseSequenceWithState(
                 state.limitReached = true
             }
             return
-        case .mapStep, .filterStep, .filterNotStep, .takeStep, .dropStep, .distinctStep, .zipStep, .takeWhileStep, .dropWhileStep, .onEachStep, .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep, .mapIndexedStep, .withIndexStep, .flatMapStep:
+        case .mapStep, .filterStep, .filterNotStep, .takeStep, .dropStep, .distinctStep, .zipStep, .takeWhileStep, .dropWhileStep, .onEachStep, .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep, .mapIndexedStep, .withIndexStep, .flatMapStep, .flatMapIndexedStep:
             continue
         }
     }
@@ -804,6 +840,27 @@ private func applyFlatMapStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, ou
     return result
 }
 
+/// Applies a flatMapIndexed transformation: maps each indexed element to a collection or sequence and flattens it.
+private func applyFlatMapIndexedStep(_ elements: [Int], fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?) -> [Int] {
+    var result: [Int] = []
+    for (index, elem) in elements.enumerated() {
+        var thrown = 0
+        let subRaw = runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: index, rhs: elem, outThrown: &thrown)
+        if thrown != 0 {
+            if let outThrown = outThrown {
+                outThrown.pointee = thrown
+            }
+            return []
+        }
+        if let subElements = runtimeCollectionElements(from: subRaw) {
+            result.append(contentsOf: subElements)
+        } else if let subSeq = runtimeSequenceBox(from: subRaw) {
+            result.append(contentsOf: evaluateSequence(subSeq))
+        }
+    }
+    return result
+}
+
 /// Evaluates the lazy sequence chain and returns the materialized elements.
 /// This is the core of lazy semantics: steps are only executed here.
 private func evaluateSequence(
@@ -940,6 +997,8 @@ private func evaluateSequence(
             elements = applyWithIndexStep(elements)
         case let .flatMapStep(fnPtr, closureRaw):
             elements = applyFlatMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
+        case let .flatMapIndexedStep(fnPtr, closureRaw):
+            elements = applyFlatMapIndexedStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)
         }
     }
 
@@ -1381,6 +1440,22 @@ public func kk_sequence_flatMap(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) 
     var newSteps = seq.steps
     newSteps.append(.flatMapStep(fnPtr: fnPtr, closureRaw: closureRaw))
     let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
+    return registerRuntimeObject(newSeq)
+}
+
+@_cdecl("kk_sequence_flatMapIndexed")
+public func kk_sequence_flatMapIndexed(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+    guard let seq = runtimeSequenceBox(from: seqRaw) else {
+        let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+        let newSeq = RuntimeSequenceBox(steps: [
+            .source(elements: sourceElements),
+            .flatMapIndexedStep(fnPtr: fnPtr, closureRaw: closureRaw),
+        ])
+        return registerRuntimeObject(newSeq)
+    }
+    var newSteps = seq.steps
+    newSteps.append(.flatMapIndexedStep(fnPtr: fnPtr, closureRaw: closureRaw))
+    let newSeq = RuntimeSequenceBox(steps: newSteps)
     return registerRuntimeObject(newSeq)
 }
 

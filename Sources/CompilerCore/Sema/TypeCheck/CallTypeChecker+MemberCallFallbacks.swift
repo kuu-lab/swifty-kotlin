@@ -1080,6 +1080,9 @@ extension CallTypeChecker {
         if memberName == knownNames.getOrPut || memberName == knownNames.putAll {
             return isMutableMapReceiver
         }
+        if memberName == interner.intern("flatMapIndexed") {
+            return isSequenceReceiver
+        }
         return collectionMembers.contains(memberName)
     }
 
@@ -1092,7 +1095,7 @@ extension CallTypeChecker {
         let collectionReturningMembers: Set = [
             interner.intern("asSequence"), interner.intern("asIterable"), interner.intern("map"), interner.intern("filter"), interner.intern("filterNot"), interner.intern("mapNotNull"), interner.intern("filterNotNull"),
             interner.intern("filterTo"), interner.intern("filterNotTo"), interner.intern("mapTo"), interner.intern("flatMapTo"), interner.intern("mapNotNullTo"), interner.intern("filterIsInstanceTo"), interner.intern("mapIndexedTo"), interner.intern("mapIndexedNotNullTo"), interner.intern("flatMapIndexedTo"),
-            interner.intern("flatMap"), interner.intern("sortedBy"), interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associateTo"), interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"), interner.intern("reduceTo"),
+            interner.intern("flatMap"), interner.intern("flatMapIndexed"), interner.intern("sortedBy"), interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associateTo"), interner.intern("associateByTo"), interner.intern("associateWithTo"), interner.intern("groupByTo"), interner.intern("reduceTo"),
             interner.intern("associate"), interner.intern("zip"), interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("take"), interner.intern("drop"), interner.intern("reversed"), interner.intern("asReversed"),
             interner.intern("sorted"), interner.intern("distinct"), interner.intern("distinctBy"), interner.intern("flatten"), interner.intern("chunked"), interner.intern("windowed"), interner.intern("withIndex"), interner.intern("mapIndexed"),
             interner.intern("sortedDescending"), interner.intern("sortedByDescending"), interner.intern("sortedWith"),
@@ -1156,7 +1159,7 @@ extension CallTypeChecker {
             return argCount == 0
         case interner.intern("get"), interner.intern("getOrNull"), interner.intern("elementAtOrNull"),
              interner.intern("contains"), interner.intern("containsAll"), interner.intern("indexOf"), interner.intern("lastIndexOf"), interner.intern("indexOfFirst"), interner.intern("indexOfLast"), interner.intern("binarySearch"),
-             interner.intern("map"), interner.intern("filter"), interner.intern("filterNot"), interner.intern("mapNotNull"), interner.intern("forEach"), interner.intern("flatMap"),
+             interner.intern("map"), interner.intern("filter"), interner.intern("filterNot"), interner.intern("mapNotNull"), interner.intern("forEach"), interner.intern("flatMap"), interner.intern("flatMapIndexed"),
              interner.intern("any"), interner.intern("none"), interner.intern("all"),
              interner.intern("groupBy"), interner.intern("groupingBy"), interner.intern("sortedBy"), interner.intern("find"), interner.intern("associateBy"), interner.intern("associateWith"), interner.intern("associate"), interner.intern("reduce"), interner.intern("reduceOrNull"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduce"), interner.intern("runningReduceIndexed"), interner.intern("scanReduce"), interner.intern("take"), interner.intern("drop"), interner.intern("zip"),
              interner.intern("forEachIndexed"), interner.intern("mapIndexed"), interner.intern("filterIndexed"), interner.intern("sumOf"), interner.intern("chunked"), interner.intern("onEach"), interner.intern("onEachIndexed"),
@@ -1811,6 +1814,7 @@ extension CallTypeChecker {
             interner.intern("mapNotNull"),
             interner.intern("forEach"),
             interner.intern("flatMap"),
+            interner.intern("flatMapIndexed"),
             interner.intern("any"),
             interner.intern("none"),
             interner.intern("all"),
@@ -2008,7 +2012,12 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if memberName == interner.intern("forEachIndexed") || memberName == interner.intern("mapIndexed") || memberName == interner.intern("onEachIndexed"), argCount == 1 {
+        if memberName == interner.intern("forEachIndexed")
+            || memberName == interner.intern("mapIndexed")
+            || memberName == interner.intern("onEachIndexed")
+            || memberName == interner.intern("flatMapIndexed"),
+            argCount == 1
+        {
             let lambdaReturnType = memberName == interner.intern("forEachIndexed") || memberName == interner.intern("onEachIndexed")
                 ? sema.types.unitType
                 : sema.types.anyType
