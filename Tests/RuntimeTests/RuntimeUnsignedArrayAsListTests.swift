@@ -31,6 +31,26 @@ final class RuntimeUnsignedArrayAsListTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(arrayElements(from: kk_array_copyOfRange(ulongRaw, 0, 1)), [1000])
     }
 
+    func testUnsignedPrimitiveArraySignedViewConversionsReturnSameArray() {
+        let ubyteRaw = makeRuntimeArray([1, 2, 3])
+        let byteRaw = kk_uByteArray_asByteArray(ubyteRaw)
+        XCTAssertEqual(byteRaw, ubyteRaw)
+        runtimeArrayBox(from: ubyteRaw)?.elements[1] = 9
+        XCTAssertEqual(arrayElements(from: byteRaw), [1, 9, 3])
+
+        let ushortRaw = makeRuntimeArray([10, 20, 30])
+        let shortRaw = kk_uShortArray_asShortArray(ushortRaw)
+        XCTAssertEqual(shortRaw, ushortRaw)
+
+        let uintRaw = makeRuntimeArray([100, 200])
+        let intRaw = kk_uIntArray_asIntArray(uintRaw)
+        XCTAssertEqual(intRaw, uintRaw)
+
+        let ulongRaw = makeRuntimeArray([1000, 2000])
+        let longRaw = kk_uLongArray_asLongArray(ulongRaw)
+        XCTAssertEqual(longRaw, ulongRaw)
+    }
+
     func testUByteArrayAsListViewReflectsMutations() {
         let arrayRaw = makeRuntimeArray([1, 2, 3])
         let listRaw = kk_uByteArray_asList(arrayRaw)
