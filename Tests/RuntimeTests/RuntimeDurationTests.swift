@@ -50,9 +50,56 @@ private let throwingThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> I
     return 0
 }
 
+private let capturedDurationComponentsLock = NSLock()
+nonisolated(unsafe) private var _capturedDurationComponents: [Int] = []
+
+private var capturedDurationComponents: [Int] {
+    get {
+        capturedDurationComponentsLock.lock()
+        defer { capturedDurationComponentsLock.unlock() }
+        return _capturedDurationComponents
+    }
+    set {
+        capturedDurationComponentsLock.lock()
+        defer { capturedDurationComponentsLock.unlock() }
+        _capturedDurationComponents = newValue
+    }
+}
+
+private let durationComponents2Thunk: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    closureRaw, seconds, nanoseconds, _ in
+    capturedDurationComponents = [closureRaw, seconds, nanoseconds]
+    return seconds + nanoseconds
+}
+
+private let durationComponents3Thunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    closureRaw, minutes, seconds, nanoseconds, _ in
+    capturedDurationComponents = [closureRaw, minutes, seconds, nanoseconds]
+    return minutes + seconds + nanoseconds
+}
+
+private let durationComponents4Thunk: @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    closureRaw, hours, minutes, seconds, nanoseconds, _ in
+    capturedDurationComponents = [closureRaw, hours, minutes, seconds, nanoseconds]
+    return hours + minutes + seconds + nanoseconds
+}
+
+private let durationComponents5Thunk: @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    closureRaw, days, hours, minutes, seconds, nanoseconds, _ in
+    capturedDurationComponents = [closureRaw, days, hours, minutes, seconds, nanoseconds]
+    return days + hours + minutes + seconds + nanoseconds
+}
+
+private let durationComponentsThrowing2Thunk: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, _, _, outThrown in
+    outThrown?.pointee = 0xBEEF
+    return 123
+}
+
 final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
     override func resetIsolatedRuntimeTestState() {
         capturedClosureRaw = 0
+        capturedDurationComponents = []
     }
 
     private final class DurationResultsBox: @unchecked Sendable {
@@ -470,6 +517,91 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
 
         let invalid = kk_duration_parseIsoStringOrNull(stringHandle("1h 30m"))
         XCTAssertEqual(invalid, runtimeNullSentinelInt)
+    }
+
+    func testToComponentsInvokesAllOverloads() {
+        var parseThrown = 0
+        let duration = kk_duration_parseIsoString(stringHandle("P1DT2H3M4.000000005S"), &parseThrown)
+        XCTAssertEqual(parseThrown, 0)
+
+        var thrown = 0
+        let closureRaw = 777
+
+        let daysResult = kk_duration_toComponents_days(
+            duration,
+            unsafeBitCast(durationComponents5Thunk, to: Int.self),
+            closureRaw,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(daysResult, 15)
+        XCTAssertEqual(capturedDurationComponents, [closureRaw, 1, 2, 3, 4, 5])
+
+        let hoursResult = kk_duration_toComponents_hours(
+            duration,
+            unsafeBitCast(durationComponents4Thunk, to: Int.self),
+            closureRaw,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(hoursResult, 38)
+        XCTAssertEqual(capturedDurationComponents, [closureRaw, 26, 3, 4, 5])
+
+        let minutesResult = kk_duration_toComponents_minutes(
+            duration,
+            unsafeBitCast(durationComponents3Thunk, to: Int.self),
+            closureRaw,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(minutesResult, 1_572)
+        XCTAssertEqual(capturedDurationComponents, [closureRaw, 1_563, 4, 5])
+
+        let secondsResult = kk_duration_toComponents_seconds(
+            duration,
+            unsafeBitCast(durationComponents2Thunk, to: Int.self),
+            closureRaw,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(secondsResult, 93_789)
+        XCTAssertEqual(capturedDurationComponents, [closureRaw, 93_784, 5])
+    }
+
+    func testToComponentsPreservesNegativeRemaindersAndInfiniteLargestComponent() {
+        var thrown = 0
+        let negative = kk_duration_from_nanoseconds(-1_500_000_025)
+        let negativeResult = kk_duration_toComponents_seconds(
+            negative,
+            unsafeBitCast(durationComponents2Thunk, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(negativeResult, -500_000_026)
+        XCTAssertEqual(capturedDurationComponents, [0, -1, -500_000_025])
+
+        let infiniteResult = kk_duration_toComponents_hours(
+            kk_duration_infinite(),
+            unsafeBitCast(durationComponents4Thunk, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(infiniteResult, Int.max)
+        XCTAssertEqual(capturedDurationComponents, [0, Int.max, 0, 0, 0])
+    }
+
+    func testToComponentsPropagatesThrownAction() {
+        var thrown = 0
+        let result = kk_duration_toComponents_seconds(
+            kk_duration_from_seconds(1),
+            unsafeBitCast(durationComponentsThrowing2Thunk, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(result, 0)
+        XCTAssertEqual(thrown, 0xBEEF)
     }
 
     // MARK: - Multiple independent durations

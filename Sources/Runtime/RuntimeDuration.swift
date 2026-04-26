@@ -271,6 +271,27 @@ private func runtimeDurationParse(_ input: String) -> Int64? {
     return runtimeDurationParseDefault(trimmed)
 }
 
+private func runtimeDurationComponents(
+    nanoseconds: Int64,
+    largestUnit: Int64,
+    smallerUnits: [Int64]
+) -> [Int] {
+    if runtimeDurationIsInfinite(nanoseconds) {
+        return [Int(nanoseconds)] + Array(repeating: 0, count: smallerUnits.count + 1)
+    }
+
+    var remaining = nanoseconds
+    var components: [Int] = []
+    components.append(Int(remaining / largestUnit))
+    remaining %= largestUnit
+    for unit in smallerUnits {
+        components.append(Int(remaining / unit))
+        remaining %= unit
+    }
+    components.append(Int(remaining))
+    return components
+}
+
 private func runtimeDurationISOSecondComponent(seconds: Int64, nanoseconds: Int64) -> String {
     guard nanoseconds != 0 else {
         return "\(seconds)S"
@@ -610,6 +631,147 @@ public func kk_duration_parseIsoStringOrNull(_ valueRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
     return runtimeDurationHandle(fromNanoseconds: nanoseconds)
+}
+
+@_cdecl("kk_duration_toComponents_days")
+public func kk_duration_toComponents_days(
+    _ durationRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = runtimeDurationBox(from: durationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toComponents_days received invalid Duration handle")
+    }
+
+    let components = runtimeDurationComponents(
+        nanoseconds: box.nanoseconds,
+        largestUnit: runtimeDurationNanosPerDay,
+        smallerUnits: [
+            runtimeDurationNanosPerHour,
+            runtimeDurationNanosPerMinute,
+            runtimeDurationNanosPerSecond,
+        ]
+    )
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda5(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        arg1: components[0],
+        arg2: components[1],
+        arg3: components[2],
+        arg4: components[3],
+        arg5: components[4],
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
+}
+
+@_cdecl("kk_duration_toComponents_hours")
+public func kk_duration_toComponents_hours(
+    _ durationRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = runtimeDurationBox(from: durationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toComponents_hours received invalid Duration handle")
+    }
+
+    let components = runtimeDurationComponents(
+        nanoseconds: box.nanoseconds,
+        largestUnit: runtimeDurationNanosPerHour,
+        smallerUnits: [
+            runtimeDurationNanosPerMinute,
+            runtimeDurationNanosPerSecond,
+        ]
+    )
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda4(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        arg1: components[0],
+        arg2: components[1],
+        arg3: components[2],
+        arg4: components[3],
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
+}
+
+@_cdecl("kk_duration_toComponents_minutes")
+public func kk_duration_toComponents_minutes(
+    _ durationRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = runtimeDurationBox(from: durationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toComponents_minutes received invalid Duration handle")
+    }
+
+    let components = runtimeDurationComponents(
+        nanoseconds: box.nanoseconds,
+        largestUnit: runtimeDurationNanosPerMinute,
+        smallerUnits: [runtimeDurationNanosPerSecond]
+    )
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda3(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        arg1: components[0],
+        arg2: components[1],
+        arg3: components[2],
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
+}
+
+@_cdecl("kk_duration_toComponents_seconds")
+public func kk_duration_toComponents_seconds(
+    _ durationRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let box = runtimeDurationBox(from: durationRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_toComponents_seconds received invalid Duration handle")
+    }
+
+    let components = runtimeDurationComponents(
+        nanoseconds: box.nanoseconds,
+        largestUnit: runtimeDurationNanosPerSecond,
+        smallerUnits: []
+    )
+    var thrown = 0
+    let result = runtimeInvokeCollectionLambda2(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        lhs: components[0],
+        rhs: components[1],
+        outThrown: &thrown
+    )
+    if thrown != 0 {
+        outThrown?.pointee = thrown
+        return 0
+    }
+    return result
 }
 
 // MARK: - Duration advanced operations (STDLIB-TIME-082)

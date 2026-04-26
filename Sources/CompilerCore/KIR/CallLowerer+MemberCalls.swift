@@ -5577,6 +5577,24 @@ extension CallLowerer {
                 finalArguments.insert(zeroExpr, at: 3)
             }
         }
+        let durationToComponentsCallees: Set<InternedString> = [
+            interner.intern("kk_duration_toComponents_days"),
+            interner.intern("kk_duration_toComponents_hours"),
+            interner.intern("kk_duration_toComponents_minutes"),
+            interner.intern("kk_duration_toComponents_seconds"),
+        ]
+        if durationToComponentsCallees.contains(loweredCallee),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
+        }
         if let primitiveKind = collectionElementPrimitiveCompareKind(
             of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema
@@ -5834,6 +5852,10 @@ extension CallLowerer {
             interner.intern("kk_base64_decodeFromByteArray_mime"),
             interner.intern("kk_base64_decode_instance"),
             interner.intern("kk_base64_decodeFromByteArray_instance"),
+            interner.intern("kk_duration_toComponents_days"),
+            interner.intern("kk_duration_toComponents_hours"),
+            interner.intern("kk_duration_toComponents_minutes"),
+            interner.intern("kk_duration_toComponents_seconds"),
             interner.intern("kk_list_random"),
             interner.intern("kk_list_elementAt"),
             interner.intern("kk_list_maxOf"),

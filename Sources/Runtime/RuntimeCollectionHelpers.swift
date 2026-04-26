@@ -468,6 +468,7 @@ typealias RuntimeCollectionLambda1 = @convention(c) (Int, Int, UnsafeMutablePoin
 typealias RuntimeCollectionLambda2 = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
+typealias RuntimeCollectionLambda5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias ComparatorLambda = RuntimeCollectionLambda2
 
 /// Retains an object and registers it as a runtime handle.
@@ -568,6 +569,29 @@ func runtimeInvokeCollectionLambda4(
         maybeUnbox(arg2),
         maybeUnbox(arg3),
         maybeUnbox(arg4),
+        outThrown
+    )
+}
+
+@inline(__always)
+func runtimeInvokeCollectionLambda5(
+    fnPtr: Int,
+    closureRaw: Int,
+    arg1: Int,
+    arg2: Int,
+    arg3: Int,
+    arg4: Int,
+    arg5: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let fn = unsafeBitCast(fnPtr, to: RuntimeCollectionLambda5.self)
+    return fn(
+        maybeUnbox(closureRaw),
+        maybeUnbox(arg1),
+        maybeUnbox(arg2),
+        maybeUnbox(arg3),
+        maybeUnbox(arg4),
+        maybeUnbox(arg5),
         outThrown
     )
 }

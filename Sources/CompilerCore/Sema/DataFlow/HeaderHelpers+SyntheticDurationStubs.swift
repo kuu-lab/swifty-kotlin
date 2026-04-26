@@ -221,6 +221,44 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TIME-STABLE-004: Duration.toComponents overloads ---
+        registerDurationToComponentsMethod(
+            externalLinkName: "kk_duration_toComponents_days",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            componentTypes: [longType, intType, intType, intType, intType],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerDurationToComponentsMethod(
+            externalLinkName: "kk_duration_toComponents_hours",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            componentTypes: [longType, intType, intType, intType],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerDurationToComponentsMethod(
+            externalLinkName: "kk_duration_toComponents_minutes",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            componentTypes: [longType, intType, intType],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerDurationToComponentsMethod(
+            externalLinkName: "kk_duration_toComponents_seconds",
+            ownerSymbol: durationSymbol,
+            ownerType: durationType,
+            componentTypes: [longType, intType],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         // --- STDLIB-TIME-082: Duration member methods ---
         registerDurationMemberMethod(
             named: "plus",
@@ -599,6 +637,89 @@ extension DataFlowSemaPhase {
             )
         }
         return kotlinTimeFQ
+    }
+
+    private func registerDurationToComponentsMethod(
+        externalLinkName: String,
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        componentTypes: [TypeID],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let functionName = interner.intern("toComponents")
+        let functionFQName = ownerInfo.fqName + [functionName]
+
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = functionFQName + [typeParamName]
+        let typeParamSymbol = symbols.lookup(fqName: typeParamFQName) ?? symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: typeParamFQName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
+        )
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let actionType = types.make(.functionType(FunctionType(
+            params: componentTypes,
+            returnType: typeParamType
+        )))
+        let parameterTypes = [actionType]
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .function,
+                  let signature = symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == ownerType
+                && signature.parameterTypes == parameterTypes
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.insertFlags([.throwingFunction], for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .throwingFunction]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        let actionName = interner.intern("action")
+        let actionSymbol = symbols.define(
+            kind: .valueParameter,
+            name: actionName,
+            fqName: functionFQName + [actionName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: actionSymbol)
+        symbols.setPropertyType(actionType, for: actionSymbol)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: parameterTypes,
+                returnType: typeParamType,
+                isSuspend: false,
+                canThrow: true,
+                valueParameterSymbols: [actionSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [typeParamSymbol]
+            ),
+            for: functionSymbol
+        )
     }
 
     // MARK: - Duration member method registration (STDLIB-TIME-082)

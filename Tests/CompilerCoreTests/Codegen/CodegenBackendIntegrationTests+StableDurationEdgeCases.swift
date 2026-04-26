@@ -349,6 +349,44 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testDurationStableToComponentsOverloads() throws {
+        let source = """
+        import kotlin.time.Duration
+
+        fun main() {
+            println(Duration.parseIsoString("P1DT2H3M4.000000005S").toComponents { d, h, m, s, ns -> "$d:$h:$m:$s:$ns" })
+            println(Duration.parseIsoString("P1DT2H3M4.000000005S").toComponents { h, m, s, ns -> "$h:$m:$s:$ns" })
+            println(Duration.parseIsoString("P1DT2H3M4.000000005S").toComponents { m, s, ns -> "$m:$s:$ns" })
+            println(Duration.parseIsoString("P1DT2H3M4.000000005S").toComponents { s, ns -> "$s:$ns" })
+            println(Duration.parseIsoString("-PT1.500000025S").toComponents { s, ns -> "$s:$ns" })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "DurationStableToComponents",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                1:2:3:4:5
+                26:3:4:5
+                1563:4:5
+                93784:5
+                -1:-500000025
+                """ + "\n"
+            )
+        }
+    }
+
     // MARK: - Double receiver extension properties
 
     func testDurationStableDoubleReceiverExtensionProperties() throws {

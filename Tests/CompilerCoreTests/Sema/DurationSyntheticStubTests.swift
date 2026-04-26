@@ -133,4 +133,69 @@ final class DurationSyntheticStubTests: XCTestCase {
         })
         XCTAssertEqual(sema.symbols.externalLinkName(for: parseIsoOrNullSymbol), "kk_duration_parseIsoStringOrNull")
     }
+
+    func testDurationToComponentsOverloadsAreRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let durationFQName = ["kotlin", "time", "Duration"].map { interner.intern($0) }
+        let durationSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: durationFQName))
+        let durationType = sema.types.make(.classType(ClassType(
+            classSymbol: durationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let expected: [(link: String, componentTypes: [TypeID])] = [
+            ("kk_duration_toComponents_days", [
+                sema.types.longType,
+                sema.types.intType,
+                sema.types.intType,
+                sema.types.intType,
+                sema.types.intType,
+            ]),
+            ("kk_duration_toComponents_hours", [
+                sema.types.longType,
+                sema.types.intType,
+                sema.types.intType,
+                sema.types.intType,
+            ]),
+            ("kk_duration_toComponents_minutes", [
+                sema.types.longType,
+                sema.types.intType,
+                sema.types.intType,
+            ]),
+            ("kk_duration_toComponents_seconds", [
+                sema.types.longType,
+                sema.types.intType,
+            ]),
+        ]
+        let toComponentsFQName = durationFQName + [interner.intern("toComponents")]
+        let symbols = sema.symbols.lookupAll(fqName: toComponentsFQName)
+
+        for overload in expected {
+            let symbol = try XCTUnwrap(symbols.first { symbolID in
+                guard sema.symbols.externalLinkName(for: symbolID) == overload.link,
+                      let signature = sema.symbols.functionSignature(for: symbolID),
+                      signature.receiverType == durationType,
+                      signature.typeParameterSymbols.count == 1,
+                      signature.parameterTypes.count == 1,
+                      signature.returnType == sema.types.make(.typeParam(TypeParamType(
+                          symbol: signature.typeParameterSymbols[0],
+                          nullability: .nonNull
+                      ))),
+                      case let .functionType(actionType) = sema.types.kind(of: signature.parameterTypes[0])
+                else {
+                    return false
+                }
+                return actionType.params == overload.componentTypes
+                    && actionType.returnType == signature.returnType
+                    && signature.canThrow
+            })
+            XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
+            XCTAssertTrue(
+                sema.symbols.symbol(symbol)?.flags.contains(.throwingFunction) == true,
+                "Duration.toComponents should use the thrown channel for throwing action lambdas"
+            )
+        }
+    }
 }
