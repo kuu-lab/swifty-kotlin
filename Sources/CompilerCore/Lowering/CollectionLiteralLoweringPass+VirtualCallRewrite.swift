@@ -116,6 +116,27 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
+        // toTypedArray() on array → kk_array_copyOf (result is Array)
+        if callee == lookup.toTypedArrayName, arguments.isEmpty, arrayExprIDs.contains(receiver.rawValue) {
+            let toArrayResult = module.arena.appendExpr(
+                .temporary(Int32(module.arena.expressions.count)), type: nil
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayCopyOfName,
+                arguments: [receiver],
+                result: toArrayResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                arrayExprIDs.insert(result.rawValue)
+                arrayExprIDs.insert(toArrayResult.rawValue)
+                loweredBody.append(.copy(from: toArrayResult, to: result))
+            }
+            return true
+        }
+
         // toIntArray() on list → kk_list_toIntArray (STDLIB-LIST-PRIM-ARRAY)
         if callee == lookup.toIntArrayName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
             let toArrayResult = module.arena.appendExpr(
