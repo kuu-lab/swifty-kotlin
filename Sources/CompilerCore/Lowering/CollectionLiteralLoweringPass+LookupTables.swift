@@ -369,6 +369,10 @@ struct CollectionLiteralLookupTables {
     let kkListToIntArrayName: InternedString
     let kkListToLongArrayName: InternedString
     let kkListToByteArrayName: InternedString
+    let kkListToUByteArrayName: InternedString
+    let kkListToUShortArrayName: InternedString
+    let kkListToUIntArrayName: InternedString
+    let kkListToULongArrayName: InternedString
     let kkArrayMapName: InternedString
     let kkArrayFilterName: InternedString
     let kkArrayForEachName: InternedString
@@ -599,6 +603,9 @@ struct CollectionLiteralLookupTables {
     let asSequenceName: InternedString
     let toListName: InternedString
     let toCollectionName: InternedString
+    let toUByteArrayName: InternedString
+    let toUShortArrayName: InternedString
+    let toUIntArrayName: InternedString
     let toULongArrayName: InternedString
     let toIntArrayName: InternedString
     let toLongArrayName: InternedString
@@ -1112,6 +1119,10 @@ struct CollectionLiteralLookupTables {
         kkListToIntArrayName = interner.intern("kk_list_toIntArray")
         kkListToLongArrayName = interner.intern("kk_list_toLongArray")
         kkListToByteArrayName = interner.intern("kk_list_toByteArray")
+        kkListToUByteArrayName = interner.intern("kk_list_toUByteArray")
+        kkListToUShortArrayName = interner.intern("kk_list_toUShortArray")
+        kkListToUIntArrayName = interner.intern("kk_list_toUIntArray")
+        kkListToULongArrayName = interner.intern("kk_list_toULongArray")
         kkArrayMapName = interner.intern("kk_array_map")
         kkArrayFilterName = interner.intern("kk_array_filter")
         kkArrayForEachName = interner.intern("kk_array_forEach")
@@ -1334,6 +1345,9 @@ struct CollectionLiteralLookupTables {
         asSequenceName = interner.intern("asSequence")
         toListName = interner.intern("toList")
         toCollectionName = interner.intern("toCollection")
+        toUByteArrayName = interner.intern("toUByteArray")
+        toUShortArrayName = interner.intern("toUShortArray")
+        toUIntArrayName = interner.intern("toUIntArray")
         toULongArrayName = interner.intern("toULongArray")
         toIntArrayName = interner.intern("toIntArray")
         toLongArrayName = interner.intern("toLongArray")
