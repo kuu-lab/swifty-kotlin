@@ -3907,6 +3907,8 @@ extension CallLowerer {
                     "kk_array_toList"
                 case "toMutableList":
                     "kk_array_toMutableList"
+                case "toTypedArray":
+                    "kk_array_copyOf"
                 case "copyOf":
                     "kk_array_copyOf"
                 case "concatToString":
@@ -7206,6 +7208,8 @@ extension CallLowerer {
                 return interner.intern("kk_array_toList")
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
+            case "toTypedArray":
+                return interner.intern("kk_array_copyOf")
             case "forEach":
                 return interner.intern("kk_array_forEach")
             case "any":

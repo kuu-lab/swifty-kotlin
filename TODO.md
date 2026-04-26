@@ -94,7 +94,7 @@
 - [ ] STDLIB-COL-U-002: `ByteArray.asUByteArray()` / `ShortArray.asUShortArray()` / `IntArray.asUIntArray()` / `LongArray.asULongArray()` view conversion を追加する
 - [ ] STDLIB-COL-U-003: `UByteArray.asByteArray()` / `UShortArray.asShortArray()` / `UIntArray.asIntArray()` / `ULongArray.asLongArray()` view conversion を追加する
 - [ ] STDLIB-COL-U-004: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `copyOfRange(fromIndex, toIndex)` を追加する
-- [ ] STDLIB-COL-U-005: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `toTypedArray()` を追加する
+- [x] STDLIB-COL-U-005: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `toTypedArray()` を追加する
 - [ ] STDLIB-COL-U-006: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `copyOf(newSize, init)` overload 群を追加する
 - [x] STDLIB-COL-GROUP-002: `Grouping.eachCountTo(destination)` を追加する
 - [x] STDLIB-COL-U-007: `UByteArray` / `UShortArray` / `UIntArray` / `ULongArray` の `asList()` view surface を追加する
