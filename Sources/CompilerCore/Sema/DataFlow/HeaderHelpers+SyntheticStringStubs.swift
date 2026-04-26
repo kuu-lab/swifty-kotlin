@@ -1444,6 +1444,36 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "trim",
+            externalLinkName: "kk_string_trim_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimStart",
+            externalLinkName: "kk_string_trimStart_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimEnd",
+            externalLinkName: "kk_string_trimEnd_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         // String.map returns List<R> in Kotlin; use (Char) -> Any transform
         // and Any return type to allow arbitrary mapping.
         registerSyntheticStringExtensionFunction(

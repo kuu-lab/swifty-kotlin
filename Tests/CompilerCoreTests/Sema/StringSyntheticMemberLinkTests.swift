@@ -196,6 +196,77 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         XCTAssertTrue(padEndLinks.contains("kk_string_padEnd"), "padEnd should have a non-default overload")
     }
 
+    func testTrimPredicateStubsHaveCorrectSignatures() throws {
+        let (sema, interner) = try makeSema()
+        let charType = sema.types.make(.primitive(.char, .nonNull))
+        let booleanType = sema.types.booleanType
+
+        let expectedLinks: [String: String] = [
+            "trim": "kk_string_trim_predicate",
+            "trimStart": "kk_string_trimStart_predicate",
+            "trimEnd": "kk_string_trimEnd_predicate",
+        ]
+
+        for (member, expectedLink) in expectedLinks {
+            let fqName = ["kotlin", "text", member].map { interner.intern($0) }
+            let symbol = try XCTUnwrap(
+                sema.symbols.lookupAll(fqName: fqName).first {
+                    sema.symbols.externalLinkName(for: $0) == expectedLink
+                },
+                "String.\(member) predicate overload should link to \(expectedLink)"
+            )
+            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+            XCTAssertEqual(signature.receiverType, sema.types.stringType)
+            XCTAssertEqual(signature.parameterTypes.count, 1)
+            XCTAssertEqual(signature.returnType, sema.types.stringType)
+
+            guard case let .functionType(predicateType) = sema.types.kind(of: signature.parameterTypes[0]) else {
+                return XCTFail("Expected \(member) predicate parameter to be a function type")
+            }
+            XCTAssertEqual(predicateType.params, [charType])
+            XCTAssertEqual(predicateType.returnType, booleanType)
+            XCTAssertFalse(predicateType.isSuspend)
+        }
+    }
+
+    func testTrimPredicateMembersResolveInCallExpressions() throws {
+        let source = """
+        fun process(s: String): String {
+            return s.trim { it == 'x' } +
+                s.trimStart { it == 'x' } +
+                s.trimEnd { it == 'x' }
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let expectedLinks: [String: String] = [
+                "trim": "kk_string_trim_predicate",
+                "trimStart": "kk_string_trimStart_predicate",
+                "trimEnd": "kk_string_trimEnd_predicate",
+            ]
+
+            for (memberName, externalLinkName) in expectedLinks {
+                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName
+                }, "Expected member call to \(memberName) in AST")
+                let chosenCallee = try XCTUnwrap(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for \(memberName)"
+                )
+                XCTAssertEqual(
+                    sema.symbols.externalLinkName(for: chosenCallee),
+                    externalLinkName,
+                    "Expected \(memberName) to resolve to \(externalLinkName)"
+                )
+            }
+        }
+    }
+
     func testNewSlicingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 

@@ -22,6 +22,15 @@ private let runtimeReplaceFirstCharThrowing: RuntimeStringUnaryEntry = { _, _, o
     return 0
 }
 
+private let runtimeTrimXPredicate: RuntimeStringUnaryEntry = { _, scalar, _ in
+    scalar == 120 ? 1 : 0
+}
+
+private let runtimeTrimPredicateThrowing: RuntimeStringUnaryEntry = { _, _, outThrown in
+    outThrown?.pointee = runtimeAllocateThrowable(message: "trim predicate failure")
+    return 0
+}
+
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()
@@ -397,6 +406,45 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("replaceFirstChar failure"))
+    }
+
+    func testStringTrimPredicateOverloadsTrimExpectedEdges() {
+        let predicate = unsafeBitCast(runtimeTrimXPredicate, to: Int.self)
+
+        var thrown = 0
+        let both = kk_string_trim_predicate(rawFromRuntimeString("xxhellox"), predicate, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(both), "hello")
+
+        thrown = 0
+        let start = kk_string_trimStart_predicate(rawFromRuntimeString("xxhellox"), predicate, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(start), "hellox")
+
+        thrown = 0
+        let end = kk_string_trimEnd_predicate(rawFromRuntimeString("xxhellox"), predicate, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(end), "xxhello")
+
+        thrown = 0
+        let empty = kk_string_trim_predicate(rawFromRuntimeString("xx"), predicate, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(empty), "")
+    }
+
+    func testStringTrimPredicatePropagatesThrownValue() {
+        var thrown = -1
+        let replaced = kk_string_trim_predicate(
+            rawFromRuntimeString("abc"),
+            unsafeBitCast(runtimeTrimPredicateThrowing, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(runtimeStringValue(replaced), "")
+        XCTAssertNotEqual(thrown, 0)
+        let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+        XCTAssertTrue(thrownOutput.contains("trim predicate failure"))
     }
 
     func testStringStartsWithEndsWithContains() {

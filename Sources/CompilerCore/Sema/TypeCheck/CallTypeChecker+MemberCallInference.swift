@@ -3272,6 +3272,7 @@ extension CallTypeChecker {
                    "filter", "map", "count", "any", "all", "none",
                    "indexOfFirst", "indexOfLast",
                    "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
+                   "trim", "trimStart", "trimEnd",
                    "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
                    "zipWithNext",
                    "partition",
@@ -3458,7 +3459,7 @@ extension CallTypeChecker {
                 case "count": sema.types.intType
                 case "indexOfFirst", "indexOfLast": sema.types.intType
                 case "any", "all", "none": sema.types.booleanType
-                case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
+                case "filterIndexed", "filterNot", "trim", "trimStart", "trimEnd", "takeWhile", "dropWhile": sema.types.stringType
                 case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
                 case "splitToSequence": sequenceStringType
                 case "partition": pairStringStringTypeEarly
@@ -5563,6 +5564,7 @@ extension CallTypeChecker {
                        "filter", "map", "count", "any", "all", "none",
                        "indexOfFirst", "indexOfLast",
                        "mapIndexed", "mapNotNull", "filterIndexed", "filterNot",
+                       "trim", "trimStart", "trimEnd",
                        "takeWhile", "dropWhile", "find", "findLast", "splitToSequence",
                        "zipWithNext",
                        "partition",
@@ -5695,7 +5697,7 @@ extension CallTypeChecker {
                         )))
                     }()
                     let resultType: TypeID = switch calleeStr {
-                    case "filter": sema.types.stringType
+                    case "filter", "trim", "trimStart", "trimEnd": sema.types.stringType
                     case "map": sema.types.anyType
                     case "mapIndexed", "mapNotNull": sema.types.anyType
                     case "count": sema.types.intType

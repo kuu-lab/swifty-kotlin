@@ -385,6 +385,93 @@ public func kk_string_filter(
     return runtimeMakeStringRaw(runtimeStringFromScalars(filtered))
 }
 
+private enum RuntimeStringTrimPredicateMode: Equatable {
+    case both
+    case start
+    case end
+}
+
+private func runtimeStringTrimPredicate(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    mode: RuntimeStringTrimPredicateMode
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else {
+        return runtimeMakeStringRaw(runtimeStringFromScalars(scalars))
+    }
+
+    func shouldTrim(_ scalar: UnicodeScalar) -> Bool? {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return nil
+        }
+        return result != 0
+    }
+
+    var start = 0
+    var end = scalars.count
+    if mode != .end {
+        while start < end {
+            guard let trim = shouldTrim(scalars[start]) else {
+                return runtimeMakeStringRaw("")
+            }
+            guard trim else { break }
+            start += 1
+        }
+    }
+    if mode != .start {
+        while end > start {
+            guard let trim = shouldTrim(scalars[end - 1]) else {
+                return runtimeMakeStringRaw("")
+            }
+            guard trim else { break }
+            end -= 1
+        }
+    }
+    return runtimeMakeStringRaw(runtimeStringFromScalars(Array(scalars[start..<end])))
+}
+
+@_cdecl("kk_string_trim_predicate")
+public func kk_string_trim_predicate(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringTrimPredicate(strRaw, fnPtr, closureRaw, outThrown, mode: .both)
+}
+
+@_cdecl("kk_string_trimStart_predicate")
+public func kk_string_trimStart_predicate(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringTrimPredicate(strRaw, fnPtr, closureRaw, outThrown, mode: .start)
+}
+
+@_cdecl("kk_string_trimEnd_predicate")
+public func kk_string_trimEnd_predicate(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringTrimPredicate(strRaw, fnPtr, closureRaw, outThrown, mode: .end)
+}
+
 @_cdecl("kk_string_map")
 public func kk_string_map(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?

@@ -2912,6 +2912,12 @@ extension CallLowerer {
                     ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
                 case "filterNot":
                     ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
+                case "trim":
+                    ("kk_string_trim_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimStart":
+                    ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimEnd":
+                    ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfFirst":
                     ("kk_string_indexOfFirst", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
@@ -2984,6 +2990,9 @@ extension CallLowerer {
                 if let runtimeCall {
                     let stringHOFCanThrow = calleeStr == "repeat"
                         || calleeStr == "replaceFirstChar"
+                        || calleeStr == "trim"
+                        || calleeStr == "trimStart"
+                        || calleeStr == "trimEnd"
                         || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
@@ -4330,6 +4339,7 @@ extension CallLowerer {
             "sortedByDescending", "sortedWith", "partition", "zipWithNext",
             "takeWhile", "dropWhile", "filterNot", "findLast", "replaceAll", "removeIf",
             "replaceFirstChar",
+            "trim", "trimStart", "trimEnd",
             "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",
             "ifEmpty",

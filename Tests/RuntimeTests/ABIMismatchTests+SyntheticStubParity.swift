@@ -67,6 +67,10 @@ extension ABIMismatchTests {
             "kk_duration_toComponents_hours",
             "kk_duration_toComponents_minutes",
             "kk_duration_toComponents_seconds",
+            // String predicate overloads
+            "kk_string_trim_predicate",
+            "kk_string_trimStart_predicate",
+            "kk_string_trimEnd_predicate",
             "kk_duration_from_seconds_double",
             "kk_duration_from_milliseconds_double",
             "kk_duration_from_microseconds_double",

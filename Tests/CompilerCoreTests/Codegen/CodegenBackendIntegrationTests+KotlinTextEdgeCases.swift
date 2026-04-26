@@ -377,9 +377,39 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testKotlinTextTrimPredicateEdgeCases() throws {
-        // trim { predicate }, trimStart { predicate }, trimEnd { predicate }
-        // are not yet implemented in the runtime stubs.
-        throw XCTSkip("trim/trimStart/trimEnd with predicate not yet implemented")
+        let source = """
+        fun main() {
+            println("xxhellox".trim { it == 'x' })
+            println("xxhellox".trimStart { it == 'x' })
+            println("xxhellox".trimEnd { it == 'x' })
+            println("aa bb aa".trim { it == 'a' })
+            println("[" + "xx".trim { it == 'x' } + "]")
+            println("[" + "abc".trim { false } + "]")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextTrimPredicateEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                "hello\n" +
+                "hellox\n" +
+                "xxhello\n" +
+                " bb \n" +
+                "[]\n" +
+                "[abc]\n"
+            )
+        }
     }
 
     // MARK: - padStart / padEnd
