@@ -5863,8 +5863,7 @@ extension CallTypeChecker {
                     case "count": sema.types.intType
                     case "indexOfFirst", "indexOfLast": sema.types.intType
                     case "any", "all", "none": sema.types.booleanType
-                    case "filterIndexed", "filterNot", "takeWhile", "dropWhile",
-                         "trim", "trimStart", "trimEnd": sema.types.stringType
+                    case "filterIndexed", "filterNot", "takeWhile", "dropWhile": sema.types.stringType
                     case "find", "findLast": sema.types.make(.primitive(.char, .nullable))
                     case "splitToSequence": sequenceStringType
                     case "partition": pairStringStringType
