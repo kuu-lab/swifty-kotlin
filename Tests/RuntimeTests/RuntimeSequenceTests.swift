@@ -46,7 +46,7 @@ private func appendLazySequenceOnEachIndexedTrace(_ value: Int) {
     __lazySequenceOnEachIndexedTrace.append(value)
 }
 
-private let lazyYieldAllInnerThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+private let lazyYieldAllInnerThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
     _lazyTestYieldCounter += 1
     _ = kk_sequence_builder_yield(builderRaw, 10)
     _lazyTestYieldCounter += 1
@@ -65,7 +65,7 @@ private let lazyYieldAllInnerSequenceRaw: Int = {
     return kk_sequence_builder_build(innerFnPtr)
 }()
 
-private let lazyYieldAllOuterThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+private let lazyYieldAllOuterThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
     _ = kk_sequence_builder_yieldAll(builderRaw, lazyYieldAllInnerSequenceRaw)
     _ = kk_sequence_builder_yield(builderRaw, 99)
     return 0
@@ -983,7 +983,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildYieldsElementsInOrder() {
         // sequence { yield(1); yield(2); yield(3) }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _ = kk_sequence_builder_yield(builderRaw, 2)
             _ = kk_sequence_builder_yield(builderRaw, 3)
@@ -996,7 +996,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildEmptyBlock() {
         // sequence { }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _ in
             return 0
         }
         let fnPtr = unsafeBitCast(thunk, to: Int.self)
@@ -1005,7 +1005,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     }
 
     func testSequenceBuilderBuildSingleElement() {
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 42)
             return 0
         }
@@ -1016,7 +1016,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildWithMap() {
         // sequence { yield(1); yield(2); yield(3) }.map { it * 10 }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _ = kk_sequence_builder_yield(builderRaw, 2)
             _ = kk_sequence_builder_yield(builderRaw, 3)
@@ -1052,7 +1052,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildWithTake() {
         // sequence { yield(1); yield(2); yield(3); yield(4); yield(5) }.take(3).toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _ = kk_sequence_builder_yield(builderRaw, 2)
             _ = kk_sequence_builder_yield(builderRaw, 3)
@@ -1068,7 +1068,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildWithFilter() {
         // sequence { yield(1); yield(2); yield(3); yield(4) }.filter { it % 2 == 0 }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _ = kk_sequence_builder_yield(builderRaw, 2)
             _ = kk_sequence_builder_yield(builderRaw, 3)
@@ -1091,7 +1091,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildYieldAllFromList() {
         // sequence { yieldAll(listOf(10, 20)); yield(30) }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             // Create a list [10, 20]
             let arr = kk_array_new(2)
             var thrown = 0
@@ -1129,7 +1129,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceBuilderBuildReiterableProducesSameElements() {
         // Verify that materializing the same lazy sequence twice produces the same result
         // (cached after first materialization).
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _ = kk_sequence_builder_yield(builderRaw, 7)
             _ = kk_sequence_builder_yield(builderRaw, 8)
             _ = kk_sequence_builder_yield(builderRaw, 9)
@@ -1144,7 +1144,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
     func testSequenceBuilderBuildManyElements() {
         // sequence { for (i in 0..99) yield(i) }.toList()
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             for i in 0 ..< 100 {
                 _ = kk_sequence_builder_yield(builderRaw, i)
             }
@@ -1165,7 +1165,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         // only computes the first 2 elements, not all 5.
         // We use a global counter to track how many yields actually execute.
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
@@ -1194,7 +1194,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         // STDLIB-563: first() on a lazy sequence builder should only evaluate
         // until the first element is produced.
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 100)
             _lazyTestYieldCounter += 1
@@ -1272,7 +1272,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceFilterNotLazy() {
         // Test that filterNot is lazy by using a sequence builder
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
@@ -1309,7 +1309,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceMapNotNullLazy() {
         // Test mapNotNull with lazy evaluation
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
@@ -1345,7 +1345,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceFilterNotNullLazy() {
         // Test filterNotNull with lazy evaluation
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
@@ -1372,7 +1372,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceMapIndexedLazy() {
         // Test mapIndexed with lazy evaluation
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
@@ -1406,7 +1406,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceOnEachIndexedLazy() {
         _lazyTestYieldCounter = 0
         _lazySequenceOnEachIndexedTrace = []
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
@@ -1451,7 +1451,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceWithIndexLazy() {
         // Test withIndex with lazy evaluation
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 10)
             _lazyTestYieldCounter += 1
@@ -1482,7 +1482,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
     func testSequenceFlatMapLazy() {
         // Test flatMap with lazy evaluation
         _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { builderRaw, _ in
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
             _lazyTestYieldCounter += 1
             _ = kk_sequence_builder_yield(builderRaw, 1)
             _lazyTestYieldCounter += 1
