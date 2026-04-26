@@ -1920,7 +1920,13 @@ public func kk_uLongArray_asList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(arrayViewOf: array))
 }
 
-/// UByteArray.asByteArray(): ByteArray view
+// MARK: - Unsigned primitive array to signed primitive array views
+//
+// Kotlin `asByteArray` / `asShortArray` (and the other width-matched pairs below) are
+// *views* on the same storage: the signed and unsigned array types re-use the same
+// underlying runtime array; mutations are shared and bit patterns are not reencoded.
+
+/// UByteArray.asByteArray(): ByteArray
 @_cdecl("kk_uByteArray_asByteArray")
 public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
@@ -1929,7 +1935,7 @@ public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
     return arrayRaw
 }
 
-/// UShortArray.asShortArray(): ShortArray view
+/// UShortArray.asShortArray(): ShortArray
 @_cdecl("kk_uShortArray_asShortArray")
 public func kk_uShortArray_asShortArray(_ arrayRaw: Int) -> Int {
     guard runtimeArrayBox(from: arrayRaw) != nil else {
