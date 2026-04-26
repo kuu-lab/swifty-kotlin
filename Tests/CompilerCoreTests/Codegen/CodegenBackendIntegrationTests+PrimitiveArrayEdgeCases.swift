@@ -173,6 +173,41 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testUnsignedPrimitiveArrayCopyOfRange() throws {
+        let source = """
+        fun main() {
+            println(ubyteArrayOf(1.toUByte(), 2.toUByte(), 3.toUByte()).copyOfRange(1, 3).toList())
+            println(ushortArrayOf(10.toUShort(), 20.toUShort(), 30.toUShort()).copyOfRange(0, 2).toList())
+            println(uintArrayOf(100u, 200u, 300u).copyOfRange(1, 3).toList())
+            println(ulongArrayOf(1000uL, 2000uL, 3000uL).copyOfRange(0, 1).toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "UnsignedPrimitiveArrayCopyOfRange",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                [2, 3]
+                [10, 20]
+                [200, 300]
+                [1000]
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testUnsignedCollectionToPrimitiveArrayConversions() throws {
         let source = """
         fun main() {
