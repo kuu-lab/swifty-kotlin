@@ -1920,22 +1920,30 @@ public func kk_uLongArray_asList(_ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(arrayViewOf: array))
 }
 
-/// UByteArray.asByteArray(): ByteArray view
+/// UByteArray.asByteArray(): ByteArray copy with signed byte values.
 @_cdecl("kk_uByteArray_asByteArray")
 public func kk_uByteArray_asByteArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uByteArray_asByteArray")
     }
-    return arrayRaw
+    let box = RuntimeArrayBox(length: array.elements.count)
+    for (i, value) in array.elements.enumerated() {
+        box.elements[i] = Int(Int8(truncatingIfNeeded: value))
+    }
+    return registerRuntimeObject(box)
 }
 
-/// UShortArray.asShortArray(): ShortArray view
+/// UShortArray.asShortArray(): ShortArray copy with signed short values.
 @_cdecl("kk_uShortArray_asShortArray")
 public func kk_uShortArray_asShortArray(_ arrayRaw: Int) -> Int {
-    guard runtimeArrayBox(from: arrayRaw) != nil else {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_uShortArray_asShortArray")
     }
-    return arrayRaw
+    let box = RuntimeArrayBox(length: array.elements.count)
+    for (i, value) in array.elements.enumerated() {
+        box.elements[i] = Int(Int16(truncatingIfNeeded: value))
+    }
+    return registerRuntimeObject(box)
 }
 
 /// UIntArray.asIntArray(): IntArray view

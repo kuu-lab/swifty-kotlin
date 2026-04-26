@@ -31,24 +31,34 @@ final class RuntimeUnsignedArrayAsListTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(arrayElements(from: kk_array_copyOfRange(ulongRaw, 0, 1)), [1000])
     }
 
-    func testUnsignedPrimitiveArraySignedViewConversionsReturnSameArray() {
-        let ubyteRaw = makeRuntimeArray([1, 2, 3])
+    func testUnsignedPrimitiveArraySignedConversionsUseExpectedStorage() {
+        let ubyteRaw = makeRuntimeArray([1, 255])
         let byteRaw = kk_uByteArray_asByteArray(ubyteRaw)
-        XCTAssertEqual(byteRaw, ubyteRaw)
-        runtimeArrayBox(from: ubyteRaw)?.elements[1] = 9
-        XCTAssertEqual(arrayElements(from: byteRaw), [1, 9, 3])
+        XCTAssertNotEqual(byteRaw, ubyteRaw)
+        XCTAssertEqual(arrayElements(from: byteRaw), [1, -1])
+        runtimeArrayBox(from: byteRaw)?.elements[1] = -2
+        XCTAssertEqual(arrayElements(from: byteRaw), [1, -2])
+        XCTAssertEqual(arrayElements(from: ubyteRaw), [1, 255])
 
-        let ushortRaw = makeRuntimeArray([10, 20, 30])
+        let ushortRaw = makeRuntimeArray([10, 65_535])
         let shortRaw = kk_uShortArray_asShortArray(ushortRaw)
-        XCTAssertEqual(shortRaw, ushortRaw)
+        XCTAssertNotEqual(shortRaw, ushortRaw)
+        XCTAssertEqual(arrayElements(from: shortRaw), [10, -1])
+        runtimeArrayBox(from: shortRaw)?.elements[0] = Int(Int16(truncatingIfNeeded: -2))
+        XCTAssertEqual(arrayElements(from: shortRaw), [Int(Int16(truncatingIfNeeded: -2)), -1])
+        XCTAssertEqual(arrayElements(from: ushortRaw), [10, 65_535])
 
         let uintRaw = makeRuntimeArray([100, 200])
         let intRaw = kk_uIntArray_asIntArray(uintRaw)
         XCTAssertEqual(intRaw, uintRaw)
+        runtimeArrayBox(from: intRaw)?.elements[1] = 900
+        XCTAssertEqual(arrayElements(from: uintRaw), [100, 900])
 
         let ulongRaw = makeRuntimeArray([1000, 2000])
         let longRaw = kk_uLongArray_asLongArray(ulongRaw)
         XCTAssertEqual(longRaw, ulongRaw)
+        runtimeArrayBox(from: longRaw)?.elements[0] = 9_000
+        XCTAssertEqual(arrayElements(from: ulongRaw), [9_000, 2000])
     }
 
     func testUByteArrayAsListViewReflectsMutations() {
