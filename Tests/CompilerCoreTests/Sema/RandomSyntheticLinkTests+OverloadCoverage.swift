@@ -274,6 +274,27 @@ extension RandomSyntheticLinkTests {
         }
     }
 
+    /// nextBytes(array, fromIndex, toIndex) is registered and linked correctly.
+    func testNextBytesArrayRangeOverloadIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
+        let candidates = sema.symbols.lookupAll(fqName: fq)
+
+        let rangeOverload = candidates.first { id in
+            guard let sig = sema.symbols.functionSignature(for: id) else { return false }
+            return sig.parameterTypes.count == 3 &&
+                sig.parameterTypes.dropFirst().allSatisfy { $0 == sema.types.intType }
+        }
+        XCTAssertNotNil(rangeOverload, "nextBytes(array, fromIndex, toIndex) overload must be registered")
+        if let rangeOverload,
+           let signature = sema.symbols.functionSignature(for: rangeOverload)
+        {
+            XCTAssertEqual(sema.symbols.externalLinkName(for: rangeOverload), "kk_random_nextBytes_range")
+            XCTAssertTrue(signature.canThrow, "nextBytes(array, fromIndex, toIndex) must expose its bounds checks")
+        }
+    }
+
     // MARK: - nextInt(IntRange) extension
 
     /// nextInt(range: IntRange) extension function is a documented gap.

@@ -172,6 +172,18 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_random_nextBytes_range",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+                RuntimeABIParameter(name: "array", type: .intptr),
+                RuntimeABIParameter(name: "fromIndex", type: .intptr),
+                RuntimeABIParameter(name: "toIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Random"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_random_nextDouble",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),

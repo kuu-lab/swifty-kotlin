@@ -469,6 +469,50 @@ final class RuntimeRandomBoundaryTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "nextBytes(size) must throw for negative size")
     }
 
+    func testNextBytesRangeFillsOnlyRequestedListSlice() {
+        let r = makeSeeded(42)
+        let list = RuntimeListBox(elements: [11, 22, 33, 44, 55])
+        let listRaw = registerRuntimeObject(list)
+        var thrown = 0
+        let resultRaw = kk_random_nextBytes_range(r, listRaw, 1, 4, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(resultRaw, listRaw)
+        XCTAssertEqual(list.elements[0], 11)
+        XCTAssertEqual(list.elements[4], 55)
+        for byte in list.elements[1..<4] {
+            XCTAssertTrue(byte >= Int(Int8.min) && byte <= Int(Int8.max),
+                          "Filled byte must be in Kotlin Byte range [-128, 127], got \(byte)")
+        }
+    }
+
+    func testNextBytesRangeFillsOnlyRequestedArraySlice() {
+        let r = makeSeeded(42)
+        let array = RuntimeArrayBox(length: 5)
+        array.elements = [11, 22, 33, 44, 55]
+        let arrayRaw = registerRuntimeObject(array)
+        var thrown = 0
+        let resultRaw = kk_random_nextBytes_range(r, arrayRaw, 2, 5, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(resultRaw, arrayRaw)
+        XCTAssertEqual(array.elements[0], 11)
+        XCTAssertEqual(array.elements[1], 22)
+        for byte in array.elements[2..<5] {
+            XCTAssertTrue(byte >= Int(Int8.min) && byte <= Int(Int8.max),
+                          "Filled byte must be in Kotlin Byte range [-128, 127], got \(byte)")
+        }
+    }
+
+    func testNextBytesRangeThrowsForOutOfBoundsRange() {
+        let r = makeSeeded(42)
+        let list = RuntimeListBox(elements: [0, 0, 0])
+        let listRaw = registerRuntimeObject(list)
+        var thrown = 0
+        let resultRaw = kk_random_nextBytes_range(r, listRaw, 2, 4, &thrown)
+        XCTAssertEqual(resultRaw, listRaw)
+        XCTAssertNotEqual(thrown, 0, "nextBytes(array, fromIndex, toIndex) must throw for out-of-bounds ranges")
+        XCTAssertEqual(list.elements, [0, 0, 0])
+    }
+
     // MARK: - nextLong: boundary values (reconfirm via nextLong functions)
 
     func testNextLongRangeSingleValue() {
