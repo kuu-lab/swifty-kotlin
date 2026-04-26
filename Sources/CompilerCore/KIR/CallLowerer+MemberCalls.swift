@@ -3607,7 +3607,9 @@ extension CallLowerer {
                 } else if calleeName == interner.intern("windowed"), args.count == 4 {
                     runtimeCallee = "kk_sequence_windowed_transform"
                 } else if calleeName == interner.intern("chunked") {
-                    runtimeCallee = "kk_sequence_chunked"
+                    runtimeCallee = args.count == 2
+                        ? "kk_sequence_chunked_transform"
+                        : "kk_sequence_chunked"
                 } else if calleeName == interner.intern("onEach") {
                     runtimeCallee = "kk_sequence_onEach"
                 } else if calleeName == interner.intern("onEachIndexed") {
@@ -3655,6 +3657,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_none"
                         || runtimeCallee == "kk_sequence_mapNotNull"
                         || runtimeCallee == "kk_sequence_mapIndexed"
+                        || runtimeCallee == "kk_sequence_chunked_transform"
                         || runtimeCallee == "kk_sequence_windowed_transform"
                         || runtimeCallee == "kk_sequence_onEach"
                         || runtimeCallee == "kk_sequence_onEachIndexed"
@@ -5648,6 +5651,21 @@ extension CallLowerer {
                 finalArguments.insert(zeroExpr, at: 3)
             }
         }
+        if loweredCallee == interner.intern("kk_sequence_chunked"),
+           hasHOFLambdaArg,
+           finalArguments.count == 3
+        {
+            loweredCallee = interner.intern("kk_sequence_chunked_transform")
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[2] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
         if let primitiveKind = collectionElementPrimitiveCompareKind(
             of: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
             sema: sema
@@ -5967,6 +5985,7 @@ extension CallLowerer {
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_list_windowed_transform"),
+            interner.intern("kk_sequence_chunked_transform"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_mutable_list_replaceAll"),
             interner.intern("kk_mutable_list_removeIf"),
@@ -7516,7 +7535,9 @@ extension CallLowerer {
             case interner.intern("withIndex"):
                 return interner.intern("kk_sequence_withIndex")
             case interner.intern("chunked"):
-                return interner.intern("kk_sequence_chunked")
+                return interner.intern(hasHOFLambdaArg
+                    ? "kk_sequence_chunked_transform"
+                    : "kk_sequence_chunked")
             case interner.intern("windowed"):
                 return interner.intern("kk_sequence_windowed")
             case interner.intern("onEach"):

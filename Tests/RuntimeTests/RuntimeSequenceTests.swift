@@ -1855,6 +1855,34 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(transformed, 0)
     }
 
+    func testSequenceChunkedTransformCorrectness() {
+        let seq = makeSequence([1, 2, 3, 4, 5])
+        let transformed = kk_sequence_chunked_transform(
+            seq,
+            2,
+            unsafeBitCast(summingWindowTransform, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(sequenceElements(transformed), [3, 7, 5])
+    }
+
+    func testSequenceChunkedTransformPropagatesThrowables() {
+        let seq = makeSequence([1, 2, 3, 4])
+        var thrown = 0
+        let transformed = kk_sequence_chunked_transform(
+            seq,
+            2,
+            unsafeBitCast(throwingWindowTransform, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(transformed, 0)
+    }
+
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {

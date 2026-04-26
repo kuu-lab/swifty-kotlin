@@ -257,6 +257,44 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenCompilesSequenceChunkedTransformOverload() throws {
+        let source = """
+        fun main() {
+            val sums = sequenceOf(1, 2, 3, 4, 5).chunked(2) { chunk ->
+                chunk[0] + chunk.size
+            }
+            println(sums.toList())
+
+            val labels = sequenceOf("ab", "cd", "ef").chunked(2) { chunk ->
+                chunk.joinToString("|")
+            }
+            println(labels.toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SequenceChunkedTransformEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                [3, 5, 6]
+                [ab|cd, ef]
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testSequenceZipWithNextTransformReturnsAdjacentResults() throws {
         let source = """
         fun main() {

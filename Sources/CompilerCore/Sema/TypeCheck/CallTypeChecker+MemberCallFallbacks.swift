@@ -474,12 +474,24 @@ extension CallTypeChecker {
             }
             return lastArgExprNode.isLambdaOrCallableRef
         }()
+        let isIterableChunkedTransformCall: Bool = {
+            guard memberName == "chunked",
+                  args.count == 2,
+                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  let lastArgExpr = args.last?.expr,
+                  let lastArgExprNode = ctx.ast.arena.expr(lastArgExpr)
+            else {
+                return false
+            }
+            return lastArgExprNode.isLambdaOrCallableRef
+        }()
         // Allow arrays to fall through to collection fallback only when
         // tryArrayMemberFallback does not handle the member (isSupportedArrayMember returns false).
         guard !isClassNameReceiver,
               !(isArrayReceiver && isSupportedArrayMember(memberName)),
               isCollectionLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
                 || isIterableWindowedTransformCall
+                || isIterableChunkedTransformCall
         else {
             return nil
         }
@@ -1218,7 +1230,7 @@ extension CallTypeChecker {
         case interner.intern("windowed"):
             return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4
         case interner.intern("chunked"):
-            return argCount == 1 || (!isSequenceReceiver && argCount == 2)
+            return argCount == 1 || argCount == 2
         case interner.intern("count"), interner.intern("first"), interner.intern("last"),
              interner.intern("single"):
             return argCount == 0 || argCount == 1
@@ -1771,6 +1783,26 @@ extension CallTypeChecker {
            args.count == 4
         {
             let transformExpr = args[3].expr
+            let transformType = sema.bindings.exprTypes[transformExpr] ?? sema.types.anyType
+            let transformedElementType: TypeID
+            if case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType)) {
+                transformedElementType = fnType.returnType
+            } else {
+                transformedElementType = sema.types.anyType
+            }
+            return makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: transformedElementType
+            )
+        }
+
+        if isSequenceReceiver,
+           memberName == interner.intern("chunked"),
+           args.count == 2
+        {
+            let transformExpr = args[1].expr
             let transformType = sema.bindings.exprTypes[transformExpr] ?? sema.types.anyType
             let transformedElementType: TypeID
             if case let .functionType(fnType) = sema.types.kind(of: sema.types.makeNonNullable(transformType)) {
