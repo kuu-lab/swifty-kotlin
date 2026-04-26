@@ -9408,6 +9408,62 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // Register unsigned primitive array to signed primitive array view conversions.
+        let signedViewConversions: [(source: String, target: String, member: String, external: String)] = [
+            ("UByteArray", "ByteArray", "asByteArray", "kk_uByteArray_asByteArray"),
+            ("UShortArray", "ShortArray", "asShortArray", "kk_uShortArray_asShortArray"),
+            ("UIntArray", "IntArray", "asIntArray", "kk_uIntArray_asIntArray"),
+            ("ULongArray", "LongArray", "asLongArray", "kk_uLongArray_asLongArray"),
+        ]
+        for conversion in signedViewConversions {
+            let sourceFQName = kotlinPkg + [interner.intern(conversion.source)]
+            let targetFQName = kotlinPkg + [interner.intern(conversion.target)]
+            guard let sourceSymbol = symbols.lookup(fqName: sourceFQName),
+                  let targetSymbol = symbols.lookup(fqName: targetFQName)
+            else {
+                continue
+            }
+
+            let memberName = interner.intern(conversion.member)
+            let memberFQName = sourceFQName + [memberName]
+            if symbols.lookup(fqName: memberFQName) == nil {
+                let memberSymbol = symbols.define(
+                    kind: .function,
+                    name: memberName,
+                    fqName: memberFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(sourceSymbol, for: memberSymbol)
+                symbols.setExternalLinkName(conversion.external, for: memberSymbol)
+
+                let receiverType = types.make(.classType(ClassType(
+                    classSymbol: sourceSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let returnType = types.make(.classType(ClassType(
+                    classSymbol: targetSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: receiverType,
+                        parameterTypes: [],
+                        returnType: returnType,
+                        isSuspend: false,
+                        valueParameterSymbols: [],
+                        valueParameterHasDefaultValues: [],
+                        valueParameterIsVararg: [],
+                        typeParameterSymbols: []
+                    ),
+                    for: memberSymbol
+                )
+            }
+        }
+
         // Register binarySearch(element, fromIndex, toIndex) for primitive arrays.
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
