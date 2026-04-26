@@ -164,8 +164,8 @@ extension RandomSyntheticLinkTests {
                       "nextBytes(array) must link to kk_random_nextBytes")
     }
 
-    /// nextBytes(size: Int) returning a new ByteArray is a documented gap.
-    func testNextBytesSizeOverloadGap() throws {
+    /// nextBytes(size: Int) returning a new ByteArray is registered and linked correctly.
+    func testNextBytesSizeOverloadIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let fq = ["kotlin", "random", "Random", "nextBytes"].map { interner.intern($0) }
@@ -178,10 +178,13 @@ extension RandomSyntheticLinkTests {
             return sig.parameterTypes.count == 1 &&
                 sig.parameterTypes.first == sema.types.intType
         }
-        // GAP: nextBytes(size: Int): ByteArray overload not yet registered.
-        XCTAssertNil(intParamOverload,
-                     "GAP(STDLIB-RANDOM-001): nextBytes(size: Int) overload not yet registered; " +
-                     "change to XCTAssertNotNil once added")
+        XCTAssertNotNil(intParamOverload, "nextBytes(size: Int): ByteArray overload must be registered")
+        if let intParamOverload,
+           let signature = sema.symbols.functionSignature(for: intParamOverload)
+        {
+            XCTAssertEqual(sema.symbols.externalLinkName(for: intParamOverload), "kk_random_nextBytes_size")
+            XCTAssertTrue(signature.canThrow, "nextBytes(size) must expose its negative-size throw path")
+        }
     }
 
     // MARK: - nextBits member

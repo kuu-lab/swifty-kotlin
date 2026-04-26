@@ -244,6 +244,18 @@ extension DataFlowSemaPhase {
         registerSyntheticRandomMember(
             ownerSymbol: randomSymbol,
             ownerType: randomType,
+            name: "nextBytes",
+            externalLinkName: "kk_random_nextBytes_size",
+            returnType: byteArrayType,
+            parameters: [(name: "size", type: intType)],
+            canThrow: true,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticRandomMember(
+            ownerSymbol: randomSymbol,
+            ownerType: randomType,
             name: "nextBoolean",
             externalLinkName: "kk_random_nextBoolean",
             returnType: boolType,

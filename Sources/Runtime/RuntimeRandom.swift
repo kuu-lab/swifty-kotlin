@@ -357,6 +357,19 @@ public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: filled))
 }
 
+@_cdecl("kk_random_nextBytes_size")
+public func kk_random_nextBytes_size(_ receiver: Int, _ size: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard size >= 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IllegalArgumentException: Random byte array size must be non-negative, but was \(size)."
+        )
+        return 0
+    }
+    let arrayRaw = registerRuntimeObject(RuntimeListBox(elements: Array(repeating: 0, count: size)))
+    return kk_random_nextBytes(receiver, arrayRaw)
+}
+
 @_cdecl("kk_random_nextBoolean")
 public func kk_random_nextBoolean(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
