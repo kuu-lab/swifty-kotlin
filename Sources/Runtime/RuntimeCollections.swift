@@ -1023,7 +1023,7 @@ public func kk_collection_toList(_ collRaw: Int) -> Int {
     if let ptr = UnsafeMutableRawPointer(bitPattern: collRaw) {
         let isObj = runtimeStorage.withLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
         if isObj, tryCast(ptr, to: RuntimeSequenceBox.self) != nil {
-            return kk_sequence_to_list(collRaw)
+            return kk_sequence_to_list(collRaw, nil)
         }
     }
     return registerRuntimeObject(RuntimeListBox(elements: []))
