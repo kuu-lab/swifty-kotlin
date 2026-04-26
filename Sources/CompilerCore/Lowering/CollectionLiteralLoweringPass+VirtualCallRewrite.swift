@@ -773,7 +773,7 @@ extension CollectionLiteralLoweringPass {
                         callee: lookup.kkSequenceToListName,
                         arguments: [receiver],
                         result: toListResult,
-                        canThrow: false,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                     listExprIDs.insert(result.rawValue)
@@ -785,7 +785,7 @@ extension CollectionLiteralLoweringPass {
                         callee: lookup.kkSequenceToListName,
                         arguments: [receiver],
                         result: nil,
-                        canThrow: false,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                 }
@@ -819,6 +819,19 @@ extension CollectionLiteralLoweringPass {
                 }
                 return true
             }
+        }
+
+        if callee == lookup.constrainOnceName, arguments.isEmpty, sequenceExprIDs.contains(receiver.rawValue) {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkSequenceConstrainOnceName,
+                arguments: [receiver],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result { sequenceExprIDs.insert(result.rawValue) }
+            return true
         }
 
         // toSet() on sequence → kk_sequence_toSet (STDLIB-470)

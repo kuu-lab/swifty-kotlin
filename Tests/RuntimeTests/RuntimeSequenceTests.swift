@@ -862,6 +862,22 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(listElements(asList), [1, 3])
     }
 
+    func testConstrainOnceThrowsOnSecondTraversal() {
+        let seq = kk_sequence_map(
+            kk_sequence_constrainOnce(makeSequence([1, 2, 3])),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0
+        )
+
+        var thrown = 0
+        XCTAssertEqual(listElements(kk_sequence_to_list(seq, &thrown)), [10, 20, 30])
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(listElements(kk_sequence_to_list(seq, &thrown)), [])
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     // MARK: - Eager Materialization (Intentional Simplification)
 
     func testPlusEagerlyMaterializesResult() {

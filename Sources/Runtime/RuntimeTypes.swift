@@ -442,9 +442,22 @@ enum SequenceStepKind {
 /// Stores a chain of lazy steps that are only evaluated on terminal operations.
 final class RuntimeSequenceBox {
     var steps: [SequenceStepKind]
+    let constrainedOnce: Bool
+    private let consumeLock = NSLock()
+    private var consumed = false
 
-    init(steps: [SequenceStepKind]) {
+    init(steps: [SequenceStepKind], constrainedOnce: Bool = false) {
         self.steps = steps
+        self.constrainedOnce = constrainedOnce
+    }
+
+    func beginTraversal() -> Bool {
+        guard constrainedOnce else { return true }
+        consumeLock.lock()
+        defer { consumeLock.unlock() }
+        guard !consumed else { return false }
+        consumed = true
+        return true
     }
 }
 

@@ -822,6 +822,34 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testSequenceConstrainOnceUsesRuntimeExternalLink() throws {
+        let source = """
+        fun render(values: Sequence<Int>): Sequence<Int> = values.constrainOnce()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0002", in: ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let symbol = try XCTUnwrap(
+                sema.symbols.lookup(
+                    fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("sequences"),
+                        ctx.interner.intern("Sequence"),
+                        ctx.interner.intern("constrainOnce"),
+                    ]
+                ),
+                "Expected synthetic Sequence.constrainOnce member to be registered"
+            )
+            XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_sequence_constrainOnce")
+        }
+    }
+
     func testMutableListMutationMembersUseRuntimeExternalLinks() throws {
         let source = """
         fun mutate(values: MutableList<Int>) {

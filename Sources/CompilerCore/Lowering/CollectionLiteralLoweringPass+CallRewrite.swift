@@ -1715,11 +1715,28 @@ extension CollectionLiteralLoweringPass {
                         || callee == lookup.kkSequenceTakeName || callee == lookup.kkSequenceFlatMapName
                         || callee == lookup.kkSequenceDropName || callee == lookup.kkSequenceDistinctName
                         || callee == lookup.kkSequenceZipName
+                        || callee == lookup.kkSequenceConstrainOnceName
                         || callee == lookup.kkSequencePlusName || callee == lookup.kkSequenceMinusName
                     {
                         loweredBody.append(instruction)
                         if let result { sequenceExprIDs.insert(result.rawValue) }
                         continue
+                    }
+
+                    if callee == lookup.constrainOnceName, arguments.count == 1 {
+                        let receiverID = arguments[0]
+                        if sequenceExprIDs.contains(receiverID.rawValue) {
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkSequenceConstrainOnceName,
+                                arguments: [receiverID],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            if let result { sequenceExprIDs.insert(result.rawValue) }
+                            continue
+                        }
                     }
 
                     if callee == lookup.asSequenceName, arguments.count == 1 {
@@ -2347,7 +2364,7 @@ extension CollectionLiteralLoweringPass {
                                 callee: lookup.kkSequenceToListName,
                                 arguments: [receiverID],
                                 result: toListResult,
-                                canThrow: false,
+                                canThrow: true,
                                 thrownResult: nil
                             ))
                             if let result {

@@ -78,6 +78,8 @@ private let kEmptySequenceNoSuchElement = "NoSuchElementException: Sequence is e
 private let kEmptySequenceCannotReduce = "UnsupportedOperationException: Empty sequence can't be reduced."
 /// Error message when a generator sequence exceeds the traversal hard limit.
 private let kSequenceGeneratorLimitReached = "IllegalStateException: Sequence generator exceeded traversal hard limit (\(kSequenceGeneratorHardLimit))."
+/// Error message for `Sequence.constrainOnce()` after the first traversal.
+private let kSequenceConstrainOnceConsumed = "This sequence can be consumed only once."
 
 private func runtimeSequenceTransformElement(
     _ element: Int,
@@ -423,6 +425,15 @@ private func runtimeTraverseSequenceWithState(
     outThrown: UnsafeMutablePointer<Int>?,
     yield: @escaping (Int) -> Bool
 ) {
+    guard seq.beginTraversal() else {
+        let message = kSequenceConstrainOnceConsumed
+        if let outThrown {
+            outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
+        } else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: IllegalStateException: \(message)")
+        }
+        return
+    }
     let transformSteps = seq.steps.filter {
         switch $0 {
         case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
@@ -975,7 +986,7 @@ public func kk_sequence_map(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> I
     }
     var newSteps = seq.steps
     newSteps.append(.mapStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -988,7 +999,7 @@ public func kk_sequence_filter(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
     }
     var newSteps = seq.steps
     newSteps.append(.filterStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1004,7 +1015,7 @@ public func kk_sequence_take(_ seqRaw: Int, _ count: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.takeStep(count: count))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1020,8 +1031,17 @@ public func kk_sequence_drop(_ seqRaw: Int, _ count: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.dropStep(count: count))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
+}
+
+@_cdecl("kk_sequence_constrainOnce")
+public func kk_sequence_constrainOnce(_ seqRaw: Int) -> Int {
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        return registerRuntimeObject(RuntimeSequenceBox(steps: seq.steps, constrainedOnce: true))
+    }
+    let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: sourceElements)], constrainedOnce: true))
 }
 
 @_cdecl("kk_sequence_distinct")
@@ -1036,7 +1056,7 @@ public func kk_sequence_distinct(_ seqRaw: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.distinctStep)
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1053,7 +1073,7 @@ public func kk_sequence_zip(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.zipStep(otherElements: otherElements))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1069,7 +1089,7 @@ public func kk_sequence_takeWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     }
     var newSteps = seq.steps
     newSteps.append(.takeWhileStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1082,7 +1102,7 @@ public func kk_sequence_filterNot(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     }
     var newSteps = seq.steps
     newSteps.append(.filterNotStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1098,7 +1118,7 @@ public func kk_sequence_dropWhile(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int
     }
     var newSteps = seq.steps
     newSteps.append(.dropWhileStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1121,7 +1141,7 @@ public func kk_sequence_mapNotNull(
     }
     var newSteps = seq.steps
     newSteps.append(.mapNotNullStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1137,7 +1157,7 @@ public func kk_sequence_filterNotNull(_ seqRaw: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.filterNotNullStep)
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1158,7 +1178,7 @@ public func kk_sequence_mapIndexed(
     }
     var newSteps = seq.steps
     newSteps.append(.mapIndexedStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1179,7 +1199,7 @@ public func kk_sequence_onEachIndexed(
     }
     var newSteps = seq.steps
     newSteps.append(.onEachIndexedStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1195,7 +1215,7 @@ public func kk_sequence_withIndex(_ seqRaw: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.withIndexStep)
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
@@ -1303,13 +1323,26 @@ public func kk_sequence_flatMap(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw: Int) 
     }
     var newSteps = seq.steps
     newSteps.append(.flatMapStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 
 @_cdecl("kk_sequence_to_list")
-public func kk_sequence_to_list(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+public func kk_sequence_to_list(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    let elements: [Int]
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        var collected: [Int] = []
+        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
+            collected.append(elem)
+            return true
+        }
+        if let outThrown, outThrown.pointee != 0 {
+            return registerRuntimeObject(RuntimeListBox(elements: []))
+        }
+        elements = collected
+    } else {
+        elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    }
     let list = RuntimeListBox(elements: elements)
     return registerRuntimeObject(list)
 }
@@ -3122,7 +3155,7 @@ public func kk_sequence_onEach(
     }
     var newSteps = seq.steps
     newSteps.append(.onEachStep(fnPtr: fnPtr, closureRaw: closureRaw))
-    let newSeq = RuntimeSequenceBox(steps: newSteps)
+    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainedOnce: seq.constrainedOnce)
     return registerRuntimeObject(newSeq)
 }
 

@@ -3974,6 +3974,7 @@ extension CallLowerer {
                 let sortedDescendingID = interner.intern("sortedDescending")
                 let filterNotNullID = interner.intern("filterNotNull")
                 let asIterableID = interner.intern("asIterable")
+                let constrainOnceID = interner.intern("constrainOnce")
                 let withIndexID = interner.intern("withIndex")
                 let firstID = interner.intern("first")
                 let firstOrNullID = interner.intern("firstOrNull")
@@ -4010,6 +4011,8 @@ extension CallLowerer {
                     interner.intern("kk_sequence_filterNotNull")
                 case asIterableID:
                     interner.intern("kk_sequence_asIterable")
+                case constrainOnceID:
+                    interner.intern("kk_sequence_constrainOnce")
                 case withIndexID:
                     interner.intern("kk_sequence_withIndex")
                 case firstID:
@@ -4056,7 +4059,8 @@ extension CallLowerer {
                         ))
                         return result
                     }
-                    let canThrow = runtimeCallee == seqFirstCallee
+                    let canThrow = runtimeCallee == interner.intern("kk_sequence_to_list")
+                        || runtimeCallee == seqFirstCallee
                         || runtimeCallee == seqFirstOrNullCallee
                         || runtimeCallee == seqLastCallee
                         || runtimeCallee == seqLastOrNullCallee
@@ -7576,6 +7580,7 @@ extension CallLowerer {
             let firstOrNullName = interner.intern("firstOrNull")
             let lastName = interner.intern("last")
             let foldName = interner.intern("fold")
+            let constrainOnceName = interner.intern("constrainOnce")
             let countName = interner.intern("count")
             switch internedMemberName {
             case mapName:
@@ -7586,6 +7591,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_take")
             case toListName:
                 return interner.intern("kk_sequence_to_list")
+            case constrainOnceName:
+                return interner.intern("kk_sequence_constrainOnce")
             case forEachName:
                 return interner.intern("kk_sequence_forEach")
             case foldName:

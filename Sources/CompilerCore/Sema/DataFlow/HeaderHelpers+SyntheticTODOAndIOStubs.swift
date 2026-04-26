@@ -2641,7 +2641,8 @@ extension DataFlowSemaPhase {
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // firstOrNull(): T?
@@ -2655,7 +2656,8 @@ extension DataFlowSemaPhase {
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // last(): T
@@ -2904,7 +2906,8 @@ extension DataFlowSemaPhase {
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
             symbols: symbols,
-            interner: interner
+            interner: interner,
+            canThrow: true
         )
 
         // toMutableList(): MutableList<T>
@@ -2925,6 +2928,20 @@ extension DataFlowSemaPhase {
         registerSequenceMemberStub(
             named: "asIterable",
             externalLinkName: "kk_sequence_asIterable",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // constrainOnce(): Sequence<T>
+        registerSequenceMemberStub(
+            named: "constrainOnce",
+            externalLinkName: "kk_sequence_constrainOnce",
             receiverType: receiverType,
             parameters: [],
             returnType: receiverType,
