@@ -313,6 +313,9 @@ extension CodegenBackendIntegrationTests {
             val r = Random(7)
             val value = r.nextInt(10..15)
             println(value >= 10 && value <= 15)
+            val range = 20..25
+            val variableRangeValue = r.nextInt(range)
+            println(variableRangeValue >= 20 && variableRangeValue <= 25)
 
             try {
                 r.nextInt(15..10)
@@ -338,6 +341,7 @@ extension CodegenBackendIntegrationTests {
             XCTAssertEqual(
                 normalizedStdout,
                 """
+                true
                 true
                 true
                 """ + "\n"

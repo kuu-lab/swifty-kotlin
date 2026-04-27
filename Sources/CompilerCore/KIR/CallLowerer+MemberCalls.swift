@@ -5649,7 +5649,12 @@ extension CallLowerer {
         }
         if loweredCallee == interner.intern("kk_random_nextInt_until"),
            sourceArgExprs.count == 1,
-           sema.bindings.isRangeExpr(sourceArgExprs[0])
+           (sema.bindings.isRangeExpr(sourceArgExprs[0])
+            || nominalRangeElementType(
+                for: sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType,
+                sema: sema,
+                interner: interner
+            ) == sema.types.intType)
         {
             loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
         }

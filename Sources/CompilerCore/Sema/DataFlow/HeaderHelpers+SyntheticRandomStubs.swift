@@ -113,18 +113,6 @@ extension DataFlowSemaPhase {
             ownerSymbol: randomSymbol,
             ownerType: randomType,
             name: "nextInt",
-            externalLinkName: "kk_random_nextInt_rangeObject",
-            returnType: intType,
-            parameters: [(name: "range", type: intRangeType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextInt",
             externalLinkName: "kk_random_nextInt_until",
             returnType: intType,
             parameters: [(name: "until", type: intType)],
@@ -142,6 +130,18 @@ extension DataFlowSemaPhase {
                 (name: "from", type: intType),
                 (name: "until", type: intType),
             ],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticRandomMember(
+            ownerSymbol: randomSymbol,
+            ownerType: randomType,
+            name: "nextInt",
+            externalLinkName: "kk_random_nextInt_rangeObject",
+            returnType: intType,
+            parameters: [(name: "range", type: intRangeType)],
+            canThrow: true,
             symbols: symbols,
             interner: interner
         )
