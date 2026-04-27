@@ -425,6 +425,13 @@ public func kk_random_nextDouble_range(_ randomRaw: Int, _ fromBits: Int, _ unti
 
 // MARK: - nextBytes (STDLIB-653)
 
+private func runtimeRandomByte(receiver: Int) -> Int {
+    if let box = seededBox(from: receiver) {
+        return Int(Int8(truncatingIfNeeded: box.nextBits()))
+    }
+    return Int(Int8.random(in: Int8.min ... Int8.max))
+}
+
 @_cdecl("kk_random_nextBytes")
 public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     guard let list = runtimeListBox(from: arrayRaw) else {
@@ -434,16 +441,8 @@ public func kk_random_nextBytes(_ receiver: Int, _ arrayRaw: Int) -> Int {
     // Fill each element with a random byte in [-128, 127] (Kotlin's Byte range).
     var filled: [Int] = []
     filled.reserveCapacity(list.elements.count)
-    if let box = seededBox(from: receiver) {
-        for _ in list.elements {
-            let b = Int(Int8(truncatingIfNeeded: box.nextBits()))
-            filled.append(b)
-        }
-    } else {
-        for _ in list.elements {
-            let b = Int(Int8.random(in: Int8.min ... Int8.max))
-            filled.append(b)
-        }
+    for _ in list.elements {
+        filled.append(runtimeRandomByte(receiver: receiver))
     }
     return registerRuntimeObject(RuntimeListBox(elements: filled))
 }
@@ -459,6 +458,47 @@ public func kk_random_nextBytes_size(_ receiver: Int, _ size: Int, _ outThrown: 
     }
     let arrayRaw = registerRuntimeObject(RuntimeListBox(elements: Array(repeating: 0, count: size)))
     return kk_random_nextBytes(receiver, arrayRaw)
+}
+
+@_cdecl("kk_random_nextBytes_range")
+public func kk_random_nextBytes_range(
+    _ receiver: Int,
+    _ arrayRaw: Int,
+    _ fromIndex: Int,
+    _ toIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    if let list = runtimeListBox(from: arrayRaw) {
+        var elements = list.elements
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= elements.count else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "IllegalArgumentException: Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(elements.count)."
+            )
+            return arrayRaw
+        }
+        for index in fromIndex..<toIndex {
+            elements[index] = runtimeRandomByte(receiver: receiver)
+        }
+        list.elements = elements
+        return arrayRaw
+    }
+    if let array = runtimeArrayBox(from: arrayRaw) {
+        guard fromIndex >= 0, toIndex >= fromIndex, toIndex <= array.elements.count else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "IllegalArgumentException: Random.nextBytes range [\(fromIndex), \(toIndex)) is out of bounds for size \(array.elements.count)."
+            )
+            return arrayRaw
+        }
+        for index in fromIndex..<toIndex {
+            array.elements[index] = runtimeRandomByte(receiver: receiver)
+        }
+        return arrayRaw
+    }
+    outThrown?.pointee = runtimeAllocateThrowable(
+        message: "IllegalArgumentException: Random.nextBytes expected a ByteArray receiver."
+    )
+    return registerRuntimeObject(RuntimeListBox(elements: []))
 }
 
 @_cdecl("kk_random_nextBoolean")
