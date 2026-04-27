@@ -453,6 +453,14 @@ extension DataFlowSemaPhase {
             comparisonsPackageSymbol: comparisonsPackageSymbol,
             comparatorSymbol: comparatorSymbol
         )
+        registerCompareValuesByComparatorSelector(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparisonsPkg: comparisonsPkg,
+            comparisonsPackageSymbol: comparisonsPackageSymbol,
+            comparatorSymbol: comparatorSymbol
+        )
     }
 
     private func registerCompareValues(
@@ -726,6 +734,111 @@ extension DataFlowSemaPhase {
                 typeParameterUpperBoundsList: [[]]
             ),
             for: funcSymbol
+        )
+    }
+
+    private func registerCompareValuesByComparatorSelector(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparisonsPkg: [InternedString],
+        comparisonsPackageSymbol: SymbolID,
+        comparatorSymbol: SymbolID
+    ) {
+        let functionName = interner.intern("compareValuesBy")
+        let functionFQName = comparisonsPkg + [functionName]
+        let extLink = "kk_compareValuesByComparator"
+
+        let tParamSymbol = defineSyntheticTypeParameter(
+            named: "T",
+            fqName: functionFQName + [interner.intern("T_compareValuesByComparator")],
+            symbols: symbols,
+            interner: interner
+        )
+        let kParamSymbol = defineSyntheticTypeParameter(
+            named: "K",
+            fqName: functionFQName + [interner.intern("K_compareValuesByComparator")],
+            symbols: symbols,
+            interner: interner
+        )
+        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
+        let kParamType = types.make(.typeParam(TypeParamType(symbol: kParamSymbol, nullability: .nonNull)))
+        let comparatorType = types.make(.classType(ClassType(
+            classSymbol: comparatorSymbol,
+            args: [.invariant(kParamType)],
+            nullability: .nonNull
+        )))
+        let selectorType = types.make(.functionType(FunctionType(
+            params: [tParamType],
+            returnType: kParamType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let parameterTypes = [tParamType, tParamType, comparatorType, selectorType]
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.parameterTypes == parameterTypes && sig.returnType == types.intType
+        }) {
+            symbols.setExternalLinkName(extLink, for: existing)
+            return
+        }
+
+        let funcSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        symbols.setParentSymbol(comparisonsPackageSymbol, for: funcSymbol)
+        symbols.setExternalLinkName(extLink, for: funcSymbol)
+
+        let parameterSymbols: [SymbolID] = ["a", "b", "comparator", "selector"].map { name in
+            let internedName = interner.intern(name)
+            let symbol = symbols.define(
+                kind: .valueParameter,
+                name: internedName,
+                fqName: functionFQName + [interner.intern("\(name)_compareValuesByComparator")],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(funcSymbol, for: symbol)
+            return symbol
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: types.intType,
+                isSuspend: false,
+                valueParameterSymbols: parameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: parameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: parameterSymbols.count),
+                typeParameterSymbols: [tParamSymbol, kParamSymbol],
+                typeParameterUpperBoundsList: [[], []]
+            ),
+            for: funcSymbol
+        )
+    }
+
+    private func defineSyntheticTypeParameter(
+        named name: String,
+        fqName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        if let existing = symbols.lookup(fqName: fqName) {
+            return existing
+        }
+        return symbols.define(
+            kind: .typeParameter,
+            name: interner.intern(name),
+            fqName: fqName,
+            declSite: nil,
+            visibility: .private,
+            flags: []
         )
     }
 }

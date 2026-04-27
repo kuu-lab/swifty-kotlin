@@ -1842,6 +1842,56 @@ final class CallLowerer {
             return [loweredArguments[0], loweredArguments[1], arrayExpr]
         }
 
+        if externalLinkName == "kk_compareValuesByComparator",
+           loweredArguments.count == 4
+        {
+            var finalArgs: [KIRExprID] = [loweredArguments[0], loweredArguments[1], loweredArguments[2]]
+            var lambdaID = loweredArguments[3]
+            var selectorCallableInfo = driver.ctx.callableValueInfo(for: lambdaID)
+            if selectorCallableInfo == nil,
+               case let .symbolRef(symbol)? = arena.expr(lambdaID),
+               let function = arena.function(for: symbol)
+            {
+                selectorCallableInfo = KIRCallableValueInfo(
+                    symbol: function.symbol,
+                    callee: function.name,
+                    captureArguments: arena.lambdaCaptureArgsBySymbol[function.symbol] ?? [],
+                    hasClosureParam: function.params.count >= 2
+                )
+            }
+            if let callableInfo = selectorCallableInfo,
+               !callableInfo.hasClosureParam,
+               let adaptedInfo = makeCollectionHOFCallableAdapter(
+                    callableInfo: callableInfo,
+                    loweredArgID: lambdaID,
+                    argExprID: originalArgs[3].expr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+               )
+            {
+                let adaptedExpr = arena.appendExpr(
+                    .symbolRef(adaptedInfo.symbol),
+                    type: arena.exprType(lambdaID) ?? sema.types.anyType
+                )
+                instructions.append(.constValue(result: adaptedExpr, value: .symbolRef(adaptedInfo.symbol)))
+                lambdaID = adaptedExpr
+                selectorCallableInfo = adaptedInfo
+            }
+
+            finalArgs.append(lambdaID)
+            if let callableInfo = selectorCallableInfo,
+               let closureRaw = callableInfo.captureArguments.first
+            {
+                finalArgs.append(closureRaw)
+            } else {
+                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                finalArgs.append(zeroExpr)
+            }
+            return finalArgs
+        }
+
         // compareValuesBy: expand selector lambda args to (fnPtr, closureRaw) pairs.
         // kk_compareValuesBy1(a, b, selector) → (a, b, selectorFn, selectorClosureRaw)
         // kk_compareValuesBy(a, b, sel1, sel2) → (a, b, sel1Fn, sel1Closure, sel2Fn, sel2Closure)

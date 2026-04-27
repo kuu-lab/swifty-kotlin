@@ -511,7 +511,13 @@ final class ComparisonsAPISurfaceInventoryTests: XCTestCase {
             (["kotlin", "comparisons", "compareValues"], ["kk_compareValues"]),
             (
                 ["kotlin", "comparisons", "compareValuesBy"],
-                ["kk_compareValuesBy1", "kk_compareValuesBy", "kk_compareValuesBy3", "kk_compareValuesByVararg"]
+                [
+                    "kk_compareValuesBy1",
+                    "kk_compareValuesBy",
+                    "kk_compareValuesBy3",
+                    "kk_compareValuesByVararg",
+                    "kk_compareValuesByComparator"
+                ]
             ),
         ]
 

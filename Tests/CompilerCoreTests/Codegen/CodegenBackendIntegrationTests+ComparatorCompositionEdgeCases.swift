@@ -76,6 +76,30 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenCompilesCompareValuesByComparatorSelector() throws {
+        let source = """
+        fun main() {
+            val ascending = compareBy<Int> { it }
+            println(compareValuesBy(13, 25, ascending) { it % 10 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "CompareValuesByComparatorSelector",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "-1\n")
+        }
+    }
+
     func testCodegenCompilesCompareByDescendingComparatorSelector() throws {
         let source = """
         fun main() {
