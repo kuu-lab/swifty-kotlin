@@ -436,6 +436,31 @@ final class RuntimeRandomBoundaryTests: XCTestCase {
         XCTAssertEqual(box.elements.count, size, "nextBytes should fill exactly \(size) bytes")
     }
 
+    func testNextBytesSizeCreatesByteArray() {
+        let r = makeSeeded(42)
+        var thrown: Int = 0
+        let resultRaw = kk_random_nextBytes_size(r, 7, &thrown)
+        XCTAssertEqual(thrown, 0)
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: resultRaw),
+              let box = tryCast(ptr, to: RuntimeListBox.self) else {
+            XCTFail("nextBytes(size) should return a valid RuntimeListBox")
+            return
+        }
+        XCTAssertEqual(box.elements.count, 7, "nextBytes(size) should create exactly size bytes")
+        for (i, byte) in box.elements.enumerated() {
+            XCTAssertTrue(byte >= Int(Int8.min) && byte <= Int(Int8.max),
+                          "Byte at index \(i) must be in [-128, 127], got \(byte)")
+        }
+    }
+
+    func testNextBytesSizeThrowsForNegativeSize() {
+        let r = makeSeeded(42)
+        var thrown: Int = 0
+        let resultRaw = kk_random_nextBytes_size(r, -1, &thrown)
+        XCTAssertEqual(resultRaw, 0)
+        XCTAssertNotEqual(thrown, 0, "nextBytes(size) must throw for negative size")
+    }
+
     // MARK: - nextLong: boundary values (reconfirm via nextLong functions)
 
     func testNextLongRangeSingleValue() {
