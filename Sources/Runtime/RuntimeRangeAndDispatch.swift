@@ -257,23 +257,29 @@ private func runtimeCharRangeRandomOrNull(_ range: RuntimeRangeBox, randomRaw: I
     return kk_box_char(value)
 }
 
-// MARK: - Range.random(Random) implementation (rejection sampling; STDLIB-RANGE-RANDOM-001/002)
+// MARK: - Range.random(Random) helpers (rejection sampling; STDLIB-RANGE-RANDOM-002)
 
-private func runtimeRandomBitsFromKotlinRandom(from randomRaw: Int) -> UInt64 {
+private func runtimeRandomBits(from randomRaw: Int) -> UInt64 {
     UInt64(bitPattern: Int64(kk_random_nextLong(randomRaw)))
 }
 
-private func runtimeRandomIndexUniform(upperBound: UInt64, randomRaw: Int) -> UInt64 {
+private func runtimeRandomIndex(upperBound: UInt64, randomRaw: Int) -> UInt64 {
     precondition(upperBound > 0)
     if upperBound == 1 {
         return 0
     }
+    // Rejection sampling keeps the index uniform without modulo bias.
     let rejectionLimit = UInt64.max - (UInt64.max % upperBound)
-    var candidate = runtimeRandomBitsFromKotlinRandom(from: randomRaw)
+    var candidate = runtimeRandomBits(from: randomRaw)
     while candidate >= rejectionLimit {
-        candidate = runtimeRandomBitsFromKotlinRandom(from: randomRaw)
+        candidate = runtimeRandomBits(from: randomRaw)
     }
     return candidate % upperBound
+}
+
+private func runtimeRangeRandomError(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: Range is empty.")
+    return 0
 }
 
 private func runtimeSignedRangeRandom(
@@ -285,27 +291,28 @@ private func runtimeSignedRangeRandom(
 ) -> Int {
     outThrown?.pointee = 0
     guard step != 0 else {
-        return runtimeRangeRandomErrorForThrowingRandom(outThrown)
+        return runtimeRangeRandomError(outThrown)
     }
     let ascending = step > 0
     guard ascending ? first <= last : first >= last else {
-        return runtimeRangeRandomErrorForThrowingRandom(outThrown)
+        return runtimeRangeRandomError(outThrown)
     }
     let absStep = UInt64(step.magnitude)
     let signMask = UInt64(1) << 63
     let firstOrdered = UInt64(bitPattern: Int64(first)) ^ signMask
     let lastOrdered = UInt64(bitPattern: Int64(last)) ^ signMask
     if absStep == 1 {
+        // A full-width range can use the raw 64-bit random value directly.
         if ascending && firstOrdered == 0 && lastOrdered == UInt64.max {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBitsFromKotlinRandom(from: randomRaw)))
+            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
         }
         if !ascending && firstOrdered == UInt64.max && lastOrdered == 0 {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBitsFromKotlinRandom(from: randomRaw)))
+            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
         }
     }
     let distance = ascending ? lastOrdered &- firstOrdered : firstOrdered &- lastOrdered
     let count = distance / absStep + 1
-    let index = runtimeRandomIndexUniform(upperBound: count, randomRaw: randomRaw)
+    let index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
     let offset = index &* absStep
     let chosenOrdered = ascending ? firstOrdered &+ offset : firstOrdered &- offset
     return Int(bitPattern: UInt(truncatingIfNeeded: chosenOrdered ^ signMask))
@@ -320,34 +327,30 @@ private func runtimeUnsignedRangeRandom(
 ) -> Int {
     outThrown?.pointee = 0
     guard step != 0 else {
-        return runtimeRangeRandomErrorForThrowingRandom(outThrown)
+        return runtimeRangeRandomError(outThrown)
     }
     let ascending = step > 0
     guard ascending ? first <= last : first >= last else {
-        return runtimeRangeRandomErrorForThrowingRandom(outThrown)
+        return runtimeRangeRandomError(outThrown)
     }
     let absStep = UInt64(step.magnitude)
     let first64 = UInt64(first)
     let last64 = UInt64(last)
     if absStep == 1 {
+        // A full-width unsigned range can use the raw 64-bit random value directly.
         if ascending && first64 == 0 && last64 == UInt64.max {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBitsFromKotlinRandom(from: randomRaw)))
+            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
         }
         if !ascending && first64 == UInt64.max && last64 == 0 {
-            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBitsFromKotlinRandom(from: randomRaw)))
+            return Int(bitPattern: UInt(truncatingIfNeeded: runtimeRandomBits(from: randomRaw)))
         }
     }
     let distance = ascending ? last64 &- first64 : first64 &- last64
     let count = distance / absStep + 1
-    let index = runtimeRandomIndexUniform(upperBound: count, randomRaw: randomRaw)
+    let index = runtimeRandomIndex(upperBound: count, randomRaw: randomRaw)
     let offset = index &* absStep
     let chosen = ascending ? first64 &+ offset : first64 &- offset
     return Int(bitPattern: UInt(truncatingIfNeeded: chosen))
-}
-
-private func runtimeRangeRandomErrorForThrowingRandom(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: Range is empty.")
-    return 0
 }
 
 @_cdecl("kk_op_notnull")

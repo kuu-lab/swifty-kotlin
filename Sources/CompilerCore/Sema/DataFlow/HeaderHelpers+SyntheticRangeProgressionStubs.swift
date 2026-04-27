@@ -20,6 +20,13 @@ extension DataFlowSemaPhase {
             )
         }
         let rangesFQName: [InternedString] = [kotlinName, rangesName]
+        let randomType = syntheticNominalType(
+            named: "Random",
+            in: [kotlinName, interner.intern("random")],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         let rangesPackageSymbol: SymbolID
         if let existing = symbols.lookup(fqName: rangesFQName) {
             rangesPackageSymbol = existing
@@ -145,7 +152,8 @@ extension DataFlowSemaPhase {
             openEndRangeSymbol: openEndRangeSymbol,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            randomType: randomType
         )
         registerSyntheticProgressionStub(
             named: "ULongProgression",
@@ -164,7 +172,8 @@ extension DataFlowSemaPhase {
             openEndRangeSymbol: openEndRangeSymbol,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            randomType: randomType
         )
         registerSyntheticIntRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
@@ -172,7 +181,8 @@ extension DataFlowSemaPhase {
             openEndRangeSymbol: openEndRangeSymbol,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            randomType: randomType
         )
         registerSyntheticLongRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
@@ -180,7 +190,8 @@ extension DataFlowSemaPhase {
             openEndRangeSymbol: openEndRangeSymbol,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            randomType: randomType
         )
         registerSyntheticCharRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
@@ -188,7 +199,8 @@ extension DataFlowSemaPhase {
             openEndRangeSymbol: openEndRangeSymbol,
             symbols: symbols,
             types: types,
-            interner: interner
+            interner: interner,
+            randomType: randomType
         )
         registerSyntheticClosedRangeStub(
             rangesPackageSymbol: rangesPackageSymbol,
@@ -693,7 +705,8 @@ extension DataFlowSemaPhase {
         openEndRangeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        randomType: TypeID
     ) {
         let className = interner.intern("UIntRange")
         let classFQName = rangesFQName + [className]
@@ -962,7 +975,8 @@ extension DataFlowSemaPhase {
         openEndRangeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        randomType: TypeID
     ) {
         let className = interner.intern("ULongRange")
         let classFQName = rangesFQName + [className]
@@ -1356,7 +1370,8 @@ extension DataFlowSemaPhase {
         openEndRangeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        randomType: TypeID
     ) {
         let className = interner.intern("IntRange")
         let classFQName = rangesFQName + [className]
@@ -1907,7 +1922,8 @@ extension DataFlowSemaPhase {
         openEndRangeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        randomType: TypeID
     ) {
         let className = interner.intern("LongRange")
         let classFQName = rangesFQName + [className]
@@ -2000,7 +2016,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Methods: contains, isEmpty, iterator, reversed, toList, toLongArray
+        // Methods: contains, isEmpty, iterator, reversed, toList, toLongArray, random
         registerProgressionMethod(
             named: "contains",
             ownerSymbol: classSymbol,
@@ -2161,7 +2177,8 @@ extension DataFlowSemaPhase {
         openEndRangeSymbol: SymbolID,
         symbols: SymbolTable,
         types: TypeSystem,
-        interner: StringInterner
+        interner: StringInterner,
+        randomType: TypeID
     ) {
         let className = interner.intern("CharRange")
         let classFQName = rangesFQName + [className]

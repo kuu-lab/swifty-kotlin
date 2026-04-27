@@ -34,6 +34,57 @@ final class LoweringPassRegressionTests: XCTestCase {
         XCTAssertEqual(throwFlags["kk_suspend_suspendTarget"]?.allSatisfy { $0 == true }, true)
     }
 
+    func testRangeRandomCallsKeepRandomArgument() throws {
+        let source = """
+        import kotlin.random.Random
+
+        fun main() {
+            val random = Random(7)
+            val charValue = ('a'..'z').random(random)
+            val intValue = (10..20).random(random)
+            val longValue = (100L..110L).random(random)
+            val uintValue = (10u..20u).random(random)
+            val ulongValue = (100uL..110uL).random(random)
+            println(charValue)
+            println(intValue)
+            println(longValue)
+            println(uintValue)
+            println(ulongValue)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "RangeRandomLowering", emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let allCallees = extractCallees(from: body, interner: ctx.interner)
+
+            let randomCalls = body.compactMap { instruction -> (String, Int, Bool)? in
+                guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction else {
+                    return nil
+                }
+                let name = ctx.interner.resolve(callee)
+                guard name == "kk_range_random_random"
+                    || name == "kk_char_range_random_random"
+                    || name == "kk_long_range_random_random"
+                    || name == "kk_uint_range_random_random"
+                    || name == "kk_ulong_range_random_random"
+                else {
+                    return nil
+                }
+                return (name, arguments.count, canThrow)
+            }
+
+            XCTAssertEqual(randomCalls.count, 5, "Expected five range.random calls, got: \(randomCalls); all callees: \(allCallees)")
+            XCTAssertTrue(randomCalls.allSatisfy { _, argumentCount, canThrow in
+                argumentCount == 2 && canThrow
+            }, "Expected receiver + Random argument and canThrow=true, got: \(randomCalls); all callees: \(allCallees)")
+        }
+    }
+
     func testLoweringBuildsSuspendStateMachineAndThrowFlags() throws {
         let fixture = try makeLoweringRewriteFixture()
         let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: fixture.module, interner: fixture.interner)

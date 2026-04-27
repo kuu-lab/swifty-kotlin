@@ -302,4 +302,39 @@ extension RandomSyntheticLinkTests {
                      "GAP(STDLIB-RANDOM-002): nextInt(range: IntRange) extension not yet registered; " +
                      "change to XCTAssertNotNil once added")
     }
+
+    // MARK: - range.random(random: Random)
+
+    func testRangeRandomOverloadsAreRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let randomFQ = ["kotlin", "random", "Random"].map { interner.intern($0) }
+        let randomSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: randomFQ))
+        let randomType = sema.types.make(.classType(ClassType(
+            classSymbol: randomSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let cases: [(typeName: String, expectedLink: String)] = [
+            ("CharRange", "kk_char_range_random_random"),
+            ("IntRange", "kk_range_random_random"),
+            ("LongRange", "kk_long_range_random_random"),
+            ("UIntRange", "kk_uint_range_random_random"),
+            ("ULongRange", "kk_ulong_range_random_random"),
+        ]
+
+        for (typeName, expectedLink) in cases {
+            let fq = ["kotlin", "ranges", typeName, "random"].map { interner.intern($0) }
+            let candidates = sema.symbols.lookupAll(fqName: fq)
+            let overload = candidates.first { id in
+                guard let sig = sema.symbols.functionSignature(for: id) else { return false }
+                return sig.parameterTypes.count == 1 && sig.parameterTypes.first == randomType
+            }
+            XCTAssertNotNil(overload, "\(typeName).random(random: Random) must be registered")
+            if let overload {
+                XCTAssertEqual(sema.symbols.externalLinkName(for: overload), expectedLink)
+            }
+        }
+    }
 }
