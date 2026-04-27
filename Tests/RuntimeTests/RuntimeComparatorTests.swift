@@ -292,6 +292,22 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
     }
 
+    func testCompareValuesByComparatorSelector() {
+        withComparatorObject(mode: 0) { comparatorRaw in
+            var thrown = 0
+            let result = kk_compareValuesByComparator(
+                13,
+                25,
+                comparatorRaw,
+                selectorPtr(selectModTen),
+                0,
+                &thrown
+            )
+            XCTAssertEqual(kk_unbox_int(result), -1)
+            XCTAssertEqual(thrown, 0)
+        }
+    }
+
     // MARK: - thenBy
 
     func testComparatorThenBy() {

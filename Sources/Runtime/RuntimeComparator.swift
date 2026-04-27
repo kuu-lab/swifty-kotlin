@@ -1089,3 +1089,40 @@ public func kk_compareValuesByVararg(
     }
     return kk_box_int(0)
 }
+
+/// compareValuesBy(a: T, b: T, comparator: Comparator<K>, selector: (T) -> K): Int.
+@_cdecl("kk_compareValuesByComparator")
+public func kk_compareValuesByComparator(
+    _ a: Int,
+    _ b: Int,
+    _ comparatorRaw: Int,
+    _ selectorFn: Int,
+    _ selectorClosure: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    var thrown = 0
+    let keyA = runtimeInvokeCompareValuesSelector(
+        fnPtr: selectorFn,
+        closureRaw: selectorClosure,
+        value: a,
+        outThrown: &thrown
+    )
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+    let keyB = runtimeInvokeCompareValuesSelector(
+        fnPtr: selectorFn,
+        closureRaw: selectorClosure,
+        value: b,
+        outThrown: &thrown
+    )
+    if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+
+    let compareFnPtr = kk_itable_lookup(comparatorRaw, 0, 0)
+    guard compareFnPtr != 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "Invalid comparator object")
+        return 0
+    }
+    let compareFn = unsafeBitCast(compareFnPtr, to: RuntimeCollectionLambda2.self)
+    let result = compareFn(comparatorRaw, maybeUnbox(keyA), maybeUnbox(keyB), outThrown)
+    if outThrown?.pointee != 0 { return 0 }
+    return kk_box_int(result)
+}
