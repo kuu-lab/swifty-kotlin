@@ -247,6 +247,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.durationFunctions,
             RuntimeABISpec.timeAndPathBridgeFunctions,
             RuntimeABISpec.atomicFunctions,
+            RuntimeABISpec.nativeRefFunctions,
             RuntimeABISpec.threadLocalFunctions,
             RuntimeABISpec.threadFunctions,
             RuntimeABISpec.securityFunctions,
@@ -270,6 +271,10 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.allFunctions.count,
             Set(sectionNames).count
         )
+    }
+
+    func testNativeRefFunctionCount() {
+        XCTAssertEqual(RuntimeABISpec.nativeRefFunctions.count, 3)
     }
 
     // MARK: - J16.1 Signature Verification (spec-fixed)
