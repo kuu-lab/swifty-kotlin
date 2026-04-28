@@ -713,6 +713,7 @@ extension ABILoweringPass {
             interner.intern("kk_map_orEmpty"),
             interner.intern("kk_string_orEmpty"),
             interner.intern("kk_array_of"),
+            interner.intern("kk_array_of_nulls"),
             interner.intern("kk_array_size"),
             interner.intern("kk_array_is_empty"),
             // Bitwise/shift (P5-103)

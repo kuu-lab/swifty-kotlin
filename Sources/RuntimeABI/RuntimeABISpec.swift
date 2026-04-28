@@ -3407,6 +3407,14 @@ public enum RuntimeABISpec {
             section: "Array"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_of_nulls",
+            parameters: [
+                RuntimeABIParameter(name: "length", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Array"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_object_new",
             parameters: [
                 RuntimeABIParameter(name: "length", type: .intptr),

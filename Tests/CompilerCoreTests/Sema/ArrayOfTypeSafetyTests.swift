@@ -38,6 +38,22 @@ final class ArrayOfTypeSafetyTests: XCTestCase {
         }
     }
 
+    func testArrayOfNullsResolvesAsNullableElementArray() throws {
+        let source = """
+        fun main() {
+            val values: Array<String?> = arrayOfNulls<String>(3)
+            val first: String? = values[0]
+            println(first == null)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
+        }
+    }
+
     func testArrayOfContainsResolvesWithoutError() throws {
         let source = """
         fun main() {

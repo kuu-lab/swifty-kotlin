@@ -3,6 +3,47 @@ import Foundation
 import XCTest
 
 final class ArraySyntheticMemberLinkTests: XCTestCase {
+    func testArrayOfNullsTopLevelFactoryUsesRuntimeExternalLink() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let symbolID = try XCTUnwrap(
+                sema.symbols.lookup(
+                    fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("arrayOfNulls"),
+                    ]
+                ),
+                "Expected synthetic arrayOfNulls function to be registered"
+            )
+            XCTAssertEqual(sema.symbols.externalLinkName(for: symbolID), "kk_array_of_nulls")
+
+            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: symbolID))
+            XCTAssertEqual(signature.parameterTypes, [sema.types.intType])
+            XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
+            XCTAssertEqual(signature.valueParameterIsVararg, [false])
+            XCTAssertEqual(signature.typeParameterSymbols.count, 1)
+
+            guard case let .classType(returnClass) = sema.types.kind(of: signature.returnType),
+                  let arraySymbol = sema.symbols.symbol(returnClass.classSymbol)
+            else {
+                return XCTFail("Expected arrayOfNulls to return Array<T?>")
+            }
+            XCTAssertEqual(ctx.interner.resolve(arraySymbol.name), "Array")
+            XCTAssertEqual(returnClass.args.count, 1)
+
+            guard case let .invariant(elementType) = returnClass.args[0],
+                  case let .typeParam(typeParam) = sema.types.kind(of: elementType)
+            else {
+                return XCTFail("Expected arrayOfNulls element type to be nullable type parameter")
+            }
+            XCTAssertEqual(typeParam.symbol, signature.typeParameterSymbols[0])
+            XCTAssertEqual(typeParam.nullability, .nullable)
+        }
+    }
+
     func testArrayBinarySearchComparatorOverloadUsesRuntimeExternalLink() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

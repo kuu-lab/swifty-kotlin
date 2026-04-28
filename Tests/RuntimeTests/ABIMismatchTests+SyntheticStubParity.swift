@@ -39,6 +39,7 @@ extension ABIMismatchTests {
             "kk_list_binarySearch_comparator",
             "kk_sequence_of",
             "kk_sequence_generate",
+            "kk_array_of_nulls",
             // String radix conversion
             "kk_string_toIntOrNull_radix",
             "kk_system_exitProcess",

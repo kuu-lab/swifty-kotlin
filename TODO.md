@@ -311,7 +311,7 @@
 - [ ] STDLIB-KOTLIN-ROOT-EXC-003: Native `ArrayIndexOutOfBoundsException` class surface を追加する
 - [ ] STDLIB-KOTLIN-ROOT-CLOSE-001: `AutoCloseable(closeAction: () -> Unit)` factory を追加する
 - [ ] STDLIB-KOTLIN-ROOT-CLOSE-002: `AutoCloseable?.use { ... }` common extension を追加する
-- [ ] STDLIB-KOTLIN-ROOT-ARRAY-001: `arrayOfNulls<T>(size: Int)` root array factory を追加する
+- [x] STDLIB-KOTLIN-ROOT-ARRAY-001: `arrayOfNulls<T>(size: Int)` root array factory を追加する
 - [ ] STDLIB-KOTLIN-ROOT-LAZY-001: `lazyOf(value)` root lazy factory を追加する
 - [ ] STDLIB-KOTLIN-ROOT-CTX-001: experimental `context(with, block)` helper を追加する
 - [ ] STDLIB-KOTLIN-ROOT-CTX-002: experimental `context(a, b, ..., block)` overload 群を追加する
