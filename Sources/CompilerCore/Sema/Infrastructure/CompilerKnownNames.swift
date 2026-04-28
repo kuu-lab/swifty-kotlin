@@ -2,6 +2,7 @@ import Foundation
 
 enum KnownCompilerAnnotation {
     case deprecated
+    case deprecatedSinceKotlin
     case replaceWith
     case metadata
     case requiresOptIn
@@ -32,6 +33,8 @@ enum KnownCompilerAnnotation {
         switch self {
         case .deprecated:
             "Deprecated"
+        case .deprecatedSinceKotlin:
+            "DeprecatedSinceKotlin"
         case .replaceWith:
             "ReplaceWith"
         case .metadata:
@@ -89,6 +92,8 @@ enum KnownCompilerAnnotation {
         switch self {
         case .deprecated:
             "kotlin.Deprecated"
+        case .deprecatedSinceKotlin:
+            "kotlin.DeprecatedSinceKotlin"
         case .replaceWith:
             "kotlin.ReplaceWith"
         case .metadata:
