@@ -9,7 +9,10 @@ import XCTest
 /// - exitProcess(Int) signature resolution and Nothing return type
 /// - getTimeMicros top-level Native API visibility
 /// - getTimeMillis top-level Native API visibility
+<<<<<<< HEAD
 /// - getTimeNanos top-level Native API visibility
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
 /// - System.currentTimeMillis / System.nanoTime member visibility
 /// - getTimeMillis (alias currentTimeMillis) and getTimeNanos (alias nanoTime) via System object
 final class SystemNamespaceSemaOverloadTests: XCTestCase {
@@ -45,6 +48,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             ("exitProcess", "kk_system_exitProcess"),
             ("getTimeMicros", "kk_system_getTimeMicros"),
             ("getTimeMillis", "kk_system_getTimeMillis"),
+<<<<<<< HEAD
             ("getTimeNanos", "kk_system_getTimeNanos"),
             ("measureTimeMicros", "kk_system_measureTimeMicros"),
             ("measureTimeMillis", "kk_system_measureTimeMillis"),
@@ -90,6 +94,8 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
 
         let implementedTopLevelFunctions: [(name: String, link: String)] = [
             ("exitProcess", "kk_system_exitProcess"),
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
             ("measureTimeMillis", "kk_system_measureTimeMillis"),
             ("measureNanoTime", "kk_system_measureNanoTime"),
         ]
@@ -102,8 +108,11 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         }
 
         let pendingNativeTopLevelFunctions = [
+<<<<<<< HEAD
             "getTimeMicros",
             "getTimeMillis",
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
             "getTimeNanos",
             "measureTimeMicros",
         ]
@@ -190,12 +199,15 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         XCTAssertEqual(link, "kk_system_getTimeMillis")
     }
 
+<<<<<<< HEAD
     func testGetTimeNanosIsRegisteredAsTopLevelNativeFunction() throws {
         let (sema, interner) = try makeSema()
         let link = systemPkgExternalLink(for: "getTimeNanos", sema: sema, interner: interner)
         XCTAssertEqual(link, "kk_system_getTimeNanos")
     }
 
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
     /// exitProcess is a top-level kotlin.system function that accepts an Int parameter.
     func testExitProcessIsRegisteredInKotlinSystemPackage() throws {
         let (sema, interner) = try makeSema()

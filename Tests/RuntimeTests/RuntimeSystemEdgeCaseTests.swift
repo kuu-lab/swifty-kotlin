@@ -4,9 +4,14 @@ import XCTest
 
 // MARK: - kotlin.system edge case coverage (STDLIB-SYSTEM-003)
 //
+<<<<<<< HEAD
 // Covers: measureTimeMillis, measureTimeMicros, measureNanoTime,
 // top-level getTimeMicros/getTimeMillis/getTimeNanos,
 // System.currentTimeMillis/System.nanoTime,
+=======
+// Covers: measureTimeMillis, measureNanoTime, top-level getTimeMicros/getTimeMillis,
+// System.currentTimeMillis, getTimeNanos (nanoTime),
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
 // processStartNanos, and exitProcess signature check.
 //
 // NOTE: exitProcess is not invoked in tests because it calls exit() which is
@@ -53,7 +58,10 @@ final class RuntimeSystemEdgeCaseTests: XCTestCase {
 <<<<<<< HEAD
         let _: () -> Int = kk_system_getTimeMicros
         let _: () -> Int = kk_system_getTimeMillis
+<<<<<<< HEAD
         let _: () -> Int = kk_system_getTimeNanos
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
         let _: () -> Int = kk_system_process_start_nanos
         let _: (Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_system_measureTimeMillis
         let _: (Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_system_measureTimeMicros
@@ -171,6 +179,7 @@ final class RuntimeSystemEdgeCaseTests: XCTestCase {
         XCTAssertGreaterThan(after, before, "getTimeMillis should advance after a short sleep")
     }
 
+<<<<<<< HEAD
     // MARK: - kk_system_getTimeNanos
 
     func testGetTimeNanosIsPositive() {
@@ -198,6 +207,8 @@ final class RuntimeSystemEdgeCaseTests: XCTestCase {
         XCTAssertGreaterThan(after - before, 5_000_000, "getTimeNanos should advance by > 5ms after a 10ms sleep")
     }
 
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
     // MARK: - kk_system_process_start_nanos (stability)
 
     func testProcessStartNanosIsStableAcrossManyCalls() {

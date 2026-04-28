@@ -58,7 +58,10 @@ extension ABIMismatchTests {
             "kk_system_nanoTime",
             "kk_system_getTimeMicros",
             "kk_system_getTimeMillis",
+<<<<<<< HEAD
             "kk_system_getTimeNanos",
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
             "kk_system_process_start_nanos",
             "kk_system_measureTimeMillis",
             "kk_system_measureTimeMicros",

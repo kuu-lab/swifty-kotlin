@@ -2137,12 +2137,15 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
+<<<<<<< HEAD
             name: "kk_system_getTimeNanos",
             parameters: [],
             returnType: .intptr,
             section: "System"
         ),
         RuntimeABIFunctionSpec(
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
             name: "kk_system_process_start_nanos",
             parameters: [],
             returnType: .intptr,
