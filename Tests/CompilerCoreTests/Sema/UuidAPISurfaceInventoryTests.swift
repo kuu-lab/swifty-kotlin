@@ -20,7 +20,6 @@ import XCTest
 //        and the edge-case file added in PR #1221 (UUID-003).
 //
 // NOTE - known gaps detected during inventory:
-//   • Uuid.parseHex(hexString: String) is pending (STDLIB-UUID-004).
 //   • Uuid.NIL is pending (STDLIB-UUID-005).
 //   • parseHexDash / parseOrNull / parseHexOrNull / parseHexDashOrNull are pending
 //     (STDLIB-UUID-007 through STDLIB-UUID-010).
@@ -175,6 +174,22 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         )
     }
 
+    func testUuidParseHexAcceptsStringParameter() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHex"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "Uuid.parseHex must be registered")
+        let parseHexSym = try XCTUnwrap(syms.first)
+        guard let sig = sema.symbols.functionSignature(for: parseHexSym) else {
+            XCTFail("Uuid.parseHex has no signature"); return
+        }
+        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseHex must take exactly 1 parameter")
+        XCTAssertEqual(
+            sig.parameterTypes[0], sema.types.stringType,
+            "Uuid.parseHex parameter must be of type String (sema.types.stringType)"
+        )
+    }
+
     func testUuidNameUUIDFromBytesCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
@@ -215,33 +230,28 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
     }
 
     // MARK: - 3. Overload presence: parse vs parseHex
-    //
-    // STDLIB-UUID-002 gap: parseHex is not yet registered.
-    // This test documents the gap — it asserts the *current* state (empty set) and
-    // provides a TODO marker so the gap is visible in CI output.
 
-    func testUuidParseHexCompanionMethodIsNotYetRegistered_Gap() throws {
+    func testUuidParseHexCompanionMethodIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let links = allExternalLinks(
             fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseHex"],
             sema: sema,
             interner: interner
         )
-        // TODO(STDLIB-UUID-002): When parseHex is implemented, change XCTAssertTrue to
-        //   links.contains("kk_uuid_parseHex")
         XCTAssertTrue(
-            links.isEmpty,
-            "Uuid.parseHex overload is not yet registered (expected gap); found: \(links)"
+            links.contains("kk_uuid_parseHex"),
+            "Uuid.parseHex(hexString) must link to kk_uuid_parseHex; found: \(links)"
         )
     }
 
     func testUuidParseAndParseAreDistinctOverloads() throws {
-        // parse(uuidString) exists; parseHex is absent — they must never share the same symbol.
         let (sema, interner) = try makeSema()
         let parseFQ = ["kotlin", "uuid", "Uuid", "Companion", "parse"].map { interner.intern($0) }
         let parseHexFQ = ["kotlin", "uuid", "Uuid", "Companion", "parseHex"].map { interner.intern($0) }
         let parseSyms = Set(sema.symbols.lookupAll(fqName: parseFQ))
         let parseHexSyms = Set(sema.symbols.lookupAll(fqName: parseHexFQ))
+        XCTAssertFalse(parseSyms.isEmpty, "Uuid.parse must be registered")
+        XCTAssertFalse(parseHexSyms.isEmpty, "Uuid.parseHex must be registered")
         XCTAssertTrue(
             parseSyms.isDisjoint(with: parseHexSyms),
             "parse and parseHex must not share the same SymbolID"
@@ -462,12 +472,13 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         let expectedCompanionLinks: Set<String> = [
             "kk_uuid_random",
             "kk_uuid_parse",
+            "kk_uuid_parseHex",
             "kk_uuid_nameUUIDFromBytes",
             "kk_uuid_fromLongs",
             "kk_uuid_fromByteArray",
         ]
         var foundLinks: Set<String> = []
-        for memberName in ["random", "parse", "nameUUIDFromBytes", "fromLongs", "fromByteArray"] {
+        for memberName in ["random", "parse", "parseHex", "nameUUIDFromBytes", "fromLongs", "fromByteArray"] {
             let path = companionFQ + [memberName]
             let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
             foundLinks.formUnion(links)

@@ -158,6 +158,30 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
                        "123e4567-e89b-12d3-a456-426614174000")
     }
 
+    func testParseHexRoundTrip() {
+        let hexInput = "123e4567e89b12d3a456426614174000"
+        var thrown = 0
+        let uuidRaw = kk_uuid_parseHex(makeRuntimeString(hexInput), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(extractRuntimeString(kk_uuid_toHexString(uuidRaw)), hexInput)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toString(uuidRaw)),
+            "123e4567-e89b-12d3-a456-426614174000"
+        )
+    }
+
+    func testParseHexUppercaseInputCanonicalizesToLowercase() {
+        var thrown = 0
+        let uuidRaw = kk_uuid_parseHex(makeRuntimeString("123E4567E89B12D3A456426614174000"), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toHexString(uuidRaw)),
+            "123e4567e89b12d3a456426614174000"
+        )
+    }
+
     // MARK: - toLongs / fromLongs endianness round-trip
 
     /// toLongs should return (mostSignificantBits, leastSignificantBits) in that order.
@@ -306,6 +330,38 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         let result = kk_uuid_parse(makeRuntimeString(bad), &thrown)
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0, "32-char string with invalid hex char must throw")
+    }
+
+    func testParseHexRejectsDashedInput() {
+        var thrown = 0
+        let result = kk_uuid_parseHex(makeRuntimeString("123e4567-e89b-12d3-a456-426614174000"), &thrown)
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(
+            extractThrowableMessage(thrown),
+            "IllegalArgumentException: Invalid UUID hex string: 123e4567-e89b-12d3-a456-426614174000"
+        )
+    }
+
+    func testParseHexNullRawThrowsStableMessage() {
+        var thrown = 0
+        let result = kk_uuid_parseHex(0, &thrown)
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(
+            extractThrowableMessage(thrown),
+            "IllegalArgumentException: Invalid UUID hex string: null"
+        )
+    }
+
+    func testParseHexSuccessClearsPreviousThrownSlot() {
+        var thrown = 12345
+        let uuidRaw = kk_uuid_parseHex(makeRuntimeString("550e8400e29b41d4a716446655440000"), &thrown)
+
+        XCTAssertNotEqual(uuidRaw, 0)
+        XCTAssertEqual(thrown, 0)
     }
 
     func testParseFailureMessageIncludesInvalidInput() {
