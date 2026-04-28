@@ -13,9 +13,11 @@ extension BuildKIRRegressionTests {
             val nil = Uuid.NIL
             val uuid = Uuid.parse("550e8400-e29b-41d4-a716-446655440000")
             val hexUuid = Uuid.parseHex("550e8400e29b41d4a716446655440000")
+            val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
             nil.toString()
             uuid.toString()
             hexUuid.toString()
+            dashUuid.toString()
             uuid.toHexString()
             uuid.toLongs()
             uuid.toByteArray()
@@ -37,6 +39,7 @@ extension BuildKIRRegressionTests {
             XCTAssertTrue(callees.contains("kk_uuid_nil"), "Expected Uuid.NIL runtime call")
             XCTAssertTrue(callees.contains("kk_uuid_parse"), "Expected Uuid.parse runtime call")
             XCTAssertTrue(callees.contains("kk_uuid_parseHex"), "Expected Uuid.parseHex runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseHexDash"), "Expected Uuid.parseHexDash runtime call")
             XCTAssertTrue(callees.contains("kk_uuid_toString"), "Expected Uuid.toString runtime call")
             XCTAssertTrue(callees.contains("kk_uuid_toHexString"), "Expected Uuid.toHexString runtime call")
             XCTAssertTrue(callees.contains("kk_uuid_toLongs"), "Expected Uuid.toLongs runtime call")
@@ -105,6 +108,8 @@ extension BuildKIRRegressionTests {
         }
 
         XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parse")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parseHex")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parseHexDash")))
         XCTAssertFalse(callees.contains(interner.intern("kk_uuid_fromByteArray")))
     }
 }

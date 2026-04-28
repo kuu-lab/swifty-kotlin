@@ -33,6 +33,15 @@ public extension RuntimeABISpec {
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_uuid_parseHexDash",
+            parameters: [
+                RuntimeABIParameter(name: "hexDashString", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_uuid_toString",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),

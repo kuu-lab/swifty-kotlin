@@ -152,6 +152,32 @@ private func kk_uuid_parseHexBody(
     return registerRuntimeObject(box)
 }
 
+private func kk_uuid_isHexDashSeparatorOffset(_ offset: Int) -> Bool {
+    offset == 8 || offset == 13 || offset == 18 || offset == 23
+}
+
+private func kk_uuid_hexFromHexDashString(_ hexDashString: String) -> String? {
+    guard hexDashString.count == 36 else {
+        return nil
+    }
+
+    var hex = ""
+    hex.reserveCapacity(32)
+    for (offset, character) in hexDashString.enumerated() {
+        if kk_uuid_isHexDashSeparatorOffset(offset) {
+            guard character == "-" else {
+                return nil
+            }
+        } else {
+            guard character.isHexDigit else {
+                return nil
+            }
+            hex.append(character)
+        }
+    }
+    return hex
+}
+
 // MARK: - Uuid.parse(string)
 
 @_cdecl("kk_uuid_parse")
@@ -174,18 +200,11 @@ public func kk_uuid_parse(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<In
     // Parse standard format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     // or hex format: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     let hex: String
-    if uuidString.count == 36, uuidString.contains("-") {
-        let parts = uuidString.split(separator: "-")
-        guard parts.count == 5,
-              parts[0].count == 8,
-              parts[1].count == 4,
-              parts[2].count == 4,
-              parts[3].count == 4,
-              parts[4].count == 12
-        else {
+    if uuidString.count == 36 {
+        guard let parsedHex = kk_uuid_hexFromHexDashString(uuidString) else {
             return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
         }
-        hex = parts.joined()
+        hex = parsedHex
     } else if uuidString.count == 32 {
         hex = uuidString
     } else {
@@ -216,6 +235,29 @@ public func kk_uuid_parseHex(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer
         invalidMessage: "IllegalArgumentException: Invalid UUID hex string: \(hexString)",
         outThrown: outThrown
     )
+}
+
+// MARK: - Uuid.parseHexDash(hexDashString)
+
+@_cdecl("kk_uuid_parseHexDash")
+public func kk_uuid_parseHexDash(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
+          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
+    else {
+        return kk_uuid_makeInvalidArgument(
+            message: "IllegalArgumentException: Invalid UUID hex-and-dash string: null",
+            outThrown: outThrown
+        )
+    }
+
+    let hexDashString = stringBox.value
+    let invalidMessage = "IllegalArgumentException: Invalid UUID hex-and-dash string: \(hexDashString)"
+    guard let hex = kk_uuid_hexFromHexDashString(hexDashString) else {
+        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
+    }
+    return kk_uuid_parseHexBody(hex, invalidMessage: invalidMessage, outThrown: outThrown)
 }
 
 // MARK: - Uuid.toString()

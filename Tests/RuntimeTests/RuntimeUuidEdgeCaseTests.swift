@@ -200,6 +200,30 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         )
     }
 
+    func testParseHexDashRoundTrip() {
+        let hexDashInput = "123e4567-e89b-12d3-a456-426614174000"
+        var thrown = 0
+        let uuidRaw = kk_uuid_parseHexDash(makeRuntimeString(hexDashInput), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(extractRuntimeString(kk_uuid_toString(uuidRaw)), hexDashInput)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toHexString(uuidRaw)),
+            "123e4567e89b12d3a456426614174000"
+        )
+    }
+
+    func testParseHexDashUppercaseInputCanonicalizesToLowercase() {
+        var thrown = 0
+        let uuidRaw = kk_uuid_parseHexDash(makeRuntimeString("123E4567-E89B-12D3-A456-426614174000"), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toString(uuidRaw)),
+            "123e4567-e89b-12d3-a456-426614174000"
+        )
+    }
+
     // MARK: - toLongs / fromLongs endianness round-trip
 
     /// toLongs should return (mostSignificantBits, leastSignificantBits) in that order.
@@ -362,6 +386,30 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         )
     }
 
+    func testParseHexDashRejectsPlainHexInput() {
+        var thrown = 0
+        let result = kk_uuid_parseHexDash(makeRuntimeString("123e4567e89b12d3a456426614174000"), &thrown)
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(
+            extractThrowableMessage(thrown),
+            "IllegalArgumentException: Invalid UUID hex-and-dash string: 123e4567e89b12d3a456426614174000"
+        )
+    }
+
+    func testParseHexDashRejectsWrongDashPositions() {
+        var thrown = 0
+        let result = kk_uuid_parseHexDash(makeRuntimeString("123e-4567-e89b-12d3-a456426614174"), &thrown)
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(
+            extractThrowableMessage(thrown),
+            "IllegalArgumentException: Invalid UUID hex-and-dash string: 123e-4567-e89b-12d3-a456426614174"
+        )
+    }
+
     func testParseHexNullRawThrowsStableMessage() {
         var thrown = 0
         let result = kk_uuid_parseHex(0, &thrown)
@@ -374,9 +422,29 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         )
     }
 
+    func testParseHexDashNullRawThrowsStableMessage() {
+        var thrown = 0
+        let result = kk_uuid_parseHexDash(0, &thrown)
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(
+            extractThrowableMessage(thrown),
+            "IllegalArgumentException: Invalid UUID hex-and-dash string: null"
+        )
+    }
+
     func testParseHexSuccessClearsPreviousThrownSlot() {
         var thrown = 12345
         let uuidRaw = kk_uuid_parseHex(makeRuntimeString("550e8400e29b41d4a716446655440000"), &thrown)
+
+        XCTAssertNotEqual(uuidRaw, 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testParseHexDashSuccessClearsPreviousThrownSlot() {
+        var thrown = 12345
+        let uuidRaw = kk_uuid_parseHexDash(makeRuntimeString("550e8400-e29b-41d4-a716-446655440000"), &thrown)
 
         XCTAssertNotEqual(uuidRaw, 0)
         XCTAssertEqual(thrown, 0)
