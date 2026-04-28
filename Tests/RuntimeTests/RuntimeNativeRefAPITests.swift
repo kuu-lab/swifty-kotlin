@@ -28,7 +28,7 @@ import XCTest
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //
 // MISSING (not implemented — no runtime entry point or compiler-side stub):
-//   - RootSetStatistics / SweepStatistics type surfaces
+//   - SweepStatistics type surface
 //   - NativeRuntimeApi marker
 
 final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
