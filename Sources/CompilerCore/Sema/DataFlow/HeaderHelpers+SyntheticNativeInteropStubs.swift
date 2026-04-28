@@ -245,6 +245,40 @@ extension DataFlowSemaPhase {
             symbols.setAnnotations(obsoleteAnnotations, for: obsoleteNativeApiSymbol)
         }
 
+        let eagerInitializationSymbol = ensureAnnotationClassSymbol(
+            named: "EagerInitialization",
+            in: nativePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let nativePkgSymbol {
+            symbols.setParentSymbol(nativePkgSymbol, for: eagerInitializationSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: eagerInitializationSymbol,
+            targets: ["AnnotationTarget.PROPERTY"],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        var eagerInitializationAnnotations = symbols.annotations(for: eagerInitializationSymbol)
+        let eagerInitializationMetaAnnotations = [
+            MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalStdlibApi"),
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.Deprecated",
+                arguments: [
+                    "message = \"This annotation is a temporal migration assistance and may be removed in the future releases, please consider filing an issue about the case where it is needed\"",
+                ]
+            ),
+        ]
+        var didAppendEagerInitializationMetaAnnotation = false
+        for record in eagerInitializationMetaAnnotations where !eagerInitializationAnnotations.contains(record) {
+            eagerInitializationAnnotations.append(record)
+            didAppendEagerInitializationMetaAnnotation = true
+        }
+        if didAppendEagerInitializationMetaAnnotation {
+            symbols.setAnnotations(eagerInitializationAnnotations, for: eagerInitializationSymbol)
+        }
+
         let hiddenFromObjCSymbol = ensureAnnotationClassSymbol(
             named: "HiddenFromObjC",
             in: nativePkg,
