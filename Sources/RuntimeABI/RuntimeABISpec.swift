@@ -2091,6 +2091,12 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_system_getTimeMillis",
+            parameters: [],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_system_process_start_nanos",
             parameters: [],
             returnType: .intptr,

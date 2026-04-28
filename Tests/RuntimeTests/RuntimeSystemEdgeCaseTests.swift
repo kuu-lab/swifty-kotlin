@@ -4,8 +4,8 @@ import XCTest
 
 // MARK: - kotlin.system edge case coverage (STDLIB-SYSTEM-003)
 //
-// Covers: measureTimeMillis, measureNanoTime, getTimeMicros,
-// getTimeMillis (currentTimeMillis), getTimeNanos (nanoTime),
+// Covers: measureTimeMillis, measureNanoTime, top-level getTimeMicros/getTimeMillis,
+// System.currentTimeMillis, getTimeNanos (nanoTime),
 // processStartNanos, and exitProcess signature check.
 //
 // NOTE: exitProcess is not invoked in tests because it calls exit() which is
@@ -50,6 +50,7 @@ final class RuntimeSystemEdgeCaseTests: XCTestCase {
         let _: () -> Int = kk_system_currentTimeMillis
         let _: () -> Int = kk_system_nanoTime
         let _: () -> Int = kk_system_getTimeMicros
+        let _: () -> Int = kk_system_getTimeMillis
         let _: () -> Int = kk_system_process_start_nanos
         let _: (Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_system_measureTimeMillis
         let _: (Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_system_measureNanoTime
@@ -135,6 +136,31 @@ final class RuntimeSystemEdgeCaseTests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.010)
         let after = kk_system_getTimeMicros()
         XCTAssertGreaterThan(after - before, 5_000, "getTimeMicros should advance by > 5ms after a 10ms sleep")
+    }
+
+    // MARK: - kk_system_getTimeMillis
+
+    func testGetTimeMillisIsPositive() {
+        XCTAssertGreaterThan(kk_system_getTimeMillis(), 0, "getTimeMillis must be positive")
+    }
+
+    func testGetTimeMillisIsReasonableEpoch() {
+        let millis = kk_system_getTimeMillis()
+        XCTAssertGreaterThan(millis, 1_500_000_000_000, "getTimeMillis should be after 2017")
+        XCTAssertLessThan(millis, 2_500_000_000_000, "getTimeMillis should be before 2049")
+    }
+
+    func testGetTimeMillisNonDecreasingAcrossConsecutiveCalls() {
+        let first = kk_system_getTimeMillis()
+        let second = kk_system_getTimeMillis()
+        XCTAssertGreaterThanOrEqual(second, first, "getTimeMillis should not go backwards across adjacent calls")
+    }
+
+    func testGetTimeMillisReturnsDifferentValuesAfterSleep() {
+        let before = kk_system_getTimeMillis()
+        Thread.sleep(forTimeInterval: 0.030)
+        let after = kk_system_getTimeMillis()
+        XCTAssertGreaterThan(after, before, "getTimeMillis should advance after a short sleep")
     }
 
     // MARK: - kk_system_process_start_nanos (stability)

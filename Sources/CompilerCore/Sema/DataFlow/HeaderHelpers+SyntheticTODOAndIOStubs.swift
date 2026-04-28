@@ -227,6 +227,16 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticTopLevelFunction(
+            named: "getTimeMillis",
+            packageFQName: kotlinSystemPkg,
+            parameters: [],
+            returnType: types.longType,
+            externalLinkName: "kk_system_getTimeMillis",
+            symbols: symbols,
+            interner: interner
+        )
+
         let blockFunctionType = types.make(.functionType(FunctionType(
             params: [],
             returnType: types.unitType
