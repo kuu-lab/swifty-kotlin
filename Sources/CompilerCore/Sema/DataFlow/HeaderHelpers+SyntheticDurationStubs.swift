@@ -1,5 +1,15 @@
 /// Synthetic stubs for kotlin.time.Duration class, Companion extension properties,
 /// and inWhole* accessor properties (STDLIB-582/583/584).
+private let syntheticDurationUnitEntries = [
+    "NANOSECONDS",
+    "MICROSECONDS",
+    "MILLISECONDS",
+    "SECONDS",
+    "MINUTES",
+    "HOURS",
+    "DAYS",
+]
+
 extension DataFlowSemaPhase {
     func registerSyntheticDurationStubs(
         symbols: SymbolTable,
@@ -9,6 +19,23 @@ extension DataFlowSemaPhase {
         let kotlinTimePkg = ensureDurationPackageHierarchy(
             symbols: symbols,
             interner: interner
+        )
+
+        // --- STDLIB-TIME-STABLE-008: DurationUnit enum surface ---
+        let durationUnitSymbol = ensureSyntheticDurationUnitEnumClass(
+            in: kotlinTimePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let durationUnitType = types.make(.classType(ClassType(
+            classSymbol: durationUnitSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        setSyntheticDurationUnitEntryTypes(
+            enumSymbol: durationUnitSymbol,
+            enumType: durationUnitType,
+            symbols: symbols
         )
 
         // --- Duration class symbol ---
@@ -554,6 +581,70 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+    }
+
+    private func ensureSyntheticDurationUnitEnumClass(
+        in packageFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let enumName = interner.intern("DurationUnit")
+        let enumFQName = packageFQName + [enumName]
+        let enumSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumFQName) {
+            enumSymbol = existing
+            if let packageSymbol = symbols.lookup(fqName: packageFQName), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: existing)
+            }
+        } else {
+            let symbol = symbols.define(
+                kind: .enumClass,
+                name: enumName,
+                fqName: enumFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let packageSymbol = symbols.lookup(fqName: packageFQName), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: symbol)
+            }
+            enumSymbol = symbol
+        }
+
+        for entry in syntheticDurationUnitEntries {
+            let entryName = interner.intern(entry)
+            let entryFQName = enumFQName + [entryName]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryName,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+        }
+
+        return enumSymbol
+    }
+
+    private func setSyntheticDurationUnitEntryTypes(
+        enumSymbol: SymbolID,
+        enumType: TypeID,
+        symbols: SymbolTable
+    ) {
+        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
+        for child in symbols.children(ofFQName: enumInfo.fqName) {
+            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
+                continue
+            }
+            symbols.setPropertyType(enumType, for: child)
+        }
     }
 
     private func ensureDurationCompanionSymbol(
