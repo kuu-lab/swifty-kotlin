@@ -130,10 +130,18 @@ private func kk_uuid_parseHexBody(
     invalidMessage: String,
     outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    let parsed = kk_uuid_parseHexBodyOrNull(hex)
+    if parsed == runtimeNullSentinelInt {
+        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
+    }
+    return parsed
+}
+
+private func kk_uuid_parseHexBodyOrNull(_ hex: String) -> Int {
     guard hex.count == 32,
           hex.allSatisfy({ $0.isHexDigit })
     else {
-        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
+        return runtimeNullSentinelInt
     }
 
     let msbHex = String(hex.prefix(16))
@@ -142,7 +150,7 @@ private func kk_uuid_parseHexBody(
     guard let msbValue = UInt64(msbHex, radix: 16),
           let lsbValue = UInt64(lsbHex, radix: 16)
     else {
-        return kk_uuid_makeInvalidArgument(message: invalidMessage, outThrown: outThrown)
+        return runtimeNullSentinelInt
     }
 
     let box = RuntimeUuidBox(
@@ -176,6 +184,19 @@ private func kk_uuid_hexFromHexDashString(_ hexDashString: String) -> String? {
         }
     }
     return hex
+}
+
+private func kk_uuid_parseStringOrNull(_ uuidString: String) -> Int {
+    if uuidString.count == 36 {
+        guard let hex = kk_uuid_hexFromHexDashString(uuidString) else {
+            return runtimeNullSentinelInt
+        }
+        return kk_uuid_parseHexBodyOrNull(hex)
+    }
+    if uuidString.count == 32 {
+        return kk_uuid_parseHexBodyOrNull(uuidString)
+    }
+    return runtimeNullSentinelInt
 }
 
 // MARK: - Uuid.parse(string)
@@ -212,6 +233,19 @@ public func kk_uuid_parse(_ stringRaw: Int, _ outThrown: UnsafeMutablePointer<In
     }
 
     return kk_uuid_parseHexBody(hex, invalidMessage: invalidMessage, outThrown: outThrown)
+}
+
+// MARK: - Uuid.parseOrNull(uuidString)
+
+@_cdecl("kk_uuid_parseOrNull")
+public func kk_uuid_parseOrNull(_ stringRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: stringRaw),
+          let stringBox = tryCast(ptr, to: RuntimeStringBox.self)
+    else {
+        return runtimeNullSentinelInt
+    }
+
+    return kk_uuid_parseStringOrNull(stringBox.value)
 }
 
 // MARK: - Uuid.parseHex(hexString)

@@ -224,6 +224,26 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         )
     }
 
+    func testParseOrNullAcceptsHexDashInput() {
+        let uuidRaw = kk_uuid_parseOrNull(makeRuntimeString("123e4567-e89b-12d3-a456-426614174000"))
+
+        XCTAssertNotEqual(uuidRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toString(uuidRaw)),
+            "123e4567-e89b-12d3-a456-426614174000"
+        )
+    }
+
+    func testParseOrNullAcceptsPlainHexInput() {
+        let uuidRaw = kk_uuid_parseOrNull(makeRuntimeString("123e4567e89b12d3a456426614174000"))
+
+        XCTAssertNotEqual(uuidRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(
+            extractRuntimeString(kk_uuid_toHexString(uuidRaw)),
+            "123e4567e89b12d3a456426614174000"
+        )
+    }
+
     // MARK: - toLongs / fromLongs endianness round-trip
 
     /// toLongs should return (mostSignificantBits, leastSignificantBits) in that order.
@@ -410,6 +430,21 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         )
     }
 
+    func testParseOrNullRejectsInvalidInputWithNullSentinel() {
+        XCTAssertEqual(
+            kk_uuid_parseOrNull(makeRuntimeString("not-a-uuid")),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(
+            kk_uuid_parseOrNull(makeRuntimeString("123e-4567-e89b-12d3-a456426614174")),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(
+            kk_uuid_parseOrNull(makeRuntimeString("123e4567e89b12d3a45642661417400z")),
+            runtimeNullSentinelInt
+        )
+    }
+
     func testParseHexNullRawThrowsStableMessage() {
         var thrown = 0
         let result = kk_uuid_parseHex(0, &thrown)
@@ -432,6 +467,10 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
             extractThrowableMessage(thrown),
             "IllegalArgumentException: Invalid UUID hex-and-dash string: null"
         )
+    }
+
+    func testParseOrNullNullRawReturnsNullSentinel() {
+        XCTAssertEqual(kk_uuid_parseOrNull(0), runtimeNullSentinelInt)
     }
 
     func testParseHexSuccessClearsPreviousThrownSlot() {

@@ -24,6 +24,14 @@ public extension RuntimeABISpec {
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_uuid_parseOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "uuidString", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_uuid_parseHex",
             parameters: [
                 RuntimeABIParameter(name: "hexString", type: .intptr),

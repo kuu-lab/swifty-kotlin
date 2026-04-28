@@ -20,8 +20,8 @@ import XCTest
 //        and the edge-case file added in PR #1221 (UUID-003).
 //
 // NOTE - known gaps detected during inventory:
-//   • parseOrNull / parseHexOrNull / parseHexDashOrNull are pending
-//     (STDLIB-UUID-008 through STDLIB-UUID-010).
+//   • parseHexOrNull / parseHexDashOrNull are pending
+//     (STDLIB-UUID-009 through STDLIB-UUID-010).
 //   • SIZE_BITS / SIZE_BYTES and LEXICAL_ORDER are pending (STDLIB-UUID-011/012).
 
 final class UuidAPISurfaceInventoryTests: XCTestCase {
@@ -217,6 +217,31 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         )
     }
 
+    func testUuidParseOrNullAcceptsStringParameterAndReturnsNullableUuid() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "Uuid.parseOrNull must be registered")
+        let parseOrNullSym = try XCTUnwrap(syms.first)
+        guard let sig = sema.symbols.functionSignature(for: parseOrNullSym) else {
+            XCTFail("Uuid.parseOrNull has no signature"); return
+        }
+        XCTAssertEqual(sig.parameterTypes.count, 1, "Uuid.parseOrNull must take exactly 1 parameter")
+        XCTAssertEqual(
+            sig.parameterTypes[0], sema.types.stringType,
+            "Uuid.parseOrNull parameter must be of type String (sema.types.stringType)"
+        )
+
+        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        let uuidSym = try XCTUnwrap(sema.symbols.lookup(fqName: uuidFQ))
+        guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
+            XCTFail("Uuid.parseOrNull return type must be a nullable Uuid class type")
+            return
+        }
+        XCTAssertEqual(ct.classSymbol, uuidSym)
+        XCTAssertEqual(ct.nullability, .nullable)
+    }
+
     func testUuidParseHexAcceptsStringParameter() throws {
         let (sema, interner) = try makeSema()
         let fq = ["kotlin", "uuid", "Uuid", "Companion", "parseHex"].map { interner.intern($0) }
@@ -300,6 +325,19 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         XCTAssertTrue(
             links.contains("kk_uuid_parseHex"),
             "Uuid.parseHex(hexString) must link to kk_uuid_parseHex; found: \(links)"
+        )
+    }
+
+    func testUuidParseOrNullCompanionMethodIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"],
+            sema: sema,
+            interner: interner
+        )
+        XCTAssertTrue(
+            links.contains("kk_uuid_parseOrNull"),
+            "Uuid.parseOrNull(uuidString) must link to kk_uuid_parseOrNull; found: \(links)"
         )
     }
 
@@ -532,7 +570,6 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
     func testKnownPendingUuidCompanionMembersAreTrackedAsGaps() throws {
         let (sema, interner) = try makeSema()
         let pendingMembers = [
-            "parseOrNull",        // STDLIB-UUID-008
             "parseHexOrNull",     // STDLIB-UUID-009
             "parseHexDashOrNull", // STDLIB-UUID-010
             "SIZE_BITS",          // STDLIB-UUID-011
@@ -586,6 +623,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             ["kotlin", "uuid", "Uuid", "Companion", "random"],
             ["kotlin", "uuid", "Uuid", "Companion", "NIL"],
             ["kotlin", "uuid", "Uuid", "Companion", "parse"],
+            ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseHex"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseHexDash"],
             ["kotlin", "uuid", "Uuid", "Companion", "nameUUIDFromBytes"],
@@ -656,6 +694,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             "kk_uuid_random",
             "kk_uuid_nil",
             "kk_uuid_parse",
+            "kk_uuid_parseOrNull",
             "kk_uuid_parseHex",
             "kk_uuid_parseHexDash",
             "kk_uuid_nameUUIDFromBytes",
@@ -663,7 +702,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             "kk_uuid_fromByteArray",
         ]
         var foundLinks: Set<String> = []
-        for memberName in ["random", "NIL", "parse", "parseHex", "parseHexDash", "nameUUIDFromBytes", "fromLongs", "fromByteArray"] {
+        for memberName in ["random", "NIL", "parse", "parseOrNull", "parseHex", "parseHexDash", "nameUUIDFromBytes", "fromLongs", "fromByteArray"] {
             let path = companionFQ + [memberName]
             let links = allExternalLinks(fqPath: path, sema: sema, interner: interner)
             foundLinks.formUnion(links)
