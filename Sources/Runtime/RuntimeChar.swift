@@ -302,39 +302,39 @@ private func charBase10DigitValue(_ scalar: UnicodeScalar) -> Int? {
 }
 
 private func charCategoryToInt(_ category: Unicode.GeneralCategory) -> Int {
-    // Map Unicode.GeneralCategory to Kotlin CharCategory enum values
+    // Keep ordinals in sync with kotlin.text.CharCategory synthetic entries.
     switch category {
-    case .uppercaseLetter: return 0  // UPPERCASE_LETTER
-    case .lowercaseLetter: return 1  // LOWERCASE_LETTER
-    case .titlecaseLetter: return 2  // TITLECASE_LETTER
-    case .modifierLetter: return 3   // MODIFIER_LETTER
-    case .otherLetter: return 4      // OTHER_LETTER
-    case .nonspacingMark: return 5   // NON_SPACING_MARK
-    case .spacingMark: return 6  // COMBINING_SPACING_MARK
-    case .enclosingMark: return 7    // ENCLOSING_MARK
-    case .decimalNumber: return 8    // DECIMAL_DIGIT_NUMBER
-    case .letterNumber: return 9     // LETTER_NUMBER
-    case .otherNumber: return 10     // OTHER_NUMBER
-    case .connectorPunctuation: return 11  // CONNECTOR_PUNCTUATION
-    case .dashPunctuation: return 12  // DASH_PUNCTUATION
-    case .openPunctuation: return 13 // OPEN_PUNCTUATION
-    case .closePunctuation: return 14 // CLOSE_PUNCTUATION
-    case .initialPunctuation: return 15  // INITIAL_PUNCTUATION
-    case .finalPunctuation: return 16    // FINAL_PUNCTUATION
-    case .otherPunctuation: return 17    // OTHER_PUNCTUATION
-    case .mathSymbol: return 18      // MATH_SYMBOL
-    case .currencySymbol: return 19  // CURRENCY_SYMBOL
-    case .modifierSymbol: return 20  // MODIFIER_SYMBOL
-    case .otherSymbol: return 21     // OTHER_SYMBOL
-    case .spaceSeparator: return 22  // SPACE_SEPARATOR
-    case .lineSeparator: return 23   // LINE_SEPARATOR
-    case .paragraphSeparator: return 24  // PARAGRAPH_SEPARATOR
-    case .control: return 25         // CONTROL
-    case .format: return 26          // FORMAT
-    case .surrogate: return 27       // SURROGATE
-    case .privateUse: return 28      // PRIVATE_USE
-    case .unassigned: return 29      // UNASSIGNED
-    @unknown default: return 29      // UNASSIGNED
+    case .unassigned: return 0
+    case .uppercaseLetter: return 1
+    case .lowercaseLetter: return 2
+    case .titlecaseLetter: return 3
+    case .modifierLetter: return 4
+    case .otherLetter: return 5
+    case .nonspacingMark: return 6
+    case .enclosingMark: return 7
+    case .spacingMark: return 8
+    case .decimalNumber: return 9
+    case .letterNumber: return 10
+    case .otherNumber: return 11
+    case .spaceSeparator: return 12
+    case .lineSeparator: return 13
+    case .paragraphSeparator: return 14
+    case .control: return 15
+    case .format: return 16
+    case .privateUse: return 17
+    case .surrogate: return 18
+    case .dashPunctuation: return 19
+    case .openPunctuation: return 20
+    case .closePunctuation: return 21
+    case .connectorPunctuation: return 22
+    case .otherPunctuation: return 23
+    case .mathSymbol: return 24
+    case .currencySymbol: return 25
+    case .modifierSymbol: return 26
+    case .otherSymbol: return 27
+    case .initialPunctuation: return 28
+    case .finalPunctuation: return 29
+    @unknown default: return 0
     }
 }
 
