@@ -576,10 +576,6 @@ struct KnownCompilerNames {
         }
     }
 
-    func annotationMatches(_ rawName: String, _ annotation: KnownCompilerAnnotation) -> Bool {
-        annotation.matches(rawName)
-    }
-
     func symbolMatches(_ symbol: SemanticSymbol, fqName: [InternedString]) -> Bool {
         symbol.fqName == fqName
     }
@@ -687,10 +683,6 @@ struct KnownCompilerNames {
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
         symbol.name == mutableMap || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
-    }
-
-    func isMutableListSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableList || symbolMatches(symbol, fqName: kotlinCollectionsMutableListFQName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {
