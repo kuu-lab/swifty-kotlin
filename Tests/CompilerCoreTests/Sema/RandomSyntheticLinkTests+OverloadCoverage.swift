@@ -353,8 +353,8 @@ extension RandomSyntheticLinkTests {
 
     // MARK: - nextInt(IntRange) extension
 
-    /// nextInt(range: IntRange) extension function is a documented gap.
-    func testNextIntIntRangeExtensionGap() throws {
+    /// nextInt(range: IntRange) extension-style overload is registered on Random.
+    func testNextIntIntRangeExtensionIsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         // The extension fun Random.nextInt(range: IntRange) would be in the
@@ -374,10 +374,14 @@ extension RandomSyntheticLinkTests {
             if case .primitive = sema.types.kind(of: paramType) { return false }
             return true
         }
-        // GAP: nextInt(range: IntRange) extension not yet registered.
-        XCTAssertNil(intRangeOverload,
-                     "GAP(STDLIB-RANDOM-002): nextInt(range: IntRange) extension not yet registered; " +
-                     "change to XCTAssertNotNil once added")
+        XCTAssertNotNil(intRangeOverload, "nextInt(range: IntRange) overload must be registered")
+        if let intRangeOverload,
+           let signature = sema.symbols.functionSignature(for: intRangeOverload)
+        {
+            XCTAssertEqual(sema.symbols.externalLinkName(for: intRangeOverload), "kk_random_nextInt_rangeObject")
+            XCTAssertEqual(signature.returnType, sema.types.intType)
+            XCTAssertTrue(signature.canThrow, "nextInt(range) must expose the empty-range throw path")
+        }
     }
 
     // MARK: - range.random(random: Random)
