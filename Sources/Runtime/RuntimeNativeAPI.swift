@@ -58,6 +58,74 @@ public func kk_copaque_pointer_address(_ handle: Int) -> Int {
     return Int(bitPattern: box.address)
 }
 
+// MARK: - Native ByteArray accessors
+
+@inline(__always)
+private func runtimeNativeByteArrayLoadUnsigned(
+    _ arrayRaw: Int,
+    _ index: Int,
+    byteCount: Int,
+    functionName: String
+) -> UInt64 {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
+    }
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
+    }
+
+    var value: UInt64 = 0
+    for byteOffset in 0..<byteCount {
+        let byte = UInt8(truncatingIfNeeded: array.elements[index + byteOffset])
+        value |= UInt64(byte) << UInt64(byteOffset * 8)
+    }
+    return value
+}
+
+@_cdecl("kk_native_byteArray_getByteAt")
+public func kk_native_byteArray_getByteAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 1,
+        functionName: "kk_native_byteArray_getByteAt"
+    )
+    return Int(Int8(bitPattern: UInt8(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getShortAt")
+public func kk_native_byteArray_getShortAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 2,
+        functionName: "kk_native_byteArray_getShortAt"
+    )
+    return Int(Int16(bitPattern: UInt16(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getIntAt")
+public func kk_native_byteArray_getIntAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 4,
+        functionName: "kk_native_byteArray_getIntAt"
+    )
+    return Int(Int32(bitPattern: UInt32(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getLongAt")
+public func kk_native_byteArray_getLongAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 8,
+        functionName: "kk_native_byteArray_getLongAt"
+    )
+    return Int(Int64(bitPattern: value))
+}
+
 // MARK: - nativeHeap / nativeMemory allocation
 
 /// Tracks allocations made through `nativeHeap.alloc` / `nativeMemory`.

@@ -39,4 +39,47 @@ extension BuildKIRRegressionTests {
             "kk_platform_memoryModel should not receive an outThrown slot during ABI lowering"
         )
     }
+
+    func testNativeByteArrayAccessorsLowerToRuntimeCallees() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.getByteAt
+        import kotlin.native.getShortAt
+        import kotlin.native.getIntAt
+        import kotlin.native.getLongAt
+
+        fun probe(bytes: ByteArray): Long {
+            val byteValue = bytes.getByteAt(0)
+            val shortValue = bytes.getShortAt(1)
+            val intValue = bytes.getIntAt(2)
+            return bytes.getLongAt(0) + byteValue + shortValue + intValue
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "probe", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callees.contains("kk_native_byteArray_getByteAt"))
+            XCTAssertTrue(callees.contains("kk_native_byteArray_getShortAt"))
+            XCTAssertTrue(callees.contains("kk_native_byteArray_getIntAt"))
+            XCTAssertTrue(callees.contains("kk_native_byteArray_getLongAt"))
+        }
+    }
+
+    func testABILoweringMarksNativeByteArrayAccessorsAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getByteAt")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getShortAt")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getIntAt")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_native_byteArray_getLongAt")))
+    }
 }

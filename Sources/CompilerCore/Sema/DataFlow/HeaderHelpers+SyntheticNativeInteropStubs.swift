@@ -30,6 +30,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerSyntheticNativeByteArrayAccessorStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerSyntheticNativeImmutableBlobStubs(
             symbols: symbols,
             types: types,
@@ -925,6 +930,45 @@ extension DataFlowSemaPhase {
         }
     }
 
+    private func registerSyntheticNativeByteArrayAccessorStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nativePkg = ensurePackage(
+            path: ["kotlin", "native"],
+            symbols: symbols,
+            interner: interner
+        )
+        let byteArrayType = syntheticClassType(
+            packagePath: ["kotlin"],
+            name: "ByteArray",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        let accessors: [(name: String, returnType: TypeID, externalLinkName: String)] = [
+            ("getByteAt", types.intType, "kk_native_byteArray_getByteAt"),
+            ("getShortAt", types.intType, "kk_native_byteArray_getShortAt"),
+            ("getIntAt", types.intType, "kk_native_byteArray_getIntAt"),
+            ("getLongAt", types.longType, "kk_native_byteArray_getLongAt"),
+        ]
+        for accessor in accessors {
+            registerSyntheticNativeTopLevelFunction(
+                named: accessor.name,
+                packageFQName: nativePkg,
+                receiverType: byteArrayType,
+                parameters: [(name: "index", type: types.intType)],
+                returnType: accessor.returnType,
+                annotations: experimentalNativeApiAnnotations(),
+                externalLinkName: accessor.externalLinkName,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
     private func registerSyntheticCInteropStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1435,6 +1479,10 @@ extension DataFlowSemaPhase {
         ]
     }
 
+    private func experimentalNativeApiAnnotations() -> [MetadataAnnotationRecord] {
+        [MetadataAnnotationRecord(annotationFQName: "kotlin.experimental.ExperimentalNativeApi")]
+    }
+
     private func appendDeprecatedImmutableBlobAnnotations(to symbol: SymbolID, symbols: SymbolTable) {
         var annotations = symbols.annotations(for: symbol)
         var didAppend = false
@@ -1618,6 +1666,7 @@ extension DataFlowSemaPhase {
         defaultValues: [Bool]? = nil,
         varargs: [Bool]? = nil,
         annotations: [MetadataAnnotationRecord] = [],
+        externalLinkName: String? = nil,
         flags: SymbolFlags = [.synthetic],
         symbols: SymbolTable,
         interner: StringInterner
@@ -1636,6 +1685,9 @@ extension DataFlowSemaPhase {
         }) {
             functionSymbol = existing
             symbols.insertFlags(flags, for: existing)
+            if let externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
         } else {
             functionSymbol = symbols.define(
                 kind: .function,
@@ -1676,6 +1728,9 @@ extension DataFlowSemaPhase {
                 ),
                 for: functionSymbol
             )
+            if let externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+            }
         }
 
         if !annotations.isEmpty {
