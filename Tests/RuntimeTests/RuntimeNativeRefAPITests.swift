@@ -28,13 +28,8 @@ import XCTest
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //
 // MISSING (not implemented — no runtime entry point or compiler-side stub):
-//   - kotlin.native.runtime.GC.targetHeapBytes (property, not exposed)
-//   - kotlin.native.runtime.GC.targetHeapUtilization (property, not exposed)
-//   - kotlin.native.runtime.GC.maxHeapBytes (property, not exposed)
-//   - kotlin.native.runtime.GC.schedule() (separate from collect, not exposed)
-//   - kotlin.native.runtime.Debugging.gcSuspendCount
-//   - kotlin.native.runtime.Debugging.threadCount
-//   - kotlin.native.runtime.Debugging.globalObjectCount
+//   - RootSetStatistics / SweepStatistics type surfaces
+//   - NativeRuntimeApi marker
 
 final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
 
