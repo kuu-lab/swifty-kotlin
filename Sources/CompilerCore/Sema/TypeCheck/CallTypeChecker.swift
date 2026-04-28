@@ -3320,7 +3320,11 @@ final class CallTypeChecker {
                args.isEmpty,
                let member = syntheticCharMemberSpec(named: name)
             {
-                let resultType = member.returnKind.typeID(in: sema.types)
+                let resultType = member.returnKind.typeID(
+                    in: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner
+                )
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }

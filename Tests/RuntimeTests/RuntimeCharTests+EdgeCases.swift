@@ -261,23 +261,23 @@ final class RuntimeCharEdgeCaseTests: IsolatedRuntimeXCTestCase {
     // MARK: - category mapping
 
     func testCategoryForUppercaseLetter() {
-        // 'A' -> UPPERCASE_LETTER = 0
-        XCTAssertEqual(kk_char_category(Int(("A" as UnicodeScalar).value)), 0)
+        // 'A' -> UPPERCASE_LETTER = 1
+        XCTAssertEqual(kk_char_category(Int(("A" as UnicodeScalar).value)), 1)
     }
 
     func testCategoryForLowercaseLetter() {
-        // 'a' -> LOWERCASE_LETTER = 1
-        XCTAssertEqual(kk_char_category(Int(("a" as UnicodeScalar).value)), 1)
+        // 'a' -> LOWERCASE_LETTER = 2
+        XCTAssertEqual(kk_char_category(Int(("a" as UnicodeScalar).value)), 2)
     }
 
     func testCategoryForDecimalDigit() {
-        // '5' -> DECIMAL_DIGIT_NUMBER = 8
-        XCTAssertEqual(kk_char_category(Int(("5" as UnicodeScalar).value)), 8)
+        // '5' -> DECIMAL_DIGIT_NUMBER = 9
+        XCTAssertEqual(kk_char_category(Int(("5" as UnicodeScalar).value)), 9)
     }
 
     func testCategoryForTitlecaseLetter() {
-        // U+01C5 'ǅ' -> TITLECASE_LETTER = 2
-        XCTAssertEqual(kk_char_category(0x01C5), 2)
+        // U+01C5 'ǅ' -> TITLECASE_LETTER = 3
+        XCTAssertEqual(kk_char_category(0x01C5), 3)
     }
 
     // MARK: - ASCII vs Unicode letter categorization

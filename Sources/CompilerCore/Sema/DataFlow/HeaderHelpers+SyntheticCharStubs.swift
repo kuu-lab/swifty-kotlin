@@ -12,7 +12,10 @@ enum SyntheticCharMemberReturnKind {
     case charCategory
     case charDirectionality
 
-    func typeID(in types: TypeSystem) -> TypeID {
+    func typeID(
+        in types: TypeSystem,
+        charCategoryType: TypeID?
+    ) -> TypeID {
         switch self {
         case .boolean:
             types.booleanType
@@ -27,12 +30,26 @@ enum SyntheticCharMemberReturnKind {
         case .nullableDouble:
             types.make(.primitive(.double, .nullable))
         case .charCategory:
-            // TODO: Define CharCategory enum type
-            types.intType // Temporarily use Int as placeholder
+            charCategoryType ?? types.intType
         case .charDirectionality:
             // TODO: Define CharDirectionality enum type
             types.intType // Temporarily use Int as placeholder
         }
+    }
+
+    func typeID(
+        in types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> TypeID {
+        typeID(
+            in: types,
+            charCategoryType: syntheticCharCategoryTypeID(
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        )
     }
 }
 
@@ -163,8 +180,60 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
     ),
 ]
 
+private let syntheticCharCategoryEntries = [
+    "UNASSIGNED",
+    "UPPERCASE_LETTER",
+    "LOWERCASE_LETTER",
+    "TITLECASE_LETTER",
+    "MODIFIER_LETTER",
+    "OTHER_LETTER",
+    "NON_SPACING_MARK",
+    "ENCLOSING_MARK",
+    "COMBINING_SPACING_MARK",
+    "DECIMAL_DIGIT_NUMBER",
+    "LETTER_NUMBER",
+    "OTHER_NUMBER",
+    "SPACE_SEPARATOR",
+    "LINE_SEPARATOR",
+    "PARAGRAPH_SEPARATOR",
+    "CONTROL",
+    "FORMAT",
+    "PRIVATE_USE",
+    "SURROGATE",
+    "DASH_PUNCTUATION",
+    "START_PUNCTUATION",
+    "END_PUNCTUATION",
+    "CONNECTOR_PUNCTUATION",
+    "OTHER_PUNCTUATION",
+    "MATH_SYMBOL",
+    "CURRENCY_SYMBOL",
+    "MODIFIER_SYMBOL",
+    "OTHER_SYMBOL",
+    "INITIAL_QUOTE_PUNCTUATION",
+    "FINAL_QUOTE_PUNCTUATION",
+]
+
 func syntheticCharMemberSpec(named name: String) -> SyntheticCharMemberSpec? {
     syntheticCharMemberSpecs.first { $0.name == name }
+}
+
+func syntheticCharCategoryTypeID(
+    symbols: SymbolTable,
+    types: TypeSystem,
+    interner: StringInterner
+) -> TypeID? {
+    guard let symbol = symbols.lookup(fqName: [
+        interner.intern("kotlin"),
+        interner.intern("text"),
+        interner.intern("CharCategory"),
+    ]) else {
+        return nil
+    }
+    return types.make(.classType(ClassType(
+        classSymbol: symbol,
+        args: [],
+        nullability: .nonNull
+    )))
 }
 
 extension DataFlowSemaPhase {
@@ -174,12 +243,31 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let kotlinTextPkg = ensureKotlinTextPackageForCharStubs(symbols: symbols, interner: interner)
+        let charCategorySymbol = ensureSyntheticCharCategoryEnumClass(
+            in: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let charCategoryType = types.make(.classType(ClassType(
+            classSymbol: charCategorySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        setSyntheticCharCategoryEntryTypes(
+            enumSymbol: charCategorySymbol,
+            enumType: charCategoryType,
+            symbols: symbols
+        )
+
         for member in syntheticCharMemberSpecs {
             registerSyntheticCharExtensionFunction(
                 named: member.name,
                 externalLinkName: member.externalLinkName,
                 receiverType: types.charType,
-                returnType: member.returnKind.typeID(in: types),
+                returnType: member.returnKind.typeID(
+                    in: types,
+                    charCategoryType: charCategoryType
+                ),
                 packageFQName: kotlinTextPkg,
                 symbols: symbols,
                 interner: interner
@@ -224,6 +312,72 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(kotlinPackageSymbol, for: kotlinTextSymbol)
         }
         return kotlinTextPkg
+    }
+
+    private func ensureSyntheticCharCategoryEnumClass(
+        in packageFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let enumName = interner.intern("CharCategory")
+        let enumFQName = packageFQName + [enumName]
+        let enumSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: enumFQName) {
+            enumSymbol = existing
+            if let packageSymbol = symbols.lookup(fqName: packageFQName), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: existing)
+            }
+        } else {
+            let symbol = symbols.define(
+                kind: .enumClass,
+                name: enumName,
+                fqName: enumFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let packageSymbol = symbols.lookup(fqName: packageFQName), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: symbol)
+            }
+            enumSymbol = symbol
+        }
+
+        for entry in syntheticCharCategoryEntries {
+            let entryName = interner.intern(entry)
+            let entryFQName = enumFQName + [entryName]
+            let entrySymbol: SymbolID
+            if let existing = symbols.lookup(fqName: entryFQName) {
+                entrySymbol = existing
+            } else {
+                entrySymbol = symbols.define(
+                    kind: .field,
+                    name: entryName,
+                    fqName: entryFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
+        }
+
+        return enumSymbol
+    }
+
+    private func setSyntheticCharCategoryEntryTypes(
+        enumSymbol: SymbolID,
+        enumType: TypeID,
+        symbols: SymbolTable
+    ) {
+        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
+        for child in symbols.children(ofFQName: enumInfo.fqName) {
+            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
+                continue
+            }
+            if symbols.propertyType(for: child) == nil {
+                symbols.setPropertyType(enumType, for: child)
+            }
+        }
     }
 
     private func registerSyntheticCharExtensionFunction(

@@ -4876,7 +4876,11 @@ extension CallTypeChecker {
                 if receiverTypeForCheck == sema.types.charType {
                     let calleeStr = interner.resolve(calleeName)
                     if let member = syntheticCharMemberSpec(named: calleeStr) {
-                        let resultType = member.returnKind.typeID(in: sema.types)
+                        let resultType = member.returnKind.typeID(
+                            in: sema.types,
+                            symbols: sema.symbols,
+                            interner: interner
+                        )
                         let kotlinTextFQName = [
                             interner.intern("kotlin"),
                             interner.intern("text"),
