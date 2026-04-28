@@ -4903,6 +4903,46 @@ extension CallTypeChecker {
             }
         }
 
+        // Prefer the concrete kotlin.text String.compareTo overloads over the
+        // generic Comparable<T>.compareTo member, which otherwise leaves
+        // String.compareTo(String) ambiguous after both surfaces are available.
+        if !isClassNameReceiver,
+           interner.resolve(calleeName) == "compareTo",
+           args.count == 1 || args.count == 2
+        {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            let arg0Type = sema.types.makeNonNullable(argTypes[0])
+            let stringArgMatches = sema.types.isSubtype(arg0Type, sema.types.stringType)
+            let boolArgMatches = args.count == 1
+                || sema.types.isSubtype(sema.types.makeNonNullable(argTypes[1]), sema.types.booleanType)
+            if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType),
+               stringArgMatches,
+               boolArgMatches
+            {
+                if let boundType = tryBindSyntheticStringMemberFallback(
+                    id,
+                    calleeName: calleeName,
+                    receiverType: receiverTypeForCheck,
+                    args: args,
+                    argTypes: argTypes,
+                    range: range,
+                    ctx: ctx,
+                    expectedType: expectedType,
+                    explicitTypeArgs: explicitTypeArgs,
+                    safeCall: safeCall
+                ) {
+                    return boundType
+                }
+                let finalType = safeCall
+                    ? sema.types.makeNullable(sema.types.intType)
+                    : sema.types.intType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
+
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = visible
         if hasLeadingLocaleArgument {
