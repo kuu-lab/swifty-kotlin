@@ -159,6 +159,97 @@ final class AnnotationSemanticTests: XCTestCase {
         XCTAssertTrue(diagnostics[0].codeActions.isEmpty, "Did not expect code actions for empty replaceWith")
     }
 
+    func testDeprecatedSinceKotlinSurfaceHasVersionPropertiesAndDefaults() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try XCTUnwrap(ctx.sema)
+        let fqName = [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("DeprecatedSinceKotlin"),
+        ]
+        let symbolID = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+
+        XCTAssertEqual(symbol.kind, .annotationClass)
+        XCTAssertEqual(symbol.visibility, .public)
+        XCTAssertTrue(symbol.flags.contains(.synthetic))
+
+        let annotations = sema.symbols.annotations(for: symbolID)
+        XCTAssertTrue(
+            annotations.contains {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            },
+            "DeprecatedSinceKotlin should carry its declaration target list, got: \(annotations)"
+        )
+
+        let propertyNames = ["warningSince", "errorSince", "hiddenSince"]
+        for propertyName in propertyNames {
+            let propertySymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: fqName + [ctx.interner.intern(propertyName)])
+            )
+            XCTAssertEqual(sema.symbols.propertyType(for: propertySymbol), sema.types.stringType)
+        }
+
+        let initName = ctx.interner.intern("<init>")
+        let ctorSymbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: fqName + [initName]).first {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }
+        )
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: ctorSymbol))
+        XCTAssertEqual(signature.parameterTypes, Array(repeating: sema.types.stringType, count: 3))
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, true])
+        XCTAssertEqual(signature.valueParameterIsVararg, [false, false, false])
+    }
+
+    func testDeprecatedSinceKotlinAcceptsDocumentedTargets() {
+        let source = """
+        @DeprecatedSinceKotlin(warningSince = "1.0", errorSince = "1.1", hiddenSince = "1.2")
+        class OldClass {
+            @DeprecatedSinceKotlin
+            constructor()
+        }
+
+        @DeprecatedSinceKotlin
+        fun oldFun() {}
+
+        @DeprecatedSinceKotlin
+        val oldProperty: Int = 1
+
+        @DeprecatedSinceKotlin
+        annotation class OldAnnotation
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
+
+        XCTAssertTrue(diagnostics.isEmpty, "Expected DeprecatedSinceKotlin target uses to be accepted, got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    func testDeprecatedSinceKotlinRejectsFileTarget() {
+        let source = """
+        @file:DeprecatedSinceKotlin
+
+        package sample
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = diagnostics(withCode: "KSWIFTK-SEMA-ANNOTATION-TARGET", in: ctx)
+
+        XCTAssertEqual(diagnostics.count, 1, "Expected file-target diagnostic for DeprecatedSinceKotlin, got: \(ctx.diagnostics.diagnostics)")
+        XCTAssertTrue(diagnostics.allSatisfy(isError), "Annotation-target diagnostics should be errors")
+    }
+
     func testSyntheticDeprecatedToCharEmitsWarning() {
         let source = """
         fun caller(): Char = 65.toChar()
