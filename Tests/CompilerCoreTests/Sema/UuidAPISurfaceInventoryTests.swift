@@ -20,7 +20,7 @@ import XCTest
 //        and the edge-case file added in PR #1221 (UUID-003).
 //
 // NOTE - known gaps detected during inventory:
-//   • SIZE_BITS / SIZE_BYTES and LEXICAL_ORDER are pending (STDLIB-UUID-011/012).
+//   • LEXICAL_ORDER is pending (STDLIB-UUID-012).
 
 final class UuidAPISurfaceInventoryTests: XCTestCase {
 
@@ -641,11 +641,38 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         XCTAssertEqual(ct.classSymbol, uuidSym)
     }
 
+    func testUuidSizeConstantsAreRegisteredAsConstInts() throws {
+        let (sema, interner) = try makeSema()
+        let expectedConstants: [(name: String, value: Int64)] = [
+            ("SIZE_BITS", 128),
+            ("SIZE_BYTES", 16),
+        ]
+
+        for expected in expectedConstants {
+            let fq = ["kotlin", "uuid", "Uuid", "Companion", expected.name].map { interner.intern($0) }
+            let sym = try XCTUnwrap(
+                sema.symbols.lookupAll(fqName: fq).first(where: { sema.symbols.symbol($0)?.kind == .property }),
+                "Uuid.\(expected.name) must be registered as a companion property"
+            )
+            let info = try XCTUnwrap(sema.symbols.symbol(sym))
+            XCTAssertTrue(info.flags.contains(.static), "Uuid.\(expected.name) must be static")
+            XCTAssertTrue(info.flags.contains(.constValue), "Uuid.\(expected.name) must be const")
+            XCTAssertEqual(
+                sema.symbols.propertyType(for: sym),
+                sema.types.intType,
+                "Uuid.\(expected.name) must have Int type"
+            )
+            XCTAssertEqual(
+                sema.symbols.constValueExprKind(for: sym),
+                .intLiteral(expected.value),
+                "Uuid.\(expected.name) must expose the Kotlin stdlib constant value"
+            )
+        }
+    }
+
     func testKnownPendingUuidCompanionMembersAreTrackedAsGaps() throws {
         let (sema, interner) = try makeSema()
         let pendingMembers = [
-            "SIZE_BITS",          // STDLIB-UUID-011
-            "SIZE_BYTES",         // STDLIB-UUID-011
             "LEXICAL_ORDER",      // STDLIB-UUID-012
         ]
 
@@ -694,6 +721,8 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             ["kotlin", "uuid", "Uuid"],
             ["kotlin", "uuid", "Uuid", "Companion", "random"],
             ["kotlin", "uuid", "Uuid", "Companion", "NIL"],
+            ["kotlin", "uuid", "Uuid", "Companion", "SIZE_BITS"],
+            ["kotlin", "uuid", "Uuid", "Companion", "SIZE_BYTES"],
             ["kotlin", "uuid", "Uuid", "Companion", "parse"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseOrNull"],
             ["kotlin", "uuid", "Uuid", "Companion", "parseHex"],
