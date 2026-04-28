@@ -57,6 +57,7 @@ extension ABIMismatchTests {
             "kk_system_currentTimeMillis",
             "kk_system_nanoTime",
             "kk_system_getTimeMicros",
+            "kk_system_getTimeMillis",
             "kk_system_process_start_nanos",
             "kk_system_measureTimeMillis",
             "kk_system_measureNanoTime",

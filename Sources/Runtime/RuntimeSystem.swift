@@ -27,6 +27,13 @@ public func kk_system_currentTimeMillis() -> Int {
     Int(Date().timeIntervalSince1970 * 1000)
 }
 
+/// Runtime support for kotlin.system.getTimeMillis().
+/// Returns current wall-clock time in milliseconds since Unix epoch.
+@_cdecl("kk_system_getTimeMillis")
+public func kk_system_getTimeMillis() -> Int {
+    kk_system_currentTimeMillis()
+}
+
 /// Runtime support for monotonic nanosecond clock (STDLIB-550, STDLIB-TIME-085).
 /// Returns monotonic uptime in nanoseconds (not wall-clock).
 ///
