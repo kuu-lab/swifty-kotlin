@@ -57,6 +57,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
+
     func testSystemObjectMembersLowerToRuntimeCallees() throws {
         let source = """
         import kotlin.system.System
