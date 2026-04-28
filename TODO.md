@@ -162,7 +162,7 @@
 - [x] STDLIB-MATH-007: `IEEErem` / `nextTowards` / `withSign` と残りの `pow` overload を追加する
 - [x] STDLIB-MATH-008: 公開されている非公式 rounding helper 名（`roundUp` など）を整理する
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [ ] STDLIB-RANDOM-003: `kotlin.random` の runtime / seed / 境界値を固定
 - [x] STDLIB-RANDOM-004: `Random(seed: Long)` constructor を追加する
 - [x] STDLIB-RANDOM-005: `Random.Default` singleton を sema から露出する
@@ -172,7 +172,7 @@
 - [x] STDLIB-RANDOM-009: `Random.nextBytes(array, fromIndex, toIndex)` overload を追加する
 - [x] STDLIB-RANDOM-010: `Random.nextBits(bitCount: Int)` member surface を追加する
 - [x] STDLIB-RANDOM-011: `Random.nextUBytes(size)` / `nextUBytes(array)` / `nextUBytes(array, fromIndex, toIndex)` を追加する
-- [ ] STDLIB-RANDOM-012: `Random.nextUInt()` / `nextUInt(until)` / `nextUInt(from, until)` / `nextUInt(range)` を追加する
+- [x] STDLIB-RANDOM-012: `Random.nextUInt()` / `nextUInt(until)` / `nextUInt(from, until)` / `nextUInt(range)` を追加する
 - [x] STDLIB-RANDOM-013: `Random.nextULong()` / `nextULong(until)` / `nextULong(from, until)` / `nextULong(range)` を追加する
 - [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [ ] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
