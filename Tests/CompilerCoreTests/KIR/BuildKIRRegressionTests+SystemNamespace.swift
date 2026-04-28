@@ -39,6 +39,7 @@ extension BuildKIRRegressionTests {
         }
     }
 
+<<<<<<< HEAD
     func testGetTimeNanosLowersToRuntimeCallee() throws {
         let source = """
         import kotlin.system.getTimeNanos
@@ -57,6 +58,8 @@ extension BuildKIRRegressionTests {
         }
     }
 
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
     func testSystemObjectMembersLowerToRuntimeCallees() throws {
         let source = """
         import kotlin.system.System

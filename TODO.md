@@ -370,6 +370,7 @@
 <<<<<<< HEAD
 - [x] STDLIB-SYSTEM-004: `kotlin.system.getTimeMicros()` top-level Native API を追加する
 - [x] STDLIB-SYSTEM-005: `kotlin.system.getTimeMillis()` top-level Native API を追加する（現状の `System.currentTimeMillis()` とは別 surface）
+<<<<<<< HEAD
 - [x] STDLIB-SYSTEM-006: `kotlin.system.getTimeNanos()` top-level Native API を追加する（現状の `System.nanoTime()` とは別 surface）
 - [x] STDLIB-SYSTEM-007: `kotlin.system.measureTimeMicros { ... }` Native API を追加する
 =======
@@ -381,6 +382,8 @@
 >>>>>>> 9a6fe4272 (Cover kotlin.system runtime measurements)
 - [ ] STDLIB-SYSTEM-004: `kotlin.system.getTimeMicros()` top-level Native API を追加する
 - [ ] STDLIB-SYSTEM-005: `kotlin.system.getTimeMillis()` top-level Native API を追加する（現状の `System.currentTimeMillis()` とは別 surface）
+=======
+>>>>>>> eda5419d0 (Implement kotlin.system.getTimeMillis)
 - [ ] STDLIB-SYSTEM-006: `kotlin.system.getTimeNanos()` top-level Native API を追加する（現状の `System.nanoTime()` とは別 surface）
 - [ ] STDLIB-SYSTEM-007: `kotlin.system.measureTimeMicros { ... }` Native API を追加する
 >>>>>>> 5e4e1c0d5 (Fix kotlin.system API inventory)
