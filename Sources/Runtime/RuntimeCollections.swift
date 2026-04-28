@@ -1494,6 +1494,13 @@ public func kk_empty_array() -> Int {
     return kk_array_new(0)
 }
 
+@_cdecl("kk_array_of_nulls")
+public func kk_array_of_nulls(_ length: Int) -> Int {
+    let box = RuntimeArrayBox(length: length)
+    box.elements = Array(repeating: runtimeNullSentinelInt, count: max(0, length))
+    return registerRuntimeObject(box)
+}
+
 @_cdecl("kk_array_size")
 public func kk_array_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {

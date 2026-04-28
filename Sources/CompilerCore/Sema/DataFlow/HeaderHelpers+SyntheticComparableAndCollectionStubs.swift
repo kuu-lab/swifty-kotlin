@@ -8911,6 +8911,69 @@ extension DataFlowSemaPhase {
             )
         }
 
+        let arrayOfNullsName = interner.intern("arrayOfNulls")
+        let arrayOfNullsFQName = kotlinPkg + [arrayOfNullsName]
+        if symbols.lookup(fqName: arrayOfNullsFQName) == nil {
+            let arrayOfNullsSymbol = symbols.define(
+                kind: .function,
+                name: arrayOfNullsName,
+                fqName: arrayOfNullsFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinPkg) {
+                symbols.setParentSymbol(packageSymbol, for: arrayOfNullsSymbol)
+            }
+            symbols.setExternalLinkName("kk_array_of_nulls", for: arrayOfNullsSymbol)
+
+            let fnTypeParamName = interner.intern("T")
+            let fnTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: fnTypeParamName,
+                fqName: arrayOfNullsFQName + [fnTypeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arrayOfNullsSymbol, for: fnTypeParamSymbol)
+
+            let sizeParamName = interner.intern("size")
+            let sizeParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: sizeParamName,
+                fqName: arrayOfNullsFQName + [sizeParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arrayOfNullsSymbol, for: sizeParamSymbol)
+
+            let elementType = types.make(.typeParam(TypeParamType(
+                symbol: fnTypeParamSymbol,
+                nullability: .nonNull
+            )))
+            let nullableElementType = types.makeNullable(elementType)
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(nullableElementType)],
+                nullability: .nonNull
+            )))
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [types.intType],
+                    returnType: returnType,
+                    isSuspend: false,
+                    valueParameterSymbols: [sizeParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [fnTypeParamSymbol]
+                ),
+                for: arrayOfNullsSymbol
+            )
+        }
+
         let arrayOfName = interner.intern("arrayOf")
         let arrayOfFQName = kotlinPkg + [arrayOfName]
         if symbols.lookup(fqName: arrayOfFQName) == nil {

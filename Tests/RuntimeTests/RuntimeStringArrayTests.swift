@@ -654,6 +654,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(array, 0)
     }
 
+    func testArrayOfNullsCreatesNullableSlots() {
+        let array = kk_array_of_nulls(3)
+        XCTAssertNotEqual(array, 0)
+        XCTAssertEqual(kk_array_size(array), 3)
+
+        var thrown = 0
+        XCTAssertEqual(kk_array_get(array, 0, &thrown), runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_array_get(array, 1, &thrown), runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_array_get(array, 2, &thrown), runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
+    }
+
     // MARK: - kk_array_get / kk_array_set
 
     func testArraySetAndGetMultipleIndices() {
