@@ -388,7 +388,7 @@
 - [x] STDLIB-NATIVE-PLATFORM-004: `FreezingIsDeprecated` marker を追加する
 - [x] STDLIB-NATIVE-PLATFORM-005: `HiddenFromObjC` annotation を追加する
 - [x] STDLIB-NATIVE-PLATFORM-006: `NoInline` annotation を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-007: `ObsoleteNativeApi` marker を追加する
+- [x] STDLIB-NATIVE-PLATFORM-007: `ObsoleteNativeApi` marker を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-008: `EagerInitialization` annotation を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-009: `BitSet` surface を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-010: `ImmutableBlob` type と `immutableBlobOf(...)` factory を追加する

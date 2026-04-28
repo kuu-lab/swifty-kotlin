@@ -205,6 +205,46 @@ extension DataFlowSemaPhase {
             symbols.setAnnotations(freezingAnnotations, for: freezingIsDeprecatedSymbol)
         }
 
+        let obsoleteNativeApiSymbol = ensureAnnotationClassSymbol(
+            named: "ObsoleteNativeApi",
+            in: nativePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let nativePkgSymbol {
+            symbols.setParentSymbol(nativePkgSymbol, for: obsoleteNativeApiSymbol)
+        }
+        appendStandardAnnotationMetadata(
+            to: obsoleteNativeApiSymbol,
+            targets: [
+                "AnnotationTarget.CLASS",
+                "AnnotationTarget.ANNOTATION_CLASS",
+                "AnnotationTarget.PROPERTY",
+                "AnnotationTarget.FIELD",
+                "AnnotationTarget.LOCAL_VARIABLE",
+                "AnnotationTarget.VALUE_PARAMETER",
+                "AnnotationTarget.CONSTRUCTOR",
+                "AnnotationTarget.FUNCTION",
+                "AnnotationTarget.PROPERTY_GETTER",
+                "AnnotationTarget.PROPERTY_SETTER",
+                "AnnotationTarget.TYPEALIAS",
+            ],
+            retention: "AnnotationRetention.BINARY",
+            symbols: symbols
+        )
+        var obsoleteAnnotations = symbols.annotations(for: obsoleteNativeApiSymbol)
+        let obsoleteRequiresOptIn = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.RequiresOptIn",
+            arguments: [
+                "message=This API is obsolete and subject to removal in a future release.",
+                "level=RequiresOptIn.Level.ERROR",
+            ]
+        )
+        if !obsoleteAnnotations.contains(obsoleteRequiresOptIn) {
+            obsoleteAnnotations.append(obsoleteRequiresOptIn)
+            symbols.setAnnotations(obsoleteAnnotations, for: obsoleteNativeApiSymbol)
+        }
+
         let hiddenFromObjCSymbol = ensureAnnotationClassSymbol(
             named: "HiddenFromObjC",
             in: nativePkg,

@@ -257,4 +257,109 @@ final class NativePlatformAnnotationTests: XCTestCase {
         )
     }
 
+    func testObsoleteNativeApiMarkerIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: fqName),
+            "kotlin.native.ObsoleteNativeApi must be registered"
+        )
+
+        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .annotationClass)
+    }
+
+    func testObsoleteNativeApiCarriesRequiresOptInError() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let requiresOptIn = try XCTUnwrap(
+            sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.RequiresOptIn" },
+            "ObsoleteNativeApi must carry @RequiresOptIn"
+        )
+
+        XCTAssertTrue(
+            requiresOptIn.arguments.contains("level=RequiresOptIn.Level.ERROR"),
+            "ObsoleteNativeApi must be an error-level opt-in marker; got \(requiresOptIn.arguments)"
+        )
+        XCTAssertTrue(
+            requiresOptIn.arguments.contains { $0.contains("obsolete and subject to removal") },
+            "ObsoleteNativeApi opt-in message should mention removal risk"
+        )
+    }
+
+    func testObsoleteNativeApiCarriesNativeTargets() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "native", "ObsoleteNativeApi"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let target = try XCTUnwrap(
+            sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
+            "ObsoleteNativeApi must carry @Target metadata"
+        )
+        let expectedTargets = [
+            "AnnotationTarget.CLASS",
+            "AnnotationTarget.ANNOTATION_CLASS",
+            "AnnotationTarget.PROPERTY",
+            "AnnotationTarget.FIELD",
+            "AnnotationTarget.LOCAL_VARIABLE",
+            "AnnotationTarget.VALUE_PARAMETER",
+            "AnnotationTarget.CONSTRUCTOR",
+            "AnnotationTarget.FUNCTION",
+            "AnnotationTarget.PROPERTY_GETTER",
+            "AnnotationTarget.PROPERTY_SETTER",
+            "AnnotationTarget.TYPEALIAS",
+        ]
+
+        for expectedTarget in expectedTargets {
+            XCTAssertTrue(
+                target.arguments.contains(expectedTarget),
+                "ObsoleteNativeApi @Target should include \(expectedTarget); got \(target.arguments)"
+            )
+        }
+    }
+
+    func testUsingObsoleteNativeApiWithoutOptInProducesErrorDiagnostic() {
+        let source = """
+        import kotlin.native.ObsoleteNativeApi
+
+        @ObsoleteNativeApi
+        fun obsoleteApi() {}
+
+        fun probe() {
+            obsoleteApi()
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInErrors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .error
+        }
+
+        XCTAssertFalse(
+            optInErrors.isEmpty,
+            "Expected error-level opt-in diagnostic for ObsoleteNativeApi usage"
+        )
+    }
+
+    func testOptingInToObsoleteNativeApiSuppressesDiagnostic() {
+        let source = """
+        @file:OptIn(kotlin.native.ObsoleteNativeApi::class)
+        import kotlin.native.ObsoleteNativeApi
+
+        @ObsoleteNativeApi
+        fun obsoleteApi() {}
+
+        fun probe() {
+            obsoleteApi()
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+
+        XCTAssertTrue(
+            optInDiagnostics.isEmpty,
+            "Expected no opt-in diagnostic when @OptIn(ObsoleteNativeApi::class) is present"
+        )
+    }
+
 }
