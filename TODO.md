@@ -390,7 +390,7 @@
 - [x] STDLIB-NATIVE-PLATFORM-006: `NoInline` annotation を追加する
 - [x] STDLIB-NATIVE-PLATFORM-007: `ObsoleteNativeApi` marker を追加する
 - [x] STDLIB-NATIVE-PLATFORM-008: `EagerInitialization` annotation を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-009: `BitSet` surface を追加する
+- [x] STDLIB-NATIVE-PLATFORM-009: `BitSet` surface を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-010: `ImmutableBlob` type と `immutableBlobOf(...)` factory を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-011: `Vector128` type と `vectorOf(...)` factory を追加する
 - [ ] STDLIB-NATIVE-PLATFORM-012: Native `Any.asCPointer()` / `Any.asUCPointer()` を追加する

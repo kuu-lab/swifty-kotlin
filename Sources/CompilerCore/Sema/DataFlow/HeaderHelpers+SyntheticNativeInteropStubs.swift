@@ -15,6 +15,11 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticNativeBitSetStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         registerSyntheticCInteropStubs(
             symbols: symbols,
             types: types,
@@ -340,6 +345,331 @@ extension DataFlowSemaPhase {
         }
     }
 
+    private func registerSyntheticNativeBitSetStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let nativePkg = ensurePackage(
+            path: ["kotlin", "native"],
+            symbols: symbols,
+            interner: interner
+        )
+        let nativePkgSymbol = symbols.lookup(fqName: nativePkg)
+        let bitSetSymbol = ensureClassSymbol(
+            named: "BitSet",
+            in: nativePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let nativePkgSymbol {
+            symbols.setParentSymbol(nativePkgSymbol, for: bitSetSymbol)
+        }
+
+        let bitSetType = types.make(.classType(ClassType(
+            classSymbol: bitSetSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(bitSetType, for: bitSetSymbol)
+
+        var bitSetAnnotations = symbols.annotations(for: bitSetSymbol)
+        let obsoleteNativeApiRecord = MetadataAnnotationRecord(annotationFQName: "kotlin.native.ObsoleteNativeApi")
+        if !bitSetAnnotations.contains(obsoleteNativeApiRecord) {
+            bitSetAnnotations.append(obsoleteNativeApiRecord)
+            symbols.setAnnotations(bitSetAnnotations, for: bitSetSymbol)
+        }
+
+        let companionName = interner.intern("Companion")
+        let companionFQName = nativePkg + [interner.intern("BitSet"), companionName]
+        let companionSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: companionFQName), symbols.symbol(existing)?.kind == .object {
+            companionSymbol = existing
+        } else {
+            companionSymbol = symbols.define(
+                kind: .object,
+                name: companionName,
+                fqName: companionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+        }
+        symbols.setParentSymbol(bitSetSymbol, for: companionSymbol)
+        let companionType = types.make(.classType(ClassType(
+            classSymbol: companionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(companionType, for: companionSymbol)
+
+        let intRangeType = syntheticClassType(
+            packagePath: ["kotlin", "ranges"],
+            name: "IntRange",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let initializerType = types.make(.functionType(FunctionType(
+            params: [types.intType],
+            returnType: types.booleanType
+        )))
+
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: bitSetSymbol,
+            ownerType: bitSetType,
+            parameters: [(name: "size", type: types.intType)],
+            defaultValues: [true],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: bitSetSymbol,
+            ownerType: bitSetType,
+            parameters: [
+                (name: "length", type: types.intType),
+                (name: "initializer", type: initializerType),
+            ],
+            defaultValues: [false, false],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticNativeBitSetProperty(
+            named: "isEmpty",
+            ownerSymbol: bitSetSymbol,
+            propertyType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetProperty(
+            named: "lastTrueIndex",
+            ownerSymbol: bitSetSymbol,
+            propertyType: types.intType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetProperty(
+            named: "size",
+            ownerSymbol: bitSetSymbol,
+            propertyType: types.intType,
+            flags: [.synthetic, .mutable],
+            symbols: symbols,
+            interner: interner
+        )
+
+        for name in ["and", "andNot", "or", "xor"] {
+            registerSyntheticNativeBitSetMemberFunction(
+                named: name,
+                ownerSymbol: bitSetSymbol,
+                receiverType: bitSetType,
+                parameters: [(name: "another", type: bitSetType)],
+                returnType: types.unitType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "intersects",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "another", type: bitSetType)],
+            returnType: types.booleanType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "clear",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "clear",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "index", type: types.intType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "clear",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "range", type: intRangeType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "clear",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "from", type: types.intType),
+                (name: "to", type: types.intType),
+            ],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "flip",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "index", type: types.intType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "flip",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "range", type: intRangeType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "flip",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "from", type: types.intType),
+                (name: "to", type: types.intType),
+            ],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "get",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "index", type: types.intType)],
+            returnType: types.booleanType,
+            flags: [.synthetic, .operatorFunction],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "set",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "index", type: types.intType),
+                (name: "value", type: types.booleanType),
+            ],
+            returnType: types.unitType,
+            defaultValues: [false, true],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "set",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "range", type: intRangeType),
+                (name: "value", type: types.booleanType),
+            ],
+            returnType: types.unitType,
+            defaultValues: [false, true],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "set",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "from", type: types.intType),
+                (name: "to", type: types.intType),
+                (name: "value", type: types.booleanType),
+            ],
+            returnType: types.unitType,
+            defaultValues: [false, false, true],
+            symbols: symbols,
+            interner: interner
+        )
+
+        for name in ["nextClearBit", "nextSetBit"] {
+            registerSyntheticNativeBitSetMemberFunction(
+                named: name,
+                ownerSymbol: bitSetSymbol,
+                receiverType: bitSetType,
+                parameters: [(name: "startIndex", type: types.intType)],
+                returnType: types.intType,
+                defaultValues: [true],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "previousBit",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [
+                (name: "startIndex", type: types.intType),
+                (name: "lookFor", type: types.booleanType),
+            ],
+            returnType: types.intType,
+            symbols: symbols,
+            interner: interner
+        )
+        for name in ["previousClearBit", "previousSetBit"] {
+            registerSyntheticNativeBitSetMemberFunction(
+                named: name,
+                ownerSymbol: bitSetSymbol,
+                receiverType: bitSetType,
+                parameters: [(name: "startIndex", type: types.intType)],
+                returnType: types.intType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "equals",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [(name: "other", type: types.makeNullable(types.anyType))],
+            returnType: types.booleanType,
+            flags: [.synthetic, .operatorFunction, .overrideMember],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "hashCode",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [],
+            returnType: types.intType,
+            flags: [.synthetic, .overrideMember],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "toString",
+            ownerSymbol: bitSetSymbol,
+            receiverType: bitSetType,
+            parameters: [],
+            returnType: types.stringType,
+            flags: [.synthetic, .overrideMember],
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
     private func registerSyntheticCInteropStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -585,6 +915,187 @@ extension DataFlowSemaPhase {
             annotations.append(retentionRecord)
         }
         symbols.setAnnotations(annotations, for: symbol)
+    }
+
+    private func syntheticClassType(
+        packagePath: [String],
+        name: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let packageFQName = packagePath.map { interner.intern($0) }
+        let classFQName = packageFQName + [interner.intern(name)]
+        guard let symbol = symbols.lookup(fqName: classFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func registerSyntheticNativeBitSetConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        defaultValues: [Bool],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        let parameterTypes = parameters.map(\.type)
+        let existing = symbols.lookupAll(fqName: constructorFQName).contains { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }
+        guard !existing else {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+
+        let valueParameterSymbols = parameters.map { parameter in
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: constructorFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
+            symbols.setPropertyType(parameter.type, for: parameterSymbol)
+            return parameterSymbol
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: defaultValues,
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+            ),
+            for: constructorSymbol
+        )
+    }
+
+    private func registerSyntheticNativeBitSetProperty(
+        named name: String,
+        ownerSymbol: SymbolID,
+        propertyType: TypeID,
+        flags: SymbolFlags = [.synthetic],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let propertyName = interner.intern(name)
+        let propertyFQName = ownerInfo.fqName + [propertyName]
+        if let existing = symbols.lookup(fqName: propertyFQName) {
+            symbols.setPropertyType(propertyType, for: existing)
+            symbols.insertFlags(flags, for: existing)
+            return
+        }
+
+        let propertySymbol = symbols.define(
+            kind: .property,
+            name: propertyName,
+            fqName: propertyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: flags
+        )
+        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
+        symbols.setPropertyType(propertyType, for: propertySymbol)
+    }
+
+    private func registerSyntheticNativeBitSetMemberFunction(
+        named name: String,
+        ownerSymbol: SymbolID,
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        defaultValues: [Bool]? = nil,
+        flags: SymbolFlags = [.synthetic],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let functionName = interner.intern(name)
+        let functionFQName = ownerInfo.fqName + [functionName]
+        let parameterTypes = parameters.map(\.type)
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes == parameterTypes
+                && signature.returnType == returnType
+        }) {
+            symbols.insertFlags(flags, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: flags
+        )
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+
+        let valueParameterSymbols = parameters.map { parameter in
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            symbols.setPropertyType(parameter.type, for: parameterSymbol)
+            return parameterSymbol
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: defaultValues ?? Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+            ),
+            for: functionSymbol
+        )
     }
 
     private func configureSingleTypeParameterNominal(
