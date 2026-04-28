@@ -363,7 +363,7 @@
 - [ ] STDLIB-NATIVE-REF-009: `kotlin.native.runtime.RootSetStatistics` surface を追加する
 - [ ] STDLIB-NATIVE-REF-010: `kotlin.native.runtime.SweepStatistics` surface を追加する
 - [ ] STDLIB-NATIVE-REF-011: `kotlin.native.runtime.NativeRuntimeApi` marker を追加する
-- [ ] STDLIB-SYSTEM-001: `kotlin.system` の対象 API 一覧を固定
+- [x] STDLIB-SYSTEM-001: `kotlin.system` の対象 API 一覧を固定
 - [ ] STDLIB-SYSTEM-002: `kotlin.system` の sema / lowering を整える
 - [ ] STDLIB-SYSTEM-003: `kotlin.system` の runtime / 計測系テストを固定
 - [ ] STDLIB-SYSTEM-004: `kotlin.system.getTimeMicros()` top-level Native API を追加する
