@@ -294,6 +294,42 @@ final class AnnotationSemanticTests: XCTestCase {
         XCTAssertNotNil(sema.symbols.propertyType(for: valueSymbol), "markerClass must have a property type")
     }
 
+    func testConsistentCopyVisibilityResolves() {
+        let source = """
+        fun marker(x: ConsistentCopyVisibility?): Int = 0
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+
+        XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty, "Expected ConsistentCopyVisibility smoke test to compile cleanly, got: \(ctx.diagnostics.diagnostics)")
+    }
+
+    func testConsistentCopyVisibilityAnnotationIsSyntheticAndTargetedToClasses() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try XCTUnwrap(ctx.sema)
+        let symbolID = try XCTUnwrap(
+            sema.symbols.lookup(fqName: [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("ConsistentCopyVisibility"),
+            ]),
+            "kotlin.ConsistentCopyVisibility must be registered"
+        )
+        let symbol = try XCTUnwrap(sema.symbols.symbol(symbolID))
+
+        XCTAssertEqual(symbol.kind, .annotationClass)
+        XCTAssertTrue(symbol.flags.contains(.synthetic))
+
+        let annotations = sema.symbols.annotations(for: symbolID)
+        XCTAssertTrue(
+            annotations.contains(where: {
+                $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
+                    && $0.arguments == ["AnnotationTarget.CLASS"]
+            }),
+            "Expected ConsistentCopyVisibility to carry @Target(AnnotationTarget.CLASS), got: \(annotations)"
+        )
+    }
+
     func testTargetAnnotationIsRejectedOnRegularClass() {
         let source = """
         @Target(AnnotationTarget.CLASS)
