@@ -53,6 +53,7 @@ final class RandomAPITargetInventoryTests: XCTestCase {
         "fun Random.nextInt(): Int": "kk_random_nextInt",
         "fun Random.nextInt(Int): Int": "kk_random_nextInt_until",
         "fun Random.nextInt(Int, Int): Int": "kk_random_nextInt_range",
+        "fun Random.nextInt(IntRange): Int": "kk_random_nextInt_intRange",
         "fun Random.nextLong(): Long": "kk_random_nextLong",
         "fun Random.nextLong(Long): Long": "kk_random_nextLong_until",
         "fun Random.nextLong(Long, Long): Long": "kk_random_nextLong_range",
@@ -64,7 +65,6 @@ final class RandomAPITargetInventoryTests: XCTestCase {
     ]
 
     private static let knownGaps: [String: String] = [
-        "fun Random.nextInt(IntRange): Int": "STDLIB-RANDOM-007",
         "fun Random.nextUBytes(Int): UByteArray": "STDLIB-RANDOM-011",
         "fun Random.nextUBytes(UByteArray): UByteArray": "STDLIB-RANDOM-011",
         "fun Random.nextUBytes(UByteArray, Int, Int): UByteArray": "STDLIB-RANDOM-011",
@@ -86,8 +86,8 @@ final class RandomAPITargetInventoryTests: XCTestCase {
 
     func testTargetInventoryHasExpectedShape() {
         XCTAssertEqual(Self.commonTargetSignatures.count, 31)
-        XCTAssertEqual(Self.implementedLinks.count, 23)
-        XCTAssertEqual(Self.knownGaps.count, 8)
+        XCTAssertEqual(Self.implementedLinks.count, 24)
+        XCTAssertEqual(Self.knownGaps.count, 7)
         XCTAssertEqual(Self.jvmOnlyTargets.count, 2)
     }
 
