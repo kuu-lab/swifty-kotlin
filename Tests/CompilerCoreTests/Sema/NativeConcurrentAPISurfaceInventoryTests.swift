@@ -22,6 +22,7 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         TopLevelEntry(name: "TransferMode", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "Worker", kind: .class, todo: nil),
         TopLevelEntry(name: "WorkerBoundReference", kind: .class, todo: nil),
+        TopLevelEntry(name: "atomicLazy", kind: .function, todo: nil),
         TopLevelEntry(name: "attach", kind: .function, todo: nil),
     ]
 
@@ -35,7 +36,6 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         TopLevelEntry(name: "FreezableAtomicReference", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-016"),
         TopLevelEntry(name: "MutableData", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-017"),
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: "STDLIB-NATIVE-CONCURRENT-018"),
-        TopLevelEntry(name: "atomicLazy", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-008"),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
         TopLevelEntry(name: "callContinuation2", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
@@ -65,8 +65,8 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
 
         XCTAssertEqual(targetEntries.count, targetNames.count)
         XCTAssertEqual(targetEntries.count, 31)
-        XCTAssertEqual(Self.implementedTopLevelEntries.count, 12)
-        XCTAssertEqual(Self.knownGapTopLevelEntries.count, 19)
+        XCTAssertEqual(Self.implementedTopLevelEntries.count, 13)
+        XCTAssertEqual(Self.knownGapTopLevelEntries.count, 18)
     }
 
     func testImplementedTopLevelEntriesAreRegistered() throws {
@@ -121,7 +121,6 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         XCTAssertEqual(
             todos,
             [
-                "STDLIB-NATIVE-CONCURRENT-008",
                 "STDLIB-NATIVE-CONCURRENT-009",
                 "STDLIB-NATIVE-CONCURRENT-010",
                 "STDLIB-NATIVE-CONCURRENT-011",

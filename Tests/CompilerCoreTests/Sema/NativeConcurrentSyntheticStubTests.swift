@@ -595,6 +595,47 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         XCTAssertNil(sema.symbols.externalLinkName(for: worker))
     }
 
+    // MARK: - atomicLazy
+
+    func testAtomicLazyFunctionIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let atomicLazyFQName = ["kotlin", "native", "concurrent", "atomicLazy"].map { interner.intern($0) }
+        let atomicLazy = try XCTUnwrap(sema.symbols.lookupAll(fqName: atomicLazyFQName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.typeParameterSymbols.count == 1
+            else {
+                return false
+            }
+            let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            )))
+            let initializerType = sema.types.make(.functionType(FunctionType(
+                params: [],
+                returnType: typeParameterType
+            )))
+            guard let lazyType = try? classType(
+                ["kotlin", "Lazy"],
+                sema: sema,
+                interner: interner,
+                args: [.invariant(typeParameterType)]
+            ) else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.parameterTypes == [initializerType]
+                && signature.returnType == lazyType
+        })
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: atomicLazy))
+        let initializerSymbol = try XCTUnwrap(signature.valueParameterSymbols.first)
+
+        XCTAssertEqual(sema.symbols.symbol(atomicLazy)?.kind, .function)
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
+        XCTAssertEqual(signature.classTypeParameterCount, 0)
+        XCTAssertEqual(sema.symbols.propertyType(for: initializerSymbol), signature.parameterTypes.first)
+        XCTAssertNil(sema.symbols.externalLinkName(for: atomicLazy))
+    }
+
     // MARK: - Future<T> class
 
     func testFutureClassIsRegistered() throws {
