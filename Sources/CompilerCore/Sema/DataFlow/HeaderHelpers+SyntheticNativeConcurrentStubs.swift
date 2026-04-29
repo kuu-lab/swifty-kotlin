@@ -8,6 +8,7 @@ import Foundation
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `WorkerBoundReference<T>` class with constructor and read-only properties
 ///   - `atomicLazy` top-level function
+///   - `ensureNeverFrozen` top-level extension
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
 ///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
 ///   - `AtomicReference<T>` (legacy alias in `kotlin.native.concurrent`)
@@ -116,6 +117,14 @@ extension DataFlowSemaPhase {
 
         // atomicLazy(initializer: () -> T): Lazy<T>
         registerNativeConcurrentAtomicLazy(
+            packageFQName: nativeConcurrentPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // Any.ensureNeverFrozen(): Unit
+        registerNativeConcurrentEnsureNeverFrozen(
             packageFQName: nativeConcurrentPkg,
             symbols: symbols,
             types: types,
@@ -779,6 +788,53 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: [false],
                 typeParameterSymbols: [typeParamSymbol],
                 classTypeParameterCount: 0
+            ),
+            for: functionSymbol
+        )
+    }
+
+    // MARK: - ensureNeverFrozen
+
+    private func registerNativeConcurrentEnsureNeverFrozen(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("ensureNeverFrozen")
+        let functionFQName = packageFQName + [functionName]
+        let receiverType = types.anyType
+
+        guard symbols.lookupAll(fqName: functionFQName).first(where: { id in
+            guard let signature = symbols.functionSignature(for: id) else { return false }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == types.unitType
+        }) == nil else {
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .throwingFunction]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: types.unitType,
+                isSuspend: false,
+                canThrow: true,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
             ),
             for: functionSymbol
         )

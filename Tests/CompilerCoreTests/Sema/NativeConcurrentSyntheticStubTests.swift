@@ -636,6 +636,44 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         XCTAssertNil(sema.symbols.externalLinkName(for: atomicLazy))
     }
 
+    // MARK: - ensureNeverFrozen
+
+    func testEnsureNeverFrozenFunctionIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let functionFQName = ["kotlin", "native", "concurrent", "ensureNeverFrozen"].map { interner.intern($0) }
+        let function = try XCTUnwrap(sema.symbols.lookupAll(fqName: functionFQName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.receiverType == sema.types.anyType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == sema.types.unitType
+        })
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: function))
+
+        XCTAssertEqual(sema.symbols.symbol(function)?.kind, .function)
+        XCTAssertTrue(sema.symbols.symbol(function)?.flags.contains(.throwingFunction) == true)
+        XCTAssertTrue(signature.canThrow)
+        XCTAssertEqual(signature.valueParameterSymbols, [])
+        XCTAssertNil(sema.symbols.externalLinkName(for: function))
+    }
+
+    func testEnsureNeverFrozenResolvesInSource() {
+        let source = """
+        import kotlin.native.concurrent.ensureNeverFrozen
+
+        fun probe(value: Any) {
+            value.ensureNeverFrozen()
+        }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        XCTAssertFalse(
+            ctx.diagnostics.hasError,
+            "Expected ensureNeverFrozen to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+    }
+
     // MARK: - Future<T> class
 
     func testFutureClassIsRegistered() throws {
