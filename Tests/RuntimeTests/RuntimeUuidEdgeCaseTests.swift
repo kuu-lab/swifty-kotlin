@@ -49,9 +49,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         return tryCast(ptr, to: RuntimeArrayBox.self)
     }
 
-    private func intFromBits(_ bits: UInt64) -> Int {
-        Int(bitPattern: UInt(truncatingIfNeeded: bits))
-    }
     private func compareWithUuidLexicalOrder(_ lhs: Int, _ rhs: Int) -> Int {
         let comparator = kk_uuid_lexicalOrder()
         let compareFnRaw = kk_itable_lookup(comparator, 0, 0)
