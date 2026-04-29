@@ -12,6 +12,7 @@ import Foundation
 ///   - `atomicLazy` top-level function
 ///   - `ensureNeverFrozen` top-level extension
 ///   - `waitForMultipleFutures` top-level and collection-extension functions
+///   - `waitWorkerTermination(worker)` top-level function
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
 ///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
 ///   - `AtomicReference<T>` (legacy alias in `kotlin.native.concurrent`)
@@ -163,6 +164,14 @@ extension DataFlowSemaPhase {
 
         // waitForMultipleFutures(futures, timeoutMillis) and collection extension
         registerNativeConcurrentWaitForMultipleFutures(
+            packageFQName: nativeConcurrentPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // waitWorkerTermination(worker)
+        registerNativeConcurrentWaitWorkerTermination(
             packageFQName: nativeConcurrentPkg,
             symbols: symbols,
             types: types,
@@ -1344,6 +1353,36 @@ extension DataFlowSemaPhase {
                         "level = DeprecationLevel.ERROR",
                     ]
                 ),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    // MARK: - waitWorkerTermination
+
+    private func registerNativeConcurrentWaitWorkerTermination(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let workerType = nativeConcurrentClassType(
+            packagePath: ["kotlin", "native", "concurrent"],
+            name: "Worker",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerNativeConcurrentPackageFunction(
+            named: "waitWorkerTermination",
+            packageFQName: packageFQName,
+            receiverType: nil,
+            returnType: types.unitType,
+            parameters: [(name: "worker", type: workerType)],
+            typeParameterSymbols: [],
+            annotations: [
+                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
             ],
             symbols: symbols,
             interner: interner

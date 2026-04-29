@@ -451,6 +451,49 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         )
     }
 
+    func testWaitWorkerTerminationFunctionIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let functionFQName = ["kotlin", "native", "concurrent", "waitWorkerTermination"]
+            .map { interner.intern($0) }
+        let workerType = try classType(
+            ["kotlin", "native", "concurrent", "Worker"],
+            sema: sema,
+            interner: interner
+        )
+        let function = try XCTUnwrap(sema.symbols.lookupAll(fqName: functionFQName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.parameterTypes == [workerType]
+                && signature.returnType == sema.types.unitType
+        }, "Expected waitWorkerTermination")
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: function))
+
+        XCTAssertEqual(sema.symbols.symbol(function)?.kind, .function)
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
+        XCTAssertTrue(sema.symbols.annotations(for: function).contains {
+            $0.annotationFQName == "kotlin.native.concurrent.ObsoleteWorkersApi"
+        })
+    }
+
+    func testWaitWorkerTerminationResolvesInSource() {
+        let source = """
+        import kotlin.native.concurrent.Worker
+        import kotlin.native.concurrent.waitWorkerTermination
+
+        fun probe(worker: Worker) {
+            waitWorkerTermination(worker)
+        }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        XCTAssertFalse(
+            ctx.diagnostics.hasError,
+            "Expected waitWorkerTermination to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+    }
+
     // MARK: - DetachedObjectGraph<T> class
 
     func testDetachedObjectGraphClassIsRegistered() throws {
