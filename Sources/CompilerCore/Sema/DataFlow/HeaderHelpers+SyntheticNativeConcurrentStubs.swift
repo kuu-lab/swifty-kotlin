@@ -11,6 +11,7 @@ import Foundation
 ///   - `WorkerBoundReference<T>` class with constructor and read-only properties
 ///   - `atomicLazy` top-level function
 ///   - `ensureNeverFrozen` top-level extension
+///   - `waitForMultipleFutures` top-level and collection-extension functions
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
 ///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
 ///   - `AtomicReference<T>` (legacy alias in `kotlin.native.concurrent`)
@@ -155,6 +156,14 @@ extension DataFlowSemaPhase {
             packageFQName: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             futureStateType: futureStateType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // waitForMultipleFutures(futures, timeoutMillis) and collection extension
+        registerNativeConcurrentWaitForMultipleFutures(
+            packageFQName: nativeConcurrentPkg,
             symbols: symbols,
             types: types,
             interner: interner
@@ -1252,6 +1261,95 @@ extension DataFlowSemaPhase {
         )
     }
 
+    // MARK: - waitForMultipleFutures
+
+    private func registerNativeConcurrentWaitForMultipleFutures(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("waitForMultipleFutures")
+        let functionFQName = packageFQName + [functionName]
+        let typeParameterName = interner.intern("T")
+        let typeParameterFQName = functionFQName + [typeParameterName]
+        let typeParameterSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParameterFQName) {
+            typeParameterSymbol = existing
+        } else {
+            typeParameterSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParameterName,
+                fqName: typeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let futureType = nativeConcurrentFutureType(
+            elementType: typeParameterType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let futuresCollectionType = nativeConcurrentCollectionType(
+            named: "Collection",
+            elementType: futureType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let futureSetType = nativeConcurrentCollectionType(
+            named: "Set",
+            elementType: futureType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerNativeConcurrentPackageFunction(
+            named: "waitForMultipleFutures",
+            packageFQName: packageFQName,
+            receiverType: nil,
+            returnType: futureSetType,
+            parameters: [
+                (name: "futures", type: futuresCollectionType),
+                (name: "timeoutMillis", type: types.intType),
+            ],
+            typeParameterSymbols: [typeParameterSymbol],
+            annotations: [
+                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentPackageFunction(
+            named: "waitForMultipleFutures",
+            packageFQName: packageFQName,
+            receiverType: futuresCollectionType,
+            returnType: futureSetType,
+            parameters: [(name: "millis", type: types.intType)],
+            typeParameterSymbols: [typeParameterSymbol],
+            annotations: [
+                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use 'waitForMultipleFutures' top-level function instead\"",
+                        "replaceWith = \"waitForMultipleFutures(this, millis)\"",
+                        "level = DeprecationLevel.ERROR",
+                    ]
+                ),
+            ],
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
     // MARK: - AtomicReference<T> (legacy kotlin.native.concurrent)
 
     private func registerNativeConcurrentAtomicReference(
@@ -1642,6 +1740,45 @@ extension DataFlowSemaPhase {
         return classSymbol
     }
 
+    private func nativeConcurrentFutureType(
+        elementType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let futureSymbol = nativeConcurrentClassSymbol(
+            packagePath: ["kotlin", "native", "concurrent"],
+            name: "Future",
+            symbols: symbols,
+            interner: interner
+        )
+        return types.make(.classType(ClassType(
+            classSymbol: futureSymbol,
+            args: [.invariant(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
+    private func nativeConcurrentCollectionType(
+        named name: String,
+        elementType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let collectionSymbol = nativeConcurrentClassSymbol(
+            packagePath: ["kotlin", "collections"],
+            name: name,
+            symbols: symbols,
+            interner: interner
+        )
+        return types.make(.classType(ClassType(
+            classSymbol: collectionSymbol,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
+    }
+
     private func nativeConcurrentCPointerType(
         pointeeType: TypeID,
         symbols: SymbolTable,
@@ -1793,6 +1930,76 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(functionPkgSymbol, for: functionSymbol)
         }
         return functionSymbol
+    }
+
+    private func registerNativeConcurrentPackageFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID?,
+        returnType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        typeParameterSymbols: [SymbolID],
+        annotations: [MetadataAnnotationRecord] = [],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        let parameterTypes = parameters.map(\.type)
+        guard symbols.lookupAll(fqName: functionFQName).first(where: { id in
+            guard let signature = symbols.functionSignature(for: id) else { return false }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes == parameterTypes
+                && signature.returnType == returnType
+                && signature.typeParameterSymbols == typeParameterSymbols
+        }) == nil else {
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+
+        let valueParameterSymbols = parameters.map { parameter in
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            symbols.setPropertyType(parameter.type, for: parameterSymbol)
+            return parameterSymbol
+        }
+        for typeParameterSymbol in typeParameterSymbols {
+            symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
+        }
+        appendNativeConcurrentMetadataAnnotations(annotations, to: functionSymbol, symbols: symbols)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: 0
+            ),
+            for: functionSymbol
+        )
     }
 
     private func nativeConcurrentLazyType(

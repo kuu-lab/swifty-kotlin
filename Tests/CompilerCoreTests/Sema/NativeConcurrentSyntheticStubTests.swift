@@ -373,6 +373,84 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         )
     }
 
+    func testWaitForMultipleFuturesFunctionsAreRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let functionFQName = ["kotlin", "native", "concurrent", "waitForMultipleFutures"]
+            .map { interner.intern($0) }
+        let functions = sema.symbols.lookupAll(fqName: functionFQName)
+        let topLevel = try XCTUnwrap(functions.first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.parameterTypes.count == 2
+                && signature.typeParameterSymbols.count == 1
+        }, "Expected top-level waitForMultipleFutures")
+        let topLevelSignature = try XCTUnwrap(sema.symbols.functionSignature(for: topLevel))
+        let topLevelTypeParameter = try XCTUnwrap(topLevelSignature.typeParameterSymbols.first)
+        let topLevelT = sema.types.make(.typeParam(TypeParamType(
+            symbol: topLevelTypeParameter,
+            nullability: .nonNull
+        )))
+        let topLevelFutureType = try classType(
+            ["kotlin", "native", "concurrent", "Future"],
+            sema: sema,
+            interner: interner,
+            args: [.invariant(topLevelT)]
+        )
+        let topLevelCollectionType = try classType(
+            ["kotlin", "collections", "Collection"],
+            sema: sema,
+            interner: interner,
+            args: [.out(topLevelFutureType)]
+        )
+        let topLevelSetType = try classType(
+            ["kotlin", "collections", "Set"],
+            sema: sema,
+            interner: interner,
+            args: [.out(topLevelFutureType)]
+        )
+
+        XCTAssertEqual(topLevelSignature.parameterTypes, [topLevelCollectionType, sema.types.intType])
+        XCTAssertEqual(topLevelSignature.returnType, topLevelSetType)
+        XCTAssertTrue(sema.symbols.annotations(for: topLevel).contains {
+            $0.annotationFQName == "kotlin.native.concurrent.ObsoleteWorkersApi"
+        })
+
+        let extensionFunction = try XCTUnwrap(functions.first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.receiverType != nil
+                && signature.parameterTypes == [sema.types.intType]
+                && signature.typeParameterSymbols.count == 1
+        }, "Expected extension waitForMultipleFutures")
+        let extensionSignature = try XCTUnwrap(sema.symbols.functionSignature(for: extensionFunction))
+        XCTAssertEqual(extensionSignature.returnType, topLevelSetType)
+        XCTAssertTrue(sema.symbols.annotations(for: extensionFunction).contains {
+            $0.annotationFQName == "kotlin.native.concurrent.ObsoleteWorkersApi"
+        })
+        XCTAssertTrue(sema.symbols.annotations(for: extensionFunction).contains {
+            $0.annotationFQName == "kotlin.Deprecated"
+        })
+    }
+
+    func testWaitForMultipleFuturesTopLevelResolvesInSource() {
+        let source = """
+        import kotlin.native.concurrent.Future
+        import kotlin.native.concurrent.waitForMultipleFutures
+
+        fun probe(futures: Collection<Future<Int>>): Set<Future<Int>> =
+            waitForMultipleFutures(futures, 1)
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        XCTAssertFalse(
+            ctx.diagnostics.hasError,
+            "Expected waitForMultipleFutures to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+    }
+
     // MARK: - DetachedObjectGraph<T> class
 
     func testDetachedObjectGraphClassIsRegistered() throws {
