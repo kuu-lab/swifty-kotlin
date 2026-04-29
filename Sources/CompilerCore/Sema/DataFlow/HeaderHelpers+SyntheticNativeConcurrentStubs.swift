@@ -3,12 +3,13 @@ import Foundation
 /// Synthetic stdlib stubs for `kotlin.native.concurrent` (STDLIB-NATIVE-CONCURRENT-002).
 ///
 /// Registers:
+///   - `DetachedObjectGraph<T>` class with constructors, `asCPointer`, and `attach`
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
 ///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
 ///   - `AtomicReference<T>` (legacy alias in `kotlin.native.concurrent`)
 ///   - `TransferMode` enum with `SAFE` and `UNSAFE` entries
 ///   - `@SharedImmutable` annotation (PROPERTY target)
-///   - `@ThreadLocal` annotation (PROPERTY target, native variant)
+///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
 extension DataFlowSemaPhase {
     func registerSyntheticNativeConcurrentStubs(
         symbols: SymbolTable,
@@ -60,6 +61,16 @@ extension DataFlowSemaPhase {
             enumSymbol: futureStateSymbol,
             enumType: futureStateType,
             symbols: symbols
+        )
+
+        // DetachedObjectGraph<T> class and attach extension
+        registerNativeConcurrentDetachedObjectGraph(
+            packageFQName: nativeConcurrentPkg,
+            pkgSymbol: nativeConcurrentPkgSymbol,
+            transferModeType: transferModeType,
+            symbols: symbols,
+            types: types,
+            interner: interner
         )
 
         // Worker class
@@ -123,6 +134,191 @@ extension DataFlowSemaPhase {
             targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
             retention: "AnnotationRetention.BINARY",
             symbols: symbols
+        )
+    }
+
+    // MARK: - DetachedObjectGraph<T>
+
+    private func registerNativeConcurrentDetachedObjectGraph(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        transferModeType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let graphName = interner.intern("DetachedObjectGraph")
+        let graphFQName = packageFQName + [graphName]
+
+        let graphSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: graphFQName), symbols.symbol(existing)?.kind == .class {
+            graphSymbol = existing
+        } else {
+            graphSymbol = symbols.define(
+                kind: .class,
+                name: graphName,
+                fqName: graphFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: graphSymbol)
+        }
+
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = graphFQName + [typeParamName]
+        let typeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParamFQName) {
+            typeParamSymbol = existing
+        } else {
+            typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let graphType = types.make(.classType(ClassType(
+            classSymbol: graphSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+        types.setNominalTypeParameterSymbols([typeParamSymbol], for: graphSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: graphSymbol)
+        symbols.setPropertyType(graphType, for: graphSymbol)
+
+        let cOpaquePointerType = nativeConcurrentClassType(
+            packagePath: ["kotlinx", "cinterop"],
+            name: "COpaquePointer",
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let nullableCOpaquePointerType = types.makeNullable(cOpaquePointerType)
+        let producerType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: typeParamType
+        )))
+
+        registerNativeConcurrentConstructor(
+            ownerSymbol: graphSymbol,
+            ownerType: graphType,
+            parameters: [
+                (name: "mode", type: transferModeType),
+                (name: "producer", type: producerType),
+            ],
+            defaultValues: [true, false],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentConstructor(
+            ownerSymbol: graphSymbol,
+            ownerType: graphType,
+            parameters: [(name: "pointer", type: nullableCOpaquePointerType)],
+            defaultValues: [false],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentMemberFunction(
+            ownerSymbol: graphSymbol,
+            ownerType: graphType,
+            name: "asCPointer",
+            returnType: nullableCOpaquePointerType,
+            parameters: [],
+            defaultValues: [],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentAttachExtension(
+            packageFQName: packageFQName,
+            graphSymbol: graphSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentAttachExtension(
+        packageFQName: [InternedString],
+        graphSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("attach")
+        let functionFQName = packageFQName + [functionName]
+        let typeParamName = interner.intern("T")
+        let typeParamFQName = functionFQName + [typeParamName]
+        let typeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: typeParamFQName) {
+            typeParamSymbol = existing
+        } else {
+            typeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: graphSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        guard symbols.lookupAll(fqName: functionFQName).first(where: { id in
+            guard let signature = symbols.functionSignature(for: id) else { return false }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == typeParamType
+        }) == nil else {
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [],
+                returnType: typeParamType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: [],
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 0
+            ),
+            for: functionSymbol
         )
     }
 
@@ -547,7 +743,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         name: String,
-        externalLinkName: String,
+        externalLinkName: String? = nil,
         returnType: TypeID,
         parameters: [(name: String, type: TypeID)],
         defaultValues: [Bool],
@@ -573,7 +769,9 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+        }
 
         var valueParameterSymbols: [SymbolID] = []
         for parameter in parameters {
@@ -587,6 +785,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(memberSymbol, for: paramSymbol)
+            symbols.setPropertyType(parameter.type, for: paramSymbol)
             valueParameterSymbols.append(paramSymbol)
         }
 
@@ -609,6 +808,105 @@ extension DataFlowSemaPhase {
             ),
             for: memberSymbol
         )
+    }
+
+    private func registerNativeConcurrentConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        defaultValues: [Bool],
+        typeParameterSymbols: [SymbolID] = [],
+        classTypeParameterCount: Int = 0,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        let parameterTypes = parameters.map(\.type)
+        guard symbols.lookupAll(fqName: constructorFQName).first(where: { id in
+            guard symbols.symbol(id)?.kind == .constructor,
+                  let sig = symbols.functionSignature(for: id)
+            else {
+                return false
+            }
+            return sig.parameterTypes == parameterTypes
+        }) == nil else {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+
+        let valueParameterSymbols = parameters.map { parameter in
+            let paramName = interner.intern(parameter.name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: constructorFQName + [paramName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(constructorSymbol, for: paramSymbol)
+            symbols.setPropertyType(parameter.type, for: paramSymbol)
+            return paramSymbol
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: defaultValues,
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount
+            ),
+            for: constructorSymbol
+        )
+    }
+
+    private func nativeConcurrentClassType(
+        packagePath: [String],
+        name: String,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let packageFQName = ensurePackage(
+            path: packagePath,
+            symbols: symbols,
+            interner: interner
+        )
+        let packageSymbol = symbols.lookup(fqName: packageFQName)
+        let classSymbol = ensureClassSymbol(
+            named: name,
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: classSymbol)
+        }
+        let classType = types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        if symbols.propertyType(for: classSymbol) == nil {
+            symbols.setPropertyType(classType, for: classSymbol)
+        }
+        return classType
     }
 
     private func registerNativeConcurrentReadOnlyProperty(

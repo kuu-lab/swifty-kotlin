@@ -406,7 +406,7 @@
 - [x] STDLIB-NATIVE-CONCURRENT-001: `kotlin.native.concurrent` の対象 API 一覧を固定
 - [x] STDLIB-NATIVE-CONCURRENT-002: `kotlin.native.concurrent` の sema / diagnostics を整える
 - [x] STDLIB-NATIVE-CONCURRENT-003: `kotlin.native.concurrent` の最小 runtime / ABI を実装
-- [ ] STDLIB-NATIVE-CONCURRENT-004: `DetachedObjectGraph<T>` surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-004: `DetachedObjectGraph<T>` surface を追加する
 - [ ] STDLIB-NATIVE-CONCURRENT-005: `FreezingException` class surface を追加する
 - [ ] STDLIB-NATIVE-CONCURRENT-006: `InvalidMutabilityException` class surface を追加する
 - [ ] STDLIB-NATIVE-CONCURRENT-007: `WorkerBoundReference<T>` surface を追加する

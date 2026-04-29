@@ -28,6 +28,38 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         return ctx
     }
 
+    private func symbol(
+        _ path: [String],
+        sema: SemaModule,
+        interner: StringInterner,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> SymbolID {
+        try XCTUnwrap(
+            sema.symbols.lookup(fqName: path.map { interner.intern($0) }),
+            "Expected \(path.joined(separator: ".")) to be registered",
+            file: file,
+            line: line
+        )
+    }
+
+    private func classType(
+        _ path: [String],
+        sema: SemaModule,
+        interner: StringInterner,
+        args: [TypeArg] = [],
+        nullability: Nullability = .nonNull,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> TypeID {
+        let classSymbol = try symbol(path, sema: sema, interner: interner, file: file, line: line)
+        return sema.types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: args,
+            nullability: nullability
+        )))
+    }
+
     // MARK: - TransferMode enum
 
     func testTransferModeEnumIsRegistered() throws {
@@ -114,6 +146,166 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
                 "Expected FutureState.\(entry) to be registered"
             )
         }
+    }
+
+    // MARK: - DetachedObjectGraph<T> class
+
+    func testDetachedObjectGraphClassIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let graph = try symbol(
+            ["kotlin", "native", "concurrent", "DetachedObjectGraph"],
+            sema: sema,
+            interner: interner
+        )
+
+        XCTAssertEqual(sema.symbols.symbol(graph)?.kind, .class)
+        XCTAssertEqual(sema.types.nominalTypeParameterSymbols(for: graph).count, 1)
+    }
+
+    func testDetachedObjectGraphProducerConstructorIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let graphFQName = ["kotlin", "native", "concurrent", "DetachedObjectGraph"]
+            .map { interner.intern($0) }
+        let graph = try XCTUnwrap(sema.symbols.lookup(fqName: graphFQName))
+        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: graph).first)
+        let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParameter,
+            nullability: .nonNull
+        )))
+        let graphType = sema.types.make(.classType(ClassType(
+            classSymbol: graph,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        let transferModeType = try classType(
+            ["kotlin", "native", "concurrent", "TransferMode"],
+            sema: sema,
+            interner: interner
+        )
+        let producerType = sema.types.make(.functionType(FunctionType(
+            params: [],
+            returnType: typeParameterType
+        )))
+
+        let constructors = sema.symbols.lookupAll(fqName: graphFQName + [interner.intern("<init>")])
+        let constructor = try XCTUnwrap(constructors.first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.parameterTypes == [transferModeType, producerType]
+                && signature.returnType == graphType
+        })
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: constructor))
+
+        XCTAssertEqual(sema.symbols.symbol(constructor)?.kind, .constructor)
+        XCTAssertNil(signature.receiverType)
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, false])
+        XCTAssertEqual(signature.typeParameterSymbols, [typeParameter])
+        XCTAssertEqual(signature.classTypeParameterCount, 1)
+    }
+
+    func testDetachedObjectGraphPointerConstructorIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let graphFQName = ["kotlin", "native", "concurrent", "DetachedObjectGraph"]
+            .map { interner.intern($0) }
+        let graph = try XCTUnwrap(sema.symbols.lookup(fqName: graphFQName))
+        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: graph).first)
+        let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParameter,
+            nullability: .nonNull
+        )))
+        let graphType = sema.types.make(.classType(ClassType(
+            classSymbol: graph,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        let nullableCOpaquePointerType = sema.types.makeNullable(try classType(
+            ["kotlinx", "cinterop", "COpaquePointer"],
+            sema: sema,
+            interner: interner
+        ))
+
+        let constructors = sema.symbols.lookupAll(fqName: graphFQName + [interner.intern("<init>")])
+        let constructor = try XCTUnwrap(constructors.first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                return false
+            }
+            return signature.parameterTypes == [nullableCOpaquePointerType]
+                && signature.returnType == graphType
+        })
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: constructor))
+
+        XCTAssertEqual(sema.symbols.symbol(constructor)?.kind, .constructor)
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [false])
+        XCTAssertEqual(signature.typeParameterSymbols, [typeParameter])
+        XCTAssertEqual(signature.classTypeParameterCount, 1)
+    }
+
+    func testDetachedObjectGraphAsCPointerIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let graphFQName = ["kotlin", "native", "concurrent", "DetachedObjectGraph"]
+            .map { interner.intern($0) }
+        let graph = try XCTUnwrap(sema.symbols.lookup(fqName: graphFQName))
+        let typeParameter = try XCTUnwrap(sema.types.nominalTypeParameterSymbols(for: graph).first)
+        let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+            symbol: typeParameter,
+            nullability: .nonNull
+        )))
+        let graphType = sema.types.make(.classType(ClassType(
+            classSymbol: graph,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        let nullableCOpaquePointerType = sema.types.makeNullable(try classType(
+            ["kotlinx", "cinterop", "COpaquePointer"],
+            sema: sema,
+            interner: interner
+        ))
+
+        let methodFQName = graphFQName + [interner.intern("asCPointer")]
+        let method = try XCTUnwrap(sema.symbols.lookupAll(fqName: methodFQName).first)
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: method))
+
+        XCTAssertEqual(signature.receiverType, graphType)
+        XCTAssertEqual(signature.parameterTypes, [])
+        XCTAssertEqual(signature.returnType, nullableCOpaquePointerType)
+        XCTAssertEqual(signature.typeParameterSymbols, [typeParameter])
+        XCTAssertEqual(signature.classTypeParameterCount, 1)
+        XCTAssertNil(sema.symbols.externalLinkName(for: method))
+    }
+
+    func testDetachedObjectGraphAttachExtensionIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let graph = try symbol(
+            ["kotlin", "native", "concurrent", "DetachedObjectGraph"],
+            sema: sema,
+            interner: interner
+        )
+        let attachFQName = ["kotlin", "native", "concurrent", "attach"].map { interner.intern($0) }
+        let attach = try XCTUnwrap(sema.symbols.lookupAll(fqName: attachFQName).first { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.isEmpty,
+                  signature.typeParameterSymbols.count == 1
+            else {
+                return false
+            }
+            let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+                symbol: signature.typeParameterSymbols[0],
+                nullability: .nonNull
+            )))
+            let receiverType = sema.types.make(.classType(ClassType(
+                classSymbol: graph,
+                args: [.invariant(typeParameterType)],
+                nullability: .nonNull
+            )))
+            return signature.receiverType == receiverType
+                && signature.returnType == typeParameterType
+        })
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: attach))
+
+        XCTAssertEqual(sema.symbols.symbol(attach)?.kind, .function)
+        XCTAssertEqual(signature.classTypeParameterCount, 0)
+        XCTAssertNil(sema.symbols.externalLinkName(for: attach))
     }
 
     // MARK: - Worker class

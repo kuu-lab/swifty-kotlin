@@ -12,12 +12,14 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
 
     private static let implementedTopLevelEntries: Set<TopLevelEntry> = [
         TopLevelEntry(name: "AtomicReference", kind: .class, todo: nil),
+        TopLevelEntry(name: "DetachedObjectGraph", kind: .class, todo: nil),
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
         TopLevelEntry(name: "FutureState", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "SharedImmutable", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "ThreadLocal", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "TransferMode", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "Worker", kind: .class, todo: nil),
+        TopLevelEntry(name: "attach", kind: .function, todo: nil),
     ]
 
     private static let knownGapTopLevelEntries: Set<TopLevelEntry> = [
@@ -27,7 +29,6 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         TopLevelEntry(name: "Continuation0", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-010"),
         TopLevelEntry(name: "Continuation1", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-010"),
         TopLevelEntry(name: "Continuation2", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-010"),
-        TopLevelEntry(name: "DetachedObjectGraph", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-004"),
         TopLevelEntry(name: "FreezableAtomicReference", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-016"),
         TopLevelEntry(name: "FreezingException", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-005"),
         TopLevelEntry(name: "InvalidMutabilityException", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-006"),
@@ -35,7 +36,6 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: "STDLIB-NATIVE-CONCURRENT-018"),
         TopLevelEntry(name: "WorkerBoundReference", kind: .class, todo: "STDLIB-NATIVE-CONCURRENT-007"),
         TopLevelEntry(name: "atomicLazy", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-008"),
-        TopLevelEntry(name: "attach", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-004"),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
         TopLevelEntry(name: "callContinuation2", kind: .function, todo: "STDLIB-NATIVE-CONCURRENT-011"),
@@ -65,8 +65,8 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
 
         XCTAssertEqual(targetEntries.count, targetNames.count)
         XCTAssertEqual(targetEntries.count, 31)
-        XCTAssertEqual(Self.implementedTopLevelEntries.count, 7)
-        XCTAssertEqual(Self.knownGapTopLevelEntries.count, 24)
+        XCTAssertEqual(Self.implementedTopLevelEntries.count, 9)
+        XCTAssertEqual(Self.knownGapTopLevelEntries.count, 22)
     }
 
     func testImplementedTopLevelEntriesAreRegistered() throws {
@@ -121,7 +121,6 @@ final class NativeConcurrentAPISurfaceInventoryTests: XCTestCase {
         XCTAssertEqual(
             todos,
             [
-                "STDLIB-NATIVE-CONCURRENT-004",
                 "STDLIB-NATIVE-CONCURRENT-005",
                 "STDLIB-NATIVE-CONCURRENT-006",
                 "STDLIB-NATIVE-CONCURRENT-007",
