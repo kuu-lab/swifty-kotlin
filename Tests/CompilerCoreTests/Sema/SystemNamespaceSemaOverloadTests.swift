@@ -5,8 +5,11 @@ import XCTest
 /// Sema-level coverage for the kotlin.system namespace (STDLIB-SYSTEM-001/002).
 ///
 /// Tests cover:
-/// - measureTimeMillis vs measureNanoTime overload disambiguation
+/// - measureTimeMillis / measureTimeMicros / measureNanoTime overload disambiguation
 /// - exitProcess(Int) signature resolution and Nothing return type
+/// - getTimeMicros top-level Native API visibility
+/// - getTimeMillis top-level Native API visibility
+/// - getTimeNanos top-level Native API visibility
 /// - System.currentTimeMillis / System.nanoTime member visibility
 /// - getTimeMillis (alias currentTimeMillis) and getTimeNanos (alias nanoTime) via System object
 final class SystemNamespaceSemaOverloadTests: XCTestCase {
@@ -33,26 +36,60 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func allSystemPkgLinks(
-        for name: String,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> [String] {
-        let fq = ["kotlin", "system", name].map { interner.intern($0) }
-        return sema.symbols.lookupAll(fqName: fq).compactMap {
-            sema.symbols.externalLinkName(for: $0)
+    // MARK: - STDLIB-SYSTEM-001: API list / symbol registration
+
+    func testKotlinSystemAPIInventoryMatchesTrackedSurface() throws {
+        let (sema, interner) = try makeSema()
+
+        let implementedTopLevelFunctions: [(name: String, link: String)] = [
+            ("exitProcess", "kk_system_exitProcess"),
+            ("getTimeMicros", "kk_system_getTimeMicros"),
+            ("getTimeMillis", "kk_system_getTimeMillis"),
+            ("getTimeNanos", "kk_system_getTimeNanos"),
+            ("measureTimeMicros", "kk_system_measureTimeMicros"),
+            ("measureTimeMillis", "kk_system_measureTimeMillis"),
+            ("measureNanoTime", "kk_system_measureNanoTime"),
+        ]
+        for function in implementedTopLevelFunctions {
+            XCTAssertEqual(
+                systemPkgExternalLink(for: function.name, sema: sema, interner: interner),
+                function.link,
+                "kotlin.system.\(function.name) should remain implemented via \(function.link)"
+            )
+        }
+
+        let systemFQ = ["kotlin", "system", "System"].map { interner.intern($0) }
+        let systemSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: systemFQ),
+            "Existing kotlin.system.System shim should remain registered"
+        )
+        let systemName = try XCTUnwrap(sema.symbols.symbol(systemSymbol)?.fqName)
+        let shimMembers = [
+            ("currentTimeMillis", "kk_system_currentTimeMillis"),
+            ("nanoTime", "kk_system_nanoTime"),
+            ("processStartNanos", "kk_system_process_start_nanos"),
+        ]
+        for member in shimMembers {
+            let memberFQ = systemName + [interner.intern(member.0)]
+            XCTAssertTrue(
+                sema.symbols.lookupAll(fqName: memberFQ).contains {
+                    sema.symbols.externalLinkName(for: $0) == member.1
+                },
+                "kotlin.system.System.\(member.0) should remain linked to \(member.1)"
+            )
         }
     }
 
-    // MARK: - STDLIB-SYSTEM-001: API list / symbol registration
-
-    /// measureTimeMillis and measureNanoTime are distinct top-level symbols
+    /// measureTimeMillis, measureTimeMicros, and measureNanoTime are distinct top-level symbols
     /// in kotlin.system and map to different runtime entry points.
-    func testMeasureTimeMillisAndMeasureNanoTimeAreRegisteredAsSeparateSymbols() throws {
+    func testMeasureTimeFunctionsAreRegisteredAsSeparateSymbols() throws {
         let (sema, interner) = try makeSema()
 
         let millisLink = systemPkgExternalLink(
             for: "measureTimeMillis", sema: sema, interner: interner
+        )
+        let microsLink = systemPkgExternalLink(
+            for: "measureTimeMicros", sema: sema, interner: interner
         )
         let nanoLink = systemPkgExternalLink(
             for: "measureNanoTime", sema: sema, interner: interner
@@ -63,6 +100,10 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             "measureTimeMillis must link to kk_system_measureTimeMillis"
         )
         XCTAssertEqual(
+            microsLink, "kk_system_measureTimeMicros",
+            "measureTimeMicros must link to kk_system_measureTimeMicros"
+        )
+        XCTAssertEqual(
             nanoLink, "kk_system_measureNanoTime",
             "measureNanoTime must link to kk_system_measureNanoTime"
         )
@@ -70,6 +111,32 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             millisLink, nanoLink,
             "measureTimeMillis and measureNanoTime must link to distinct runtime functions"
         )
+        XCTAssertNotEqual(
+            millisLink, microsLink,
+            "measureTimeMillis and measureTimeMicros must link to distinct runtime functions"
+        )
+        XCTAssertNotEqual(
+            microsLink, nanoLink,
+            "measureTimeMicros and measureNanoTime must link to distinct runtime functions"
+        )
+    }
+
+    func testGetTimeMicrosIsRegisteredAsTopLevelNativeFunction() throws {
+        let (sema, interner) = try makeSema()
+        let link = systemPkgExternalLink(for: "getTimeMicros", sema: sema, interner: interner)
+        XCTAssertEqual(link, "kk_system_getTimeMicros")
+    }
+
+    func testGetTimeMillisIsRegisteredAsTopLevelNativeFunction() throws {
+        let (sema, interner) = try makeSema()
+        let link = systemPkgExternalLink(for: "getTimeMillis", sema: sema, interner: interner)
+        XCTAssertEqual(link, "kk_system_getTimeMillis")
+    }
+
+    func testGetTimeNanosIsRegisteredAsTopLevelNativeFunction() throws {
+        let (sema, interner) = try makeSema()
+        let link = systemPkgExternalLink(for: "getTimeNanos", sema: sema, interner: interner)
+        XCTAssertEqual(link, "kk_system_getTimeNanos")
     }
 
     /// exitProcess is a top-level kotlin.system function that accepts an Int parameter.
@@ -174,6 +241,58 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         }
     }
 
+    /// measureTimeMicros { } call is tagged with .measureTimeMicros special call kind
+    /// and resolves to Long.
+    ///
+    /// Note: Like measureTimeMillis, this uses the special fast path that does NOT set callBinding.
+    func testMeasureTimeMicrosCallResolvesToCorrectCallee() throws {
+        let source = """
+        import kotlin.system.measureTimeMicros
+
+        fun sample(): Long {
+            return measureTimeMicros { }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertFalse(ctx.diagnostics.hasError, "Expected no errors for measureTimeMicros call")
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, _, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return ctx.interner.resolve(calleeName) == "measureTimeMicros"
+                },
+                "Expected call to measureTimeMicros"
+            )
+
+            XCTAssertEqual(
+                sema.bindings.exprTypes[callExpr],
+                sema.types.longType,
+                "measureTimeMicros must resolve to Long"
+            )
+
+            let kind = sema.bindings.stdlibSpecialCallKind(for: callExpr)
+            XCTAssertEqual(kind, .measureTimeMicros, "Expected .measureTimeMicros special call kind")
+
+            // measureTimeMicros fast path does not set callBinding.
+            // Verify the top-level symbol is registered with the correct link name.
+            let fq = ["kotlin", "system", "measureTimeMicros"].map { ctx.interner.intern($0) }
+            let allSymbols = sema.symbols.lookupAll(fqName: fq)
+            let hasLink = allSymbols.contains {
+                sema.symbols.externalLinkName(for: $0) == "kk_system_measureTimeMicros"
+            }
+            XCTAssertTrue(hasLink, "kotlin.system.measureTimeMicros must link to kk_system_measureTimeMicros")
+        }
+    }
+
     /// measureNanoTime { } call is tagged with .measureNanoTime special call kind
     /// and resolves to Long.
     ///
@@ -228,16 +347,17 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
         }
     }
 
-    /// measureTimeMillis and measureNanoTime must produce distinct special call kind tags
+    /// measureTimeMillis, measureTimeMicros, and measureNanoTime must produce distinct special call kind tags
     /// when used in the same translation unit (overload disambiguation).
-    func testMeasureTimeMillisAndMeasureNanoTimeResolveToDistinctCallees() throws {
+    func testMeasureTimeFunctionsResolveToDistinctCallees() throws {
         let source = """
         import kotlin.system.*
 
         fun sample(): Long {
             val a = measureTimeMillis { }
-            val b = measureNanoTime { }
-            return a + b
+            val b = measureTimeMicros { }
+            val c = measureNanoTime { }
+            return a + b + c
         }
         """
 
@@ -251,6 +371,7 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
 
             var millisKind: StdlibSpecialCallKind?
+            var microsKind: StdlibSpecialCallKind?
             var nanoKind: StdlibSpecialCallKind?
 
             for exprIndex in ast.arena.exprs.indices {
@@ -264,14 +385,24 @@ final class SystemNamespaceSemaOverloadTests: XCTestCase {
                 let kind = sema.bindings.stdlibSpecialCallKind(for: exprID)
 
                 if name == "measureTimeMillis" { millisKind = kind }
+                if name == "measureTimeMicros" { microsKind = kind }
                 if name == "measureNanoTime" { nanoKind = kind }
             }
 
             XCTAssertEqual(millisKind, .measureTimeMillis, "measureTimeMillis must be tagged .measureTimeMillis")
+            XCTAssertEqual(microsKind, .measureTimeMicros, "measureTimeMicros must be tagged .measureTimeMicros")
             XCTAssertEqual(nanoKind, .measureNanoTime, "measureNanoTime must be tagged .measureNanoTime")
             XCTAssertNotEqual(
                 millisKind, nanoKind,
                 "measureTimeMillis and measureNanoTime must have distinct special call kind tags"
+            )
+            XCTAssertNotEqual(
+                millisKind, microsKind,
+                "measureTimeMillis and measureTimeMicros must have distinct special call kind tags"
+            )
+            XCTAssertNotEqual(
+                microsKind, nanoKind,
+                "measureTimeMicros and measureNanoTime must have distinct special call kind tags"
             )
         }
     }

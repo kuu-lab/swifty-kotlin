@@ -217,10 +217,50 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticTopLevelFunction(
+            named: "getTimeMicros",
+            packageFQName: kotlinSystemPkg,
+            parameters: [],
+            returnType: types.longType,
+            externalLinkName: "kk_system_getTimeMicros",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticTopLevelFunction(
+            named: "getTimeMillis",
+            packageFQName: kotlinSystemPkg,
+            parameters: [],
+            returnType: types.longType,
+            externalLinkName: "kk_system_getTimeMillis",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticTopLevelFunction(
+            named: "getTimeNanos",
+            packageFQName: kotlinSystemPkg,
+            parameters: [],
+            returnType: types.longType,
+            externalLinkName: "kk_system_getTimeNanos",
+            symbols: symbols,
+            interner: interner
+        )
+
         let blockFunctionType = types.make(.functionType(FunctionType(
             params: [],
             returnType: types.unitType
         )))
+
+        registerSyntheticTopLevelFunction(
+            named: "measureTimeMicros",
+            packageFQName: kotlinSystemPkg,
+            parameters: [(name: "block", type: blockFunctionType)],
+            returnType: types.longType,
+            externalLinkName: "kk_system_measureTimeMicros",
+            symbols: symbols,
+            interner: interner
+        )
 
         registerSyntheticTopLevelFunction(
             named: "measureTimeMillis",

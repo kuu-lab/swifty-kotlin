@@ -27,6 +27,13 @@ public func kk_system_currentTimeMillis() -> Int {
     Int(Date().timeIntervalSince1970 * 1000)
 }
 
+/// Runtime support for kotlin.system.getTimeMillis().
+/// Returns current wall-clock time in milliseconds since Unix epoch.
+@_cdecl("kk_system_getTimeMillis")
+public func kk_system_getTimeMillis() -> Int {
+    kk_system_currentTimeMillis()
+}
+
 /// Runtime support for monotonic nanosecond clock (STDLIB-550, STDLIB-TIME-085).
 /// Returns monotonic uptime in nanoseconds (not wall-clock).
 ///
@@ -46,6 +53,20 @@ public func kk_system_nanoTime() -> Int {
     // DispatchTime.now().uptimeNanoseconds is based on mach_absolute_time() which
     // is a monotonic clock — it never goes backwards.
     Int(clamping: DispatchTime.now().uptimeNanoseconds)
+}
+
+/// Runtime support for kotlin.system.getTimeMicros().
+/// Returns monotonic uptime in microseconds.
+@_cdecl("kk_system_getTimeMicros")
+public func kk_system_getTimeMicros() -> Int {
+    kk_system_nanoTime() / 1_000
+}
+
+/// Runtime support for kotlin.system.getTimeNanos().
+/// Returns monotonic uptime in nanoseconds.
+@_cdecl("kk_system_getTimeNanos")
+public func kk_system_getTimeNanos() -> Int {
+    kk_system_nanoTime()
 }
 
 // MARK: - processStartNanos (STDLIB-TIME-085)
@@ -69,7 +90,7 @@ public func kk_system_process_start_nanos() -> Int {
     processStartNanosValue
 }
 
-// MARK: - measureTimeMillis / measureNanoTime (STDLIB-550)
+// MARK: - measureTimeMillis / measureTimeMicros / measureNanoTime (STDLIB-550)
 
 /// Runtime support for kotlin.system.measureTimeMillis { block }.
 /// Executes [block], measures elapsed monotonic time and returns it in milliseconds.
@@ -87,6 +108,24 @@ public func kk_system_measureTimeMillis(
     }
     let end = DispatchTime.now().uptimeNanoseconds
     return Int(clamping: (end - start) / 1_000_000)
+}
+
+/// Runtime support for kotlin.system.measureTimeMicros { block }.
+/// Executes [block], measures elapsed monotonic time and returns it in microseconds.
+@_cdecl("kk_system_measureTimeMicros")
+public func kk_system_measureTimeMicros(
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let start = DispatchTime.now().uptimeNanoseconds
+    _ = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+    if let ot = outThrown, ot.pointee != 0 {
+        return 0
+    }
+    let end = DispatchTime.now().uptimeNanoseconds
+    return Int(clamping: (end - start) / 1_000)
 }
 
 /// Runtime support for kotlin.system.measureNanoTime { block }.
