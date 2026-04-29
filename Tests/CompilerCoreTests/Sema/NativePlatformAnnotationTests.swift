@@ -420,5 +420,4 @@ final class NativePlatformAnnotationTests: XCTestCase {
             "Expected EagerInitialization on a property to type-check with ExperimentalStdlibApi opt-in, got \(errors)"
         )
     }
-
 }
