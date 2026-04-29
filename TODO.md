@@ -404,7 +404,7 @@
 - [x] STDLIB-NATIVE-PLATFORM-020: Native `getStackTraceAddresses()` を追加する
 - [x] STDLIB-NATIVE-PLATFORM-021: Native unhandled-exception hook APIs（`getUnhandledExceptionHook`, `setUnhandledExceptionHook`, `processUnhandledException`, `terminateWithUnhandledException`）を追加する
 - [x] STDLIB-NATIVE-CONCURRENT-001: `kotlin.native.concurrent` の対象 API 一覧を固定
-- [ ] STDLIB-NATIVE-CONCURRENT-002: `kotlin.native.concurrent` の sema / diagnostics を整える
+- [x] STDLIB-NATIVE-CONCURRENT-002: `kotlin.native.concurrent` の sema / diagnostics を整える
 - [ ] STDLIB-NATIVE-CONCURRENT-003: `kotlin.native.concurrent` の最小 runtime / ABI を実装
 - [ ] STDLIB-NATIVE-CONCURRENT-004: `DetachedObjectGraph<T>` surface を追加する
 - [ ] STDLIB-NATIVE-CONCURRENT-005: `FreezingException` class surface を追加する

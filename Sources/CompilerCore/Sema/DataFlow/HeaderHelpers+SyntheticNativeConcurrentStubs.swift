@@ -103,7 +103,7 @@ extension DataFlowSemaPhase {
         }
         appendNativeConcurrentAnnotationMetadata(
             to: sharedImmutableSymbol,
-            targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.FIELD"],
+            targets: ["AnnotationTarget.PROPERTY"],
             retention: "AnnotationRetention.BINARY",
             symbols: symbols
         )
@@ -120,7 +120,7 @@ extension DataFlowSemaPhase {
         }
         appendNativeConcurrentAnnotationMetadata(
             to: threadLocalNativeAnnotationSymbol,
-            targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.FIELD"],
+            targets: ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
             retention: "AnnotationRetention.BINARY",
             symbols: symbols
         )

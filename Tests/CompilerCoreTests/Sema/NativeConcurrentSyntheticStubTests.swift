@@ -341,9 +341,10 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         let annotations = sema.symbols.annotations(for: symbol)
         let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
         XCTAssertNotNil(targetAnnotation, "Expected @Target annotation on @SharedImmutable")
-        XCTAssertTrue(
-            targetAnnotation?.arguments.contains("AnnotationTarget.PROPERTY") == true,
-            "Expected PROPERTY target for @SharedImmutable"
+        XCTAssertEqual(
+            Set(targetAnnotation?.arguments ?? []),
+            ["AnnotationTarget.PROPERTY"],
+            "Expected only PROPERTY target for @SharedImmutable"
         )
     }
 
@@ -363,7 +364,7 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
     }
 
     func testSharedImmutableAnnotationTargetErrorOnFunction() throws {
-        // @SharedImmutable is only valid on PROPERTY/FIELD, not on functions.
+        // @SharedImmutable is only valid on PROPERTY, not on functions.
         // The AnnotationTargetValidation phase should emit KSWIFTK-SEMA-ANNOTATION-TARGET.
         let source = """
         import kotlin.native.concurrent.SharedImmutable
@@ -382,6 +383,26 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         )
     }
 
+    func testSharedImmutableFieldUseSiteTargetIsRejected() throws {
+        let source = """
+        import kotlin.native.concurrent.SharedImmutable
+
+        class Box {
+            @field:SharedImmutable
+            val value: Int = 1
+        }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+        }
+        XCTAssertEqual(
+            diagnostics.count, 1,
+            "Expected one annotation-target diagnostic for @field:SharedImmutable, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
     // MARK: - @ThreadLocal (kotlin.native.concurrent) annotation
 
     func testNativeThreadLocalAnnotationIsRegistered() throws {
@@ -397,9 +418,10 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         let annotations = sema.symbols.annotations(for: symbol)
         let targetAnnotation = annotations.first { $0.annotationFQName == "kotlin.annotation.Target" }
         XCTAssertNotNil(targetAnnotation, "Expected @Target annotation on native @ThreadLocal")
-        XCTAssertTrue(
-            targetAnnotation?.arguments.contains("AnnotationTarget.PROPERTY") == true,
-            "Expected PROPERTY target for native @ThreadLocal"
+        XCTAssertEqual(
+            Set(targetAnnotation?.arguments ?? []),
+            ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
+            "Expected PROPERTY and CLASS targets for native @ThreadLocal"
         )
     }
 
@@ -415,6 +437,21 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         XCTAssertFalse(
             ctx.diagnostics.hasError,
             "@ThreadLocal on top-level property should resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+    }
+
+    func testNativeThreadLocalAnnotationResolvesOnClass() throws {
+        let source = """
+        import kotlin.native.concurrent.ThreadLocal
+
+        @ThreadLocal
+        class LocalState
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        XCTAssertFalse(
+            ctx.diagnostics.hasError,
+            "@ThreadLocal on class should resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
         )
     }
 
@@ -434,6 +471,26 @@ final class NativeConcurrentSyntheticStubTests: XCTestCase {
         XCTAssertEqual(
             diagnostics.count, 1,
             "Expected one annotation-target diagnostic for native @ThreadLocal on fun, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    func testNativeThreadLocalFieldUseSiteTargetIsRejected() throws {
+        let source = """
+        import kotlin.native.concurrent.ThreadLocal
+
+        class Box {
+            @field:ThreadLocal
+            val value: Int = 1
+        }
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+        }
+        XCTAssertEqual(
+            diagnostics.count, 1,
+            "Expected one annotation-target diagnostic for @field:ThreadLocal, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 
