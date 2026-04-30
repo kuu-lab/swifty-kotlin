@@ -609,6 +609,16 @@ public func kk_mutable_list_removeFirstOrNull(_ listRaw: Int) -> Int {
     return list.elements.removeFirst()
 }
 
+@_cdecl("kk_mutable_list_removeLastOrNull")
+public func kk_mutable_list_removeLastOrNull(_ listRaw: Int) -> Int {
+    guard let list = runtimeListBox(from: listRaw),
+          !list.elements.isEmpty
+    else {
+        return runtimeNullSentinelInt
+    }
+    return list.elements.removeLast()
+}
+
 @_cdecl("kk_mutable_list_clear")
 public func kk_mutable_list_clear(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
