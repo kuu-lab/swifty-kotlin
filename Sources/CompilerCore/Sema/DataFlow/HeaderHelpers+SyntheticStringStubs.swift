@@ -1957,6 +1957,70 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // --- STDLIB-TEXT-HOF-002: CharSequence.firstNotNullOfOrNull(transform) ---
+        let firstNotNullOfOrNullFQName = kotlinTextPkg + [interner.intern("firstNotNullOfOrNull")]
+        if !symbols.lookupAll(fqName: firstNotNullOfOrNullFQName).contains(where: { symID in
+            guard let sig = symbols.functionSignature(for: symID) else {
+                return false
+            }
+            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
+        }) {
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: firstNotNullOfOrNullFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let nullableRType = types.makeNullable(rType)
+            let transformType = types.make(.functionType(FunctionType(
+                params: [charType],
+                returnType: nullableRType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: interner.intern("firstNotNullOfOrNull"),
+                fqName: firstNotNullOfOrNullFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
+                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
+            }
+            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull", for: memberSymbol)
+
+            let transformParamName = interner.intern("transform")
+            let transformParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: transformParamName,
+                fqName: firstNotNullOfOrNullFQName + [transformParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: charSequenceType,
+                    parameterTypes: [transformType],
+                    returnType: nullableRType,
+                    valueParameterSymbols: [transformParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [rSymbol],
+                    classTypeParameterCount: 0
+                ),
+                for: memberSymbol
+            )
+        }
+
         registerSyntheticStringExtensionFunction(
             named: "filterIndexed",
             externalLinkName: "kk_string_filterIndexed",

@@ -72,6 +72,51 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_firstNotNullOfOrNull(
+            source,
+            unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(result), "bee")
+    }
+
+    func testFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_firstNotNullOfOrNull(
+            source,
+            unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testFirstNotNullOfOrNullTreatsZeroAsNullFromNullableLambda() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_firstNotNullOfOrNull(
+            source,
+            unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }

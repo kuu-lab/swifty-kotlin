@@ -3546,6 +3546,34 @@ public func kk_string_firstNotNullOf(
     return 0
 }
 
+@_cdecl("kk_string_firstNotNullOfOrNull")
+public func kk_string_firstNotNullOfOrNull(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    for scalar in scalars {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return runtimeNullSentinelInt
+        }
+        if result != 0, let normalized = runtimeMapNotNullResultValue(result) {
+            return normalized
+        }
+    }
+    return runtimeNullSentinelInt
+}
+
 @_cdecl("kk_string_filterIndexed")
 public func kk_string_filterIndexed(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?

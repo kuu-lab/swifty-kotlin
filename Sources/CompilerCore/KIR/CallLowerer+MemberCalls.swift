@@ -2857,10 +2857,11 @@ extension CallLowerer {
                 || calleeStr == "ifEmpty"
                 || calleeStr == "chunkedSequence"
                 || calleeStr == "firstNotNullOf"
+                || calleeStr == "firstNotNullOfOrNull"
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                 || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                if calleeStr == "firstNotNullOf" {
+                if calleeStr == "firstNotNullOf" || calleeStr == "firstNotNullOfOrNull" {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
                         chosen
@@ -2889,7 +2890,11 @@ extension CallLowerer {
                     )
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_firstNotNullOf"),
+                        callee: interner.intern(
+                            calleeStr == "firstNotNullOf"
+                                ? "kk_string_firstNotNullOf"
+                                : "kk_string_firstNotNullOfOrNull"
+                        ),
                         arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
                         result: result,
                         canThrow: true,
@@ -6432,6 +6437,7 @@ extension CallLowerer {
             interner.intern("kk_sequence_firstOrNull"),
             interner.intern("kk_sequence_count"),
             interner.intern("kk_string_firstNotNullOf"),
+            interner.intern("kk_string_firstNotNullOfOrNull"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunkedSequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),

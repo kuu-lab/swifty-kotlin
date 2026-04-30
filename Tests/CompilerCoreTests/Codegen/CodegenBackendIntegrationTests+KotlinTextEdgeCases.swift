@@ -166,6 +166,43 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextFirstNotNullOfOrNullEdgeCases() throws {
+        let source = """
+        fun firstFromSequence(value: CharSequence): String? {
+            return value.firstNotNullOfOrNull<String> { ch -> if (ch == 'b') "bee" else null }
+        }
+
+        fun main() {
+            println(firstFromSequence("abc"))
+            println("kotlin".firstNotNullOfOrNull<String> { ch -> if (ch == 't') "tea" else null })
+            println("abc".firstNotNullOfOrNull<String> { ch -> null } ?: "missing")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextFirstNotNullOfOrNullEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                bee
+                tea
+                missing
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - replace / replaceFirst / replaceRange
 
     func testKotlinTextReplaceEdgeCases() throws {

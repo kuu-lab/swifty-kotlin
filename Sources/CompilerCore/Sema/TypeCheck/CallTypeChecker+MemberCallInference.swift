@@ -490,7 +490,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         // swiftlint:enable cyclomatic_complexity function_body_length
 
-        if interner.resolve(calleeName) == "firstNotNullOf",
+        if ["firstNotNullOf", "firstNotNullOfOrNull"].contains(interner.resolve(calleeName)),
            args.count == 1,
            let lambdaExpr = ast.arena.expr(args[0].expr),
            lambdaExpr.isLambdaOrCallableRef
@@ -6210,6 +6210,7 @@ extension CallTypeChecker {
                        "ifBlank",
                        "ifEmpty",
                        "firstNotNullOf",
+                       "firstNotNullOfOrNull",
                    ].contains(calleeStr)
                 {
                     let charType = sema.types.make(.primitive(.char, .nonNull))
@@ -6233,7 +6234,7 @@ extension CallTypeChecker {
                         switch calleeStr {
                         case "map", "mapIndexed":
                             lambdaReturnType = sema.types.anyType
-                        case "mapNotNull", "firstNotNullOf":
+                        case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull":
                             lambdaReturnType = sema.types.nullableAnyType
                         case "zipWithNext":
                             lambdaReturnType = sema.types.anyType
@@ -6347,6 +6348,54 @@ extension CallTypeChecker {
                             sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
                         }
                         let finalType = safeCall ? sema.types.makeNullable(bodyType) : bodyType
+                        sema.bindings.bindExprType(id, type: finalType)
+                        return finalType
+                    }
+                    if calleeStr == "firstNotNullOfOrNull" {
+                        guard explicitTypeArgs.count <= 1 else {
+                            sema.bindings.bindExprType(id, type: sema.types.nullableAnyType)
+                            return sema.types.nullableAnyType
+                        }
+                        let lambdaExpectedReturn = explicitTypeArgs.first.map { sema.types.makeNullable($0) }
+                            ?? sema.types.nullableAnyType
+                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                            params: [charType],
+                            returnType: lambdaExpectedReturn,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                        let bodyType = explicitTypeArgs.first
+                            ?? sema.types.makeNonNullable(inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema))
+                        if let chosen = sema.symbols.lookupAll(fqName: [
+                            interner.intern("kotlin"),
+                            interner.intern("text"),
+                            calleeName,
+                        ]).first(where: { candidate in
+                            isSyntheticStringMemberCandidate(
+                                candidate,
+                                named: calleeName,
+                                receiverType: receiverTypeForCheck,
+                                sema: sema,
+                                interner: interner
+                            )
+                                && (sema.symbols.functionSignature(for: candidate)?.parameterTypes.count ?? Int.max) == args.count
+                        }) {
+                            sema.bindings.bindCall(
+                                id,
+                                binding: CallBinding(
+                                    chosenCallee: chosen,
+                                    substitutedTypeArguments: [bodyType],
+                                    parameterMapping: [0: 0]
+                                )
+                            )
+                            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+                        }
+                        let resultType = sema.types.makeNullable(bodyType)
+                        let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                         sema.bindings.bindExprType(id, type: finalType)
                         return finalType
                     }
