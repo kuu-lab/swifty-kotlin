@@ -24,7 +24,7 @@ extension CallTypeChecker {
                  "kk_list_minOfWith", "kk_list_minOfWithOrNull",
                  "kk_list_chunked_transform",
                  "kk_sequence_chunked_transform",
-                 "kk_sequence_plus_element",
+                 "kk_sequence_plus_element", "kk_sequence_minus",
                  "kk_array_binarySearch_compare", "kk_array_binarySearch",
                  "kk_list_windowed_transform",
                  "kk_set_contains", "kk_set_containsAll", "kk_set_intersect", "kk_set_union", "kk_set_subtract",

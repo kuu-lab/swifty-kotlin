@@ -127,7 +127,7 @@
 - [x] STDLIB-SEQ-025: `Sequence.toMutableList()` / `toMutableSet()` / `toHashSet()` を追加する
 - [x] STDLIB-SEQ-026: `Sequence.firstNotNullOf(transform)` を追加する
 - [x] STDLIB-SEQ-027: `Sequence.firstNotNullOfOrNull(transform)` を追加する
-- [ ] STDLIB-SEQ-028: `Sequence.minusElement(element)` を追加する
+- [x] STDLIB-SEQ-028: `Sequence.minusElement(element)` を追加する
 - [ ] STDLIB-SEQ-029: `Sequence.sumBy(selector)` deprecated surface を追加する
 - [ ] STDLIB-SEQ-030: `Sequence.sumByDouble(selector)` deprecated surface を追加する
 - [x] STDLIB-COL-DEST-001: `filterTo` / `filterNotTo` / `filterIsInstanceTo` を追加する

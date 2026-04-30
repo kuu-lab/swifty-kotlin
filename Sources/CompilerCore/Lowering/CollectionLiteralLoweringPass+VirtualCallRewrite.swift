@@ -1154,10 +1154,13 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        // minus(element) on sequence → kk_sequence_minus (STDLIB-562)
+        // minus(element)/minusElement(element) on sequence → kk_sequence_minus
         // Only rewrite when the argument is a single element (not a collection).
         // Collection-removal is not yet supported at the ABI level.
-        if callee == lookup.minusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
+        if (callee == lookup.minusMemberName || callee == lookup.minusElementName),
+           arguments.count == 1,
+           sequenceExprIDs.contains(receiver.rawValue)
+        {
             let argID = arguments[0]
             // Only sequence/list/array are supported by the ABI (not
             // Set/Map) -- consistent with plus path.

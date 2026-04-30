@@ -3591,6 +3591,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // minusElement(element: T): Sequence<T> (STDLIB-SEQ-028)
+        registerSequenceMemberStub(
+            named: "minusElement",
+            externalLinkName: "kk_sequence_minus",
+            receiverType: receiverType,
+            parameters: [("element", typeParamType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // foldIndexed(initial, operation): R
         registerSequenceMemberStub(
             named: "foldIndexed",

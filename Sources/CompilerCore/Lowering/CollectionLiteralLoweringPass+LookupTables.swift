@@ -606,6 +606,7 @@ struct CollectionLiteralLookupTables {
     // Sequence plus/minus member names (STDLIB-561/562)
     let plusMemberName: InternedString
     let plusElementName: InternedString
+    let minusElementName: InternedString
     let minusMemberName: InternedString
 
     // Sequence member names (STDLIB-003)
@@ -1359,6 +1360,7 @@ struct CollectionLiteralLookupTables {
 
         plusMemberName = interner.intern("plus")
         plusElementName = interner.intern("plusElement")
+        minusElementName = interner.intern("minusElement")
         minusMemberName = interner.intern("minus")
 
         asSequenceName = interner.intern("asSequence")
