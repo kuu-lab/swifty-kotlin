@@ -57,6 +57,7 @@ extension ABIMismatchTests {
             "kk_list_toFloatArray",
             "kk_string_hexToShort",
             "kk_string_hexToUByte",
+            "kk_string_hexToUByteArray",
             "kk_mutable_list_removeFirstOrNull",
             "kk_mutable_list_removeLastOrNull",
             "kk_mutable_list_sortWith",

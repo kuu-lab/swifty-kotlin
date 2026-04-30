@@ -108,5 +108,14 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "HexFormat"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_hexToUByteArray",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+                RuntimeABIParameter(name: "formatRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "HexFormat"
+        ),
     ]
 }

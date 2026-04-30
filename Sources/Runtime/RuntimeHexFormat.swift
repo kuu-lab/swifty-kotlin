@@ -381,6 +381,40 @@ public func kk_string_hexToByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> In
     return hexFormatMakeListRaw(bytes)
 }
 
+// MARK: - String.hexToUByteArray(format)
+
+@_cdecl("kk_string_hexToUByteArray")
+public func kk_string_hexToUByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> Int {
+    let str = hexFormatStringFromRaw(receiverRaw) ?? ""
+    let format = hexFormatBoxFromRaw(formatRaw)
+    let separator = format?.byteSeparator ?? ""
+
+    // If there's a separator, split by it; otherwise parse as contiguous hex.
+    let hexString: String
+    if !separator.isEmpty {
+        hexString = str.components(separatedBy: separator).joined()
+    } else {
+        hexString = str
+    }
+
+    var bytes: [Int] = []
+    var index = hexString.startIndex
+    while index < hexString.endIndex {
+        let nextIndex = hexString.index(index, offsetBy: 2, limitedBy: hexString.endIndex) ?? hexString.endIndex
+        let hexPair = String(hexString[index ..< nextIndex])
+        if let byte = UInt8(hexPair, radix: 16) {
+            bytes.append(Int(byte))
+        }
+        index = nextIndex
+    }
+
+    let box = RuntimeArrayBox(length: bytes.count)
+    for (i, byte) in bytes.enumerated() {
+        box.elements[i] = byte
+    }
+    return registerRuntimeObject(box)
+}
+
 // MARK: - Runtime List Element Extraction Helper
 
 /// Extracts element raw values from a runtime list.

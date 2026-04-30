@@ -10,6 +10,7 @@ import XCTest
 // - Long.toHexString(format) – lowercase/uppercase, negative (two's-complement 16 hex digits)
 // - ByteArray.toHexString(format) – empty, single, multi, separator, uppercase
 // - String.hexToByteArray(format) – empty, separator, round-trip
+// - String.hexToUByteArray(format) – contiguous and separated input
 // - String.hexToInt(format) – basic parse
 // - String.hexToLong(format) – basic parse
 
@@ -37,6 +38,10 @@ final class RuntimeHexFormatEdgeCaseTests: IsolatedRuntimeXCTestCase {
 
     private func extractListElements(_ raw: Int) -> [Int]? {
         runtimeListBox(from: raw)?.elements
+    }
+
+    private func extractArrayElements(_ raw: Int) -> [Int]? {
+        runtimeArrayBox(from: raw)?.elements
     }
 
     /// Build a HexFormat by mutating a RuntimeHexFormatBox directly (no DSL closure overhead).
@@ -366,6 +371,22 @@ final class RuntimeHexFormatEdgeCaseTests: IsolatedRuntimeXCTestCase {
         thrown = 0
         _ = kk_string_hexToUByte(makeString("100"), fmt, &thrown)
         XCTAssertNotEqual(thrown, 0)
+    }
+
+    // MARK: - String.hexToUByteArray – contiguous hex
+
+    func testHexToUByteArrayContiguousHex() {
+        let fmt = makeFormat()
+        let result = kk_string_hexToUByteArray(makeString("00ff"), fmt)
+        XCTAssertEqual(extractArrayElements(result), [0, 255])
+    }
+
+    // MARK: - String.hexToUByteArray – with separator
+
+    func testHexToUByteArrayWithSeparator() {
+        let fmt = makeFormat(byteSeparator: ":")
+        let result = kk_string_hexToUByteArray(makeString("00:ff"), fmt)
+        XCTAssertEqual(extractArrayElements(result), [0, 255])
     }
 
     // MARK: - String.hexToLong – basic

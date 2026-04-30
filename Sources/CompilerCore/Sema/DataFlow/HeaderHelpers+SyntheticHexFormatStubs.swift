@@ -31,6 +31,11 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        let uByteArrayType = makeHexFormatUByteArrayType(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         let listIntType = makeHexFormatListIntType(
             symbols: symbols,
             types: types,
@@ -181,6 +186,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- String.hexToUByteArray(format: HexFormat) ---
+        registerHexFormatExtensionFunction(
+            named: "hexToUByteArray",
+            externalLinkName: "kk_string_hexToUByteArray",
+            receiverType: stringType,
+            parameters: [("format", hexFormatType, true, false)],
+            returnType: uByteArrayType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - HexFormat Helpers
@@ -289,6 +306,20 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) -> TypeID {
         let fqName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
+        if let symbol = symbols.lookup(fqName: fqName) {
+            return types.make(.classType(ClassType(
+                classSymbol: symbol, args: [], nullability: .nonNull
+            )))
+        }
+        return types.anyType
+    }
+
+    private func makeHexFormatUByteArrayType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let fqName: [InternedString] = [interner.intern("kotlin"), interner.intern("UByteArray")]
         if let symbol = symbols.lookup(fqName: fqName) {
             return types.make(.classType(ClassType(
                 classSymbol: symbol, args: [], nullability: .nonNull
