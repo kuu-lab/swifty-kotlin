@@ -26,6 +26,16 @@ private let reduceRightIndexedIndexChecksum: @convention(c) (Int, Int, Int, Int,
     acc + charRaw + index
 }
 
+private let reduceRightPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, charRaw, acc, _ in
+    charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
+}
+
+private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, charRaw, acc, _ in
+    acc + charRaw
+}
+
 final class RuntimeStringHOFTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -215,6 +225,51 @@ final class RuntimeStringHOFTests: XCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 295)
+    }
+
+    func testReduceRightOrNullWalksRightToLeft() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduceRightOrNull(
+            source,
+            unsafeBitCast(reduceRightPickB, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+    }
+
+    func testReduceRightOrNullReturnsNullSentinelForEmptyString() {
+        let source = registerRuntimeObject(RuntimeStringBox(""))
+        var thrown = 0
+
+        let result = kk_string_reduceRightOrNull(
+            source,
+            unsafeBitCast(reduceRightPickB, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testReduceRightOrNullUsesLastCharacterAsInitialAccumulator() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduceRightOrNull(
+            source,
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 294)
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

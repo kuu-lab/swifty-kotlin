@@ -2860,6 +2860,7 @@ extension CallLowerer {
                 || calleeStr == "firstNotNullOfOrNull"
                 || calleeStr == "reduceRightIndexed"
                 || calleeStr == "reduceRightIndexedOrNull"
+                || calleeStr == "reduceRightOrNull"
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                 || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
@@ -2867,6 +2868,7 @@ extension CallLowerer {
                     || calleeStr == "firstNotNullOfOrNull"
                     || calleeStr == "reduceRightIndexed"
                     || calleeStr == "reduceRightIndexedOrNull"
+                    || calleeStr == "reduceRightOrNull"
                 {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
@@ -2898,7 +2900,8 @@ extension CallLowerer {
                     case "firstNotNullOf": "kk_string_firstNotNullOf"
                     case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
                     case "reduceRightIndexed": "kk_string_reduceRightIndexed"
-                    default: "kk_string_reduceRightIndexedOrNull"
+                    case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
+                    default: "kk_string_reduceRightOrNull"
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -6448,6 +6451,7 @@ extension CallLowerer {
             interner.intern("kk_string_firstNotNullOfOrNull"),
             interner.intern("kk_string_reduceRightIndexed"),
             interner.intern("kk_string_reduceRightIndexedOrNull"),
+            interner.intern("kk_string_reduceRightOrNull"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunkedSequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),

@@ -1787,6 +1787,12 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let charCharToCharType = types.make(.functionType(FunctionType(
+            params: [charType, charType],
+            returnType: charType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
         let intCharToAnyType = types.make(.functionType(FunctionType(
             params: [intType, charType],
             returnType: types.anyType,
@@ -2046,6 +2052,19 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_reduceRightIndexedOrNull",
             receiverType: charSequenceType,
             parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-HOF-005: CharSequence.reduceRightOrNull(operation) ---
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightOrNull",
+            externalLinkName: "kk_string_reduceRightOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
             flags: [.synthetic, .inlineFunction],
             packageFQName: kotlinTextPkg,

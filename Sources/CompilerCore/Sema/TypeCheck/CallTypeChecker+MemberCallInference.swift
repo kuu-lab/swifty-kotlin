@@ -490,7 +490,7 @@ extension CallTypeChecker {
         let knownNames = KnownCompilerNames(interner: interner)
         // swiftlint:enable cyclomatic_complexity function_body_length
 
-        if ["firstNotNullOf", "firstNotNullOfOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull"]
+        if ["firstNotNullOf", "firstNotNullOfOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceRightOrNull"]
             .contains(interner.resolve(calleeName)),
            args.count == 1,
            let lambdaExpr = ast.arena.expr(args[0].expr),
@@ -1390,7 +1390,7 @@ extension CallTypeChecker {
         // contextual function type (and thus implicit `it`) is available.
         let collectionHOFNames: Set = [
             "map", "filter", "filterNot", "mapNotNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
-            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
+            "fold", "foldRight", "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed", "reduceIndexed", "reduceIndexedOrNull",
             "scan", "scanIndexed", "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "scanReduce",
             "groupBy", "groupingBy", "reduceTo", "sortedBy", "count", "first", "last", "find",
             "associateBy", "associateWith", "associate", "associateTo", "associateByTo", "associateWithTo", "groupByTo",
@@ -6214,6 +6214,7 @@ extension CallTypeChecker {
                        "firstNotNullOfOrNull",
                        "reduceRightIndexed",
                        "reduceRightIndexedOrNull",
+                       "reduceRightOrNull",
                    ].contains(calleeStr)
                 {
                     let charType = sema.types.make(.primitive(.char, .nonNull))
@@ -6228,6 +6229,8 @@ extension CallTypeChecker {
                             lambdaParamTypes = [intType, charType]
                         case "reduceRightIndexed", "reduceRightIndexedOrNull":
                             lambdaParamTypes = [intType, charType, charType]
+                        case "reduceRightOrNull":
+                            lambdaParamTypes = [charType, charType]
                         case "zipWithNext":
                             lambdaParamTypes = [charType, charType]
                         case "ifBlank", "ifEmpty":
@@ -6242,6 +6245,8 @@ extension CallTypeChecker {
                         case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull":
                             lambdaReturnType = sema.types.nullableAnyType
                         case "reduceRightIndexed", "reduceRightIndexedOrNull":
+                            lambdaReturnType = charType
+                        case "reduceRightOrNull":
                             lambdaReturnType = charType
                         case "zipWithNext":
                             lambdaReturnType = sema.types.anyType
@@ -6453,6 +6458,7 @@ extension CallTypeChecker {
                     case "ifBlank", "ifEmpty": sema.types.stringType
                     case "reduceRightIndexed": charType
                     case "reduceRightIndexedOrNull": sema.types.make(.primitive(.char, .nullable))
+                    case "reduceRightOrNull": sema.types.make(.primitive(.char, .nullable))
                     default: sema.types.anyType
                     }
                     // For "partition", skip the fallback resolver (which may fail due to

@@ -281,6 +281,43 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextReduceRightOrNullEdgeCases() throws {
+        let source = """
+        fun reduceFromSequence(value: CharSequence): Char? {
+            return value.reduceRightOrNull { ch, acc -> if (ch == 'b') ch else acc }
+        }
+
+        fun main() {
+            println(reduceFromSequence("abc") ?: 'x')
+            println("abcd".reduceRightOrNull { ch, acc -> if (ch == 'a') ch else acc } ?: 'x')
+            println("".reduceRightOrNull { ch, acc -> if (ch == 'a') ch else acc } ?: 'x')
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextReduceRightOrNullEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                b
+                a
+                x
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - replace / replaceFirst / replaceRange
 
     func testKotlinTextReplaceEdgeCases() throws {

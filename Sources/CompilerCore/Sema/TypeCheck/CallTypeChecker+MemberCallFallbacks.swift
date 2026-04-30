@@ -2335,9 +2335,10 @@ extension CallTypeChecker {
             || memberName == interner.intern("scanReduce")
             || memberName == interner.intern("reduceRightIndexed")
             || memberName == interner.intern("reduceRightIndexedOrNull")
+            || memberName == interner.intern("reduceRightOrNull")
             || memberName == interner.intern("reduceIndexedOrNull")), argCount == 1
         {
-            // runningReduce/scanReduce/reduceIndexedOrNull/reduceRightIndexed variants use receiver element type.
+            // reduce/runningReduce variants use receiver element type.
             let params: [TypeID] = if memberName == interner.intern("runningReduceIndexed")
                 || memberName == interner.intern("reduceIndexedOrNull")
                 || memberName == interner.intern("reduceRightIndexed")
