@@ -19,6 +19,7 @@ extension CodegenBackendIntegrationTests {
             println(hex.hexToInt())
             println("ffff".hexToShort())
             println("ff".hexToUByte().toInt())
+            println("ffffffff".hexToUInt())
             val ubytes = "00ff".hexToUByteArray()
             println(ubytes.size)
             println(ubytes[1])
@@ -51,6 +52,7 @@ extension CodegenBackendIntegrationTests {
                 255
                 -1
                 255
+                4294967295
                 2
                 255
                 caught
