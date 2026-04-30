@@ -297,7 +297,7 @@
 - [x] STDLIB-KOTLIN-ROOT-ANNO-003: `DslMarker` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-004: `OptionalExpectation` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-005: `ParameterName(name: String)` annotation surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-ANNO-006: `PublishedApi` annotation surface を追加する
+- [ ] STDLIB-KOTLIN-ROOT-ANNO-006: `PublishedApi` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-007: `SinceKotlin(version: String)` annotation surface を追加する
 - [ ] STDLIB-KOTLIN-ROOT-ANNO-008: `Throws(vararg exceptionClasses: KClass<out Throwable>)` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-009: `ExperimentalContextParameters` opt-in marker を追加する
@@ -330,10 +330,10 @@
 - [x] STDLIB-I18N-COMMON-007: `Char.directionality` を `CharDirectionality` enum で露出する（現状は `Int` placeholder）
 - [x] STDLIB-I18N-COMMON-008: `Char.lowercaseChar()` を追加する
 - [x] STDLIB-I18N-COMMON-009: `Char.uppercaseChar()` を追加する
-- [x] STDLIB-I18N-COMMON-010: `Char.titlecaseChar()` を追加する
-- [x] STDLIB-I18N-COMMON-011: `Char.isDefined()` を追加する
-- [x] STDLIB-I18N-COMMON-012: Native `Char.isSupplementaryCodePoint()` / `Char.isSurrogatePair()` を追加する
-- [x] STDLIB-I18N-COMMON-013: Native `Char.toChars()` / `Char.toCodePoint()` を追加する
+- [ ] STDLIB-I18N-COMMON-010: `Char.titlecaseChar()` を追加する
+- [ ] STDLIB-I18N-COMMON-011: `Char.isDefined()` を追加する
+- [ ] STDLIB-I18N-COMMON-012: Native `Char.isSupplementaryCodePoint()` / `Char.isSurrogatePair()` を追加する
+- [ ] STDLIB-I18N-COMMON-013: Native `Char.toChars()` / `Char.toCodePoint()` を追加する
 - [ ] STDLIB-TIME-EXP-001: `@ExperimentalTime` 系 API の整理（`Clock` / `TimeMark`）
 - [x] STDLIB-TIME-STABLE-008: `DurationUnit` enum surface を追加する
 - [x] STDLIB-TIME-STABLE-009: `Int.toDuration(unit)` / `Long.toDuration(unit)` / `Double.toDuration(unit)` を追加する
