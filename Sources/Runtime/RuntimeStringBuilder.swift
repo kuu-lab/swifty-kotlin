@@ -162,6 +162,21 @@ public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ sta
     return sbRaw
 }
 
+@_cdecl("kk_string_builder_insertRange_obj")
+public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    let utf8Count = sb.value.utf8.count
+    guard index >= 0, index <= utf8Count else {
+        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+    }
+    let csq = runtimeElementToString(csqRaw)
+    let slice = runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex)
+    let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
+    let insertionPoint = String.Index(utf8Index, within: sb.value) ?? sb.value.endIndex
+    sb.value.insert(contentsOf: slice, at: insertionPoint)
+    return sbRaw
+}
+
 // MARK: - STDLIB-STR-123: Additional StringBuilder methods
 
 @_cdecl("kk_string_builder_replace_obj")

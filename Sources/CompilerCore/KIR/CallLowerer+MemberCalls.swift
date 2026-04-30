@@ -4163,6 +4163,31 @@ extension CallLowerer {
             }
         }
 
+        // StringBuilder 4-arg member calls (STDLIB-TEXT-BUILDER-003)
+        if args.count == 4 {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if isStringBuilderLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+                let sbNames = KnownCompilerNames(interner: interner)
+                let runtimeCallee: String? = if calleeName == sbNames.insertRange {
+                    "kk_string_builder_insertRange_obj"
+                } else {
+                    nil
+                }
+                if let runtimeCallee {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeCallee),
+                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+        }
+
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
 
         // Sequence windowed: 1-3 args (size, step=1, partialWindows=false) — STDLIB-276
