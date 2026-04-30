@@ -6,7 +6,7 @@ import XCTest
 // This file documents what is implemented vs. what is missing in the KSwiftK
 // runtime with respect to the Kotlin/Native standard library API surface.
 //
-// IMPLEMENTED (tested here):
+// RUNTIME IMPLEMENTED (tested here and in RuntimeNativeRefRuntimeABITests):
 //   kotlin.native.runtime namespace (via java.lang / System shims):
 //     - System.gc()              -> kk_system_gc()     (calls kk_gc_collect internally)
 //     - Runtime.getRuntime()     -> kk_runtime_getRuntime()
@@ -23,11 +23,20 @@ import XCTest
 //   kotlin.native.runtime.GC (via kk_gc_collect):
 //     - GC.collect()  -> kk_gc_collect()  [no Kotlin-level GC object, raw C entry]
 //
-//   kotlin.native.runtime.Debugging (via kk_assertions_* entry points):
+//   kotlin.native.runtime.Debugging (via kk_assertions_* / kk_debugging_* entry points):
 //     - Debugging.areAssertionsEnabled    -> kk_assertions_enabled()
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //
-// MISSING (not implemented — no runtime entry point or compiler-side stub):
+// SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
+//   - kotlin.native.ref.WeakReference<T>
+//   - kotlin.native.ref.WeakReference.get()
+//   - kotlin.native.ref.createCleaner(value, block)
+//   - kotlin.native.runtime.GC.collect()
+//   - kotlin.native.runtime.GC.schedule()
+//   - kotlin.native.runtime.Debugging.isThreadStateRunnable
+//   - kotlin.native.runtime.Debugging.gcSuspendCount
+//
+// RUNTIME MISSING (tracked by STDLIB-NATIVE-REF-004 and later):
 //   - SweepStatistics type surface
 //   - NativeRuntimeApi marker
 
