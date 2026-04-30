@@ -18,6 +18,7 @@ extension CodegenBackendIntegrationTests {
             println(hex)
             println(hex.hexToInt())
             println("ffff".hexToShort())
+            println("ff".hexToUByte().toInt())
             try {
                 println("gg".hexToInt())
             } catch (e: Throwable) {
@@ -46,6 +47,7 @@ extension CodegenBackendIntegrationTests {
                 000000ff
                 255
                 -1
+                255
                 caught
                 """
                 + "\n"

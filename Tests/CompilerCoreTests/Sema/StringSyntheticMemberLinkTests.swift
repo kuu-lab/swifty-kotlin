@@ -53,6 +53,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "toInt": "kk_string_toInt",
             "toDouble": "kk_string_toDouble",
             "hexToShort": "kk_string_hexToShort",
+            "hexToUByte": "kk_string_hexToUByte",
             "trimIndent": "kk_string_trimIndent",
             "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
         ]

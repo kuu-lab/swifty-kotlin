@@ -255,6 +255,38 @@ public func kk_string_hexToInt(
     return Int(Int32(bitPattern: value))
 }
 
+// MARK: - String.hexToUByte(format)
+
+@_cdecl("kk_string_hexToUByte")
+public func kk_string_hexToUByte(
+    _ receiverRaw: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let str = hexFormatStringFromRaw(receiverRaw) ?? ""
+    let format = hexFormatBoxFromRaw(formatRaw)
+    guard let cleaned = hexFormatStripPrefixSuffix(str, format: format) else {
+        let prefix = format?.numberPrefix ?? ""
+        let suffix = format?.numberSuffix ?? ""
+        let msg: String
+        if !prefix.isEmpty && !str.hasPrefix(prefix) {
+            msg = "NumberFormatException: For hex string \"\(str)\": missing required prefix \"\(prefix)\""
+        } else {
+            msg = "NumberFormatException: For hex string \"\(str)\": missing required suffix \"\(suffix)\""
+        }
+        outThrown?.pointee = runtimeAllocateThrowable(message: msg)
+        return 0
+    }
+    guard let value = UInt8(cleaned, radix: 16) else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "NumberFormatException: For hex string \"\(cleaned)\": not valid hexadecimal"
+        )
+        return 0
+    }
+    return Int(value)
+}
+
 // MARK: - String.hexToShort(format)
 
 @_cdecl("kk_string_hexToShort")

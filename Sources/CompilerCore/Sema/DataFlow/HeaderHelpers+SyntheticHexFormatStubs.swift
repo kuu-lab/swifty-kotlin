@@ -146,6 +146,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- String.hexToUByte(format: HexFormat) ---
+        registerHexFormatExtensionFunction(
+            named: "hexToUByte",
+            externalLinkName: "kk_string_hexToUByte",
+            receiverType: stringType,
+            parameters: [("format", hexFormatType, true, false)],
+            returnType: types.ubyteType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- String.hexToLong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToLong",

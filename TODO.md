@@ -86,7 +86,7 @@
 - [x] STDLIB-TEXT-HOF-006: `CharSequence.sumBy(selector)` deprecated surface を追加する
 - [x] STDLIB-TEXT-HOF-007: `CharSequence.sumByDouble(selector)` deprecated surface を追加する
 - [x] STDLIB-TEXT-HEX-001: `String.hexToShort()` を追加する
-- [ ] STDLIB-TEXT-HEX-002: `String.hexToUByte()` を追加する
+- [x] STDLIB-TEXT-HEX-002: `String.hexToUByte()` を追加する
 - [ ] STDLIB-TEXT-HEX-003: `String.hexToUByteArray()` を追加する
 - [ ] STDLIB-TEXT-HEX-004: `String.hexToUInt()` を追加する
 - [ ] STDLIB-TEXT-HEX-005: `String.hexToULong()` を追加する
