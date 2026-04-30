@@ -96,7 +96,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 170)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 171)
     }
 
     func testRegexFunctionCount() {
@@ -248,6 +248,7 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.durationFunctions,
             RuntimeABISpec.timeAndPathBridgeFunctions,
             RuntimeABISpec.atomicFunctions,
+            RuntimeABISpec.nativeRefFunctions,
             RuntimeABISpec.threadLocalFunctions,
             RuntimeABISpec.threadFunctions,
             RuntimeABISpec.securityFunctions,
@@ -271,6 +272,10 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.allFunctions.count,
             Set(sectionNames).count
         )
+    }
+
+    func testNativeRefFunctionCount() {
+        XCTAssertEqual(RuntimeABISpec.nativeRefFunctions.count, 14)
     }
 
     // MARK: - J16.1 Signature Verification (spec-fixed)
@@ -792,6 +797,21 @@ final class ABIMismatchTests: XCTestCase {
     func testCDeclarationForKKGcCollect() throws {
         let spec = try requireSpec("kk_gc_collect")
         XCTAssertEqual(spec.cDeclaration, "void kk_gc_collect(void);")
+    }
+
+    func testCDeclarationForKKGcSchedule() throws {
+        let spec = try requireSpec("kk_gc_schedule")
+        XCTAssertEqual(spec.cDeclaration, "intptr_t kk_gc_schedule(void);")
+    }
+
+    func testCDeclarationForKKGcTargetHeapUtilization() throws {
+        let spec = try requireSpec("kk_gc_target_heap_utilization")
+        XCTAssertEqual(spec.cDeclaration, "double kk_gc_target_heap_utilization(void);")
+    }
+
+    func testCDeclarationForKKDebuggingGlobalObjectCount() throws {
+        let spec = try requireSpec("kk_debugging_global_object_count")
+        XCTAssertEqual(spec.cDeclaration, "intptr_t kk_debugging_global_object_count(void);")
     }
 
     func testCDeclarationForKKPrintlnAny() throws {
