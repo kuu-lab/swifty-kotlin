@@ -143,6 +143,11 @@ public func kk_string_builder_deleteCharAt(_ sbRaw: Int, _ index: Int) -> Int {
     return sbRaw
 }
 
+@_cdecl("kk_string_builder_deleteAt")
+public func kk_string_builder_deleteAt(_ sbRaw: Int, _ index: Int) -> Int {
+    kk_string_builder_deleteCharAt(sbRaw, index)
+}
+
 @_cdecl("kk_string_builder_appendRange_obj")
 public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }

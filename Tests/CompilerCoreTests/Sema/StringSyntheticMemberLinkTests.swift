@@ -1277,6 +1277,39 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testStringBuilderDeleteAtResolvesInCallExpressions() throws {
+        let source = """
+        import kotlin.text.StringBuilder
+
+        fun deleteOne(): StringBuilder {
+            return StringBuilder("abc").deleteAt(1)
+        }
+
+        fun deleteWithReceiver(): String {
+            return with(StringBuilder("rust")) {
+                deleteAt(1)
+                toString()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected StringBuilder.deleteAt surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let deleteAtBindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteAt"
+            }
+            XCTAssertEqual(deleteAtBindings.count, 2)
+        }
+    }
+
     func testCharSequenceZipWithNextMembersResolveInCallExpressions() throws {
         let source = """
         fun pairs(value: CharSequence): List<Pair<Char, Char>> {

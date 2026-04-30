@@ -4010,6 +4010,8 @@ extension CallLowerer {
                     "kk_string_builder_append_line_obj"
                 } else if calleeName == sbNames.deleteCharAt {
                     "kk_string_builder_deleteCharAt"
+                } else if calleeName == sbNames.deleteAt {
+                    "kk_string_builder_deleteAt"
                 } else if calleeName == sbNames.get {
                     "kk_string_builder_get"
                 } else if calleeName == sbNames.ensureCapacity {

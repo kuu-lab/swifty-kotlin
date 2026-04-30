@@ -103,6 +103,15 @@ public extension RuntimeABISpec {
             section: "StringBuilder"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_builder_deleteAt",
+            parameters: [
+                RuntimeABIParameter(name: "sbRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "StringBuilder"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_builder_get",
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),

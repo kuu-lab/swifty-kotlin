@@ -159,6 +159,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // deleteAt(Int): StringBuilder (STDLIB-TEXT-BUILDER-001)
+        registerStringBuilderMemberFunction(
+            named: "deleteAt",
+            externalLinkName: "kk_string_builder_deleteAt",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("index", intType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // get(Int): Char (operator)
         registerStringBuilderMemberFunction(
             named: "get",

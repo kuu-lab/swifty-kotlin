@@ -313,6 +313,7 @@ struct KnownCompilerNames {
     let appendLine: InternedString
     let appendRange: InternedString
     let deleteCharAt: InternedString
+    let deleteAt: InternedString
     let get: InternedString
     let insert: InternedString
     let delete: InternedString
@@ -501,6 +502,7 @@ struct KnownCompilerNames {
         appendLine = interner.intern("appendLine")
         appendRange = interner.intern("appendRange")
         deleteCharAt = interner.intern("deleteCharAt")
+        deleteAt = interner.intern("deleteAt")
         get = interner.intern("get")
         insert = interner.intern("insert")
         delete = interner.intern("delete")
