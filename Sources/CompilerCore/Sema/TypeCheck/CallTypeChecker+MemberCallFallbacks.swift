@@ -1028,6 +1028,7 @@ extension CallTypeChecker {
             interner.intern("toBooleanArray"),
             interner.intern("toShortArray"),
             interner.intern("toDoubleArray"),
+            interner.intern("toFloatArray"),
             interner.intern("toIntArray"),
             interner.intern("toLongArray"),
             interner.intern("toByteArray"),
@@ -1640,6 +1641,19 @@ extension CallTypeChecker {
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: doubleArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        if memberName == interner.intern("toFloatArray"),
+           let floatArraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("FloatArray"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: floatArraySymbol,
                 args: [],
                 nullability: .nonNull
             )))
