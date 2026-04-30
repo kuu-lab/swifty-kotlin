@@ -81,7 +81,7 @@
 - [x] STDLIB-TEXT-HOF-001: `CharSequence.firstNotNullOf(transform)` を追加する
 - [x] STDLIB-TEXT-HOF-002: `CharSequence.firstNotNullOfOrNull(transform)` を追加する
 - [x] STDLIB-TEXT-HOF-003: `CharSequence.reduceRightIndexed(operation)` を追加する
-- [ ] STDLIB-TEXT-HOF-004: `CharSequence.reduceRightIndexedOrNull(operation)` を追加する
+- [x] STDLIB-TEXT-HOF-004: `CharSequence.reduceRightIndexedOrNull(operation)` を追加する
 - [ ] STDLIB-TEXT-HOF-005: `CharSequence.reduceRightOrNull(operation)` を追加する
 - [ ] STDLIB-TEXT-HOF-006: `CharSequence.sumBy(selector)` deprecated surface を追加する
 - [ ] STDLIB-TEXT-HOF-007: `CharSequence.sumByDouble(selector)` deprecated surface を追加する

@@ -3612,6 +3612,41 @@ public func kk_string_reduceRightIndexed(
     return acc
 }
 
+@_cdecl("kk_string_reduceRightIndexedOrNull")
+public func kk_string_reduceRightIndexedOrNull(
+    _ strRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalars(strRaw)
+    guard !scalars.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+
+    var acc = Int(scalars[scalars.count - 1].value)
+    guard scalars.count > 1 else {
+        return acc
+    }
+
+    for index in stride(from: scalars.count - 2, through: 0, by: -1) {
+        var thrown = 0
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            arg1: index,
+            arg2: Int(scalars[index].value),
+            arg3: acc,
+            outThrown: &thrown
+        ))
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+    }
+    return acc
+}
+
 @_cdecl("kk_string_filterIndexed")
 public func kk_string_filterIndexed(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?

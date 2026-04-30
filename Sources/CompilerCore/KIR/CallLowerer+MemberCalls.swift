@@ -2859,10 +2859,15 @@ extension CallLowerer {
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
                 || calleeStr == "reduceRightIndexed"
+                || calleeStr == "reduceRightIndexedOrNull"
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                 || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                if calleeStr == "firstNotNullOf" || calleeStr == "firstNotNullOfOrNull" || calleeStr == "reduceRightIndexed" {
+                if calleeStr == "firstNotNullOf"
+                    || calleeStr == "firstNotNullOfOrNull"
+                    || calleeStr == "reduceRightIndexed"
+                    || calleeStr == "reduceRightIndexedOrNull"
+                {
                     let originalCallBinding = sema.bindings.callBindings[exprID]
                     let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
                         chosen
@@ -2892,7 +2897,8 @@ extension CallLowerer {
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf": "kk_string_firstNotNullOf"
                     case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
-                    default: "kk_string_reduceRightIndexed"
+                    case "reduceRightIndexed": "kk_string_reduceRightIndexed"
+                    default: "kk_string_reduceRightIndexedOrNull"
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -6441,6 +6447,7 @@ extension CallLowerer {
             interner.intern("kk_string_firstNotNullOf"),
             interner.intern("kk_string_firstNotNullOfOrNull"),
             interner.intern("kk_string_reduceRightIndexed"),
+            interner.intern("kk_string_reduceRightIndexedOrNull"),
             interner.intern("kk_string_zipWithNextTransform"),
             interner.intern("kk_string_chunkedSequence_transform"),
             interner.intern("kk_string_windowedSequence_transform"),

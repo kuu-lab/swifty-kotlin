@@ -172,6 +172,51 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testReduceRightIndexedOrNullWalksRightToLeftWithIndexes() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduceRightIndexedOrNull(
+            source,
+            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+    }
+
+    func testReduceRightIndexedOrNullReturnsNullSentinelForEmptyString() {
+        let source = registerRuntimeObject(RuntimeStringBox(""))
+        var thrown = 0
+
+        let result = kk_string_reduceRightIndexedOrNull(
+            source,
+            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
+        let source = registerRuntimeObject(RuntimeStringBox("abc"))
+        var thrown = 0
+
+        let result = kk_string_reduceRightIndexedOrNull(
+            source,
+            unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 295)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
