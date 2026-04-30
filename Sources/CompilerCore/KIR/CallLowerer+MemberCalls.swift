@@ -4146,6 +4146,8 @@ extension CallLowerer {
                     "kk_string_builder_appendRange_obj"
                 } else if calleeName == sbNames.replace {
                     "kk_string_builder_replace_obj"
+                } else if calleeName == sbNames.setRange {
+                    "kk_string_builder_setRange"
                 } else {
                     nil
                 }

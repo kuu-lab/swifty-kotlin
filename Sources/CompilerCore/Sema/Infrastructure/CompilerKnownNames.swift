@@ -319,6 +319,7 @@ struct KnownCompilerNames {
     let insert: InternedString
     let insertRange: InternedString
     let delete: InternedString
+    let setRange: InternedString
     let toString: InternedString
     let clear: InternedString
     let reverse: InternedString
@@ -510,6 +511,7 @@ struct KnownCompilerNames {
         insert = interner.intern("insert")
         insertRange = interner.intern("insertRange")
         delete = interner.intern("delete")
+        setRange = interner.intern("setRange")
         toString = interner.intern("toString")
         clear = interner.intern("clear")
         reverse = interner.intern("reverse")

@@ -1092,6 +1092,8 @@ final class CallLowerer {
             "kk_string_builder_deleteRange"
         case ("insertRange", 4):
             "kk_string_builder_insertRange_obj"
+        case ("setRange", 3):
+            "kk_string_builder_setRange"
         default:
             nil
         }

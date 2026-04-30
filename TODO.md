@@ -77,7 +77,7 @@
 - [x] STDLIB-TEXT-BUILDER-001: `StringBuilder.deleteAt(index)` を追加する
 - [x] STDLIB-TEXT-BUILDER-002: `StringBuilder.deleteRange(startIndex, endIndex)` を追加する
 - [x] STDLIB-TEXT-BUILDER-003: `StringBuilder.insertRange(index, value, startIndex, endIndex)` を追加する
-- [ ] STDLIB-TEXT-BUILDER-004: `StringBuilder.setRange(startIndex, endIndex, value)` を追加する
+- [x] STDLIB-TEXT-BUILDER-004: `StringBuilder.setRange(startIndex, endIndex, value)` を追加する
 - [ ] STDLIB-TEXT-HOF-001: `CharSequence.firstNotNullOf(transform)` を追加する
 - [ ] STDLIB-TEXT-HOF-002: `CharSequence.firstNotNullOfOrNull(transform)` を追加する
 - [ ] STDLIB-TEXT-HOF-003: `CharSequence.reduceRightIndexed(operation)` を追加する
