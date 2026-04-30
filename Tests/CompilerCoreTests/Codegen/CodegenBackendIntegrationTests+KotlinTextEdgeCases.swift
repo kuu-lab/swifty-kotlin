@@ -318,6 +318,43 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextSumByEdgeCases() throws {
+        let source = """
+        fun sumFromSequence(value: CharSequence): Int {
+            return value.sumBy { if (it == 'a') 10 else 1 }
+        }
+
+        fun main() {
+            println(sumFromSequence("aba"))
+            println("bbb".sumBy { ch -> if (ch == 'b') 3 else 0 })
+            println("".sumBy { 1 })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextSumByEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                21
+                9
+                0
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - replace / replaceFirst / replaceRange
 
     func testKotlinTextReplaceEdgeCases() throws {

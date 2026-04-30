@@ -36,6 +36,10 @@ private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePoi
     acc + charRaw
 }
 
+private let sumByWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    charRaw == Int(Unicode.Scalar("a").value) ? 10 : 1
+}
+
 final class RuntimeStringHOFTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -270,6 +274,36 @@ final class RuntimeStringHOFTests: XCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 294)
+    }
+
+    func testSumByAppliesSelectorToEveryCharacter() {
+        let source = registerRuntimeObject(RuntimeStringBox("aba"))
+        var thrown = 0
+
+        let result = kk_string_sumBy(
+            source,
+            unsafeBitCast(sumByWeightedA, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 21)
+    }
+
+    func testSumByReturnsZeroForEmptyString() {
+        let source = registerRuntimeObject(RuntimeStringBox(""))
+        var thrown = 0
+
+        let result = kk_string_sumBy(
+            source,
+            unsafeBitCast(sumByWeightedA, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

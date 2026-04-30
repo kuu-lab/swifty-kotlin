@@ -1781,6 +1781,12 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let charToIntType = types.make(.functionType(FunctionType(
+            params: [charType],
+            returnType: intType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
         let charToNullableAnyType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: types.nullableAnyType,
@@ -2066,6 +2072,28 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
+        registerSyntheticStringExtensionFunction(
+            named: "sumBy",
+            externalLinkName: "kk_string_sumBy",
+            receiverType: charSequenceType,
+            parameters: [("selector", charToIntType, false, false)],
+            returnType: intType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use sumOf instead.\"",
+                        "replaceWith = ReplaceWith(\"sumOf(selector)\")",
+                    ]
+                ),
+            ],
             flags: [.synthetic, .inlineFunction],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
