@@ -162,7 +162,7 @@ extension CallLowerer {
         "map", "filter", "filterNot", "mapNotNull", "filterNotNull", "requireNoNulls", "forEach", "flatMap",
         "any", "none", "all",
         "fold", "foldIndexed", "foldRight", "foldRightIndexed",
-        "reduce", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceIndexed", "reduceIndexedOrNull",
+        "reduce", "reduceRight", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "reduceIndexed", "reduceIndexedOrNull",
         "scan", "scanIndexed", "runningFold", "runningFoldIndexed",
         "runningReduce", "runningReduceIndexed",
         "groupBy", "groupingBy", "sortedBy", "find", "findLast", "associateBy", "associateWith", "associate", "zip", "zipWithNext", "unzip",
@@ -4807,7 +4807,7 @@ extension CallLowerer {
             "maxOf", "minOf",
             "maxWith", "maxWithOrNull", "minWith", "minWithOrNull",
             "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
-            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed",
+            "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy", "reduceIndexed", "reduceIndexedOrNull", "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull", "foldIndexed", "foldRightIndexed",
             "sortedByDescending", "sortedWith", "partition", "zipWithNext",
             "takeWhile", "dropWhile", "filterNot", "findLast", "replaceAll", "removeIf",
             "replaceFirstChar",
@@ -6506,6 +6506,7 @@ extension CallLowerer {
             interner.intern("kk_list_reduceRight"),
             interner.intern("kk_list_reduceRightIndexed"),
             interner.intern("kk_list_reduceRightIndexedOrNull"),
+            interner.intern("kk_list_reduceRightOrNull"),
             interner.intern("kk_list_reduceOrNull"),
             interner.intern("kk_list_scan"),
             interner.intern("kk_list_runningFold"),
@@ -8087,6 +8088,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_reduceRightIndexed")
             case "reduceRightIndexedOrNull":
                 return interner.intern("kk_list_reduceRightIndexedOrNull")
+            case "reduceRightOrNull":
+                return interner.intern("kk_list_reduceRightOrNull")
             case "runningFoldIndexed":
                 return interner.intern("kk_list_runningFoldIndexed")
             case "runningReduceIndexed":

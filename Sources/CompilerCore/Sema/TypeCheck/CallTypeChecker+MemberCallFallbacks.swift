@@ -988,6 +988,7 @@ extension CallTypeChecker {
             interner.intern("reduceRight"),
             interner.intern("reduceRightIndexed"),
             interner.intern("reduceRightIndexedOrNull"),
+            interner.intern("reduceRightOrNull"),
             interner.intern("reduceOrNull"),
             interner.intern("reduceIndexed"),
             interner.intern("reduceIndexedOrNull"),
@@ -1287,7 +1288,7 @@ extension CallTypeChecker {
             return argCount == 2
         case interner.intern("slice"):
             return argCount == 1
-        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
+        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceRightOrNull"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
             return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4

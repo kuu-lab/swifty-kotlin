@@ -95,6 +95,10 @@ private let reduceRightIndexedChecksum: @convention(c) (Int, Int, Int, Int, Unsa
     index * 100 + value * 10 + acc
 }
 
+private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, acc, _ in
+    value * 10 + acc
+}
+
 private let groupingFoldToInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     _, key, element, _ in
     gHOFState.addCall()
@@ -438,6 +442,48 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         let emptyResult = kk_list_reduceRightIndexedOrNull(
             makeList([]),
             unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
+    func testListReduceRightOrNullUsesValueAndAccumulator() {
+        var thrown = 0
+        let result = kk_list_reduceRightOrNull(
+            makeList([1, 2, 3]),
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 33)
+
+        thrown = 0
+        let arrayResult = kk_list_reduceRightOrNull(
+            makeArray([1, 2, 3]),
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(arrayResult, 33)
+
+        thrown = 0
+        let singletonResult = kk_list_reduceRightOrNull(
+            makeList([7]),
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(singletonResult, 7)
+
+        thrown = 0
+        let emptyResult = kk_list_reduceRightOrNull(
+            makeList([]),
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
             0,
             &thrown
         )

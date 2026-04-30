@@ -298,6 +298,52 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testIterableReduceRightOrNullResolvesToListRuntime() throws {
+        let source = """
+        fun checksum(values: Iterable<Int>): Int? {
+            return values.reduceRightOrNull { value, acc ->
+                value * 10 + acc
+            }
+        }
+
+        fun checksumFromList(values: List<Int>): Int? {
+            return values.reduceRightOrNull(operation = { value, acc ->
+                value + acc
+            })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected Iterable.reduceRightOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = ["kotlin", "collections", "Iterable", "reduceRightOrNull"]
+                .map { ctx.interner.intern($0) }
+            let memberSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: memberFQName))
+            XCTAssertEqual(sema.symbols.externalLinkName(for: memberSymbol), "kk_list_reduceRightOrNull")
+
+            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: memberSymbol))
+            XCTAssertEqual(signature.parameterTypes.count, 1)
+            guard case let .functionType(operationType) = sema.types.kind(of: signature.parameterTypes[0]) else {
+                return XCTFail("Expected Iterable.reduceRightOrNull operation parameter to be a function")
+            }
+            XCTAssertEqual(operationType.params.count, 2)
+
+            let callLinks = sema.bindings.callBindings.values.compactMap { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee)
+            }
+            XCTAssertEqual(callLinks.filter { $0 == "kk_list_reduceRightOrNull" }.count, 2)
+        }
+    }
+
     func testListFirstOrNullAndLastOrNullReturnNullableElementsWithoutCollectionMarking() throws {
         let source = """
         fun probe(values: List<Int>) {

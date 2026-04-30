@@ -48,6 +48,7 @@ extension ABIMismatchTests {
             "kk_list_binarySearch_comparator",
             "kk_list_reduceRightIndexed",
             "kk_list_reduceRightIndexedOrNull",
+            "kk_list_reduceRightOrNull",
             "kk_sequence_of",
             "kk_sequence_generate",
             "kk_array_of_nulls",
