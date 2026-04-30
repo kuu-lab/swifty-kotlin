@@ -6,7 +6,7 @@ import XCTest
 // This file documents what is implemented vs. what is missing in the KSwiftK
 // runtime with respect to the Kotlin/Native standard library API surface.
 //
-// IMPLEMENTED (tested here):
+// RUNTIME IMPLEMENTED (tested here and in RuntimeNativeRefRuntimeABITests):
 //   kotlin.native.runtime namespace (via java.lang / System shims):
 //     - System.gc()              -> kk_system_gc()     (calls kk_gc_collect internally)
 //     - Runtime.getRuntime()     -> kk_runtime_getRuntime()
@@ -31,10 +31,20 @@ import XCTest
 //     - Debugging.areAssertionsEnabled    -> kk_assertions_enabled()
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //
-// MISSING (not implemented — no runtime entry point or compiler-side stub):
+// SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
+//   - kotlin.native.ref.WeakReference<T>
+//   - kotlin.native.ref.WeakReference.get()
+//   - kotlin.native.ref.createCleaner(value, block)
+//   - kotlin.native.runtime.GC.collect()
+//   - kotlin.native.runtime.GC.schedule()
+//   - kotlin.native.runtime.Debugging.isThreadStateRunnable
 //   - kotlin.native.runtime.Debugging.gcSuspendCount
-//   - kotlin.native.runtime.Debugging.threadCount
-//   - kotlin.native.runtime.Debugging.globalObjectCount
+//
+// RUNTIME MISSING (tracked by STDLIB-NATIVE-REF-004 and later):
+//   - Debugging tracking metrics:
+//       gcSuspendCount / threadCount / globalObjectCount
+//   - GCInfo / RootSetStatistics / SweepStatistics type surfaces
+//   - NativeRuntimeApi marker
 
 final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
 
