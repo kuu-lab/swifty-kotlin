@@ -134,6 +134,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- String.hexToShort(format: HexFormat) ---
+        registerHexFormatExtensionFunction(
+            named: "hexToShort",
+            externalLinkName: "kk_string_hexToShort",
+            receiverType: stringType,
+            parameters: [("format", hexFormatType, true, false)],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- String.hexToLong(format: HexFormat) ---
         registerHexFormatExtensionFunction(
             named: "hexToLong",
