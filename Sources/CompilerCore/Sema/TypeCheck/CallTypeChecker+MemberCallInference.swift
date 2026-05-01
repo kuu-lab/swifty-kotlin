@@ -6098,6 +6098,8 @@ extension CallTypeChecker {
                         sema.types.intType
                     case "toUByteOrNull":
                         sema.types.makeNullable(sema.types.ubyteType)
+                    case "toUIntOrNull":
+                        sema.types.makeNullable(sema.types.uintType)
                     case "get":
                         sema.types.make(.primitive(.char, .nonNull))
                     case "encodeToByteArray", "toByteArray":
