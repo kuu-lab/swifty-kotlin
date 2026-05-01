@@ -27,7 +27,7 @@ import XCTest
 //     - GC.targetHeapUtilization   -> kk_gc_target_heap_utilization()
 //     - GC.maxHeapBytes            -> kk_gc_max_heap_bytes()
 //
-//   kotlin.native.runtime.Debugging (via kk_assertions_* / kk_debugging_* entry points):
+//   kotlin.native.runtime.Debugging (via kk_assertions_* entry points):
 //     - Debugging.areAssertionsEnabled    -> kk_assertions_enabled()
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
 //     - Debugging.isThreadStateRunnable   -> kk_debugging_is_thread_state_runnable()
@@ -38,17 +38,26 @@ import XCTest
 // SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
 //   - kotlin.native.ref.WeakReference<T>
 //   - kotlin.native.ref.WeakReference.get()
+//   - kotlin.native.ref.WeakReference.clear()
 //   - kotlin.native.ref.createCleaner(value, block)
 //   - kotlin.native.runtime.GC.collect()
 //   - kotlin.native.runtime.GC.schedule()
+//   - kotlin.native.runtime.GC.targetHeapBytes
+//   - kotlin.native.runtime.GC.targetHeapUtilization
+//   - kotlin.native.runtime.GC.maxHeapBytes
+//   - kotlin.native.runtime.GCInfo
+//   - kotlin.native.runtime.GCInfo.* timing / summary properties
+//   - kotlin.native.runtime.MemoryUsage
+//   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
+//   - kotlin.native.runtime.RootSetStatistics
+//   - kotlin.native.runtime.RootSetStatistics.* root count properties
+//   - kotlin.native.runtime.SweepStatistics
+//   - kotlin.native.runtime.SweepStatistics.sweptCount / keptCount
+//   - kotlin.native.runtime.NativeRuntimeApi
 //   - kotlin.native.runtime.Debugging.isThreadStateRunnable
 //   - kotlin.native.runtime.Debugging.gcSuspendCount
-//   - kotlin.native.runtime.GCInfo
-//   - kotlin.native.runtime.RootSetStatistics
-//   - kotlin.native.runtime.SweepStatistics
-//   - kotlin.native.runtime.NativeRuntimeApi
-//
-// RUNTIME MISSING: none for currently tracked native.ref / native.runtime surfaces.
+//   - kotlin.native.runtime.Debugging.threadCount
+//   - kotlin.native.runtime.Debugging.globalObjectCount
 
 final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
 

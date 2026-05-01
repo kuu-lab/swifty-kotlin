@@ -58,6 +58,374 @@ public func kk_copaque_pointer_address(_ handle: Int) -> Int {
     return Int(bitPattern: box.address)
 }
 
+@_cdecl("kk_native_identityHashCode")
+public func kk_native_identityHashCode(_ objectRaw: Int) -> Int {
+    guard objectRaw != 0, objectRaw != runtimeNullSentinelInt else {
+        return 0
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: objectRaw) else {
+        return objectRaw
+    }
+
+    let key = UInt(bitPattern: ptr)
+    let isKnownRuntimeObject = runtimeStorage.withLock { state in
+        state.objectPointers.contains(key) || state.heapObjects[key] != nil
+    }
+    guard isKnownRuntimeObject else {
+        return objectRaw
+    }
+
+    var mixed = UInt64(key)
+    mixed ^= mixed >> 33
+    mixed &*= 0xff51_afd7_ed55_8ccd
+    mixed ^= mixed >> 33
+    return Int(truncatingIfNeeded: mixed)
+}
+
+@_cdecl("kk_native_getStackTraceAddresses")
+public func kk_native_getStackTraceAddresses() -> Int {
+    let addresses = Thread.callStackReturnAddresses.map { Int(truncating: $0) }
+    return registerRuntimeObject(RuntimeListBox(elements: addresses))
+}
+
+private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var hookRaw: Int = runtimeNullSentinelInt
+
+    func get() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return hookRaw
+    }
+
+    func set(_ raw: Int) {
+        lock.lock()
+        hookRaw = raw == 0 || raw == runtimeNullSentinelInt ? runtimeNullSentinelInt : raw
+        lock.unlock()
+    }
+}
+
+private let runtimeUnhandledExceptionHookRegistry = RuntimeUnhandledExceptionHookRegistry()
+
+@_cdecl("kk_native_getUnhandledExceptionHook")
+public func kk_native_getUnhandledExceptionHook() -> Int {
+    runtimeUnhandledExceptionHookRegistry.get()
+}
+
+@_cdecl("kk_native_setUnhandledExceptionHook")
+public func kk_native_setUnhandledExceptionHook(_ hookRaw: Int) -> Int {
+    runtimeUnhandledExceptionHookRegistry.set(hookRaw)
+    return 0
+}
+
+@_cdecl("kk_native_processUnhandledException")
+public func kk_native_processUnhandledException(
+    _ throwableRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let hookRaw = runtimeUnhandledExceptionHookRegistry.get()
+    guard hookRaw != 0, hookRaw != runtimeNullSentinelInt else {
+        return 0
+    }
+    _ = kk_function_invoke(hookRaw, throwableRaw, outThrown)
+    return 0
+}
+
+@_cdecl("kk_native_terminateWithUnhandledException")
+public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
+    _ = kk_native_processUnhandledException(throwableRaw, nil)
+    fatalError("Unhandled Kotlin exception: \(throwableRaw)")
+}
+
+// MARK: - Native ByteArray accessors
+
+@inline(__always)
+private func runtimeNativeByteArrayLoadUnsigned(
+    _ arrayRaw: Int,
+    _ index: Int,
+    byteCount: Int,
+    functionName: String
+) -> UInt64 {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
+    }
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
+    }
+
+    var value: UInt64 = 0
+    for byteOffset in 0..<byteCount {
+        let byte = UInt8(truncatingIfNeeded: array.elements[index + byteOffset])
+        value |= UInt64(byte) << UInt64(byteOffset * 8)
+    }
+    return value
+}
+
+@inline(__always)
+private func runtimeNativeByteArrayStoreUnsigned(
+    _ arrayRaw: Int,
+    _ index: Int,
+    value: UInt64,
+    byteCount: Int,
+    functionName: String
+) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in \(functionName)")
+    }
+    guard index >= 0, byteCount >= 0, index + byteCount <= array.elements.count else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: index out of bounds in \(functionName)")
+    }
+
+    for byteOffset in 0..<byteCount {
+        let byte = UInt8(truncatingIfNeeded: value >> UInt64(byteOffset * 8))
+        array.elements[index + byteOffset] = Int(Int8(bitPattern: byte))
+    }
+    return 0
+}
+
+@_cdecl("kk_native_byteArray_getByteAt")
+public func kk_native_byteArray_getByteAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 1,
+        functionName: "kk_native_byteArray_getByteAt"
+    )
+    return Int(Int8(bitPattern: UInt8(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getShortAt")
+public func kk_native_byteArray_getShortAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 2,
+        functionName: "kk_native_byteArray_getShortAt"
+    )
+    return Int(Int16(bitPattern: UInt16(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getIntAt")
+public func kk_native_byteArray_getIntAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 4,
+        functionName: "kk_native_byteArray_getIntAt"
+    )
+    return Int(Int32(bitPattern: UInt32(truncatingIfNeeded: value)))
+}
+
+@_cdecl("kk_native_byteArray_getLongAt")
+public func kk_native_byteArray_getLongAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 8,
+        functionName: "kk_native_byteArray_getLongAt"
+    )
+    return Int(Int64(bitPattern: value))
+}
+
+@_cdecl("kk_native_byteArray_getUByteAt")
+public func kk_native_byteArray_getUByteAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 1,
+        functionName: "kk_native_byteArray_getUByteAt"
+    )
+    return Int(UInt8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_native_byteArray_getUShortAt")
+public func kk_native_byteArray_getUShortAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 2,
+        functionName: "kk_native_byteArray_getUShortAt"
+    )
+    return Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_native_byteArray_getUIntAt")
+public func kk_native_byteArray_getUIntAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 4,
+        functionName: "kk_native_byteArray_getUIntAt"
+    )
+    return Int(UInt32(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_native_byteArray_getULongAt")
+public func kk_native_byteArray_getULongAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 8,
+        functionName: "kk_native_byteArray_getULongAt"
+    )
+    return Int(bitPattern: UInt(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_native_byteArray_getCharAt")
+public func kk_native_byteArray_getCharAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 2,
+        functionName: "kk_native_byteArray_getCharAt"
+    )
+    return Int(UInt16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_native_byteArray_getFloatAt")
+public func kk_native_byteArray_getFloatAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 4,
+        functionName: "kk_native_byteArray_getFloatAt"
+    )
+    let bits = UInt32(truncatingIfNeeded: value)
+    return kk_float_to_bits(Float(bitPattern: bits))
+}
+
+@_cdecl("kk_native_byteArray_getDoubleAt")
+public func kk_native_byteArray_getDoubleAt(_ arrayRaw: Int, _ index: Int) -> Int {
+    let value = runtimeNativeByteArrayLoadUnsigned(
+        arrayRaw,
+        index,
+        byteCount: 8,
+        functionName: "kk_native_byteArray_getDoubleAt"
+    )
+    return kk_double_to_bits(Double(bitPattern: value))
+}
+
+@_cdecl("kk_native_byteArray_setByteAt")
+public func kk_native_byteArray_setByteAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt8(truncatingIfNeeded: value)),
+        byteCount: 1,
+        functionName: "kk_native_byteArray_setByteAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setShortAt")
+public func kk_native_byteArray_setShortAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt16(truncatingIfNeeded: value)),
+        byteCount: 2,
+        functionName: "kk_native_byteArray_setShortAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setIntAt")
+public func kk_native_byteArray_setIntAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt32(truncatingIfNeeded: value)),
+        byteCount: 4,
+        functionName: "kk_native_byteArray_setIntAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setLongAt")
+public func kk_native_byteArray_setLongAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(bitPattern: Int64(value)),
+        byteCount: 8,
+        functionName: "kk_native_byteArray_setLongAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setUByteAt")
+public func kk_native_byteArray_setUByteAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt8(truncatingIfNeeded: value)),
+        byteCount: 1,
+        functionName: "kk_native_byteArray_setUByteAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setUShortAt")
+public func kk_native_byteArray_setUShortAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt16(truncatingIfNeeded: value)),
+        byteCount: 2,
+        functionName: "kk_native_byteArray_setUShortAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setUIntAt")
+public func kk_native_byteArray_setUIntAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt32(truncatingIfNeeded: value)),
+        byteCount: 4,
+        functionName: "kk_native_byteArray_setUIntAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setULongAt")
+public func kk_native_byteArray_setULongAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(bitPattern: Int64(value)),
+        byteCount: 8,
+        functionName: "kk_native_byteArray_setULongAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setCharAt")
+public func kk_native_byteArray_setCharAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt16(truncatingIfNeeded: value)),
+        byteCount: 2,
+        functionName: "kk_native_byteArray_setCharAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setFloatAt")
+public func kk_native_byteArray_setFloatAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(UInt32(truncatingIfNeeded: value)),
+        byteCount: 4,
+        functionName: "kk_native_byteArray_setFloatAt"
+    )
+}
+
+@_cdecl("kk_native_byteArray_setDoubleAt")
+public func kk_native_byteArray_setDoubleAt(_ arrayRaw: Int, _ index: Int, _ value: Int) -> Int {
+    return runtimeNativeByteArrayStoreUnsigned(
+        arrayRaw,
+        index,
+        value: UInt64(bitPattern: Int64(value)),
+        byteCount: 8,
+        functionName: "kk_native_byteArray_setDoubleAt"
+    )
+}
+
 // MARK: - nativeHeap / nativeMemory allocation
 
 /// Tracks allocations made through `nativeHeap.alloc` / `nativeMemory`.

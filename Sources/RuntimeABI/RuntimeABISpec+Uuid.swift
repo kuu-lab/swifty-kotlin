@@ -9,6 +9,12 @@ public extension RuntimeABISpec {
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_uuid_nil",
+            parameters: [],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_uuid_lexicalOrder",
             parameters: [],
             returnType: .intptr,
@@ -24,6 +30,23 @@ public extension RuntimeABISpec {
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_uuid_parseOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "uuidString", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uuid_parseHex",
+            parameters: [
+                RuntimeABIParameter(name: "hexString", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_uuid_parseHexOrNull",
             parameters: [
                 RuntimeABIParameter(name: "hexString", type: .intptr),
@@ -32,17 +55,18 @@ public extension RuntimeABISpec {
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseHexDashOrNull",
+            name: "kk_uuid_parseHexDash",
             parameters: [
                 RuntimeABIParameter(name: "hexDashString", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Uuid"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uuid_parseOrNull",
+            name: "kk_uuid_parseHexDashOrNull",
             parameters: [
-                RuntimeABIParameter(name: "uuidString", type: .intptr),
+                RuntimeABIParameter(name: "hexDashString", type: .intptr),
             ],
             returnType: .intptr,
             section: "Uuid"
@@ -115,6 +139,24 @@ public extension RuntimeABISpec {
             name: "kk_uuid_nameUUIDFromBytes",
             parameters: [
                 RuntimeABIParameter(name: "nameArray", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uuid_fromLongs",
+            parameters: [
+                RuntimeABIParameter(name: "mostSignificantBits", type: .intptr),
+                RuntimeABIParameter(name: "leastSignificantBits", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uuid_fromByteArray",
+            parameters: [
+                RuntimeABIParameter(name: "byteArray", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Uuid"

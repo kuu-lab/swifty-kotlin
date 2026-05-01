@@ -40,8 +40,6 @@ extension ABIMismatchTests {
             "kk_concurrent_modification_exception_new_message",
             "kk_concurrent_modification_exception_new_message_cause",
             "kk_concurrent_modification_exception_new_cause",
-            "kk_array_index_out_of_bounds_exception_new",
-            "kk_array_index_out_of_bounds_exception_new_message",
             // Comparator (STDLIB-176)
             "kk_comparator_then_comparator",
             // Collection (binarySearch)
@@ -53,8 +51,6 @@ extension ABIMismatchTests {
             "kk_array_of_nulls",
             // String radix conversion
             "kk_string_toIntOrNull_radix",
-            // Char locale case conversion
-            "kk_char_lowercase_locale",
             "kk_system_exitProcess",
             "kk_system_currentTimeMillis",
             "kk_system_nanoTime",
@@ -66,9 +62,25 @@ extension ABIMismatchTests {
             "kk_system_measureTimeMicros",
             "kk_system_measureNanoTime",
             // UUID
-            "kk_uuid_parseHexOrNull",
-            "kk_uuid_parseHexDashOrNull",
+            "kk_uuid_random",
+            "kk_uuid_nil",
+            "kk_uuid_parse",
             "kk_uuid_parseOrNull",
+            "kk_uuid_parseHex",
+            "kk_uuid_parseHexOrNull",
+            "kk_uuid_parseHexDash",
+            "kk_uuid_parseHexDashOrNull",
+            "kk_uuid_toString",
+            "kk_uuid_toHexString",
+            "kk_uuid_toLongs",
+            "kk_uuid_toByteArray",
+            "kk_uuid_version",
+            "kk_uuid_variant",
+            "kk_uuid_mostSignificantBits",
+            "kk_uuid_leastSignificantBits",
+            "kk_uuid_nameUUIDFromBytes",
+            "kk_uuid_fromLongs",
+            "kk_uuid_fromByteArray",
             "kk_instant_now",
             "kk_instant_from_epoch_millis",
             "kk_instant_epoch_seconds",
@@ -295,7 +307,6 @@ extension ABIMismatchTests {
             "kk_kotlin_version_compareTo",
             "kk_kotlin_version_isAtLeast",
             "kk_kotlin_version_isAtLeast_patch",
-            "kk_auto_closeable_create",
         ]
 
         for linkName in syntheticLinkNames {

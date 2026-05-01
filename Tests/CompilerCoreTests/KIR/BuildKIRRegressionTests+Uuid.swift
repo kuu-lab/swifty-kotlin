@@ -1,0 +1,182 @@
+@testable import CompilerCore
+import Foundation
+import XCTest
+
+extension BuildKIRRegressionTests {
+    func testUuidCompanionAndInstanceCallsLowerToRuntimeCallees() throws {
+        let source = """
+        @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
+        import kotlin.uuid.Uuid
+
+        fun main() {
+            val nil = Uuid.NIL
+            val lexicalOrder = Uuid.LEXICAL_ORDER
+            val uuid = Uuid.parse("550e8400-e29b-41d4-a716-446655440000")
+            val maybeUuid = Uuid.parseOrNull("550e8400-e29b-41d4-a716-446655440000")
+            val hexUuid = Uuid.parseHex("550e8400e29b41d4a716446655440000")
+            val maybeHexUuid = Uuid.parseHexOrNull("550e8400e29b41d4a716446655440000")
+            val dashUuid = Uuid.parseHexDash("550e8400-e29b-41d4-a716-446655440000")
+            val maybeDashUuid = Uuid.parseHexDashOrNull("550e8400-e29b-41d4-a716-446655440000")
+            nil.toString()
+            uuid.toString()
+            maybeUuid?.toString()
+            hexUuid.toString()
+            maybeHexUuid?.toString()
+            dashUuid.toString()
+            maybeDashUuid?.toString()
+            uuid.toHexString()
+            uuid.toLongs()
+            uuid.toByteArray()
+            uuid.version()
+            uuid.variant()
+            val msb = uuid.mostSignificantBits
+            val lsb = uuid.leastSignificantBits
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callees.contains("kk_uuid_nil"), "Expected Uuid.NIL runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_lexicalOrder"), "Expected Uuid.LEXICAL_ORDER runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parse"), "Expected Uuid.parse runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseOrNull"), "Expected Uuid.parseOrNull runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseHex"), "Expected Uuid.parseHex runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseHexOrNull"), "Expected Uuid.parseHexOrNull runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseHexDash"), "Expected Uuid.parseHexDash runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_parseHexDashOrNull"), "Expected Uuid.parseHexDashOrNull runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_toString"), "Expected Uuid.toString runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_toHexString"), "Expected Uuid.toHexString runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_toLongs"), "Expected Uuid.toLongs runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_toByteArray"), "Expected Uuid.toByteArray runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_version"), "Expected Uuid.version runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_variant"), "Expected Uuid.variant runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_mostSignificantBits"), "Expected Uuid.mostSignificantBits runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_leastSignificantBits"), "Expected Uuid.leastSignificantBits runtime call")
+        }
+    }
+
+    func testUuidAdditionalFactoriesLowerToRuntimeCallees() throws {
+        let source = """
+        @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
+        import kotlin.uuid.Uuid
+
+        fun main(bytes: ByteArray) {
+            Uuid.random()
+            Uuid.nameUUIDFromBytes(bytes)
+            Uuid.fromLongs(0L, 1L)
+            Uuid.fromByteArray(bytes)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callees.contains("kk_uuid_random"), "Expected Uuid.random runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_nameUUIDFromBytes"), "Expected Uuid.nameUUIDFromBytes runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_fromLongs"), "Expected Uuid.fromLongs runtime call")
+            XCTAssertTrue(callees.contains("kk_uuid_fromByteArray"), "Expected Uuid.fromByteArray runtime call")
+        }
+    }
+
+    func testUuidSizeConstantsLowerToImmediateConstants() throws {
+        let source = """
+        @file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
+        import kotlin.uuid.Uuid
+
+        fun main(): Int {
+            val bits = Uuid.SIZE_BITS
+            val bytes = Uuid.SIZE_BYTES
+            return bits + bytes
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let intConstants = body.compactMap { instruction -> Int64? in
+                guard case let .constValue(_, value) = instruction,
+                      case let .intLiteral(intValue) = value
+                else {
+                    return nil
+                }
+                return intValue
+            }
+            let loadGlobalNames = body.compactMap { instruction -> String? in
+                guard case let .loadGlobal(_, symbol) = instruction,
+                      let symbolInfo = ctx.sema?.symbols.symbol(symbol)
+                else {
+                    return nil
+                }
+                let fqName = symbolInfo.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
+                return fqName
+            }
+
+            XCTAssertTrue(
+                intConstants.contains(128),
+                "Expected Uuid.SIZE_BITS to lower as int literal 128; load globals: \(loadGlobalNames)"
+            )
+            XCTAssertTrue(
+                intConstants.contains(16),
+                "Expected Uuid.SIZE_BYTES to lower as int literal 16; load globals: \(loadGlobalNames)"
+            )
+            XCTAssertFalse(
+                extractCallees(from: body, interner: ctx.interner).contains { $0.hasPrefix("kk_uuid_size") },
+                "Uuid size constants must not require runtime ABI calls"
+            )
+        }
+    }
+
+    func testABILoweringMarksUuidPureRuntimeHelpersAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        let nonThrowingUuidCallees = [
+            "kk_uuid_random",
+            "kk_uuid_nil",
+            "kk_uuid_lexicalOrder",
+            "kk_uuid_parseOrNull",
+            "kk_uuid_parseHexOrNull",
+            "kk_uuid_parseHexDashOrNull",
+            "kk_uuid_toString",
+            "kk_uuid_toHexString",
+            "kk_uuid_toLongs",
+            "kk_uuid_toByteArray",
+            "kk_uuid_version",
+            "kk_uuid_variant",
+            "kk_uuid_mostSignificantBits",
+            "kk_uuid_leastSignificantBits",
+            "kk_uuid_nameUUIDFromBytes",
+            "kk_uuid_fromLongs",
+        ]
+
+        for callee in nonThrowingUuidCallees {
+            XCTAssertTrue(
+                callees.contains(interner.intern(callee)),
+                "\(callee) should not receive an outThrown slot during ABI lowering"
+            )
+        }
+
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parse")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parseHex")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_parseHexDash")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_uuid_fromByteArray")))
+    }
+}

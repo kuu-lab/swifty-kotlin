@@ -239,8 +239,8 @@
 - [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
 - [x] STDLIB-REFLECT-068: `kotlin.reflect.KAnnotatedElement` interface と `annotations` surface を追加する
 - [x] STDLIB-REFLECT-069: `kotlin.reflect.KDeclarationContainer` interface surface を追加し、`KClass` との継承関係を整える
-- [x] STDLIB-REFLECT-070: `kotlin.reflect.KProperty2<D, E, V>` interface surface を追加する
-- [x] STDLIB-REFLECT-071: `kotlin.reflect.KMutableProperty2<D, E, V>` interface surface を追加する
+- [ ] STDLIB-REFLECT-070: `kotlin.reflect.KProperty2<D, E, V>` interface surface を追加する
+- [ ] STDLIB-REFLECT-071: `kotlin.reflect.KMutableProperty2<D, E, V>` interface surface を追加する
 - [x] STDLIB-REFLECT-072: `kotlin.reflect.KTypeParameter` interface surface を追加する
 - [x] STDLIB-REFLECT-073: `kotlin.reflect.KVariance` enum を追加する
 - [x] STDLIB-REFLECT-074: `kotlin.reflect.KTypeProjection` の data-class surface（`variance` / `type`）を追加する
@@ -295,41 +295,41 @@
 - [x] STDLIB-KOTLIN-ROOT-ANNO-001: `BuilderInference` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-002: `DeprecatedSinceKotlin(warningSince, errorSince, hiddenSince)` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-003: `DslMarker` annotation surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-ANNO-004: `OptionalExpectation` annotation surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-ANNO-005: `ParameterName(name: String)` annotation surface を追加する
+- [ ] STDLIB-KOTLIN-ROOT-ANNO-004: `OptionalExpectation` annotation surface を追加する
+- [ ] STDLIB-KOTLIN-ROOT-ANNO-005: `ParameterName(name: String)` annotation surface を追加する
 - [ ] STDLIB-KOTLIN-ROOT-ANNO-006: `PublishedApi` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-007: `SinceKotlin(version: String)` annotation surface を追加する
 - [ ] STDLIB-KOTLIN-ROOT-ANNO-008: `Throws(vararg exceptionClasses: KClass<out Throwable>)` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-009: `ExperimentalContextParameters` opt-in marker を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-010: `IgnorableReturnValue` annotation surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-ANNO-011: `IntroducedAt(version: String)` annotation surface を追加する
+- [ ] STDLIB-KOTLIN-ROOT-ANNO-011: `IntroducedAt(version: String)` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-ANNO-012: `MustUseReturnValues` annotation surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-VERSION-001: `KotlinVersion` constructor と `major` / `minor` / `patch` properties を追加する
 - [x] STDLIB-KOTLIN-ROOT-VERSION-002: `KotlinVersion.CURRENT` と comparison helpers（`compareTo`, `isAtLeast`）を追加する
 - [x] STDLIB-KOTLIN-ROOT-EXC-001: `NoWhenBranchMatchedException` class surface を追加する
 - [x] STDLIB-KOTLIN-ROOT-EXC-002: `ConcurrentModificationException` class surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-EXC-003: Native `ArrayIndexOutOfBoundsException` class surface を追加する
-- [x] STDLIB-KOTLIN-ROOT-CLOSE-001: `AutoCloseable(closeAction: () -> Unit)` factory を追加する
-- [x] STDLIB-KOTLIN-ROOT-CLOSE-002: `AutoCloseable?.use { ... }` common extension を追加する
+- [ ] STDLIB-KOTLIN-ROOT-EXC-003: Native `ArrayIndexOutOfBoundsException` class surface を追加する
+- [ ] STDLIB-KOTLIN-ROOT-CLOSE-001: `AutoCloseable(closeAction: () -> Unit)` factory を追加する
+- [ ] STDLIB-KOTLIN-ROOT-CLOSE-002: `AutoCloseable?.use { ... }` common extension を追加する
 - [x] STDLIB-KOTLIN-ROOT-ARRAY-001: `arrayOfNulls<T>(size: Int)` root array factory を追加する
 - [x] STDLIB-KOTLIN-ROOT-LAZY-001: `lazyOf(value)` root lazy factory を追加する
-- [x] STDLIB-KOTLIN-ROOT-CTX-001: experimental `context(with, block)` helper を追加する
-- [x] STDLIB-KOTLIN-ROOT-CTX-002: experimental `context(a, b, ..., block)` overload 群を追加する
+- [ ] STDLIB-KOTLIN-ROOT-CTX-001: experimental `context(with, block)` helper を追加する
+- [ ] STDLIB-KOTLIN-ROOT-CTX-002: experimental `context(a, b, ..., block)` overload 群を追加する
 - [ ] STDLIB-KOTLIN-ROOT-CTX-003: experimental `contextOf<A>()` helper を追加する
-- [x] STDLIB-KOTLIN-ROOT-REFLECT-001: `KProperty0<*>.isInitialized` root extension property を追加する
+- [ ] STDLIB-KOTLIN-ROOT-REFLECT-001: `KProperty0<*>.isInitialized` root extension property を追加する
 - [x] STDLIB-KOTLIN-ROOT-THROW-001: `Throwable.suppressedExceptions` property を追加する
 - [ ] STDLIB-KOTLIN-ROOT-THROW-002: `Throwable.printStackTrace()` を追加する
 - [x] STDLIB-KOTLIN-ROOT-NUM-001: integer `floorDiv` overload 行列を追加する
-- [x] STDLIB-KOTLIN-ROOT-NUM-002: integer/floating `mod` overload 行列を追加する
+- [ ] STDLIB-KOTLIN-ROOT-NUM-002: integer/floating `mod` overload 行列を追加する
 - [ ] STDLIB-I18N-COMMON-001: `kotlin.text` / common のフォーマット・ロケール
 - [x] STDLIB-I18N-COMMON-002: `Char.category` を `CharCategory` enum で露出する（現状は `Int` placeholder）
-- [x] STDLIB-I18N-COMMON-003: `String.Companion.format(locale, format, vararg args)` を追加する
+- [ ] STDLIB-I18N-COMMON-003: `String.Companion.format(locale, format, vararg args)` を追加する
 - [ ] STDLIB-I18N-COMMON-004: `Char.uppercase(Locale)` を追加する
-- [x] STDLIB-I18N-COMMON-005: `Char.lowercase(Locale)` を追加する
+- [ ] STDLIB-I18N-COMMON-005: `Char.lowercase(Locale)` を追加する
 - [x] STDLIB-I18N-COMMON-006: `String.toIntOrNull(radix: Int)` を追加する
-- [x] STDLIB-I18N-COMMON-007: `Char.directionality` を `CharDirectionality` enum で露出する（現状は `Int` placeholder）
-- [x] STDLIB-I18N-COMMON-008: `Char.lowercaseChar()` を追加する
-- [x] STDLIB-I18N-COMMON-009: `Char.uppercaseChar()` を追加する
+- [ ] STDLIB-I18N-COMMON-007: `Char.directionality` を `CharDirectionality` enum で露出する（現状は `Int` placeholder）
+- [ ] STDLIB-I18N-COMMON-008: `Char.lowercaseChar()` を追加する
+- [ ] STDLIB-I18N-COMMON-009: `Char.uppercaseChar()` を追加する
 - [ ] STDLIB-I18N-COMMON-010: `Char.titlecaseChar()` を追加する
 - [ ] STDLIB-I18N-COMMON-011: `Char.isDefined()` を追加する
 - [ ] STDLIB-I18N-COMMON-012: Native `Char.isSupplementaryCodePoint()` / `Char.isSurrogatePair()` を追加する
@@ -371,12 +371,12 @@
 - [x] STDLIB-SYSTEM-006: `kotlin.system.getTimeNanos()` top-level Native API を追加する（現状の `System.nanoTime()` とは別 surface）
 - [x] STDLIB-SYSTEM-007: `kotlin.system.measureTimeMicros { ... }` Native API を追加する
 - [x] STDLIB-UUID-001: `kotlin.uuid` の対象 API 一覧を固定
-- [ ] STDLIB-UUID-002: `kotlin.uuid` の sema / lowering を整える
+- [x] STDLIB-UUID-002: `kotlin.uuid` の sema / lowering を整える
 - [x] STDLIB-UUID-003: `kotlin.uuid` の runtime / canonical form / failure path を固定
-- [ ] STDLIB-UUID-004: `Uuid.Companion.parseHex(hexString: String)` を追加する
-- [ ] STDLIB-UUID-005: `Uuid.Companion.NIL` constant を追加する
+- [x] STDLIB-UUID-004: `Uuid.Companion.parseHex(hexString: String)` を追加する
+- [x] STDLIB-UUID-005: `Uuid.Companion.NIL` constant を追加する
 - [x] STDLIB-UUID-006: `@ExperimentalUuidApi` marker と opt-in diagnostics を追加する
-- [ ] STDLIB-UUID-007: `Uuid.Companion.parseHexDash(hexDashString: String)` を追加する
+- [x] STDLIB-UUID-007: `Uuid.Companion.parseHexDash(hexDashString: String)` を追加する
 - [x] STDLIB-UUID-008: `Uuid.Companion.parseOrNull(uuidString: String)` を追加する
 - [x] STDLIB-UUID-009: `Uuid.Companion.parseHexOrNull(hexString: String)` を追加する
 - [x] STDLIB-UUID-010: `Uuid.Companion.parseHexDashOrNull(hexDashString: String)` を追加する
@@ -386,37 +386,42 @@
 - [ ] STDLIB-NATIVE-PLATFORM-002: common から見える Native bridge を整理
 - [x] STDLIB-NATIVE-PLATFORM-003: `kotlin.native.MemoryModel` enum stub と platform bridge を追加する
 - [x] STDLIB-NATIVE-PLATFORM-004: `FreezingIsDeprecated` marker を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-005: `HiddenFromObjC` annotation を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-006: `NoInline` annotation を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-007: `ObsoleteNativeApi` marker を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-008: `EagerInitialization` annotation を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-009: `BitSet` surface を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-010: `ImmutableBlob` type と `immutableBlobOf(...)` factory を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-011: `Vector128` type と `vectorOf(...)` factory を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-012: Native `Any.asCPointer()` / `Any.asUCPointer()` を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-013: Native pointer `getByteAt` / `getShortAt` / `getIntAt` / `getLongAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-014: Native pointer `getUByteAt` / `getUShortAt` / `getUIntAt` / `getULongAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-015: Native pointer `getCharAt` / `getFloatAt` / `getDoubleAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-016: Native pointer `setByteAt` / `setShortAt` / `setIntAt` / `setLongAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-017: Native pointer `setUByteAt` / `setUShortAt` / `setUIntAt` / `setULongAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-018: Native pointer `setCharAt` / `setFloatAt` / `setDoubleAt` accessors を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-019: Native `identityHashCode(obj)` を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-020: Native `getStackTraceAddresses()` を追加する
-- [ ] STDLIB-NATIVE-PLATFORM-021: Native unhandled-exception hook APIs（`getUnhandledExceptionHook`, `setUnhandledExceptionHook`, `processUnhandledException`, `terminateWithUnhandledException`）を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-001: `kotlin.native.concurrent` の対象 API 一覧を固定
-- [ ] STDLIB-NATIVE-CONCURRENT-002: `kotlin.native.concurrent` の sema / diagnostics を整える
-- [ ] STDLIB-NATIVE-CONCURRENT-003: `kotlin.native.concurrent` の最小 runtime / ABI を実装
-- [ ] STDLIB-NATIVE-CONCURRENT-004: `DetachedObjectGraph<T>` surface を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-005: `FreezingException` class surface を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-006: `InvalidMutabilityException` class surface を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-007: `WorkerBoundReference<T>` surface を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-008: `atomicLazy(initializer)` を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-009: `Any.ensureNeverFrozen()` を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-010: `Continuation0` / `Continuation1` / `Continuation2` type surface を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-011: `callContinuation0` / `callContinuation1` / `callContinuation2` を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-012: `waitForMultipleFutures(futures)` を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-013: `waitWorkerTermination(worker)` を追加する
-- [ ] STDLIB-NATIVE-CONCURRENT-014: `withWorker(name, block)` を追加する
+- [x] STDLIB-NATIVE-PLATFORM-005: `HiddenFromObjC` annotation を追加する
+- [x] STDLIB-NATIVE-PLATFORM-006: `NoInline` annotation を追加する
+- [x] STDLIB-NATIVE-PLATFORM-007: `ObsoleteNativeApi` marker を追加する
+- [x] STDLIB-NATIVE-PLATFORM-008: `EagerInitialization` annotation を追加する
+- [x] STDLIB-NATIVE-PLATFORM-009: `BitSet` surface を追加する
+- [x] STDLIB-NATIVE-PLATFORM-010: `ImmutableBlob` type と `immutableBlobOf(...)` factory を追加する
+- [x] STDLIB-NATIVE-PLATFORM-011: `Vector128` type と `vectorOf(...)` factory を追加する
+- [x] STDLIB-NATIVE-PLATFORM-012: Native `Any.asCPointer()` / `Any.asUCPointer()` を追加する
+- [x] STDLIB-NATIVE-PLATFORM-013: Native pointer `getByteAt` / `getShortAt` / `getIntAt` / `getLongAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-014: Native pointer `getUByteAt` / `getUShortAt` / `getUIntAt` / `getULongAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-015: Native pointer `getCharAt` / `getFloatAt` / `getDoubleAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-016: Native pointer `setByteAt` / `setShortAt` / `setIntAt` / `setLongAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-017: Native pointer `setUByteAt` / `setUShortAt` / `setUIntAt` / `setULongAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-018: Native pointer `setCharAt` / `setFloatAt` / `setDoubleAt` accessors を追加する
+- [x] STDLIB-NATIVE-PLATFORM-019: Native `identityHashCode(obj)` を追加する
+- [x] STDLIB-NATIVE-PLATFORM-020: Native `getStackTraceAddresses()` を追加する
+- [x] STDLIB-NATIVE-PLATFORM-021: Native unhandled-exception hook APIs（`getUnhandledExceptionHook`, `setUnhandledExceptionHook`, `processUnhandledException`, `terminateWithUnhandledException`）を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-001: `kotlin.native.concurrent` の対象 API 一覧を固定
+- [x] STDLIB-NATIVE-CONCURRENT-002: `kotlin.native.concurrent` の sema / diagnostics を整える
+- [x] STDLIB-NATIVE-CONCURRENT-003: `kotlin.native.concurrent` の最小 runtime / ABI を実装
+- [x] STDLIB-NATIVE-CONCURRENT-004: `DetachedObjectGraph<T>` surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-005: `FreezingException` class surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-006: `InvalidMutabilityException` class surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-007: `WorkerBoundReference<T>` surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-008: `atomicLazy(initializer)` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-009: `Any.ensureNeverFrozen()` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-010: `Continuation0` / `Continuation1` / `Continuation2` type surface を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-011: `callContinuation0` / `callContinuation1` / `callContinuation2` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-012: `waitForMultipleFutures(futures)` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-013: `waitWorkerTermination(worker)` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-014: `withWorker(name, block)` を追加する
+- [x] STDLIB-NATIVE-CONCURRENT-015: legacy `kotlin.native.concurrent.AtomicInt` / `AtomicLong` / `AtomicNativePtr` surface を追加する
+- [ ] STDLIB-NATIVE-CONCURRENT-016: `FreezableAtomicReference<T>` surface を追加する
+- [ ] STDLIB-NATIVE-CONCURRENT-017: `MutableData` surface を追加する
+- [ ] STDLIB-NATIVE-CONCURRENT-018: `ObsoleteWorkersApi` marker を追加する
+- [ ] STDLIB-NATIVE-CONCURRENT-019: `Any?.isFrozen` / `<T>.freeze()` surface を追加する
 - [ ] STDLIB-EXPERIMENTAL-001: `kotlin.experimental` の marker 一覧を固定
 - [ ] STDLIB-EXPERIMENTAL-002: `kotlin.experimental` の opt-in / diagnostics を整える
 - [ ] STDLIB-EXPERIMENTAL-003: `kotlin.experimental.ExpectRefinement` annotation を追加し、expect declaration metadata へ露出する

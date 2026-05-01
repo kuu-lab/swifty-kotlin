@@ -1,7 +1,7 @@
 import Foundation
 
 /// Synthetic stdlib stubs for kotlin.uuid.Uuid.
-/// Registers the Uuid class, companion factory methods/properties (random, parse, parseOrNull, parseHexOrNull, parseHexDashOrNull, LEXICAL_ORDER, SIZE_BITS, SIZE_BYTES),
+/// Registers the Uuid class, companion factories/properties (random, parse, parseOrNull, parseHex, parseHexOrNull, parseHexDash, parseHexDashOrNull, NIL, SIZE_BITS, SIZE_BYTES, LEXICAL_ORDER),
 /// and instance methods (toString, toHexString, toLongs, toByteArray).
 extension DataFlowSemaPhase {
     func registerSyntheticUuidStubs(
@@ -36,7 +36,7 @@ extension DataFlowSemaPhase {
         let comparatorType: TypeID = {
             let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
             guard let comparatorSymbol = symbols.lookup(fqName: comparatorFQName)
-                ?? symbols.lookupByShortName(interner.intern("Comparator")).first
+                    ?? symbols.lookupByShortName(interner.intern("Comparator")).first
             else {
                 return types.anyType
             }
@@ -87,12 +87,34 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- Uuid.parseHex(hexString: String) companion factory ---
+        registerUuidCompanionMethod(
+            named: "parseHex",
+            externalLinkName: "kk_uuid_parseHex",
+            returnType: uuidType,
+            parameters: [(name: "hexString", type: stringType)],
+            companionFQName: companionFQName,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- Uuid.parseHexOrNull(hexString: String) companion factory ---
         registerUuidCompanionMethod(
             named: "parseHexOrNull",
             externalLinkName: "kk_uuid_parseHexOrNull",
             returnType: nullableUuidType,
             parameters: [(name: "hexString", type: stringType)],
+            companionFQName: companionFQName,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- Uuid.parseHexDash(hexDashString: String) companion factory ---
+        registerUuidCompanionMethod(
+            named: "parseHexDash",
+            externalLinkName: "kk_uuid_parseHexDash",
+            returnType: uuidType,
+            parameters: [(name: "hexDashString", type: stringType)],
             companionFQName: companionFQName,
             symbols: symbols,
             interner: interner
@@ -109,15 +131,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- Uuid companion constants ---
         if let companionSymbol = symbols.lookup(fqName: companionFQName) {
-            registerUuidCompanionProperty(
-                named: "LEXICAL_ORDER",
-                externalLinkName: "kk_uuid_lexicalOrder",
-                returnType: comparatorType,
-                ownerSymbol: companionSymbol,
-                symbols: symbols,
-                interner: interner
-            )
             registerUuidCompanionIntConstant(
                 named: "SIZE_BITS",
                 value: 128,
@@ -131,6 +146,22 @@ extension DataFlowSemaPhase {
                 value: 16,
                 ownerSymbol: companionSymbol,
                 intType: types.intType,
+                symbols: symbols,
+                interner: interner
+            )
+            registerUuidCompanionProperty(
+                named: "NIL",
+                externalLinkName: "kk_uuid_nil",
+                returnType: uuidType,
+                ownerSymbol: companionSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+            registerUuidCompanionProperty(
+                named: "LEXICAL_ORDER",
+                externalLinkName: "kk_uuid_lexicalOrder",
+                returnType: comparatorType,
+                ownerSymbol: companionSymbol,
                 symbols: symbols,
                 interner: interner
             )
@@ -295,18 +326,6 @@ extension DataFlowSemaPhase {
 
     // MARK: - Uuid Helpers
 
-    private func attachExperimentalUuidApiAnnotation(
-        to symbol: SymbolID,
-        symbols: SymbolTable
-    ) {
-        let record = MetadataAnnotationRecord(annotationFQName: "kotlin.uuid.ExperimentalUuidApi")
-        var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(record) {
-            annotations.append(record)
-            symbols.setAnnotations(annotations, for: symbol)
-        }
-    }
-
     private func ensureUuidPackageHierarchy(
         symbols: SymbolTable,
         interner: StringInterner
@@ -424,74 +443,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerUuidCompanionProperty(
-        named name: String,
-        externalLinkName: String,
-        returnType: TypeID,
-        ownerSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: {
-            symbols.symbol($0)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            symbols.insertFlags([.synthetic, .static], for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
-    }
-
-    private func registerUuidCompanionIntConstant(
-        named name: String,
-        value: Int64,
-        ownerSymbol: SymbolID,
-        intType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: {
-            symbols.symbol($0)?.kind == .property
-        }) {
-            symbols.setPropertyType(intType, for: existing)
-            symbols.setConstValueExprKind(.intLiteral(value), for: existing)
-            symbols.insertFlags([.synthetic, .static, .constValue], for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static, .constValue]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(intType, for: propertySymbol)
-        symbols.setConstValueExprKind(.intLiteral(value), for: propertySymbol)
-    }
-
     private func registerUuidInstanceMethod(
         named name: String,
         externalLinkName: String,
@@ -591,5 +542,89 @@ extension DataFlowSemaPhase {
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
         attachExperimentalUuidApiAnnotation(to: propertySymbol, symbols: symbols)
+    }
+
+    private func registerUuidCompanionProperty(
+        named name: String,
+        externalLinkName: String,
+        returnType: TypeID,
+        ownerSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let propertyName = interner.intern(name)
+        let propertyFQName = ownerInfo.fqName + [propertyName]
+
+        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: {
+            symbols.symbol($0)?.kind == .property
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.setPropertyType(returnType, for: existing)
+            symbols.insertFlags([.synthetic, .static], for: existing)
+            attachExperimentalUuidApiAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let propertySymbol = symbols.define(
+            kind: .property,
+            name: propertyName,
+            fqName: propertyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
+        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
+        symbols.setPropertyType(returnType, for: propertySymbol)
+        attachExperimentalUuidApiAnnotation(to: propertySymbol, symbols: symbols)
+    }
+
+    private func registerUuidCompanionIntConstant(
+        named name: String,
+        value: Int64,
+        ownerSymbol: SymbolID,
+        intType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let propertyName = interner.intern(name)
+        let propertyFQName = ownerInfo.fqName + [propertyName]
+
+        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: {
+            symbols.symbol($0)?.kind == .property
+        }) {
+            symbols.setPropertyType(intType, for: existing)
+            symbols.setConstValueExprKind(.intLiteral(value), for: existing)
+            symbols.insertFlags([.synthetic, .static, .constValue], for: existing)
+            attachExperimentalUuidApiAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let propertySymbol = symbols.define(
+            kind: .property,
+            name: propertyName,
+            fqName: propertyFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static, .constValue]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
+        symbols.setPropertyType(intType, for: propertySymbol)
+        symbols.setConstValueExprKind(.intLiteral(value), for: propertySymbol)
+        attachExperimentalUuidApiAnnotation(to: propertySymbol, symbols: symbols)
+    }
+
+    private func attachExperimentalUuidApiAnnotation(
+        to symbol: SymbolID,
+        symbols: SymbolTable
+    ) {
+        let record = MetadataAnnotationRecord(annotationFQName: "kotlin.uuid.ExperimentalUuidApi")
+        var annotations = symbols.annotations(for: symbol)
+        if !annotations.contains(record) {
+            annotations.append(record)
+            symbols.setAnnotations(annotations, for: symbol)
+        }
     }
 }
