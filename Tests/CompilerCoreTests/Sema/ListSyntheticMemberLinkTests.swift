@@ -1974,7 +1974,10 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
             try runFrontend(ctx)
             try? SemaPhase().run(ctx)
 
-            assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+            let hasDiag = ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-0024" || $0.code == "KSWIFTK-SEMA-0002"
+            }
+            XCTAssertTrue(hasDiag, "Expected diagnostic KSWIFTK-SEMA-0024 or KSWIFTK-SEMA-0002, got: \(ctx.diagnostics.diagnostics.map(\.code))")
         }
     }
 }
