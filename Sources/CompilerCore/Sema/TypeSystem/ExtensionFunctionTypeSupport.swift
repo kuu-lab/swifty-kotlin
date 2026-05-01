@@ -80,13 +80,23 @@ enum ExtensionFunctionTypeSupport {
                 )
                 return types.errorType
             }
-            if hasExtensionFunctionType, contextCount >= arity {
-                diagnostics?.error(
-                    "KSWIFTK-SEMA-EXTFN-TYPE",
-                    "ExtensionFunctionType requires a receiver type after ContextFunctionTypeParams context receivers.",
-                    range: range
-                )
-                return types.errorType
+            if hasExtensionFunctionType {
+                if contextAnnotation != nil, contextCount >= arity {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-EXTFN-TYPE",
+                        "ExtensionFunctionType requires a receiver type after ContextFunctionTypeParams context receivers.",
+                        range: range
+                    )
+                    return types.errorType
+                }
+                if contextAnnotation == nil, arity == 0 {
+                    diagnostics?.error(
+                        "KSWIFTK-SEMA-EXTFN-TYPE",
+                        "ExtensionFunctionType requires a receiver type and cannot be applied to Function0.",
+                        range: range
+                    )
+                    return types.errorType
+                }
             }
 
             let contextReceivers = Array(typeArgs.prefix(contextCount))
