@@ -3556,6 +3556,42 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toBooleanArray",
+            arrayTypeName: "BooleanArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toBooleanArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toShortArray",
+            arrayTypeName: "ShortArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toShortArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toDoubleArray",
+            arrayTypeName: "DoubleArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toDoubleArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toFloatArray",
+            arrayTypeName: "FloatArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toFloatArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
             memberName: "toUByteArray",
             arrayTypeName: "UByteArray",
             arrayPackage: kotlinPkg,
@@ -3592,7 +3628,7 @@ extension DataFlowSemaPhase {
 
     /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
     ///
-    /// Used for `toIntArray`, `toLongArray`, and `toByteArray` (STDLIB-LIST-PRIM-ARRAY).
+    /// Used for `toXxxArray` primitive array conversions (STDLIB-LIST-PRIM-ARRAY).
     private func registerListToPrimitiveArrayMember(
         symbols: SymbolTable,
         types: TypeSystem,
