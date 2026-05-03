@@ -4692,7 +4692,7 @@ extension CallLowerer {
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
-        
+
         // Extract qualified super type information for super<Interface> calls
         var qualifiedSuperType: SymbolID? = nil
         if isSuperCall, case let .superRef(interfaceQualifier, _) = ast.arena.expr(receiverExpr) {
@@ -4713,7 +4713,7 @@ extension CallLowerer {
                 }
             }
         }
-        
+
         let callBinding = recoverMemberCallBinding(
             exprID: exprID,
             receiverExpr: receiverExpr,
