@@ -316,7 +316,7 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner
         )
     }
-    
+
 
     func registerLateListIndexedMembers(
         symbols: SymbolTable,
