@@ -218,6 +218,21 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "String.toUByteOrNull(radix) should link to kk_string_toUByteOrNull_radix"
         )
         XCTAssertEqual(
+            externalLink(for: "toUShortOrNull", sema: sema, interner: interner),
+            "kk_string_toUShortOrNull_radix",
+            "String.toUShortOrNull(radix) should link to kk_string_toUShortOrNull_radix"
+        )
+        XCTAssertEqual(
+            externalLink(for: "toUIntOrNull", sema: sema, interner: interner),
+            "kk_string_toUIntOrNull_radix",
+            "String.toUIntOrNull(radix) should link to kk_string_toUIntOrNull_radix"
+        )
+        XCTAssertEqual(
+            externalLink(for: "toULongOrNull", sema: sema, interner: interner),
+            "kk_string_toULongOrNull_radix",
+            "String.toULongOrNull(radix) should link to kk_string_toULongOrNull_radix"
+        )
+        XCTAssertEqual(
             externalLink(for: "toDoubleOrNull", sema: sema, interner: interner),
             "kk_string_toDoubleOrNull",
             "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"

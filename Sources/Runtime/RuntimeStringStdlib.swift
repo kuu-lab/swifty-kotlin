@@ -808,6 +808,69 @@ public func kk_string_toUByteOrNull_radix(
     return Int(value)
 }
 
+@_cdecl("kk_string_toUShortOrNull_radix")
+public func kk_string_toUShortOrNull_radix(
+    _ strRaw: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt16(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toUIntOrNull_radix")
+public func kk_string_toUIntOrNull_radix(
+    _ strRaw: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt32(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toULongOrNull_radix")
+public func kk_string_toULongOrNull_radix(
+    _ strRaw: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt64(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: UInt(truncatingIfNeeded: value))
+}
+
 @_cdecl("kk_string_toDouble")
 public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

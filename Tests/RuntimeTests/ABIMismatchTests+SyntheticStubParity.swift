@@ -72,6 +72,9 @@ extension ABIMismatchTests {
             // String radix conversion
             "kk_string_toIntOrNull_radix",
             "kk_string_toUByteOrNull_radix",
+            "kk_string_toUShortOrNull_radix",
+            "kk_string_toUIntOrNull_radix",
+            "kk_string_toULongOrNull_radix",
             "kk_string_case_insensitive_order",
             "kk_system_exitProcess",
             "kk_system_currentTimeMillis",
