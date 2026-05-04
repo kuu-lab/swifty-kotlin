@@ -1,13 +1,14 @@
 fun main() {
-    val seq = sequenceOf("one", "two", "three")
+    val values = sequenceOf(1, 2, 3)
 
-    val firstHit = seq.firstNotNullOf { if (it == "three") it else null }
-    println(firstHit)
-
-    val missing = try {
-        sequenceOf("a", "b").firstNotNullOf<String, String> { null }
+    println(values.firstNotNullOf { value ->
+        if (value == 3) "three" else null
+    })
+    try {
+        println(values.firstNotNullOf { value ->
+            if (value == 9) "nine" else null
+        })
     } catch (e: NoSuchElementException) {
-        "missing"
+        println("missing")
     }
-    println(missing)
 }

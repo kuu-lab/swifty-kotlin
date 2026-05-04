@@ -1,13 +1,14 @@
 fun main() {
-    val items: Iterable<String> = listOf("one", "two", "three")
+    val values: Iterable<Int> = listOf(1, 2, 3)
 
-    val firstUpper = items.firstNotNullOf { if (it == "two") it else null }
-    println(firstUpper)
-
-    val missing = try {
-        items.firstNotNullOf<String, String> { null }
+    println(values.firstNotNullOf { value ->
+        if (value == 2) "two" else null
+    })
+    try {
+        println(values.firstNotNullOf { value ->
+            if (value == 9) "nine" else null
+        })
     } catch (e: NoSuchElementException) {
-        "missing"
+        println("missing")
     }
-    println(missing)
 }

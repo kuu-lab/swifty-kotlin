@@ -2959,7 +2959,6 @@ public func kk_sequence_sumOf(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var total = 0
     if let seq = runtimeSequenceBox(from: seqRaw) {

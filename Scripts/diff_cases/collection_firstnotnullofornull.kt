@@ -1,9 +1,10 @@
 fun main() {
-    val items: Iterable<String> = listOf("one", "two", "three")
+    val values: Iterable<Int> = listOf(1, 2, 3)
 
-    val firstHit = items.firstNotNullOfOrNull { if (it == "two") it else null } ?: "missing"
-    println(firstHit)
-
-    val missing = items.firstNotNullOfOrNull<String, String> { null } ?: "missing"
-    println(missing)
+    println(values.firstNotNullOfOrNull { value ->
+        if (value == 2) "two" else null
+    } ?: "missing")
+    println(values.firstNotNullOfOrNull { value ->
+        if (value == 9) "nine" else null
+    } ?: "missing")
 }
