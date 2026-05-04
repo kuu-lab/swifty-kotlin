@@ -4953,6 +4953,15 @@ extension CallTypeChecker {
                                   let signature = sema.symbols.functionSignature(for: candidate),
                                   let recvType = signature.receiverType
                             else { return false }
+                            // Property accessor functions (getter/setter) have a parent
+                            // whose kind is .property.  They share the short name "get"/"set"
+                            // with operator functions and must not pollute member lookup.
+                            if let parentID = sema.symbols.parentSymbol(for: candidate),
+                               let parentSym = sema.symbols.symbol(parentID),
+                               parentSym.kind == .property
+                            {
+                                return false
+                            }
                             return extensionSyntheticFallbackReceiverMatches(
                                 callSiteReceiver: nonNullReceiver,
                                 declaredReceiver: recvType,
