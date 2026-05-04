@@ -3529,33 +3529,6 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toIntArray",
-            arrayTypeName: "IntArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toIntArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toLongArray",
-            arrayTypeName: "LongArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toLongArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toByteArray",
-            arrayTypeName: "ByteArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toByteArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
             memberName: "toBooleanArray",
             arrayTypeName: "BooleanArray",
             arrayPackage: kotlinPkg,
@@ -3587,6 +3560,33 @@ extension DataFlowSemaPhase {
             arrayTypeName: "FloatArray",
             arrayPackage: kotlinPkg,
             externalLinkName: "kk_list_toFloatArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toIntArray",
+            arrayTypeName: "IntArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toIntArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toLongArray",
+            arrayTypeName: "LongArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toLongArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toByteArray",
+            arrayTypeName: "ByteArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toByteArray"
         )
         registerListToPrimitiveArrayMember(
             symbols: symbols, types: types, interner: interner,
@@ -3628,7 +3628,7 @@ extension DataFlowSemaPhase {
 
     /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
     ///
-    /// Used for `toXxxArray` primitive array conversions (STDLIB-LIST-PRIM-ARRAY).
+    /// Used for `toIntArray`, `toLongArray`, and `toByteArray` (STDLIB-LIST-PRIM-ARRAY).
     private func registerListToPrimitiveArrayMember(
         symbols: SymbolTable,
         types: TypeSystem,
