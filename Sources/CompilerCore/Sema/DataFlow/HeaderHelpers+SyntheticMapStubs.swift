@@ -263,23 +263,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        func registerMapToMember(
-            name: String,
-            externalLinkName: String,
-            destinationType: TypeID,
-            transformType: TypeID,
-            extraTypeParameterSymbols: [SymbolID]
-        ) {
-            registerMember(
-                name: name,
-                externalLinkName: externalLinkName,
-                parameterTypes: [destinationType, transformType],
-                returnType: destinationType,
-                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol] + extraTypeParameterSymbols,
-                flags: [.synthetic, .inlineFunction]
-            )
-        }
-
         if let setSymbol {
             let keysType = types.make(.classType(ClassType(
                 classSymbol: setSymbol,
@@ -431,21 +414,6 @@ extension DataFlowSemaPhase {
                 typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol, rSymbol],
                 flags: [.synthetic, .inlineFunction]
             )
-
-            if let mutableMapSymbol {
-                let destinationType = types.make(.classType(ClassType(
-                    classSymbol: mutableMapSymbol,
-                    args: [.invariant(keyType), .invariant(rType)],
-                    nullability: .nonNull
-                )))
-                registerMapToMember(
-                    name: "mapValuesTo",
-                    externalLinkName: "kk_map_mapValuesTo",
-                    destinationType: destinationType,
-                    transformType: transformType,
-                    extraTypeParameterSymbols: [rSymbol]
-                )
-            }
         }
 
         let mapKeysName = interner.intern("mapKeys")
@@ -480,21 +448,82 @@ extension DataFlowSemaPhase {
                 typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol, rSymbol],
                 flags: [.synthetic, .inlineFunction]
             )
+        }
 
-            if let mutableMapSymbol {
-                let destinationType = types.make(.classType(ClassType(
+        let mapKeysToName = interner.intern("mapKeysTo")
+        let mapKeysToFQName = mapFQName + [mapKeysToName]
+        if symbols.lookup(fqName: mapKeysToFQName) == nil {
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: mapKeysToFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [entryType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let destinationType = if let mutableMapSymbol {
+                types.make(.classType(ClassType(
                     classSymbol: mutableMapSymbol,
-                    args: [.invariant(rType), .invariant(valueType)],
+                    args: [.in(rType), .in(valueType)],
                     nullability: .nonNull
                 )))
-                registerMapToMember(
-                    name: "mapKeysTo",
-                    externalLinkName: "kk_map_mapKeysTo",
-                    destinationType: destinationType,
-                    transformType: transformType,
-                    extraTypeParameterSymbols: [rSymbol]
-                )
+            } else {
+                types.anyType
             }
+            registerMember(
+                name: "mapKeysTo",
+                externalLinkName: "kk_map_mapKeysTo",
+                parameterTypes: [destinationType, transformType],
+                returnType: destinationType,
+                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol, rSymbol],
+                flags: [.synthetic, .inlineFunction]
+            )
+        }
+
+        let mapValuesToName = interner.intern("mapValuesTo")
+        let mapValuesToFQName = mapFQName + [mapValuesToName]
+        if symbols.lookup(fqName: mapValuesToFQName) == nil {
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: mapValuesToFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [entryType],
+                returnType: rType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let destinationType = if let mutableMapSymbol {
+                types.make(.classType(ClassType(
+                    classSymbol: mutableMapSymbol,
+                    args: [.in(keyType), .in(rType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                types.anyType
+            }
+            registerMember(
+                name: "mapValuesTo",
+                externalLinkName: "kk_map_mapValuesTo",
+                parameterTypes: [destinationType, transformType],
+                returnType: destinationType,
+                typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol, rSymbol],
+                flags: [.synthetic, .inlineFunction]
+            )
         }
 
         let filterLambdaType = types.make(.functionType(FunctionType(

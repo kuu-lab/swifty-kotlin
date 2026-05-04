@@ -2673,6 +2673,10 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     let unsignedArrayCallee: InternedString? = switch callee {
+                    case lookup.toBooleanArrayName: lookup.kkListToBooleanArrayName
+                    case lookup.toShortArrayName: lookup.kkListToShortArrayName
+                    case lookup.toDoubleArrayName: lookup.kkListToDoubleArrayName
+                    case lookup.toFloatArrayName: lookup.kkListToFloatArrayName
                     case lookup.toUByteArrayName: lookup.kkListToUByteArrayName
                     case lookup.toUShortArrayName: lookup.kkListToUShortArrayName
                     case lookup.toUIntArrayName: lookup.kkListToUIntArrayName
@@ -3647,14 +3651,19 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
 
-                    if callee == lookup.sumOfName || callee == lookup.sumByName {
+                    if callee == lookup.sumOfName || callee == lookup.sumByName || callee == lookup.sumByDoubleName {
                         if arguments.count == 2 || arguments.count == 3 {
                             let receiverID = arguments[0]
                             let lambdaID = arguments[1]
                             if listExprIDs.contains(receiverID.rawValue) {
-                                let kkName: InternedString = callee == lookup.sumByName
-                                    ? lookup.kkListSumByName
-                                    : lookup.kkListSumOfName
+                                let kkName: InternedString
+                                if callee == lookup.sumByName {
+                                    kkName = lookup.kkListSumByName
+                                } else if callee == lookup.sumByDoubleName {
+                                    kkName = lookup.kkListSumByDoubleName
+                                } else {
+                                    kkName = lookup.kkListSumOfName
+                                }
                                 let closureRawID: KIRExprID
                                 if arguments.count == 3 {
                                     closureRawID = arguments[2]
