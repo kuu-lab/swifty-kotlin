@@ -494,6 +494,58 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
+            named: "toUByteOrNull",
+            externalLinkName: "kk_string_toUByteOrNull_radix",
+            receiverType: stringType,
+            parameters: [
+                ("radix", intType, false, false),
+            ],
+            returnType: types.makeNullable(types.ubyteType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toUShortOrNull",
+            externalLinkName: "kk_string_toUShortOrNull_radix",
+            receiverType: stringType,
+            parameters: [
+                ("radix", intType, false, false),
+            ],
+            returnType: types.makeNullable(types.ushortType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toUIntOrNull",
+            externalLinkName: "kk_string_toUIntOrNull_radix",
+            receiverType: stringType,
+            parameters: [
+                ("radix", intType, false, false),
+            ],
+            returnType: types.makeNullable(types.uintType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toULongOrNull",
+            externalLinkName: "kk_string_toULongOrNull_radix",
+            receiverType: stringType,
+            parameters: [
+                ("radix", intType, false, false),
+            ],
+            returnType: types.makeNullable(types.ulongType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
             named: "toDouble",
             externalLinkName: "kk_string_toDouble",
             receiverType: stringType,
