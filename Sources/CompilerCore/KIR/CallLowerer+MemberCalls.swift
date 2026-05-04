@@ -3169,7 +3169,7 @@ extension CallLowerer {
                 case "chunked":
                     ("kk_string_chunked", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
-                    ("kk_string_chunkedSequence", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
                 case "encodeToByteArray", "toByteArray":
                     if loweredArgIDs.count == 1 {
                         ("kk_string_encodeToByteArray_charset", [loweredReceiverID, loweredArgIDs[0]])
@@ -6299,7 +6299,9 @@ extension CallLowerer {
             finalArguments.append(envPtrExpr)
         }
         if (loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")),
+            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
+            || loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -6649,6 +6651,8 @@ extension CallLowerer {
             interner.intern("kk_sequence_sumOf"),
             interner.intern("kk_sequence_sumBy"),
             interner.intern("kk_sequence_sumByDouble"),
+            interner.intern("kk_iterable_firstNotNullOf"),
+            interner.intern("kk_iterable_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_firstNotNullOf"),
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_associate"),

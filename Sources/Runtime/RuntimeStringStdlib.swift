@@ -2325,8 +2325,8 @@ public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
     return runtimeMakeStringListRaw(chunks)
 }
 
-@_cdecl("kk_string_chunkedSequence")
-public func kk_string_chunkedSequence(_ strRaw: Int, _ size: Int) -> Int {
+@_cdecl("kk_string_chunked_sequence")
+public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard size > 0 else {
         return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))

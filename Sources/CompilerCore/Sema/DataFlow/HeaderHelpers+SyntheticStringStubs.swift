@@ -2745,7 +2745,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "chunkedSequence",
-            externalLinkName: "kk_string_chunkedSequence",
+            externalLinkName: "kk_string_chunked_sequence",
             receiverType: charSequenceType,
             parameters: [
                 ("size", intType, false, false),
