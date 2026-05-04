@@ -4116,7 +4116,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        arguments: runtimeArguments,
                         result: result,
                         canThrow: canThrow,
                         thrownResult: nil
@@ -6278,7 +6278,9 @@ extension CallLowerer {
             finalArguments.append(envPtrExpr)
         }
         if (loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")),
+            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
+            || loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
