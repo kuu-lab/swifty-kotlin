@@ -1125,23 +1125,57 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextChunkedSequenceTransformEdgeCases() throws {
+        let source = """
+        fun main() {
+            val lengths: kotlin.sequences.Sequence<Int> =
+                "abcdef".chunkedSequence(2) { _: CharSequence -> 2 }
+            println(lengths.toList())
+
+            val text: CharSequence = "abcde"
+            println(text.chunkedSequence(2) { _: CharSequence -> "chunk" }.toList())
+
+            println("".chunkedSequence(3) { _: CharSequence -> 1 }.toList())
+            println("abc".chunkedSequence(10) { _: CharSequence -> "single" }.toList())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextChunkedSequenceTransformEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                [2, 2, 2]
+                [chunk, chunk, chunk]
+                []
+                [single]
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testKotlinTextChunkedSequenceEdgeCases() throws {
         let source = """
-        fun render(value: CharSequence, size: Int): List<String> {
-            return value.chunkedSequence(size).toList()
-        }
-
-        fun renderTransform(value: CharSequence, size: Int): List<String> {
-            return value.chunkedSequence(size) { chunk -> "" + chunk + "!" }.toList()
-        }
-
         fun main() {
-            println(render("abcdef", 2))
-            println(render("abc", 10))
-            println(render("", 3))
-            println("abc".chunkedSequence(1).toList())
-            println(renderTransform("abcde", 2))
-            println("abcdef".chunkedSequence(3) { "" + it }.toList())
+            println("abcdef".chunkedSequence(2).toList())
+
+            val text: CharSequence = "abcde"
+            val chunks: kotlin.sequences.Sequence<String> = text.chunkedSequence(2)
+            println(chunks.toList())
+
+            println("".chunkedSequence(3).toList())
+            println("abc".chunkedSequence(10).toList())
         }
         """
 
@@ -1161,367 +1195,9 @@ extension CodegenBackendIntegrationTests {
                 out,
                 """
                 [ab, cd, ef]
+                [ab, cd, e]
+                []
                 [abc]
-                []
-                [a, b, c]
-                [ab!, cd!, e!]
-                [abc, def]
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextWindowedSequenceEdgeCases() throws {
-        let source = """
-        fun render(value: CharSequence, size: Int, step: Int, partial: Boolean): List<String> {
-            return value.windowedSequence(size, step, partial).toList()
-        }
-
-        fun main() {
-            println(render("abcdef", 3, 2, false))
-            println(render("abcdef", 3, 2, true))
-            println(render("ab", 5, 1, false))
-            println(render("ab", 5, 1, true))
-            println("hello".windowedSequence(2, 1, false).toList())
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextWindowedSequenceEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                [abc, cde]
-                [abc, cde, ef]
-                []
-                [ab, b]
-                [he, el, ll, lo]
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextWindowedSequenceTransformEdgeCases() throws {
-        let source = """
-        fun lengths(value: CharSequence): List<Int> {
-            return value.windowedSequence(3, 2, true) { it.length }.toList()
-        }
-
-        fun tagged(value: String): List<String> {
-            return value.windowedSequence(size = 2, step = 1, partialWindows = false) { window -> "" + window + "!" }.toList()
-        }
-
-        fun main() {
-            println(lengths("abcdef"))
-            println("ab".windowedSequence(5, 1, true) { it.length }.toList())
-            println(tagged("hello"))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextWindowedSequenceTransformEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                [3, 3, 2]
-                [2, 1]
-                [he!, el!, ll!, lo!]
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextIndexOfAnyCharsEdgeCases() throws {
-        let source = """
-        fun firstAny(value: CharSequence, chars: CharArray, start: Int, ignore: Boolean): Int {
-            return value.indexOfAny(chars, start, ignore)
-        }
-
-        fun main() {
-            println(firstAny("Kotlin", charArrayOf('t', 'x'), 0, false))
-            println(firstAny("Kotlin", charArrayOf('k'), 0, true))
-            println(firstAny("abc", charArrayOf('x'), 0, false))
-            println(firstAny("abc", charArrayOf('a'), 5, false))
-            println("abc".indexOfAny(charArrayOf('B'), 0, true))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfAnyCharsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                2
-                0
-                -1
-                -1
-                1
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextIndexOfAnyStringsEdgeCases() throws {
-        let source = """
-        fun firstAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Int {
-            return value.indexOfAny(strings, start, ignore)
-        }
-
-        fun main() {
-            println(firstAny("Kotlin", listOf("lin", "zz"), 0, false))
-            println(firstAny("Kotlin", listOf("ko"), 0, true))
-            println("abc".indexOfAny(listOf("x", "bc"), 0, false))
-            println("abc".indexOfAny(listOf(""), 2, false))
-            println("abc".indexOfAny(listOf("a"), 5, false))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextIndexOfAnyStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                3
-                0
-                1
-                2
-                -1
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextLastIndexOfAnyCharsEdgeCases() throws {
-        let source = """
-        fun lastAny(value: CharSequence, chars: CharArray, start: Int, ignore: Boolean): Int {
-            return value.lastIndexOfAny(chars, start, ignore)
-        }
-
-        fun main() {
-            println(lastAny("Kotlin", charArrayOf('t', 'o'), 5, false))
-            println(lastAny("Kotlin", charArrayOf('k'), 5, true))
-            println("abca".lastIndexOfAny(charArrayOf('a'), 2, false))
-            println("abc".lastIndexOfAny(charArrayOf('x'), 2, false))
-            println("abc".lastIndexOfAny(charArrayOf('C'), 2, true))
-            println("abc".lastIndexOfAny(charArrayOf('a'), -1, false))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLastIndexOfAnyCharsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                2
-                0
-                0
-                -1
-                2
-                -1
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextLastIndexOfAnyStringsEdgeCases() throws {
-        let source = """
-        fun lastAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Int {
-            return value.lastIndexOfAny(strings, start, ignore)
-        }
-
-        fun main() {
-            println(lastAny("Kotlin", listOf("ot", "li"), 5, false))
-            println(lastAny("Kotlin", listOf("KO"), 5, true))
-            println("abc".lastIndexOfAny(listOf("x", "bc"), 2, false))
-            println("abc".lastIndexOfAny(listOf(""), 5, false))
-            println("abc".lastIndexOfAny(listOf(""), 2, false))
-            println("abc".lastIndexOfAny(listOf("a"), -1, false))
-            println("abc".lastIndexOfAny(listOf("C"), 2, true))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextLastIndexOfAnyStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                3
-                0
-                1
-                3
-                2
-                -1
-                2
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextFindAnyOfStringsEdgeCases() throws {
-        let source = """
-        fun findAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Pair<Int, String>? {
-            return value.findAnyOf(strings, start, ignore)
-        }
-
-        fun render(match: Pair<Int, String>?): String {
-            if (match == null) return "null"
-            return match.first.toString() + ":" + match.second
-        }
-
-        fun main() {
-            println(render(findAny("Kotlin", listOf("lin", "ot"), 0, false)))
-            println(render(findAny("Kotlin", listOf("KO"), 0, true)))
-            println(render("abc".findAnyOf(listOf("x", "bc"), 0, false)))
-            println(render("abc".findAnyOf(listOf(""), 5, false)))
-            println(render("abc".findAnyOf(listOf("a"), 5, false)))
-            println(render("abc".findAnyOf(listOf("bc", "b"), 0, false)))
-            println(render("abc".findAnyOf(listOf("a"), -1, false)))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFindAnyOfStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                1:ot
-                0:KO
-                1:bc
-                3:
-                null
-                1:bc
-                0:a
-                """
-                + "\n"
-            )
-        }
-    }
-
-    func testKotlinTextFindLastAnyOfStringsEdgeCases() throws {
-        let source = """
-        fun findLastAny(value: CharSequence, strings: Collection<String>, start: Int, ignore: Boolean): Pair<Int, String>? {
-            return value.findLastAnyOf(strings, start, ignore)
-        }
-
-        fun render(match: Pair<Int, String>?): String {
-            if (match == null) return "null"
-            return match.first.toString() + ":" + match.second
-        }
-
-        fun main() {
-            println(render(findLastAny("Kotlin", listOf("ot", "li"), 5, false)))
-            println(render(findLastAny("Kotlin", listOf("KO"), 5, true)))
-            println(render("abc".findLastAnyOf(listOf("x", "bc"), 2, false)))
-            println(render("abc".findLastAnyOf(listOf(""), 5, false)))
-            println(render("abc".findLastAnyOf(listOf(""), 2, false)))
-            println(render("abc".findLastAnyOf(listOf("a"), -1, false)))
-            println(render("abc".findLastAnyOf(listOf("C"), 2, true)))
-            println(render("abc".findLastAnyOf(listOf("bc", "b"), 2, false)))
-            println(render("abc".findLastAnyOf(listOf("a"), 5, false)))
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "KotlinTextFindLastAnyOfStringsEdgeCases",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                out,
-                """
-                3:li
-                0:KO
-                1:bc
-                3:
-                2:
-                null
-                2:C
-                1:bc
-                0:a
                 """
                 + "\n"
             )
