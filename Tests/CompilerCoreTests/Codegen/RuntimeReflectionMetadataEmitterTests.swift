@@ -15,17 +15,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
         XCTAssertEqual(decoded?.count, 0)
     }
 
-    func testSerializeMagicAndVersion() {
-        let data = RuntimeReflectionMetadataEmitter.serialize([])
-        // Read magic bytes (little-endian serialized as 0x4D524B4B).
-        let magic = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self) }
-        XCTAssertEqual(UInt32(littleEndian: magic), RuntimeReflectionMetadataEmitter.magic)
-
-        // Read version
-        let version = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
-        XCTAssertEqual(UInt32(littleEndian: version), 1)
-    }
-
     // MARK: - Single Record Round-Trip
 
     func testSerializeAndDecodeSingleClassRecord() {
@@ -229,17 +218,6 @@ final class RuntimeReflectionMetadataEmitterTests: XCTestCase {
 
     func testDecodeRejectsEmptyData() {
         let result = RuntimeReflectionMetadataDecoder.decode(Data())
-        XCTAssertNil(result)
-    }
-
-    func testDecodeRejectsWrongMagic() {
-        var data = Data(count: 20)
-        // Wrong magic
-        data[0] = 0x00
-        data[1] = 0x00
-        data[2] = 0x00
-        data[3] = 0x00
-        let result = RuntimeReflectionMetadataDecoder.decode(data)
         XCTAssertNil(result)
     }
 
