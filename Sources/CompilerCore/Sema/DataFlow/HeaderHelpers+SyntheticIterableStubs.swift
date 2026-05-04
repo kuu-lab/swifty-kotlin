@@ -1759,6 +1759,7 @@ extension DataFlowSemaPhase {
                 receiverType: receiverType,
                 parameterTypes: [transformType],
                 returnType: resultType,
+                canThrow: true,
                 typeParameterSymbols: [iterableTypeParamSymbol, resultTypeParamSymbol],
                 classTypeParameterCount: 1
             ),
