@@ -1201,7 +1201,7 @@
 - [x] STDLIB-IO-PATH-TYPE-003: `kotlin.io.path.ExperimentalPathApi` marker annotation を追加する
 - [ ] STDLIB-IO-PATH-TYPE-004: `kotlin.io.path.FileVisitorBuilder` type surface を追加する
 - [ ] STDLIB-IO-PATH-TYPE-005: `kotlin.io.path.OnErrorResult` enum surface を追加する
-- [ ] STDLIB-IO-PATH-TYPE-006: `kotlin.io.path.PathWalkOption` enum surface を追加する
+- [x] STDLIB-IO-PATH-TYPE-006: `kotlin.io.path.PathWalkOption` enum surface を追加する
 - [ ] STDLIB-IO-PATH-PROP-001: `Path.extension` extension property を追加する
 - [ ] STDLIB-IO-PATH-PROP-002: `Path.invariantSeparatorsPath` extension property を追加する
 - [ ] STDLIB-IO-PATH-PROP-003: `Path.invariantSeparatorsPathString` extension property を追加する
