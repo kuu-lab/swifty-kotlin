@@ -3286,6 +3286,14 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = interner.resolve(calleeName)
+            let isCharSequenceReceiver: Bool = {
+                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == charSequenceSymbol
+            }()
             let firstArgType = sema.types.makeNonNullable(
                 sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             )
@@ -3316,14 +3324,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
             if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
                calleeStr == "chunkedSequence"
             {
@@ -4780,7 +4780,7 @@ extension CallLowerer {
             "onEach", "onEachIndexed",
             "ifEmpty",
             "ifBlank",
-            "chunked", "windowed", "copyOf",
+            "chunked", "chunkedSequence", "windowed", "copyOf",
             "toComponents",
             "onSuccess", "onFailure", "recover",
         ].contains(interner.resolve(calleeName))

@@ -144,10 +144,29 @@ extension DataFlowSemaPhase {
             iterableInterfaceSymbol: iterableInterfaceSymbol
         )
 
+        _ = registerSyntheticAbstractCollectionStub(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            collectionInterfaceSymbol: collectionInterfaceSymbol
+        )
+
         let mutableIterableInterfaceSymbol = registerSyntheticMutableIterableStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             iterableInterfaceSymbol: iterableInterfaceSymbol
+        )
+
+        let mutableCollectionInterfaceSymbol = registerSyntheticMutableCollectionStub(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            collectionInterfaceSymbol: collectionInterfaceSymbol
+        )
+
+        registerSyntheticAbstractMutableCollectionStub(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableCollectionInterfaceSymbol: mutableCollectionInterfaceSymbol
         )
 
         let listInterfaceSymbol = registerSyntheticListStub(
@@ -316,7 +335,7 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner
         )
     }
-    
+
 
     func registerLateListIndexedMembers(
         symbols: SymbolTable,

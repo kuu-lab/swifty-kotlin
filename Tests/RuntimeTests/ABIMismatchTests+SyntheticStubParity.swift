@@ -32,6 +32,8 @@ extension ABIMismatchTests {
             "kk_readln",
             "kk_readlnOrNull",
             "kk_string_hexToUInt",
+            "kk_string_chunkedSequence",
+            "kk_string_chunkedSequence_transform",
             // Exception constructors
             "kk_no_when_branch_matched_exception_new",
             "kk_no_when_branch_matched_exception_new_message",
