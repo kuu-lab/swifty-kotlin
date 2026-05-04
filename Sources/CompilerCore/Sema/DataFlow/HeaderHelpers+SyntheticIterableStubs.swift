@@ -1851,74 +1851,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `Iterable<E>.reduceRightOrNull(operation): E?` (STDLIB-COL-HOF-008).
-    func registerIterableReduceRightOrNullMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        iterableInterfaceSymbol: SymbolID
-    ) {
-        guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
-        let memberName = interner.intern("reduceRightOrNull")
-        let memberFQName = iterableFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = iterableFQName + [typeParamName]
-        guard let typeParamSymbol = symbols.lookup(fqName: typeParamFQName) else { return }
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: iterableInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        let nullableElementType = types.makeNullable(typeParamType)
-        let operationType = types.make(.functionType(FunctionType(
-            params: [typeParamType, typeParamType],
-            returnType: typeParamType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_reduceRightOrNull", for: memberSymbol)
-        let operationParameterName = interner.intern("operation")
-        let operationParameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: operationParameterName,
-            fqName: memberFQName + [operationParameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(memberSymbol, for: operationParameterSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [operationType],
-                returnType: nullableElementType,
-                valueParameterSymbols: [operationParameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
     /// Register `Iterable<E>.minusElement(element): List<E>` (STDLIB-COL-HOF-005).
     func registerIterableMinusElementMember(
         symbols: SymbolTable,
@@ -1985,7 +1917,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `Iterable<E>.reduceRightIndexed(operation): E` (STDLIB-COL-HOF-006).
+    /// Register `Iterable<E>.reduceRightIndexed(operation): S` (STDLIB-COL-HOF-006).
     func registerIterableReduceRightIndexedMember(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -2052,7 +1984,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `Iterable<E>.reduceRightIndexedOrNull(operation): E?` (STDLIB-COL-HOF-007).
+    /// Register `Iterable<E>.reduceRightIndexedOrNull(operation): S?` (STDLIB-COL-HOF-007).
     func registerIterableReduceRightIndexedOrNullMember(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -2095,6 +2027,74 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
         symbols.setExternalLinkName("kk_list_reduceRightIndexedOrNull", for: memberSymbol)
+        let operationParameterName = interner.intern("operation")
+        let operationParameterSymbol = symbols.define(
+            kind: .valueParameter,
+            name: operationParameterName,
+            fqName: memberFQName + [operationParameterName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(memberSymbol, for: operationParameterSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [operationType],
+                returnType: nullableElementType,
+                valueParameterSymbols: [operationParameterSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false],
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
+    }
+
+    /// Register `Iterable<E>.reduceRightOrNull(operation): S?` (STDLIB-COL-HOF-008).
+    func registerIterableReduceRightOrNullMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        iterableInterfaceSymbol: SymbolID
+    ) {
+        guard let iterableFQName = symbols.symbol(iterableInterfaceSymbol)?.fqName else { return }
+        let memberName = interner.intern("reduceRightOrNull")
+        let memberFQName = iterableFQName + [memberName]
+        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+
+        let typeParamName = interner.intern("E")
+        let typeParamFQName = iterableFQName + [typeParamName]
+        guard let typeParamSymbol = symbols.lookup(fqName: typeParamFQName) else { return }
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: iterableInterfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        let nullableElementType = types.makeNullable(typeParamType)
+        let operationType = types.make(.functionType(FunctionType(
+            params: [typeParamType, typeParamType],
+            returnType: typeParamType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .inlineFunction]
+        )
+        symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
+        symbols.setExternalLinkName("kk_list_reduceRightOrNull", for: memberSymbol)
         let operationParameterName = interner.intern("operation")
         let operationParameterSymbol = symbols.define(
             kind: .valueParameter,

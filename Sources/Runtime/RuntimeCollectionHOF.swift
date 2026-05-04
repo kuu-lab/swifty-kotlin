@@ -951,15 +951,10 @@ public func kk_list_reduceRight(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_list_reduceRightIndexed")
 public func kk_list_reduceRightIndexed(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let elements: [Int]
-    if let listElements = runtimeCollectionElements(from: listRaw) {
-        elements = listElements
-    } else if let arrayElements = runtimeArrayBox(from: listRaw)?.elements {
-        elements = arrayElements
-    } else {
+    guard let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements else {
         invalidContainerPanic(#function, "list")
     }
-    guard elements.count > 0 else {
+    guard !elements.isEmpty else {
         return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: "Empty collection can't be reduced."), outThrown)
     }
     var acc = maybeUnbox(elements[elements.count - 1])
@@ -982,15 +977,10 @@ public func kk_list_reduceRightIndexed(_ listRaw: Int, _ fnPtr: Int, _ closureRa
 
 @_cdecl("kk_list_reduceRightIndexedOrNull")
 public func kk_list_reduceRightIndexedOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let elements: [Int]
-    if let listElements = runtimeCollectionElements(from: listRaw) {
-        elements = listElements
-    } else if let arrayElements = runtimeArrayBox(from: listRaw)?.elements {
-        elements = arrayElements
-    } else {
+    guard let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements else {
         invalidContainerPanic(#function, "list")
     }
-    guard elements.count > 0 else { return runtimeNullSentinelInt }
+    guard !elements.isEmpty else { return runtimeNullSentinelInt }
     var acc = maybeUnbox(elements[elements.count - 1])
     guard elements.count > 1 else { return acc }
 
@@ -1011,15 +1001,10 @@ public func kk_list_reduceRightIndexedOrNull(_ listRaw: Int, _ fnPtr: Int, _ clo
 
 @_cdecl("kk_list_reduceRightOrNull")
 public func kk_list_reduceRightOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let elements: [Int]
-    if let listElements = runtimeCollectionElements(from: listRaw) {
-        elements = listElements
-    } else if let arrayElements = runtimeArrayBox(from: listRaw)?.elements {
-        elements = arrayElements
-    } else {
+    guard let elements = runtimeCollectionElements(from: listRaw) ?? runtimeArrayBox(from: listRaw)?.elements else {
         invalidContainerPanic(#function, "list")
     }
-    guard elements.count > 0 else { return runtimeNullSentinelInt }
+    guard !elements.isEmpty else { return runtimeNullSentinelInt }
     var acc = maybeUnbox(elements[elements.count - 1])
     guard elements.count > 1 else { return acc }
 

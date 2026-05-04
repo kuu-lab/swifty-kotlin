@@ -4201,7 +4201,7 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
+                        arguments: runtimeArguments,
                         result: result,
                         canThrow: canThrow,
                         thrownResult: nil
@@ -6363,8 +6363,19 @@ extension CallLowerer {
             finalArguments.append(envPtrExpr)
         }
         if (loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
-            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
-            || loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
+            || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")),
+           finalArguments.count == 2
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
+        }
+        if (loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
             || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")),
            finalArguments.count == 2
         {
@@ -6727,8 +6738,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_sumByDouble"),
             interner.intern("kk_sequence_firstNotNullOf"),
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
-            interner.intern("kk_iterable_firstNotNullOf"),
-            interner.intern("kk_iterable_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_associate"),
             interner.intern("kk_sequence_associateBy"),
             interner.intern("kk_sequence_associateTo"),
