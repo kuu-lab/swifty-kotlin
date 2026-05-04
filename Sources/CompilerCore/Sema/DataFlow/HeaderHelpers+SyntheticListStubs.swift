@@ -3538,6 +3538,33 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toShortArray",
+            arrayTypeName: "ShortArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toShortArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toDoubleArray",
+            arrayTypeName: "DoubleArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toDoubleArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
+            memberName: "toFloatArray",
+            arrayTypeName: "FloatArray",
+            arrayPackage: kotlinPkg,
+            externalLinkName: "kk_list_toFloatArray"
+        )
+        registerListToPrimitiveArrayMember(
+            symbols: symbols, types: types, interner: interner,
+            listInterfaceSymbol: listInterfaceSymbol,
+            listTypeParamSymbol: listTypeParamSymbol,
             memberName: "toIntArray",
             arrayTypeName: "IntArray",
             arrayPackage: kotlinPkg,
@@ -3551,15 +3578,6 @@ extension DataFlowSemaPhase {
             arrayTypeName: "LongArray",
             arrayPackage: kotlinPkg,
             externalLinkName: "kk_list_toLongArray"
-        )
-        registerListToPrimitiveArrayMember(
-            symbols: symbols, types: types, interner: interner,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            memberName: "toShortArray",
-            arrayTypeName: "ShortArray",
-            arrayPackage: kotlinPkg,
-            externalLinkName: "kk_list_toShortArray"
         )
         registerListToPrimitiveArrayMember(
             symbols: symbols, types: types, interner: interner,
@@ -3610,7 +3628,7 @@ extension DataFlowSemaPhase {
 
     /// Register a `List<E>.toXxxArray(): XxxArray` conversion member stub.
     ///
-    /// Used for primitive `Collection<T>.to*Array()` synthetic members (STDLIB-LIST-PRIM-ARRAY).
+    /// Used for `toIntArray`, `toLongArray`, and `toByteArray` (STDLIB-LIST-PRIM-ARRAY).
     private func registerListToPrimitiveArrayMember(
         symbols: SymbolTable,
         types: TypeSystem,
