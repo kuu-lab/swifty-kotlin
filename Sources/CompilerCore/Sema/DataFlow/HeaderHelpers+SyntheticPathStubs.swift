@@ -18,6 +18,7 @@
 /// - Top-level `Path(pathString: String)` factory (kotlin.io.path.Path)
 /// - `Paths.get(pathString: String)` factory (java.nio.file.Paths)
 /// - `CopyActionContext` type surface
+/// - `ExperimentalPathApi` marker annotation surface
 ///
 /// Each stub registers the kotlin.io.path.Path class, its constructor, member
 /// properties, and member functions in the symbol table so that name resolution
@@ -52,6 +53,12 @@ extension DataFlowSemaPhase {
             packageSymbol: kotlinIOPathPkgSymbol,
             symbols: symbols,
             types: types,
+            interner: interner
+        )
+        registerPathExperimentalPathApiAnnotation(
+            packageFQName: kotlinIOPathPkg,
+            packageSymbol: kotlinIOPathPkgSymbol,
+            symbols: symbols,
             interner: interner
         )
 
@@ -508,6 +515,53 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(contextType, for: contextSymbol)
+    }
+
+    private func registerPathExperimentalPathApiAnnotation(
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let annotationSymbol = ensureAnnotationClassSymbol(
+            named: "ExperimentalPathApi",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: annotationSymbol)
+        }
+
+        var annotations = symbols.annotations(for: annotationSymbol)
+        let requiresOptIn = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.RequiresOptIn",
+            arguments: ["level=RequiresOptIn.Level.ERROR"]
+        )
+        if !annotations.contains(requiresOptIn) {
+            annotations.append(requiresOptIn)
+        }
+
+        let target = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.annotation.Target",
+            arguments: [
+                "AnnotationTarget.CLASS",
+                "AnnotationTarget.ANNOTATION_CLASS",
+                "AnnotationTarget.PROPERTY",
+                "AnnotationTarget.FIELD",
+                "AnnotationTarget.LOCAL_VARIABLE",
+                "AnnotationTarget.VALUE_PARAMETER",
+                "AnnotationTarget.CONSTRUCTOR",
+                "AnnotationTarget.FUNCTION",
+                "AnnotationTarget.PROPERTY_GETTER",
+                "AnnotationTarget.PROPERTY_SETTER",
+                "AnnotationTarget.TYPEALIAS",
+            ]
+        )
+        if !annotations.contains(target) {
+            annotations.append(target)
+        }
+        symbols.setAnnotations(annotations, for: annotationSymbol)
     }
 
     private func resolvePathListSymbol(
