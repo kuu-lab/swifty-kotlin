@@ -2339,17 +2339,16 @@ public func kk_string_chunked_sequence_transform(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard size > 0 else {
-        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
-    }
+    let chunkSize = max(1, size)
     let scalars = Array(source.unicodeScalars)
+    let estimatedChunks = scalars.isEmpty ? 0 : (scalars.count + chunkSize - 1) / chunkSize
     var results: [Int] = []
-    var i = 0
-    while i < scalars.count {
-        let end = Swift.min(i + size, scalars.count)
-        let chunkRaw = runtimeMakeStringRaw(runtimeStringFromScalars(scalars[i ..< end]))
+    results.reserveCapacity(estimatedChunks)
+    var index = 0
+    while index < scalars.count {
+        let end = Swift.min(index + chunkSize, scalars.count)
+        let chunkRaw = runtimeMakeStringRaw(runtimeStringFromScalars(scalars[index ..< end]))
         var thrown = 0
         let transformed = runtimeInvokeCollectionLambda1(
             fnPtr: fnPtr,
@@ -2358,11 +2357,10 @@ public func kk_string_chunked_sequence_transform(
             outThrown: &thrown
         )
         if thrown != 0 {
-            outThrown?.pointee = thrown
-            return 0
+            return handleCollectionLambdaThrow(thrown, outThrown)
         }
         results.append(maybeUnbox(transformed))
-        i = end
+        index = end
     }
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
 }

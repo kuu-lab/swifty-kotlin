@@ -151,7 +151,7 @@
 - [x] STDLIB-COL-BSEARCH-003: `Array` / primitive array / unsigned array の `binarySearch(element, fromIndex, toIndex)` overload 群を追加する
 - [x] STDLIB-COL-BSEARCH-004: `Array.binarySearch(element, comparator, fromIndex, toIndex)` を追加する
 - [x] STDLIB-COL-WIN-001: `Iterable.windowed(size, step, partialWindows, transform)` overload を追加する
-- [ ] STDLIB-COL-TYPE-001: `AbstractCollection<E>` surface を追加する
+- [x] STDLIB-COL-TYPE-001: `AbstractCollection<E>` surface を追加する
 - [x] STDLIB-COL-TYPE-002: `AbstractIterator<T>` surface を追加する
 - [x] STDLIB-COL-TYPE-003: `AbstractMutableCollection<E>` surface を追加する
 - [x] STDLIB-COL-TYPE-004: primitive iterator classes（`BooleanIterator`, `ByteIterator`, `ShortIterator`, `IntIterator`, `LongIterator`, `FloatIterator`, `DoubleIterator`, `CharIterator`）を追加する
@@ -315,7 +315,7 @@
 - [x] STDLIB-KOTLIN-ROOT-LAZY-001: `lazyOf(value)` root lazy factory を追加する
 - [x] STDLIB-KOTLIN-ROOT-CTX-001: experimental `context(with, block)` helper を追加する
 - [x] STDLIB-KOTLIN-ROOT-CTX-002: experimental `context(a, b, ..., block)` overload 群を追加する
-- [ ] STDLIB-KOTLIN-ROOT-CTX-003: experimental `contextOf<A>()` helper を追加する
+- [x] STDLIB-KOTLIN-ROOT-CTX-003: experimental `contextOf<A>()` helper を追加する
 - [x] STDLIB-KOTLIN-ROOT-REFLECT-001: `KProperty0<*>.isInitialized` root extension property を追加する
 - [x] STDLIB-KOTLIN-ROOT-THROW-001: `Throwable.suppressedExceptions` property を追加する
 - [x] STDLIB-KOTLIN-ROOT-THROW-002: `Throwable.printStackTrace()` を追加する
@@ -331,7 +331,7 @@
 - [x] STDLIB-I18N-COMMON-008: `Char.lowercaseChar()` を追加する
 - [ ] STDLIB-I18N-COMMON-009: `Char.uppercaseChar()` を追加する
 - [x] STDLIB-I18N-COMMON-010: `Char.titlecaseChar()` を追加する
-- [ ] STDLIB-I18N-COMMON-011: `Char.isDefined()` を追加する
+- [x] STDLIB-I18N-COMMON-011: `Char.isDefined()` を追加する
 - [x] STDLIB-I18N-COMMON-012: Native `Char.isSupplementaryCodePoint()` / `Char.isSurrogatePair()` を追加する
 - [ ] STDLIB-I18N-COMMON-013: Native `Char.toChars()` / `Char.toCodePoint()` を追加する
 - [x] STDLIB-TIME-EXP-001: `@ExperimentalTime` 系 API の整理（`Clock` / `TimeMark`）

@@ -3346,9 +3346,31 @@ extension CallLowerer {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = interner.resolve(calleeName)
+            let isCharSequenceReceiver: Bool = {
+                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
+                else {
+                    return false
+                }
+                return classType.classSymbol == charSequenceSymbol
+            }()
             let firstArgType = sema.types.makeNonNullable(
                 sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             )
+            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+               calleeStr == "chunkedSequence",
+               normalizedArgIDs.count >= 3
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_chunked_sequence_transform"),
+                    arguments: [loweredReceiverID] + normalizedArgIDs,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
                calleeStr == "indexOf",
                sema.types.isSubtype(firstArgType, sema.types.stringType)
@@ -3372,81 +3394,6 @@ extension CallLowerer {
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
-               calleeStr == "chunkedSequence"
-            {
-                let lambdaArgIndex = args.indices.first { index in
-                    ast.arena.expr(args[index].expr)?.isLambdaOrCallableRef == true
-                        || sema.bindings.isCollectionHOFLambdaExpr(args[index].expr)
-                }
-                let sizeArgIndex = args.indices.first { index in
-                    if let lambdaArgIndex {
-                        return index != lambdaArgIndex
-                    }
-                    return false
-                }
-                let callArguments: [KIRExprID]
-                let originalCallBinding = sema.bindings.callBindings[exprID]
-                let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
-                    chosen
-                } else {
-                    nil
-                }
-                let normalizedOriginalArgs = driver.callSupportLowerer.normalizedCallArguments(
-                    providedArguments: loweredArgIDs,
-                    callBinding: originalCallBinding,
-                    chosenCallee: originalChosen,
-                    spreadFlags: args.map(\.isSpread),
-                    ast: ast,
-                    sema: sema,
-                    arena: arena,
-                    interner: interner,
-                    propertyConstantInitializers: propertyConstantInitializers,
-                    instructions: &instructions
-                ).arguments
-                if normalizedOriginalArgs.count == 2 {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        normalizedOriginalArgs[1],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    callArguments = [loweredReceiverID, normalizedOriginalArgs[0], fnPtrExpr, envPtrExpr]
-                } else if let lambdaArgIndex,
-                          let sizeArgIndex,
-                          lambdaArgIndex < loweredArgIDs.count,
-                          sizeArgIndex < loweredArgIDs.count
-                {
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        loweredArgIDs[lambdaArgIndex],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    callArguments = [loweredReceiverID, loweredArgIDs[sizeArgIndex], fnPtrExpr, envPtrExpr]
-                } else {
-                    callArguments = [loweredReceiverID] + normalizedArgIDs
-                }
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_chunked_sequence_transform"),
-                    arguments: callArguments,
-                    result: result,
-                    canThrow: true,
                     thrownResult: nil
                 ))
                 return result
@@ -4948,7 +4895,7 @@ extension CallLowerer {
             "onEach", "onEachIndexed",
             "ifEmpty",
             "ifBlank",
-            "chunked", "windowed", "copyOf",
+            "chunked", "chunkedSequence", "windowed", "copyOf",
             "toComponents",
             "onSuccess", "onFailure", "recover",
         ].contains(interner.resolve(calleeName))
@@ -6708,6 +6655,7 @@ extension CallLowerer {
             interner.intern("kk_sequence_ifEmpty"),
             interner.intern("kk_string_ifBlank"),
             interner.intern("kk_string_ifEmpty"),
+            interner.intern("kk_string_chunked_sequence_transform"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_last"),
             interner.intern("kk_sequence_firstOrNull"),
