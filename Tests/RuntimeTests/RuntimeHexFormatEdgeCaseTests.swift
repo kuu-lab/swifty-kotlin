@@ -373,6 +373,42 @@ final class RuntimeHexFormatEdgeCaseTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    // MARK: - String.hexToUShort – basic
+
+    func testHexToUShortBasic() {
+        let fmt = makeFormat()
+        var thrown = 0
+        XCTAssertEqual(kk_string_hexToUShort(makeString("ffff"), fmt, &thrown), Int(UInt16.max))
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_string_hexToUShort(makeString("0000"), fmt, &thrown), 0)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        _ = kk_string_hexToUShort(makeString("10000"), fmt, &thrown)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    // MARK: - String.hexToULong – basic
+
+    func testHexToULongBasic() {
+        let fmt = makeFormat()
+        var thrown = 0
+        let max = kk_string_hexToULong(makeString("ffffffffffffffff"), fmt, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_unbox_long(max), -1)
+
+        thrown = 0
+        let zero = kk_string_hexToULong(makeString("0000000000000000"), fmt, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_unbox_long(zero), 0)
+
+        thrown = 0
+        _ = kk_string_hexToULong(makeString("10000000000000000"), fmt, &thrown)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     // MARK: - String.hexToUByteArray – contiguous hex
 
     func testHexToUByteArrayContiguousHex() {
@@ -416,23 +452,6 @@ final class RuntimeHexFormatEdgeCaseTests: IsolatedRuntimeXCTestCase {
         let result = kk_string_hexToLong(strRaw, fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(result), 0)
-    }
-
-    // MARK: - String.hexToUInt - basic
-
-    func testHexToUIntBasic() {
-        let fmt = makeFormat()
-        var thrown = 0
-        XCTAssertEqual(kk_string_hexToUInt(makeString("ffffffff"), fmt, &thrown), Int(UInt32.max))
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        XCTAssertEqual(kk_string_hexToUInt(makeString("00000000"), fmt, &thrown), 0)
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        _ = kk_string_hexToUInt(makeString("100000000"), fmt, &thrown)
-        XCTAssertNotEqual(thrown, 0)
     }
 
     // MARK: - Uppercase/lowercase symmetry round-trip for bytes
