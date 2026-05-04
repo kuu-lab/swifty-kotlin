@@ -1,10 +1,10 @@
 fun main() {
-    val values: Sequence<Int> = sequenceOf(1, 2, 3, 4)
-    println(values.firstNotNullOfOrNull<String> { value ->
-        if (value == 3) "three" else null
-    })
+    val values = sequenceOf(1, 2, 3)
 
-    val missing: Sequence<Int> = sequenceOf(1, 2)
-    val result = missing.firstNotNullOfOrNull<String> { _ -> null }
-    println(result ?: "missing")
+    println(values.firstNotNullOfOrNull { value ->
+        if (value == 3) "three" else null
+    } ?: "missing")
+    println(values.firstNotNullOfOrNull { value ->
+        if (value == 9) "nine" else null
+    } ?: "missing")
 }

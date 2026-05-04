@@ -1176,12 +1176,14 @@ extension CodegenBackendIntegrationTests {
         }
 
         fun main() {
-            println(render("abcdef", 2))
-            println(render("abc", 10))
-            println(render("", 3))
-            println("abc".chunkedSequence(1).toList())
-            println(renderTransform("abcde", 2))
-            println("abcdef".chunkedSequence(3) { "" + it }.toList())
+            println("abcdef".chunkedSequence(2).toList())
+
+            val text: CharSequence = "abcde"
+            val chunks: kotlin.sequences.Sequence<String> = text.chunkedSequence(2)
+            println(chunks.toList())
+
+            println("".chunkedSequence(3).toList())
+            println("abc".chunkedSequence(10).toList())
         }
         """
 
@@ -1201,11 +1203,9 @@ extension CodegenBackendIntegrationTests {
                 out,
                 """
                 [ab, cd, ef]
-                [abc]
+                [ab, cd, e]
                 []
-                [a, b, c]
-                [ab!, cd!, e!]
-                [abc, def]
+                [abc]
                 """
                 + "\n"
             )

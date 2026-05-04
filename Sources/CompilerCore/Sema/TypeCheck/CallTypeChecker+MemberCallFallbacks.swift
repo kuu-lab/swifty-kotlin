@@ -1020,6 +1020,8 @@ extension CallTypeChecker {
             interner.intern("reduce"),
             interner.intern("reduceRight"),
             interner.intern("reduceRightIndexed"),
+            interner.intern("reduceRightIndexedOrNull"),
+            interner.intern("reduceRightOrNull"),
             interner.intern("reduceOrNull"),
             interner.intern("reduceIndexed"),
             interner.intern("reduceIndexedOrNull"),
@@ -1056,6 +1058,10 @@ extension CallTypeChecker {
             interner.intern("toList"),
             interner.intern("toCollection"),
             interner.intern("toTypedArray"),
+            interner.intern("toBooleanArray"),
+            interner.intern("toShortArray"),
+            interner.intern("toDoubleArray"),
+            interner.intern("toFloatArray"),
             interner.intern("toIntArray"),
             interner.intern("toLongArray"),
             interner.intern("toByteArray"),
@@ -1305,7 +1311,7 @@ extension CallTypeChecker {
             return argCount == 2
         case interner.intern("slice"):
             return argCount == 1
-        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
+        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceRightOrNull"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
             return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4
@@ -1638,6 +1644,58 @@ extension CallTypeChecker {
         {
             return sema.types.make(.classType(ClassType(
                 classSymbol: intArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        if memberName == interner.intern("toBooleanArray"),
+           let booleanArraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("BooleanArray"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: booleanArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        if memberName == interner.intern("toShortArray"),
+           let shortArraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("ShortArray"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: shortArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        if memberName == interner.intern("toDoubleArray"),
+           let doubleArraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("DoubleArray"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: doubleArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+
+        if memberName == interner.intern("toFloatArray"),
+           let floatArraySymbol = sema.symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("FloatArray"),
+           ])
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: floatArraySymbol,
                 args: [],
                 nullability: .nonNull
             )))
