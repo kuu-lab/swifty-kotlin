@@ -116,6 +116,13 @@ extension DataFlowSemaPhase {
             )
         }
 
+        registerSyntheticRandomAccessStub(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
+        )
+
         let iterableInterfaceSymbol = registerSyntheticIterableStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
@@ -368,6 +375,26 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Register `kotlin.collections.RandomAccess` marker interface surface.
+    private func registerSyntheticRandomAccessStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinCollectionsPkg: [InternedString]
+    ) {
+        let randomAccessSymbol = ensureInterfaceSymbol(
+            named: "RandomAccess",
+            in: kotlinCollectionsPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let randomAccessType = types.make(.classType(ClassType(
+            classSymbol: randomAccessSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(randomAccessType, for: randomAccessSymbol)
+    }
 
     func registerLateListIndexedMembers(
         symbols: SymbolTable,
