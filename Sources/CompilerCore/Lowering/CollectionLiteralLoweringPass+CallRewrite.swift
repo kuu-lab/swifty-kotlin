@@ -3695,13 +3695,16 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
 
-                    if callee == lookup.maxOrNullName || callee == lookup.minOrNullName {
+                    if callee == lookup.minName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName {
                         if arguments.count == 1 {
                             let receiverID = arguments[0]
                             if listExprIDs.contains(receiverID.rawValue) {
-                                let kkName: InternedString = callee == lookup.maxOrNullName
-                                    ? lookup.kkListMaxOrNullName
-                                    : lookup.kkListMinOrNullName
+                                let kkName: InternedString = switch callee {
+                                case lookup.minName: lookup.kkListMinName
+                                case lookup.maxOrNullName: lookup.kkListMaxOrNullName
+                                default: lookup.kkListMinOrNullName
+                                }
+                                let isThrowingMin = callee == lookup.minName
                                 let hofResult = module.arena.appendExpr(
                                     .temporary(Int32(module.arena.expressions.count)), type: nil
                                 )
@@ -3710,8 +3713,8 @@ extension CollectionLiteralLoweringPass {
                                     callee: kkName,
                                     arguments: [receiverID],
                                     result: hofResult,
-                                    canThrow: false,
-                                    thrownResult: nil
+                                    canThrow: isThrowingMin,
+                                    thrownResult: isThrowingMin ? thrownResult : nil
                                 ))
                                 if let result {
                                     loweredBody.append(.copy(from: hofResult, to: result))

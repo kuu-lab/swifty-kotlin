@@ -1855,6 +1855,24 @@ public func kk_list_minOrNull(_ listRaw: Int) -> Int {
     return best
 }
 
+@_cdecl("kk_list_min")
+public func kk_list_min(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let list = runtimeListBox(from: listRaw) else {
+        invalidContainerPanic(#function, "list")
+    }
+    guard let first = list.elements.first else {
+        return handleCollectionLambdaThrow(
+            runtimeAllocateThrowable(message: "NoSuchElementException: List is empty."),
+            outThrown
+        )
+    }
+    var best = first
+    for elem in list.elements.dropFirst() where runtimeCompareValues(elem, best) < 0 {
+        best = elem
+    }
+    return best
+}
+
 @_cdecl("kk_list_maxByOrNull")
 public func kk_list_maxByOrNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {

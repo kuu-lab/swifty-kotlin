@@ -711,7 +711,7 @@ extension CallTypeChecker {
             "mapKeysTo", "mapValuesTo",
             "forEachIndexed", "mapIndexed", "mapIndexedNotNull",
             "onEach", "onEachIndexed",
-            "sumOf", "sumBy", "sumByDouble", "maxOrNull", "minOrNull",
+            "sumOf", "sumBy", "sumByDouble", "min", "maxOrNull", "minOrNull",
             "indexOfFirst", "indexOfLast", "binarySearch", "binarySearchBy",
             "maxBy", "minBy", "maxByOrNull", "minByOrNull", "maxOfOrNull", "minOfOrNull",
             "maxOf", "minOf",
@@ -2874,7 +2874,7 @@ extension CallTypeChecker {
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
 
-            case "maxOrNull", "minOrNull":
+            case "min", "maxOrNull", "minOrNull":
                 guard args.isEmpty else {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
@@ -2896,7 +2896,9 @@ extension CallTypeChecker {
                         return failedType
                     }
                 }
-                resultType = sema.types.makeNullable(collectionElementType)
+                resultType = calleeStr == "min"
+                    ? collectionElementType
+                    : sema.types.makeNullable(collectionElementType)
 
             case "maxBy", "minBy", "maxByOrNull", "minByOrNull":
                 guard args.count == 1 else {
