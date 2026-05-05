@@ -155,7 +155,7 @@ extension DataFlowSemaPhase {
             iterableInterfaceSymbol: iterableInterfaceSymbol
         )
 
-        _ = registerSyntheticAbstractCollectionStub(
+        let abstractCollectionSymbol = registerSyntheticAbstractCollectionStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             collectionInterfaceSymbol: collectionInterfaceSymbol
@@ -184,6 +184,13 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             collectionInterfaceSymbol: collectionInterfaceSymbol
+        )
+
+        _ = registerSyntheticAbstractListStub(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            abstractCollectionSymbol: abstractCollectionSymbol,
+            listInterfaceSymbol: listInterfaceSymbol
         )
 
         registerIterableWindowedTransformMember(
