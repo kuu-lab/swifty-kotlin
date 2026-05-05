@@ -1855,7 +1855,8 @@ extension DataFlowSemaPhase {
             parameterTypes: [TypeID],
             externalLinkName: String,
             returnTypeOverride: TypeID? = nil,
-            typeParameterUpperBoundsList: [[TypeID]]? = nil
+            typeParameterUpperBoundsList: [[TypeID]]? = nil,
+            canThrow: Bool = false
         ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
@@ -1870,7 +1871,8 @@ extension DataFlowSemaPhase {
                 parameterTypes: parameterTypes,
                 externalLinkName: externalLinkName,
                 returnTypeOverride: returnTypeOverride,
-                typeParameterUpperBoundsList: typeParameterUpperBoundsList
+                typeParameterUpperBoundsList: typeParameterUpperBoundsList,
+                canThrow: canThrow
             )
         }
 
@@ -1885,7 +1887,8 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: [SymbolID]? = nil,
             typeParameterUpperBoundsList: [[TypeID]]? = nil,
             flags: SymbolFlags = [.synthetic],
-            reifiedTypeParameterIndices: Set<Int> = []
+            reifiedTypeParameterIndices: Set<Int> = [],
+            canThrow: Bool = false
         ) {
             let alreadyRegistered = symbols.lookupAll(fqName: memberFQName).contains { symbolID in
                 guard let sig = symbols.functionSignature(for: symbolID) else { return false }
@@ -1907,6 +1910,7 @@ extension DataFlowSemaPhase {
                     receiverType: receiverType,
                     parameterTypes: parameterTypes,
                     returnType: returnTypeOverride ?? receiverType,
+                    canThrow: canThrow,
                     typeParameterSymbols: typeParameterSymbols ?? [listTypeParamSymbol],
                     reifiedTypeParameterIndices: reifiedTypeParameterIndices,
                     typeParameterUpperBoundsList: typeParameterUpperBoundsList ?? [],
@@ -1917,7 +1921,7 @@ extension DataFlowSemaPhase {
         }
 
         registerMember(name: "take", parameterTypes: [types.intType], externalLinkName: "kk_list_take")
-        registerMember(name: "drop", parameterTypes: [types.intType], externalLinkName: "kk_list_drop")
+        registerMember(name: "drop", parameterTypes: [types.intType], externalLinkName: "kk_list_drop", canThrow: true)
         registerMember(name: "takeLast", parameterTypes: [types.intType], externalLinkName: "kk_list_takeLast")
         registerMember(name: "dropLast", parameterTypes: [types.intType], externalLinkName: "kk_list_dropLast")
         registerMember(name: "sum", parameterTypes: [], externalLinkName: "kk_list_sum", returnTypeOverride: types.intType)
