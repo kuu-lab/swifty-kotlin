@@ -574,6 +574,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
                 "maxOfWithOrNull": "kk_list_maxOfWithOrNull",
                 "maxWithOrNull": "kk_list_maxWithOrNull",
                 "min": "kk_list_min",
+                "maxWith": "kk_list_maxWith",
                 "maxOrNull": "kk_list_maxOrNull",
                 "minOrNull": "kk_list_minOrNull",
                 "minOf": "kk_list_minOf",

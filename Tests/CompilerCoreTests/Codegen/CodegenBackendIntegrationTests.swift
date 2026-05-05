@@ -2068,13 +2068,13 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
-    func testCodegenListMaxOfWithReturnsLargestTransformedValueAndThrowsOnEmpty() throws {
+    func testCodegenListMaxWithReturnsLargestElementAndThrowsOnEmpty() throws {
         let source = """
         fun main() {
-            val values = listOf(-3, 1, 2)
-            println(values.maxOfWith(naturalOrder<Int>()) { it * it })
+            val values = listOf(3, 1, 4, 2)
+            println(values.maxWith(naturalOrder<Int>()))
             try {
-                emptyList<Int>().maxOfWith(naturalOrder<Int>()) { it * it }
+                emptyList<Int>().maxWith(naturalOrder<Int>())
                 println("missing")
             } catch (e: NoSuchElementException) {
                 println("empty")
@@ -2086,7 +2086,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "ListMaxOfWithRuntime",
+                moduleName: "ListMaxWithRuntime",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -2094,7 +2094,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "9\nempty\n")
+            XCTAssertEqual(normalizedStdout, "4\nempty\n")
         }
     }
 
