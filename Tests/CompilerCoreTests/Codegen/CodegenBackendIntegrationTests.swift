@@ -1314,6 +1314,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             println(list.sumOf { it * 2 })
             println(list.maxOrNull())
             println(list.minOrNull())
+            println(list.minOf { it * 10 })
             println(list.foldRight(0) { value, acc -> value * 10 + acc })
         }
         """
@@ -1329,7 +1330,37 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             XCTAssertTrue(callees.contains("kk_list_sumOf") || callees.contains("sumOf"))
             XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minOrNull"))
+            XCTAssertTrue(callees.contains("kk_list_minOf"))
             XCTAssertTrue(callees.contains("kk_list_foldRight"))
+        }
+    }
+
+    func testCodegenListMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() throws {
+        let source = """
+        fun main() {
+            println(listOf(5, 2, 3).minOf { it * 10 })
+            try {
+                emptyList<Int>().minOf { it * 10 }
+                println("missing")
+            } catch (e: NoSuchElementException) {
+                println("empty")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ListMinOfRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "20\nempty\n")
         }
     }
 
