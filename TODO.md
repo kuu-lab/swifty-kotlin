@@ -83,9 +83,9 @@
 - [ ] STDLIB-COL-OTHER-001: `IndexedValue<T>` データクラスの実装
 - [ ] STDLIB-COL-OTHER-002: `Grouping<T,K>` インターフェースの実装
 - [ ] STDLIB-COL-OTHER-003: `RandomAccess` マーカーインターフェースの実装
-- [ ] STDLIB-COL-OTHER-004: `MutableIterable<T>` インターフェースの実装
+- [x] STDLIB-COL-OTHER-004: `MutableIterable<T>` インターフェースの実装
 - [ ] STDLIB-COL-OTHER-005: `MutableIterator<T>` インターフェースの実装
-- [ ] STDLIB-COL-OTHER-006: `MutableListIterator<T>` インターフェースの実装
+- [x] STDLIB-COL-OTHER-006: `MutableListIterator<T>` インターフェースの実装
 
 #### kotlin.collections プロパティの実装
 - [ ] STDLIB-COL-PROP-001: `indices` 拡張プロパティの実装
@@ -1201,7 +1201,7 @@
 - [x] STDLIB-IO-PATH-TYPE-003: `kotlin.io.path.ExperimentalPathApi` marker annotation を追加する
 - [ ] STDLIB-IO-PATH-TYPE-004: `kotlin.io.path.FileVisitorBuilder` type surface を追加する
 - [ ] STDLIB-IO-PATH-TYPE-005: `kotlin.io.path.OnErrorResult` enum surface を追加する
-- [ ] STDLIB-IO-PATH-TYPE-006: `kotlin.io.path.PathWalkOption` enum surface を追加する
+- [x] STDLIB-IO-PATH-TYPE-006: `kotlin.io.path.PathWalkOption` enum surface を追加する
 - [ ] STDLIB-IO-PATH-PROP-001: `Path.extension` extension property を追加する
 - [ ] STDLIB-IO-PATH-PROP-002: `Path.invariantSeparatorsPath` extension property を追加する
 - [x] STDLIB-IO-PATH-PROP-003: `Path.invariantSeparatorsPathString` extension property を追加する
