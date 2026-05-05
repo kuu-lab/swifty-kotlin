@@ -46,6 +46,47 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testListIndicesExtensionPropertyResolvesToRuntimeGetter() throws {
+        let source = """
+        import kotlin.collections.indices
+        import kotlin.ranges.IntRange
+
+        fun range(values: List<String>): IntRange {
+            return values.indices
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected List.indices to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+
+            let propertyExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "indices" && args.isEmpty
+            }, "Expected values.indices property access in AST")
+            let propertyType = try XCTUnwrap(sema.bindings.exprType(for: propertyExpr))
+            guard case let .classType(rangeType) = sema.types.kind(of: propertyType) else {
+                return XCTFail("Expected List.indices to have IntRange type")
+            }
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(rangeType.classSymbol)?.name)), "IntRange")
+
+            let getter = try XCTUnwrap(sema.bindings.callBinding(for: propertyExpr)?.chosenCallee)
+            XCTAssertEqual(sema.symbols.externalLinkName(for: getter), "kk_list_indices")
+
+            let property = try XCTUnwrap(sema.bindings.identifierSymbol(for: propertyExpr))
+            XCTAssertEqual(sema.symbols.externalLinkName(for: property), "kk_list_indices")
+            XCTAssertEqual(sema.symbols.propertyType(for: property), propertyType)
+        }
+    }
+
     func testArrayListOfFactoryInfersMutableListType() throws {
         let source = """
         fun probe() {
@@ -1014,6 +1055,44 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testRandomAccessMarkerInterfaceSurfaceIsRegistered() throws {
+        let source = """
+        import kotlin.collections.RandomAccess
+
+        class IndexedBag : RandomAccess
+
+        fun keepRandomAccess(marker: RandomAccess): RandomAccess {
+            return marker
+        }
+
+        fun probe(value: IndexedBag): RandomAccess {
+            return keepRandomAccess(value)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected RandomAccess marker interface surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let randomAccessFQName = ["kotlin", "collections", "RandomAccess"]
+                .map { ctx.interner.intern($0) }
+            let randomAccessSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: randomAccessFQName),
+                "Expected kotlin.collections.RandomAccess to be registered"
+            )
+            let randomAccessInfo = try XCTUnwrap(sema.symbols.symbol(randomAccessSymbol))
+            XCTAssertEqual(randomAccessInfo.kind, .interface)
+            XCTAssertTrue(randomAccessInfo.flags.contains(.synthetic))
+            XCTAssertTrue(sema.types.nominalTypeParameterSymbols(for: randomAccessSymbol).isEmpty)
+        }
+    }
+
     func testAbstractMutableCollectionSurfaceIsRegistered() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -1123,6 +1202,88 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
                 "Expected AbstractMutableCollection subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
+    func testAbstractMutableMapSurfaceIsRegistered() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let mapSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Map")])
+            )
+            let mutableMapSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableMap")])
+            )
+            let abstractMutableMapFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableMap")]
+            let abstractMutableMapSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: abstractMutableMapFQName),
+                "Expected kotlin.collections.AbstractMutableMap to be registered"
+            )
+            let abstractMutableMapInfo = try XCTUnwrap(sema.symbols.symbol(abstractMutableMapSymbol))
+            XCTAssertEqual(abstractMutableMapInfo.kind, .class)
+            XCTAssertTrue(abstractMutableMapInfo.flags.contains(.synthetic))
+            XCTAssertTrue(abstractMutableMapInfo.flags.contains(.abstractType))
+            XCTAssertEqual(
+                sema.types.nominalTypeParameterVariances(for: abstractMutableMapSymbol),
+                [.invariant, .invariant]
+            )
+
+            let abstractMapSymbol = sema.symbols.lookup(
+                fqName: collectionsPkg + [ctx.interner.intern("AbstractMap")]
+            )
+            let readonlySupertype = abstractMapSymbol ?? mapSymbol
+            let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableMapSymbol)
+            XCTAssertTrue(directSupertypes.contains(readonlySupertype))
+            XCTAssertTrue(directSupertypes.contains(mutableMapSymbol))
+            XCTAssertEqual(
+                sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: readonlySupertype).count,
+                2
+            )
+            XCTAssertEqual(
+                sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: mutableMapSymbol).count,
+                2
+            )
+
+            let constructorSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("<init>")]),
+                "Expected AbstractMutableMap protected constructor to be registered"
+            )
+            let constructorInfo = try XCTUnwrap(sema.symbols.symbol(constructorSymbol))
+            XCTAssertEqual(constructorInfo.kind, .constructor)
+            XCTAssertEqual(constructorInfo.visibility, .protected)
+            XCTAssertTrue(try XCTUnwrap(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
+        }
+    }
+
+    func testAbstractMutableMapCanBeUsedAsMapAndMutableMapSupertype() throws {
+        let source = """
+        import kotlin.collections.AbstractMutableMap
+        import kotlin.collections.Map
+        import kotlin.collections.MutableMap
+
+        class ProbeMutableMap : AbstractMutableMap<String, Int>()
+
+        fun acceptReadonly(values: Map<String, Int>) {}
+        fun acceptMutable(values: MutableMap<String, Int>) {}
+
+        fun probe(values: ProbeMutableMap) {
+            acceptReadonly(values)
+            acceptMutable(values)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected AbstractMutableMap subtype surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
         }
     }
