@@ -975,6 +975,14 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(kk_list_none(makeList([]), 0, 0, nil), 1)
     }
 
+    func testListFilterNotKeepsElementsRejectedByPredicate() {
+        let source = makeList([1, 2, 3, 4])
+
+        let filtered = kk_list_filterNot(source, unsafeBitCast(countEven, to: Int.self), 0, nil)
+
+        XCTAssertEqual(listElements(filtered), [1, 3])
+    }
+
     func testCountFirstLastFindAndEmptyFailures() {
         let source = makeList([1, 2, 3, 4])
 
