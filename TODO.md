@@ -50,7 +50,7 @@
 - [ ] STDLIB-022: range / progression / unsigned range の網羅性を上げる
 
 #### kotlin.collections 抽象基底クラスの実装
-- [ ] STDLIB-COL-ABSTRACT-001: `AbstractCollection<E>` 抽象クラスの実装
+- [x] STDLIB-COL-ABSTRACT-001: `AbstractCollection<E>` 抽象クラスの実装
 - [x] STDLIB-COL-ABSTRACT-002: `AbstractIterator<T>` 抽象クラスの実装
 - [ ] STDLIB-COL-ABSTRACT-003: `AbstractList<E>` 抽象クラスの実装
 - [ ] STDLIB-COL-ABSTRACT-004: `AbstractMap<K,V>` 抽象クラスの実装
