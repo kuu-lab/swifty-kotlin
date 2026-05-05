@@ -120,11 +120,11 @@
 - [x] STDLIB-COL-FN-026: `buildMap` 関数の実装
 - [ ] STDLIB-COL-FN-027: `buildSet` 関数の実装
 - [ ] STDLIB-COL-FN-028: `chunked` 関数の実装
-- [ ] STDLIB-COL-FN-029: `component1` 関数の実装
-- [ ] STDLIB-COL-FN-030: `component2` 関数の実装
-- [ ] STDLIB-COL-FN-031: `component3` 関数の実装
-- [ ] STDLIB-COL-FN-032: `component4` 関数の実装
-- [ ] STDLIB-COL-FN-033: `component5` 関数の実装
+- [x] STDLIB-COL-FN-029: `component1` 関数の実装
+- [x] STDLIB-COL-FN-030: `component2` 関数の実装
+- [x] STDLIB-COL-FN-031: `component3` 関数の実装
+- [x] STDLIB-COL-FN-032: `component4` 関数の実装
+- [x] STDLIB-COL-FN-033: `component5` 関数の実装
 - [ ] STDLIB-COL-FN-034: `contains` 関数の実装
 - [ ] STDLIB-COL-FN-035: `containsAll` 関数の実装
 - [ ] STDLIB-COL-FN-036: `contentDeepEquals` 関数の実装
