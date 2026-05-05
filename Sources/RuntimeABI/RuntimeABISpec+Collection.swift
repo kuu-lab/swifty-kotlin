@@ -2301,6 +2301,12 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         )
+        let mapIndexedNotNullToSpec = RuntimeABIFunctionSpec(
+            name: "kk_list_mapIndexedNotNullTo",
+            parameters: destinationLambdaParams,
+            returnType: .intptr,
+            section: "Collection"
+        )
         let flatMapIndexedToSpec = RuntimeABIFunctionSpec(
             name: "kk_list_flatMapIndexedTo",
             parameters: destinationLambdaParams,
@@ -2600,7 +2606,7 @@ public extension RuntimeABISpec {
                 filterIsInstanceToSpec,
                 filterToSpec, filterNotToSpec, mapToSpec, flatMapToSpec,
                 mapNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec, iterableLastSpec,
-                mapIndexedToSpec, flatMapIndexedToSpec,
+                mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
             ]
             + genericAfter.flatMap { name in
                 if name == "kk_list_sortedBy" {
