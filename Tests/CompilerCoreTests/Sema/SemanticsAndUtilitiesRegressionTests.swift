@@ -499,60 +499,80 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
-    func testPathBufferedReaderExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
+    func testPathAppendLinesIterableExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
         let source = """
-        import java.io.BufferedReader
-        import java.nio.file.OpenOption
         import kotlin.io.path.Path
-        import kotlin.io.path.bufferedReader
+        import kotlin.io.path.appendLines
         import kotlin.text.Charsets
 
-        fun openPathReader(path: Path, option: OpenOption): BufferedReader {
-            val defaultReader: BufferedReader = path.bufferedReader()
-            val explicitReader: BufferedReader = path.bufferedReader(Charsets.UTF_8, 4096, option)
-            return explicitReader
+        fun appendPathLines(path: Path, lines: Iterable<CharSequence>): Path {
+            val first = path.appendLines(lines)
+            val second = path.appendLines(lines, Charsets.UTF_8)
+            return second
         }
         """
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
-                "Path.bufferedReader extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+                "Path.appendLines Iterable extension function in kotlin.io.path should resolve: \(diagnostics)"
             )
 
-            let interner = ctx.interner
             let sema = try XCTUnwrap(ctx.sema)
-            let symbols = sema.symbols
-            let types = sema.types
-            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
-            let charsetSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "text", "Charset"].map(interner.intern)))
-            let openOptionSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "OpenOption"].map(interner.intern)))
-            let bufferedReaderSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "io", "BufferedReader"].map(interner.intern)))
-            let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
-            let charsetType = types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
-            let openOptionType = types.make(.classType(ClassType(classSymbol: openOptionSymbol, args: [], nullability: .nonNull)))
-            let bufferedReaderType = types.make(.classType(ClassType(classSymbol: bufferedReaderSymbol, args: [], nullability: .nonNull)))
-            let bufferedReaderSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "bufferedReader"].map(interner.intern))
-            let bufferedReader = try XCTUnwrap(bufferedReaderSymbols.first { symbolID in
-                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                return signature.receiverType == pathType
-                    && signature.parameterTypes == [charsetType, types.intType, openOptionType]
-                    && signature.returnType == bufferedReaderType
-            })
-            XCTAssertEqual(symbols.externalLinkName(for: bufferedReader), "kk_path_bufferedReader")
-
-            let signature = try XCTUnwrap(symbols.functionSignature(for: bufferedReader))
-            XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, false])
-            XCTAssertEqual(signature.valueParameterIsVararg, [false, false, true])
-
             let ast = try XCTUnwrap(ctx.ast)
-            let callExprs = memberCallExprIDs(named: "bufferedReader", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
-            for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, bufferedReader)
-                XCTAssertEqual(sema.bindings.exprTypes[callExpr], bufferedReaderType)
+            let interner = ctx.interner
+            let pathTypeSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("io"), interner.intern("path"), interner.intern("Path")])
+            )
+            let charSequenceSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("CharSequence")])
+            )
+            let iterableSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Iterable")])
+            )
+            let charsetSymbol = try XCTUnwrap(
+                sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("text"), interner.intern("Charset")])
+            )
+            let pathType = sema.types.make(.classType(ClassType(classSymbol: pathTypeSymbol, args: [], nullability: .nonNull)))
+            let charSequenceType = sema.types.make(.classType(ClassType(classSymbol: charSequenceSymbol, args: [], nullability: .nonNull)))
+            let iterableType = sema.types.make(.classType(ClassType(classSymbol: iterableSymbol, args: [.invariant(charSequenceType)], nullability: .nonNull)))
+            let charsetType = sema.types.make(.classType(ClassType(classSymbol: charsetSymbol, args: [], nullability: .nonNull)))
+
+            let appendLinesSymbols = sema.symbols.lookupAll(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("io"),
+                interner.intern("path"),
+                interner.intern("appendLines"),
+            ])
+            let defaultSymbol = try XCTUnwrap(appendLinesSymbols.first { symbol in
+                sema.symbols.functionSignature(for: symbol)?.parameterTypes == [iterableType]
+            })
+            let charsetOverloadSymbol = try XCTUnwrap(appendLinesSymbols.first { symbol in
+                sema.symbols.functionSignature(for: symbol)?.parameterTypes == [iterableType, charsetType]
+            })
+            let defaultSignature = try XCTUnwrap(sema.symbols.functionSignature(for: defaultSymbol))
+            XCTAssertEqual(defaultSignature.receiverType, pathType)
+            XCTAssertEqual(defaultSignature.returnType, pathType)
+            XCTAssertEqual(defaultSignature.valueParameterHasDefaultValues, [false])
+            XCTAssertEqual(sema.symbols.externalLinkName(for: defaultSymbol), "kk_path_appendLines_iterable_default")
+
+            let charsetSignature = try XCTUnwrap(sema.symbols.functionSignature(for: charsetOverloadSymbol))
+            XCTAssertEqual(charsetSignature.receiverType, pathType)
+            XCTAssertEqual(charsetSignature.returnType, pathType)
+            XCTAssertEqual(charsetSignature.valueParameterHasDefaultValues, [false, false])
+            XCTAssertEqual(sema.symbols.externalLinkName(for: charsetOverloadSymbol), "kk_path_appendLines_iterable")
+
+            let appendLinesCalls = memberCallExprIDs(named: "appendLines", in: ast, interner: interner)
+            XCTAssertEqual(appendLinesCalls.count, 2)
+            let chosenCallees = appendLinesCalls.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
+            XCTAssertTrue(chosenCallees.contains(defaultSymbol))
+            XCTAssertTrue(chosenCallees.contains(charsetOverloadSymbol))
+            for call in appendLinesCalls {
+                XCTAssertEqual(sema.bindings.exprTypes[call], pathType)
             }
         }
     }
