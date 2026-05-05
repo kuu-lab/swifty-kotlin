@@ -25,6 +25,7 @@
 /// - `CopyActionContext` type surface
 /// - `CopyActionResult` enum surface
 /// - `ExperimentalPathApi` marker annotation surface
+/// - `FileVisitorBuilder` type surface
 /// - `OnErrorResult` enum surface
 /// - `PathWalkOption` enum surface
 ///
@@ -105,6 +106,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerPathFileVisitorBuilderSurface(
+            packageFQName: kotlinIOPathPkg,
+            packageSymbol: kotlinIOPathPkgSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         let onErrorResultSymbol = ensurePathOnErrorResultEnum(
             in: kotlinIOPathPkg,
             packageSymbol: kotlinIOPathPkgSymbol,
@@ -181,7 +189,6 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
-
         // Resolve java.io.File type for toFile() return
         let javaIOPkg: [InternedString] = [
             interner.intern("java"),
@@ -870,6 +877,30 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(enumType, for: child)
             }
         }
+    }
+
+    private func registerPathFileVisitorBuilderSurface(
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let builderSymbol = ensureInterfaceSymbol(
+            named: "FileVisitorBuilder",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: builderSymbol)
+        }
+        let builderType = types.make(.classType(ClassType(
+            classSymbol: builderSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(builderType, for: builderSymbol)
     }
 
     private func resolvePathListSymbol(

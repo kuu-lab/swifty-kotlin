@@ -403,6 +403,27 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+    func testFileVisitorBuilderInIOPathPackageSurfaceIsResolved() throws {
+        let source = """
+        import kotlin.io.path.FileVisitorBuilder
+
+        class FileVisitorBuilderHolder(val builder: FileVisitorBuilder?)
+
+        fun keepFileVisitorBuilder(builder: FileVisitorBuilder): FileVisitorBuilder {
+            return builder
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "FileVisitorBuilder in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
     func testOnErrorResultInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.OnErrorResult
