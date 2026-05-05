@@ -75,9 +75,9 @@
 - [x] STDLIB-COL-ITERATOR-003: `CharIterator` クラスの実装
 - [ ] STDLIB-COL-ITERATOR-004: `DoubleIterator` クラスの実装
 - [ ] STDLIB-COL-ITERATOR-005: `FloatIterator` クラスの実装
-- [ ] STDLIB-COL-ITERATOR-006: `IntIterator` クラスの実装
+- [x] STDLIB-COL-ITERATOR-006: `IntIterator` クラスの実装
 - [ ] STDLIB-COL-ITERATOR-007: `LongIterator` クラスの実装
-- [ ] STDLIB-COL-ITERATOR-008: `ShortIterator` クラスの実装
+- [x] STDLIB-COL-ITERATOR-008: `ShortIterator` クラスの実装
 
 #### kotlin.collections その他の型の実装
 - [ ] STDLIB-COL-OTHER-001: `IndexedValue<T>` データクラスの実装
@@ -88,7 +88,7 @@
 - [x] STDLIB-COL-OTHER-006: `MutableListIterator<T>` インターフェースの実装
 
 #### kotlin.collections プロパティの実装
-- [ ] STDLIB-COL-PROP-001: `indices` 拡張プロパティの実装
+- [x] STDLIB-COL-PROP-001: `indices` 拡張プロパティの実装
 - [x] STDLIB-COL-PROP-002: `lastIndex` 拡張プロパティの実装
 
 #### kotlin.collections 関数の実装（A-C）
