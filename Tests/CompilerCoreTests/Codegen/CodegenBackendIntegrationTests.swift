@@ -572,6 +572,34 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    func testCodegenListComponentNUsesRuntimeAccessors() throws {
+        let source = """
+        fun main() {
+            val values = listOf("a", "b", "c", "d", "e")
+            println(values.component1())
+            println(values.component2())
+            println(values.component3())
+            println(values.component4())
+            println(values.component5())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ListComponentNRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "a\nb\nc\nd\ne\n")
+        }
+    }
+
     func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/
