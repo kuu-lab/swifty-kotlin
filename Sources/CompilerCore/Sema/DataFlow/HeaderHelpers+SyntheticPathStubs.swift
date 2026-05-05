@@ -15,6 +15,7 @@
 /// - `Path.name: String` extension property
 /// - `Path.appendText(text: CharSequence, charset)` extension function
 /// - `Path.copyTo(target: Path, options)` extension function
+/// - `Path.absolute(): Path` extension function
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
 /// - `createDirectories(): Path`, `deleteIfExists(): Boolean`
@@ -265,6 +266,17 @@ extension DataFlowSemaPhase {
             receiverType: pathType,
             returnType: types.stringType,
             externalLinkName: "kk_path_name",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "absolute",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: pathType,
+            externalLinkName: "kk_path_toAbsolutePath",
             symbols: symbols,
             interner: interner
         )
@@ -1093,15 +1105,21 @@ extension DataFlowSemaPhase {
             }
             return existingSignature.receiverType == receiverType
                 && existingSignature.parameterTypes == parameterTypes
-                && existingSignature.returnType == returnType
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
             if let existingSignature = symbols.functionSignature(for: existing) {
+                let shouldUpdateSignature =
+                    existingSignature.returnType != returnType
+                    || existingSignature.valueParameterHasDefaultValues != defaults
+                    || existingSignature.valueParameterIsVararg != varargs
+                guard shouldUpdateSignature else {
+                    return
+                }
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: existingSignature.receiverType,
                         parameterTypes: existingSignature.parameterTypes,
-                        returnType: existingSignature.returnType,
+                        returnType: returnType,
                         isSuspend: existingSignature.isSuspend,
                         valueParameterSymbols: existingSignature.valueParameterSymbols,
                         valueParameterHasDefaultValues: defaults,
@@ -1128,17 +1146,17 @@ extension DataFlowSemaPhase {
 
         var valueParameterSymbols: [SymbolID] = []
         for parameter in parameters {
-            let paramNameID = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
                 kind: .valueParameter,
-                name: paramNameID,
-                fqName: functionFQName + [paramNameID],
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
                 declSite: nil,
                 visibility: .private,
                 flags: [.synthetic]
             )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            valueParameterSymbols.append(parameterSymbol)
         }
 
         symbols.setFunctionSignature(
