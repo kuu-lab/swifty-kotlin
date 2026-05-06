@@ -702,7 +702,7 @@
 - [ ] STDLIB-RANGES-FN-014: `until` 関数の実装（各型）
 
 #### kotlin.reflect 型の実装
-- [ ] STDLIB-REFLECT-TYPE-001: `AssociatedObjectKey` アノテーションの実装
+- [x] STDLIB-REFLECT-TYPE-001: `AssociatedObjectKey` アノテーションの実装
 - [ ] STDLIB-REFLECT-TYPE-002: `ExperimentalAssociatedObjects` アノテーションの実装
 - [ ] STDLIB-REFLECT-TYPE-003: `KAnnotatedElement` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-004: `KCallable` インターフェースの実装
