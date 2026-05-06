@@ -2400,6 +2400,72 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testCollectionToMutableListUsesRuntimeExternalLink() throws {
+        let source = """
+        fun copy(values: Collection<String>) {
+            values.toMutableList()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected Collection.toMutableList to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "toMutableList"
+            })
+            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_collection_toMutableList")
+
+            let callType = try XCTUnwrap(sema.bindings.exprType(for: callExpr))
+            guard case let .classType(classType) = sema.types.kind(of: callType) else {
+                return XCTFail("Expected Collection.toMutableList to return MutableList")
+            }
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)), "MutableList")
+        }
+    }
+
+    func testIterableToMutableListUsesRuntimeExternalLink() throws {
+        let source = """
+        fun copy(values: Iterable<String>) {
+            values.toMutableList()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected Iterable.toMutableList to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "toMutableList"
+            })
+            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_iterable_toMutableList")
+
+            let callType = try XCTUnwrap(sema.bindings.exprType(for: callExpr))
+            guard case let .classType(classType) = sema.types.kind(of: callType) else {
+                return XCTFail("Expected Iterable.toMutableList to return MutableList")
+            }
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(classType.classSymbol)?.name)), "MutableList")
+        }
+    }
+
     func testSetBinaryMembersKeepSetResultTypeInFallbackPath() throws {
         let source = """
         fun combine(values: Set<Int>, other: Set<Int>) {

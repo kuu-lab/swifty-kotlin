@@ -1286,6 +1286,22 @@ extension CallLowerer {
         return symbolName == "Iterable" || symbolName == "Collection"
     }
 
+    private func toMutableListRuntimeCalleeForSequenceOrIterableFallback(
+        chosenCallee: SymbolID?,
+        useIterableFallback: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString {
+        if useIterableFallback,
+           let chosenCallee,
+           let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
+           externalLinkName == "kk_collection_toMutableList" || externalLinkName == "kk_iterable_toMutableList"
+        {
+            return interner.intern(externalLinkName)
+        }
+        return interner.intern(useIterableFallback ? "kk_iterable_toMutableList" : "kk_sequence_toMutableList")
+    }
+
     private func isGroupingLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,
@@ -4753,7 +4769,12 @@ extension CallLowerer {
                 case averageID:
                     interner.intern("kk_sequence_average")
                 case toMutableListID:
-                    interner.intern("kk_sequence_toMutableList")
+                    toMutableListRuntimeCalleeForSequenceOrIterableFallback(
+                        chosenCallee: sema.bindings.callBindings[exprID]?.chosenCallee,
+                        useIterableFallback: useIterableRuntimeForTerminalFallback,
+                        sema: sema,
+                        interner: interner
+                    )
                 case toMutableSetID:
                     interner.intern("kk_sequence_toMutableSet")
                 case toHashSetID:
@@ -8933,7 +8954,12 @@ extension CallLowerer {
             case interner.intern("toCollection"):
                 return interner.intern("kk_sequence_toCollection")
             case interner.intern("toMutableList"):
-                return interner.intern("kk_sequence_toMutableList")
+                return toMutableListRuntimeCalleeForSequenceOrIterableFallback(
+                    chosenCallee: nil,
+                    useIterableFallback: useIterableRuntimeForCollectionFallback,
+                    sema: sema,
+                    interner: interner
+                )
             case interner.intern("toMutableSet"):
                 return interner.intern("kk_sequence_toMutableSet")
             case interner.intern("toHashSet"):
