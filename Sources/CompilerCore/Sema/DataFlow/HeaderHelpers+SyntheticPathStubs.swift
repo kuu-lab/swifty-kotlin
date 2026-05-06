@@ -16,6 +16,7 @@
 /// - `Path.appendText(text: CharSequence, charset)` extension function
 /// - `Path.invariantSeparatorsPath: String` extension property
 /// - `Path.absolute(): Path` extension function
+/// - `Path.absolutePathString(): String` extension function
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
 /// - `createDirectories(): Path`, `deleteIfExists(): Boolean`
@@ -301,6 +302,17 @@ extension DataFlowSemaPhase {
             parameters: [],
             returnType: pathType,
             externalLinkName: "kk_path_toAbsolutePath",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "absolutePathString",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: types.stringType,
+            externalLinkName: "kk_path_absolutePathString",
             symbols: symbols,
             interner: interner
         )

@@ -450,6 +450,52 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+    func testPathAbsolutePathStringExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
+        let source = """
+        import kotlin.io.path.Path
+        import kotlin.io.path.absolutePathString
+
+        fun absolutePath(path: Path): String {
+            return path.absolutePathString()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Path.absolutePathString extension function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let interner = ctx.interner
+            let sema = try XCTUnwrap(ctx.sema)
+            let symbols = sema.symbols
+            let types = sema.types
+            let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+            let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
+            let absolutePathStringSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "absolutePathString"].map(interner.intern))
+            let absolutePathString = try XCTUnwrap(absolutePathStringSymbols.first { symbolID in
+                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+                return signature.receiverType == pathType
+                    && signature.parameterTypes.isEmpty
+                    && signature.returnType == types.stringType
+            })
+            XCTAssertEqual(symbols.externalLinkName(for: absolutePathString), "kk_path_absolutePathString")
+
+            let signature = try XCTUnwrap(symbols.functionSignature(for: absolutePathString))
+            XCTAssertEqual(signature.valueParameterHasDefaultValues, [])
+            XCTAssertEqual(signature.valueParameterIsVararg, [])
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let callExprs = memberCallExprIDs(named: "absolutePathString", in: ast, interner: interner)
+
+            XCTAssertEqual(callExprs.count, 1)
+            XCTAssertEqual(sema.bindings.callBinding(for: callExprs[0])?.chosenCallee, absolutePathString)
+            XCTAssertEqual(sema.bindings.exprTypes[callExprs[0]], types.stringType)
+        }
+    }
+
     func testFileVisitorBuilderInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.FileVisitorBuilder
