@@ -35,6 +35,7 @@ extension DataFlowSemaPhase {
             prefix: "kk_atomic_int",
             includeArithmetic: true,
             includeGetAndUpdate: true,
+            includeFetchAndUpdateAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -362,6 +363,8 @@ extension DataFlowSemaPhase {
         prefix: String,
         includeArithmetic: Bool,
         includeGetAndUpdate: Bool,
+        includeFetchAndUpdateAlias: Bool = false,
+        includeUpdateAndFetchAlias: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
@@ -425,6 +428,8 @@ extension DataFlowSemaPhase {
                 ownerType: ownerType,
                 valueType: valueType,
                 prefix: prefix,
+                includeFetchAndUpdateAlias: includeFetchAndUpdateAlias,
+                includeUpdateAndFetchAlias: includeUpdateAndFetchAlias,
                 symbols: symbols,
                 interner: interner,
                 types: types
