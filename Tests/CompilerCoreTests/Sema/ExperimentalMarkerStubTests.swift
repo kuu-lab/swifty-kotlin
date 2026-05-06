@@ -770,4 +770,40 @@ final class ExperimentalMarkerStubTests: XCTestCase {
             "ExperimentalJsFileName should not carry explicit @Target metadata, got \(annotations)"
         )
     }
+
+    // MARK: - ExperimentalJsStatic (kotlin.js, WARNING)
+
+    func testExperimentalJsStaticIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let sym = lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
+        XCTAssertNotNil(sym, "kotlin.js.ExperimentalJsStatic must be registered in the symbol table")
+    }
+
+    func testExperimentalJsStaticIsAnnotationClass() throws {
+        let (sema, interner) = try makeSema()
+        assertIsAnnotationClass(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
+    }
+
+    func testExperimentalJsStaticHasRequiresOptInWarning() throws {
+        let (sema, interner) = try makeSema()
+        assertHasRequiresOptIn(
+            fqPath: ["kotlin", "js", "ExperimentalJsStatic"],
+            expectedSeverity: "WARNING",
+            sema: sema,
+            interner: interner
+        )
+    }
+
+    func testExperimentalJsStaticDoesNotCarryExplicitTargetMetadata() throws {
+        let (sema, interner) = try makeSema()
+        let symbol = try XCTUnwrap(
+            lookupSymbol(fqPath: ["kotlin", "js", "ExperimentalJsStatic"], sema: sema, interner: interner)
+        )
+        let annotations = sema.symbols.annotations(for: symbol)
+
+        XCTAssertFalse(
+            annotations.contains { $0.annotationFQName == "kotlin.annotation.Target" },
+            "ExperimentalJsStatic should not carry explicit @Target metadata, got \(annotations)"
+        )
+    }
 }
