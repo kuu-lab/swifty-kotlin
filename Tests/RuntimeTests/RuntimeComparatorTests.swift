@@ -512,6 +512,17 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertEqual(listElements(sorted), [1, 1, 2, 2, 2])
     }
 
+    func testListSortedComparableObjectsReturnsNewSortedList() {
+        let source = makeList([
+            makeRuntimeString("b"),
+            makeRuntimeString("a"),
+            makeRuntimeString("c"),
+        ])
+        let sorted = kk_list_sorted(source)
+        XCTAssertEqual(listElements(sorted).map(runtimeStringValue), ["a", "b", "c"])
+        XCTAssertEqual(listElements(source).map(runtimeStringValue), ["b", "a", "c"])
+    }
+
     func testPrimitiveListSortedFloatAndDouble() {
         let floatValues = [
             kk_box_float(Int(truncatingIfNeeded: Float(3.0).bitPattern)),
