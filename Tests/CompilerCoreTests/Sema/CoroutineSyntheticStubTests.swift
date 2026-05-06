@@ -89,6 +89,47 @@ final class CoroutineSyntheticStubTests: XCTestCase {
         )
     }
 
+    func testCoroutineContextTopLevelPropertyIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "coroutines", "coroutineContext"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: fqName),
+            "Expected kotlin.coroutines.coroutineContext to be registered"
+        )
+        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+        XCTAssertEqual(info.kind, .property)
+        XCTAssertEqual(info.visibility, .public)
+        XCTAssertTrue(info.flags.contains(.synthetic))
+        XCTAssertEqual(sema.symbols.externalLinkName(for: symbol), "kk_coroutine_current_context")
+
+        let coroutineContextSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: ["kotlin", "coroutines", "CoroutineContext"].map { interner.intern($0) })
+        )
+        guard case let .classType(propertyType) = sema.types.kind(of: try XCTUnwrap(sema.symbols.propertyType(for: symbol))) else {
+            return XCTFail("Expected coroutineContext property type to be CoroutineContext")
+        }
+        XCTAssertEqual(propertyType.classSymbol, coroutineContextSymbol)
+        XCTAssertTrue(propertyType.args.isEmpty)
+    }
+
+    func testCoroutineContextTopLevelPropertyResolvesInSuspendSource() throws {
+        let source = """
+        import kotlin.coroutines.CoroutineContext
+        import kotlin.coroutines.coroutineContext
+
+        suspend fun probe(): CoroutineContext {
+            return coroutineContext
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertTrue(ctx.diagnostics.diagnostics.isEmpty)
+        }
+    }
+
     func testSuspendCoroutineUninterceptedOrReturnStubIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"].map { interner.intern($0) }

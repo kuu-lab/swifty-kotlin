@@ -2740,6 +2740,12 @@ public enum RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_coroutine_current_context",
+            parameters: [],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_create_coroutine_unintercepted",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),

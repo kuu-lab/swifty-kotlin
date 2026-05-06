@@ -434,6 +434,11 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         XCTAssertNotEqual(ctx, 0, "continuation context should be non-zero for a valid continuation")
     }
 
+    func testCurrentCoroutineContextFallsBackToEmptyContextOutsideCoroutine() {
+        let ctx = kk_coroutine_current_context()
+        XCTAssertNotEqual(ctx, 0, "current coroutine context should be non-zero outside a coroutine")
+    }
+
     // MARK: - Result round-trip
 
     /// Success Result: isSuccess == true, isFailure == false, getOrNull returns value.

@@ -376,6 +376,14 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticCoroutineTopLevelProperty(
+            named: "coroutineContext",
+            packageFQName: kotlinCoroutinesPkg,
+            returnType: kotlinCoroutineContextType,
+            externalLinkName: "kk_coroutine_current_context",
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCoroutineExtensionFunction(
             named: "resume",
             packageFQName: kotlinCoroutinesPkg,
