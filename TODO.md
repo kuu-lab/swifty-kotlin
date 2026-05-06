@@ -423,13 +423,13 @@
 - [ ] STDLIB-CONTRACT-FN-001: `contract` 関数の実装
 
 #### kotlin.coroutines 型の実装
-- [ ] STDLIB-COROUTINE-TYPE-001: `AbstractCoroutineContextElement` クラスの実装
-- [ ] STDLIB-COROUTINE-TYPE-002: `AbstractCoroutineContextKey` クラスの実装
-- [ ] STDLIB-COROUTINE-TYPE-003: `Continuation<T>` インターフェースの実装
-- [ ] STDLIB-COROUTINE-TYPE-004: `ContinuationInterceptor` インターフェースの実装
-- [ ] STDLIB-COROUTINE-TYPE-005: `CoroutineContext` インターフェースの実装
-- [ ] STDLIB-COROUTINE-TYPE-006: `EmptyCoroutineContext` クラスの実装
-- [ ] STDLIB-COROUTINE-TYPE-007: `RestrictsSuspension` アノテーションの実装
+- [x] STDLIB-COROUTINE-TYPE-001: `AbstractCoroutineContextElement` クラスの実装
+- [x] STDLIB-COROUTINE-TYPE-002: `AbstractCoroutineContextKey` クラスの実装
+- [x] STDLIB-COROUTINE-TYPE-003: `Continuation<T>` インターフェースの実装
+- [x] STDLIB-COROUTINE-TYPE-004: `ContinuationInterceptor` インターフェースの実装
+- [x] STDLIB-COROUTINE-TYPE-005: `CoroutineContext` インターフェースの実装
+- [x] STDLIB-COROUTINE-TYPE-006: `EmptyCoroutineContext` クラスの実装
+- [x] STDLIB-COROUTINE-TYPE-007: `RestrictsSuspension` アノテーションの実装
 - [ ] STDLIB-COROUTINE-TYPE-008: `SuspendFunction<R>` インターフェースの実装
 
 #### kotlin.coroutines プロパティの実装
@@ -438,28 +438,28 @@
 #### kotlin.coroutines 関数の実装
 - [ ] STDLIB-COROUTINE-FN-001: `Continuation` 関数の実装（factory版）
 - [ ] STDLIB-COROUTINE-FN-002: `createCoroutine` 関数の実装（各オーバーロード）
-- [ ] STDLIB-COROUTINE-FN-003: `getPolymorphicElement` 関数の実装
-- [ ] STDLIB-COROUTINE-FN-004: `minusPolymorphicKey` 関数の実装
-- [ ] STDLIB-COROUTINE-FN-005: `resume` 関数の実装
-- [ ] STDLIB-COROUTINE-FN-006: `resumeWithException` 関数の実装
-- [ ] STDLIB-COROUTINE-FN-007: `startCoroutine` 関数の実装（各オーバーロード）
-- [ ] STDLIB-COROUTINE-FN-008: `suspendCoroutine` 関数の実装
+- [x] STDLIB-COROUTINE-FN-003: `getPolymorphicElement` 関数の実装
+- [x] STDLIB-COROUTINE-FN-004: `minusPolymorphicKey` 関数の実装
+- [x] STDLIB-COROUTINE-FN-005: `resume` 関数の実装
+- [x] STDLIB-COROUTINE-FN-006: `resumeWithException` 関数の実装
+- [x] STDLIB-COROUTINE-FN-007: `startCoroutine` 関数の実装（各オーバーロード）
+- [x] STDLIB-COROUTINE-FN-008: `suspendCoroutine` 関数の実装
 
 #### kotlin.coroutines.cancellation 型の実装
-- [ ] STDLIB-COROUTINE-CANCEL-TYPE-001: `CancellationException` クラスの実装
+- [x] STDLIB-COROUTINE-CANCEL-TYPE-001: `CancellationException` クラスの実装
 
 #### kotlin.coroutines.cancellation 関数の実装
 - [ ] STDLIB-COROUTINE-CANCEL-FN-001: `CancellationException` 関数の実装（cause版）
-- [ ] STDLIB-COROUTINE-CANCEL-FN-002: `CancellationException` 関数の実装（messageとcause版）
+- [x] STDLIB-COROUTINE-CANCEL-FN-002: `CancellationException` 関数の実装（messageとcause版）
 
 #### kotlin.coroutines.intrinsics プロパティの実装
-- [ ] STDLIB-COROUTINE-INTRINSIC-PROP-001: `COROUTINE_SUSPENDED` プロパティの実装
+- [x] STDLIB-COROUTINE-INTRINSIC-PROP-001: `COROUTINE_SUSPENDED` プロパティの実装
 
 #### kotlin.coroutines.intrinsics 関数の実装
-- [ ] STDLIB-COROUTINE-INTRINSIC-FN-001: `createCoroutineUnintercepted` 関数の実装（各オーバーロード）
-- [ ] STDLIB-COROUTINE-INTRINSIC-FN-002: `intercepted` 関数の実装
-- [ ] STDLIB-COROUTINE-INTRINSIC-FN-003: `startCoroutineUninterceptedOrReturn` 関数の実装（各オーバーロード）
-- [ ] STDLIB-COROUTINE-INTRINSIC-FN-004: `suspendCoroutineUninterceptedOrReturn` 関数の実装
+- [x] STDLIB-COROUTINE-INTRINSIC-FN-001: `createCoroutineUnintercepted` 関数の実装（各オーバーロード）
+- [x] STDLIB-COROUTINE-INTRINSIC-FN-002: `intercepted` 関数の実装
+- [x] STDLIB-COROUTINE-INTRINSIC-FN-003: `startCoroutineUninterceptedOrReturn` 関数の実装（各オーバーロード）
+- [x] STDLIB-COROUTINE-INTRINSIC-FN-004: `suspendCoroutineUninterceptedOrReturn` 関数の実装
 
 #### kotlin.enums 型の実装
 - [ ] STDLIB-ENUMS-TYPE-001: `EnumEntries<E>` インターフェースの実装

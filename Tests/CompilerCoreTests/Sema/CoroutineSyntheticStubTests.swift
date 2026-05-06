@@ -221,6 +221,51 @@ final class CoroutineSyntheticStubTests: XCTestCase {
         ))))
     }
 
+    func testCancellationExceptionClassAndConstructorsAreRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let cancellationFQName = ["kotlin", "coroutines", "cancellation", "CancellationException"].map {
+            interner.intern($0)
+        }
+        let cancellationSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: cancellationFQName),
+            "Expected kotlin.coroutines.cancellation.CancellationException to be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(cancellationSymbol)?.kind, .class)
+        XCTAssertTrue(sema.symbols.symbol(cancellationSymbol)?.flags.contains(.synthetic) == true)
+
+        let exceptionSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: ["kotlin", "Exception"].map { interner.intern($0) })
+        )
+        XCTAssertTrue(sema.symbols.directSupertypes(for: cancellationSymbol).contains(exceptionSymbol))
+
+        let throwableSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: ["kotlin", "Throwable"].map { interner.intern($0) })
+        )
+
+        let ctorFQName = cancellationFQName + [interner.intern("<init>")]
+        let constructors = sema.symbols.lookupAll(fqName: ctorFQName)
+        XCTAssertEqual(constructors.count, 3)
+
+        let nullableThrowableType = sema.types.make(.classType(ClassType(
+            classSymbol: throwableSymbol,
+            args: [],
+            nullability: .nullable
+        )))
+        let expectedParameterTypes: Set<[TypeID]> = [
+            [],
+            [sema.types.stringType],
+            [sema.types.stringType, nullableThrowableType],
+        ]
+        let actualParameterTypes = Set(constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes })
+        XCTAssertEqual(actualParameterTypes, expectedParameterTypes)
+
+        let causeConstructor = try XCTUnwrap(constructors.first { symbol in
+            sema.symbols.functionSignature(for: symbol)?.parameterTypes == [sema.types.stringType, nullableThrowableType]
+        })
+        XCTAssertEqual(sema.symbols.externalLinkName(for: causeConstructor), "kk_throwable_new_with_cause")
+    }
+
     func testSuspendCoroutineIntrinsicCanBeShadowedByUserFunction() throws {
         let source = """
         fun suspendCoroutineUninterceptedOrReturn(block: (Any?) -> Any?): Any? = block(null)
