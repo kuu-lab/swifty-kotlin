@@ -278,6 +278,7 @@
 - [x] STDLIB-COL-FN-201: `takeLast` 関数の実装
 - [ ] STDLIB-COL-FN-202: `takeLastWhile` 関数の実装
 - [ ] STDLIB-COL-FN-203: `takeWhile` 関数の実装
+ - [x] STDLIB-COL-FN-203: `takeWhile` 関数の実装
 - [x] STDLIB-COL-FN-204: `toBooleanArray` 関数の実装
 - [x] STDLIB-COL-FN-205: `toByteArray` 関数の実装
 - [ ] STDLIB-COL-FN-206: `toCharArray` 関数の実装

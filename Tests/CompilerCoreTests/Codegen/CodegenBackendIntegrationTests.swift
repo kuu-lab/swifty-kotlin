@@ -1583,6 +1583,8 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             println(list.reversed())
             println(list.sorted())
             println(list.distinct())
+            println(list.takeWhile { it > 2 })
+            renderPrefix(list)
             try {
                 println(list.take(-1))
                 println("missing-take")
@@ -1606,6 +1608,21 @@ final class CodegenBackendIntegrationTests: XCTestCase {
                 println("negative-param-take")
             }
         }
+
+        fun renderPrefix(values: List<Int>) {
+            println(values.takeWhile { it > 2 })
+            try {
+                println(values.takeWhile {
+                    if (it == 3) {
+                        throw IllegalArgumentException("prefix")
+                    }
+                    true
+                })
+                println("missing-prefix")
+            } catch (e: IllegalArgumentException) {
+                println("negative-prefix")
+            }
+        }
         """
 
         try withTemporaryFile(contents: source) { path in
@@ -1620,7 +1637,10 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[3, 1, 2]\n[2, 1]\n[1, 2, 1, 3]\n[1, 1, 2, 3]\n[3, 1, 2]\nnegative-take\nnegative-drop\nnegative-param-take\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                "[3, 1, 2]\n[2, 1]\n[1, 2, 1, 3]\n[1, 1, 2, 3]\n[3, 1, 2]\n[3]\n[3]\nnegative-prefix\nnegative-take\nnegative-drop\nnegative-param-take\n"
+            )
         }
     }
 
