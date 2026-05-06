@@ -1310,7 +1310,7 @@
 - [ ] STDLIB-JVM-PROP-001: `Annotation.annotationClass` extension property を追加する
 - [ ] STDLIB-JVM-PROP-002: `Enum.declaringJavaClass` extension property を追加する
 - [ ] STDLIB-JVM-PROP-003: `KClass<T>.java` extension property を追加する
-- [ ] STDLIB-JVM-PROP-004: `T.javaClass` extension property を追加する
+- [x] STDLIB-JVM-PROP-004: `T.javaClass` extension property を追加する
 - [ ] STDLIB-JVM-PROP-005: `KClass<T>.javaClass` extension property を追加する
 - [ ] STDLIB-JVM-PROP-006: `KClass<T>.javaObjectType` extension property を追加する
 - [ ] STDLIB-JVM-PROP-007: `KClass<T>.javaPrimitiveType` extension property を追加する
