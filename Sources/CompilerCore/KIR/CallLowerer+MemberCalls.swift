@@ -8465,6 +8465,8 @@ extension CallLowerer {
                 default:
                     break
                 }
+            case "reduce":
+                return interner.intern("kk_list_reduce")
             case "reduceIndexedOrNull":
                 return interner.intern("kk_list_reduceIndexedOrNull")
             case "foldRight":
@@ -9029,6 +9031,7 @@ extension CallLowerer {
               || memberName == "firstNotNullOf"
               || memberName == "firstNotNullOfOrNull"
               || memberName == "requireNoNulls"
+              || memberName == "reduce"
               || memberName == "reduceRight",
               case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
               let symbol = sema.symbols.symbol(classType.classSymbol)
@@ -9084,6 +9087,21 @@ extension CallLowerer {
                 return interner.intern("kk_iterable_firstNotNullOfOrNull")
             default:
                 break
+            }
+        case "reduce":
+            switch knownNames.collectionKind(of: symbol) {
+            case .list?, .set?, .collection?:
+                return interner.intern("kk_list_reduce")
+            default:
+                if symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                {
+                    return interner.intern("kk_list_reduce")
+                }
             }
         case "requireNoNulls":
             switch knownNames.collectionKind(of: symbol) {
