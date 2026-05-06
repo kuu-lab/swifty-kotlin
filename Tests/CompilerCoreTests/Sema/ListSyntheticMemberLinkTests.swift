@@ -4068,6 +4068,63 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testListZipWithNextOverloadsInferReturnTypes() throws {
+        let source = """
+        fun pairs(values: List<Int>) = values.zipWithNext()
+        fun gaps(values: List<Int>) = values.zipWithNext { left, right -> right - left }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertTrue(
+                ctx.diagnostics.diagnostics.isEmpty,
+                "Expected List.zipWithNext overloads to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+            )
+
+            func projectedType(_ projection: TypeArg) -> TypeID? {
+                switch projection {
+                case let .invariant(type), let .out(type), let .in(type):
+                    return type
+                case .star:
+                    return nil
+                }
+            }
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let noArgCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "zipWithNext" && args.isEmpty
+            }, "Expected values.zipWithNext() call")
+            let transformCall = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "zipWithNext" && args.count == 1
+            }, "Expected values.zipWithNext { ... } call")
+
+            let noArgType = try XCTUnwrap(sema.bindings.exprType(for: noArgCall))
+            guard case let .classType(noArgListType) = sema.types.kind(of: noArgType),
+                  let pairType = projectedType(try XCTUnwrap(noArgListType.args.first)),
+                  case let .classType(pairClassType) = sema.types.kind(of: pairType)
+            else {
+                return XCTFail("Expected zipWithNext() to return List<Pair<Int, Int>>")
+            }
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(noArgListType.classSymbol)?.name)), "List")
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(pairClassType.classSymbol)?.name)), "Pair")
+            XCTAssertEqual(pairClassType.args.compactMap(projectedType), [sema.types.intType, sema.types.intType])
+
+            let transformType = try XCTUnwrap(sema.bindings.exprType(for: transformCall))
+            guard case let .classType(transformListType) = sema.types.kind(of: transformType),
+                  let transformElementType = projectedType(try XCTUnwrap(transformListType.args.first))
+            else {
+                return XCTFail("Expected zipWithNext(transform) to return List<Int>")
+            }
+            XCTAssertEqual(try ctx.interner.resolve(XCTUnwrap(sema.symbols.symbol(transformListType.classSymbol)?.name)), "List")
+            XCTAssertEqual(transformElementType, sema.types.intType)
+        }
+    }
+
     func testStringAsIterableImplicitReceiverDoesNotExposeListOnlyMembers() throws {
         let source = """
         fun probe(): Char = with("hello") {

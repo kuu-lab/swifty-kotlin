@@ -83,6 +83,28 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    func testBuildKIRLowersListZipWithNextOverloadsToCollectionRuntimeCalls() throws {
+        let source = """
+        fun main(values: List<Int>) {
+            values.zipWithNext()
+            values.zipWithNext { left, right -> right - left }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_list_zipWithNext"))
+            XCTAssertTrue(callNames.contains("kk_list_zipWithNextTransform"))
+            XCTAssertFalse(callNames.contains("zipWithNext"))
+        }
+    }
+
     func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() {
         let pass = ABILoweringPass()
         let interner = StringInterner()
