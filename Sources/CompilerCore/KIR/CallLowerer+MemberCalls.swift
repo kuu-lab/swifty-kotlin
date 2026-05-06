@@ -8286,6 +8286,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_firstOrNull")
             case "lastOrNull":
                 return interner.intern("kk_list_lastOrNull")
+            case "single":
+                return interner.intern("kk_list_single")
             case "singleOrNull":
                 return interner.intern("kk_list_singleOrNull")
             case "sortedWith":
@@ -8596,6 +8598,8 @@ extension CallLowerer {
             return interner.intern("kk_list_firstOrNull")
         case "lastOrNull":
             return interner.intern("kk_list_lastOrNull")
+        case "single":
+            return interner.intern("kk_list_single")
         case "singleOrNull":
             return interner.intern("kk_list_singleOrNull")
         case "sortedWith":
