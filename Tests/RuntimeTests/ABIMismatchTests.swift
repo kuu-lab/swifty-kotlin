@@ -884,6 +884,18 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.returnType, .intptr)
     }
 
+    func testKKListTakeLastSignature() throws {
+        let spec = try requireSpec("kk_list_takeLast")
+        XCTAssertEqual(spec.parameters.count, 3)
+        XCTAssertEqual(spec.parameters[0].name, "listRaw")
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].name, "count")
+        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        XCTAssertEqual(spec.parameters[2].name, "outThrown")
+        XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
+        XCTAssertEqual(spec.returnType, .intptr)
+    }
+
     // MARK: - C Declaration Generation
 
     func testCDeclarationForKKAlloc() throws {

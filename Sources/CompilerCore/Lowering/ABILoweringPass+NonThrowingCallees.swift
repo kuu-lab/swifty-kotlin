@@ -806,7 +806,6 @@ extension ABILoweringPass {
             interner.intern("kk_indexing_iterable_iterator"),
             interner.intern("kk_indexing_iterable_hasNext"),
             interner.intern("kk_indexing_iterable_next"),
-            interner.intern("kk_list_takeLast"),
             interner.intern("kk_list_dropLast"),
             interner.intern("kk_list_sum"),
             interner.intern("kk_list_average"),

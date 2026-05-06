@@ -43,6 +43,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         let source = """
         fun render(values: List<Int>) {
             values.take(3)
+            values.takeLast(2)
             values.drop(2)
             values.reversed()
             values.sorted()
@@ -60,6 +61,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
 
             let expectedExternalLinks = [
                 "take": "kk_list_take",
+                "takeLast": "kk_list_takeLast",
                 "drop": "kk_list_drop",
                 "reversed": "kk_list_reversed",
                 "sorted": "kk_list_sorted",
