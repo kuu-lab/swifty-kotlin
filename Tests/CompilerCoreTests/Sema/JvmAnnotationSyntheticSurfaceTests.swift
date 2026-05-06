@@ -72,6 +72,52 @@ final class JvmAnnotationSyntheticSurfaceTests: XCTestCase {
         _ = try makeSema(source: source)
     }
 
+    func testJvmSerializableLambdaAnnotationIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "jvm", "JvmSerializableLambda"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: fqName),
+            "kotlin.jvm.JvmSerializableLambda must be registered"
+        )
+        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+
+        XCTAssertEqual(info.kind, .annotationClass)
+        XCTAssertEqual(info.visibility, .public)
+        XCTAssertTrue(info.flags.contains(.synthetic))
+    }
+
+    func testJvmSerializableLambdaCarriesExpressionTarget() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "jvm", "JvmSerializableLambda"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
+        let annotations = sema.symbols.annotations(for: symbol)
+
+        XCTAssertTrue(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Target"
+                    && $0.arguments == ["AnnotationTarget.EXPRESSION"]
+            },
+            "JvmSerializableLambda must carry @Target(EXPRESSION), got \(annotations)"
+        )
+        XCTAssertTrue(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["1.8"]
+            },
+            "JvmSerializableLambda must carry @SinceKotlin(\"1.8\"), got \(annotations)"
+        )
+    }
+
+    func testJvmSerializableLambdaResolvesOnLambdaExpression() throws {
+        let source = """
+        import kotlin.jvm.JvmSerializableLambda
+
+        fun factory() = @JvmSerializableLambda { 42 }
+        """
+
+        _ = try makeSema(source: source)
+    }
+
     func testJvmPackageNameAnnotationIsRegistered() throws {
         let (sema, interner) = try makeSema()
         let fqName = ["kotlin", "jvm", "JvmPackageName"].map { interner.intern($0) }
