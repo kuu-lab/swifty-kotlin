@@ -719,6 +719,9 @@ extension CodegenBackendIntegrationTests {
             val old = a.getAndUpdate { it * 2 }
             println(old)
             println(a.load())
+            val fetched = a.fetchAndUpdate { it - 3 }
+            println(fetched)
+            println(a.load())
             val new2 = a.updateAndGet { it + 5 }
             println(new2)
             println(a.load())
@@ -729,7 +732,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicIntGetAndUpdate", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n25\n25\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "10\n20\n20\n17\n22\n22\n")
         }
     }
 
