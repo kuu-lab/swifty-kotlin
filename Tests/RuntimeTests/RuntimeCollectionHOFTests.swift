@@ -1156,6 +1156,19 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(listElements(list).map { kk_pair_second($0) }, [32, 21])
     }
 
+    func testListToMapKeepsLastValueForDuplicateKeys() {
+        let pairs = makeList([
+            kk_pair_new(1, 10),
+            kk_pair_new(2, 20),
+            kk_pair_new(1, 99),
+        ])
+
+        let map = kk_list_toMap(pairs)
+        XCTAssertEqual(mapKeys(map), [1, 2])
+        XCTAssertEqual(kk_map_get(map, 1), 99)
+        XCTAssertEqual(kk_map_get(map, 2), 20)
+    }
+
     func testMapKeysToMutatesDestinationAndReturnsIt() {
         let keys = makeArray([1, 2])
         let values = makeArray([10, 21])
