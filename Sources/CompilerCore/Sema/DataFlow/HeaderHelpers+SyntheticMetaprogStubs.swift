@@ -96,6 +96,35 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
+        // @JvmSerializableLambda - marks a lambda expression as JVM serializable.
+        registerSyntheticJvmAnnotationClass(
+            named: "JvmSerializableLambda",
+            packageFQName: kotlinJvmPkg,
+            packageSymbol: kotlinJvmPkgSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+        if let jvmSerializableLambdaSymbol = symbols.lookup(
+            fqName: kotlinJvmPkg + [interner.intern("JvmSerializableLambda")]
+        ) {
+            appendSyntheticAnnotation(
+                MetadataAnnotationRecord(
+                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
+                    arguments: ["AnnotationTarget.EXPRESSION"]
+                ),
+                to: jvmSerializableLambdaSymbol,
+                symbols: symbols
+            )
+            appendSyntheticAnnotation(
+                MetadataAnnotationRecord(
+                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
+                    arguments: ["1.8"]
+                ),
+                to: jvmSerializableLambdaSymbol,
+                symbols: symbols
+            )
+        }
+
         // @JvmWildcard - forces wildcard generation for an annotated type use.
         registerSyntheticJvmAnnotationClass(
             named: "JvmWildcard",
