@@ -1095,6 +1095,7 @@ extension DataFlowSemaPhase {
         registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBase64Stubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsModuleStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsPromiseStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsDateStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeGetterStubs(symbols: symbols, interner: interner)
