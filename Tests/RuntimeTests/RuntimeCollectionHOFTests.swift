@@ -1291,6 +1291,17 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(kk_map_get(map, 1), boxedLongMin)
     }
 
+    func testMutableMapGetOrPutInsertsValueForMissingKey() {
+        let map = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
+
+        gHOFState.reset()
+        let result = kk_mutable_map_getOrPut(map, 1, unsafeBitCast(returnSeven, to: Int.self), 0, nil)
+
+        XCTAssertEqual(gHOFState.callsSnapshot(), 1)
+        XCTAssertEqual(result, 7)
+        XCTAssertEqual(kk_map_get(map, 1), 7)
+    }
+
     func testMutableMapGetOrPutReturnsZeroWhenLambdaThrowsForExistingNullEntry() {
         let map = registerRuntimeObject(RuntimeMapBox(keys: [1], values: [runtimeNullSentinelInt]))
 
@@ -1355,6 +1366,15 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(setElements(subtracted), [1])
     }
 
+    func testListSubtractAcceptsIterableInputDeduplicatesAndPreservesReceiverOrder() {
+        let left = makeList([1, 2, 2, 3, 4])
+        let right = makeList([2, 4, 2])
+
+        let subtracted = kk_list_subtract(left, right)
+
+        XCTAssertEqual(setElements(subtracted), [1, 3])
+    }
+
     func testBoolAbiForCollectionHelpersReturnsRaw() {
         let source = makeList([1, 2, 3])
         XCTAssertEqual(kk_unbox_bool(kk_list_contains(source, 2)), 1)
@@ -1410,6 +1430,10 @@ final class RuntimeCollectionHOFTests: XCTestCase {
     func testBooleanListToPrimitiveArrayConversionCopiesElements() {
         let list = makeList([kk_box_bool(1), kk_box_bool(0), kk_box_bool(1)])
         XCTAssertEqual(arrayElements(kk_list_toBooleanArray(list)), [1, 0, 1])
+    }
+
+    func testByteListToPrimitiveArrayConversionCopiesElements() {
+        XCTAssertEqual(arrayElements(kk_list_toByteArray(makeList([1, -2, 127]))), [1, -2, 127])
     }
 
     func testShortListToPrimitiveArrayConversionCopiesElements() {

@@ -935,6 +935,9 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             println(map)
             println(map.remove("b"))
             println(map)
+            println(map.getOrPut("a") { 7 })
+            println(map.getOrPut("c") { 7 })
+            println(map)
             println(emptyMap<String, Int>().isEmpty())
         }
         """
@@ -951,7 +954,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\ntrue\n")
+            XCTAssertEqual(normalizedStdout, "{a=1, b=2}\ntrue\n1\n{a=3, b=2}\n2\n{a=3}\n3\n7\n{a=3, c=7}\ntrue\n")
         }
     }
 
@@ -1041,6 +1044,37 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "{a=1, b=2}\n")
+        }
+    }
+
+    func testCodegenBuildSetUseRuntimeBuilder() throws {
+        let source = """
+        fun main() {
+            val s = buildSet {
+                add("a")
+                add("b")
+                add("a")
+                addAll(setOf("c", "b"))
+            }
+            println(s)
+            println(s.size)
+            println(s.contains("c"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "BuildSetRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "[a, b, c]\n3\ntrue\n")
         }
     }
 
@@ -1403,6 +1437,30 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             XCTAssertTrue(callees.contains("kk_list_maxOrNull"))
             XCTAssertTrue(callees.contains("kk_list_minOrNull"))
             XCTAssertTrue(callees.contains("kk_list_foldRight"))
+        }
+    }
+
+    func testCodegenListAverageUsesRuntimeHelper() throws {
+        let source = """
+        fun main() {
+            val list = listOf(2, 4, 6)
+            println(list.average())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "ListAverageRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "4.0\n")
         }
     }
 

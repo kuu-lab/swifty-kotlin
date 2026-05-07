@@ -559,6 +559,14 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
     }
 
+    func testKKListSubtractSignature() throws {
+        let spec = try requireSpec("kk_list_subtract")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 2)
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].type, .intptr)
+    }
+
     func testKKComparatorFromSelectorPrimitiveSignature() throws {
         let spec = try requireSpec("kk_comparator_from_selector_primitive")
         XCTAssertEqual(spec.returnType, .intptr)
@@ -581,6 +589,13 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters.count, 2)
         XCTAssertEqual(spec.parameters[0].type, .intptr)
         XCTAssertEqual(spec.parameters[1].type, .int32)
+    }
+
+    func testKKListSortedDescendingSignature() throws {
+        let spec = try requireSpec("kk_list_sortedDescending")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 1)
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
     }
 
     func testKKListSortedByPrimitiveSignature() throws {
@@ -662,6 +677,16 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[2].type, .intptr)
         XCTAssertEqual(spec.parameters[3].type, .int32)
         XCTAssertEqual(spec.parameters[4].type, .nullableIntptrPointer)
+    }
+
+    func testKKMutableListSortByDescendingSignature() throws {
+        let spec = try requireSpec("kk_mutable_list_sortByDescending")
+        XCTAssertEqual(spec.returnType, .intptr)
+        XCTAssertEqual(spec.parameters.count, 4)
+        XCTAssertEqual(spec.parameters[0].type, .intptr)
+        XCTAssertEqual(spec.parameters[1].type, .intptr)
+        XCTAssertEqual(spec.parameters[2].type, .intptr)
+        XCTAssertEqual(spec.parameters[3].type, .nullableIntptrPointer)
     }
 
     func testKKMutableListSortByDescendingPrimitiveSignature() throws {
