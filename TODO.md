@@ -462,10 +462,10 @@
 - [ ] STDLIB-COROUTINE-INTRINSIC-FN-004: `suspendCoroutineUninterceptedOrReturn` 関数の実装
 
 #### kotlin.enums 型の実装
-- [ ] STDLIB-ENUMS-TYPE-001: `EnumEntries<E>` インターフェースの実装
+- [x] STDLIB-ENUMS-TYPE-001: `EnumEntries<E>` インターフェースの実装
 
 #### kotlin.enums 関数の実装
-- [ ] STDLIB-ENUMS-FN-001: `enumEntries` 関数の実装
+- [x] STDLIB-ENUMS-FN-001: `enumEntries` 関数の実装
 
 #### kotlin.experimental 型の実装
 - [ ] STDLIB-EXP-TYPE-001: `ExpectRefinement` アノテーションの実装
