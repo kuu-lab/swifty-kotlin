@@ -4304,6 +4304,8 @@ extension CallLowerer {
                     primitiveSelectorKind != nil ? "kk_list_sortedBy_primitive" : "kk_list_sortedBy"
                 case "sortedByDescending":
                     primitiveSelectorKind != nil ? "kk_list_sortedByDescending_primitive" : "kk_list_sortedByDescending"
+                case "distinctBy":
+                    "kk_list_distinctBy"
                 case "sortedWith":
                     "kk_list_sortedWith"
                 case "maxOf":
@@ -4355,6 +4357,7 @@ extension CallLowerer {
                         callArguments.append(kindExpr)
                     }
                     let canThrow = runtimeCallee == "kk_list_elementAt"
+                        || runtimeCallee == "kk_list_distinctBy"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
@@ -5057,7 +5060,7 @@ extension CallLowerer {
             "any", "none", "all", "fold", "foldRight", "reduce", "reduceRight", "scan", "scanIndexed",
             "runningFold", "runningFoldIndexed", "runningReduce", "runningReduceIndexed", "groupBy", "groupingBy",
             "aggregate", "aggregateTo",
-            "sortedBy", "count", "first", "last", "find",
+            "sortedBy", "count", "first", "last", "find", "distinctBy",
             "associateBy", "associateWith", "associate",
             "forEachIndexed", "mapIndexed", "mapIndexedNotNull", "filterIndexed", "sumOf", "sumBy", "sumByDouble", "mapValues", "mapValuesTo", "mapKeys", "mapKeysTo", "filterKeys", "filterValues",
             "getOrElse", "elementAtOrElse", "getOrPut",
@@ -6804,6 +6807,7 @@ extension CallLowerer {
             interner.intern("kk_list_scanIndexed"),
             interner.intern("kk_list_sumBy"),
             interner.intern("kk_list_sumByDouble"),
+            interner.intern("kk_list_distinctBy"),
             interner.intern("kk_iterable_firstNotNullOf"),
             interner.intern("kk_iterable_firstNotNullOfOrNull"),
             interner.intern("kk_kclass_cast"),
@@ -8328,6 +8332,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_sortedDescending")
             case "sortedBy":
                 return interner.intern("kk_list_sortedBy")
+            case "distinctBy":
+                return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
             case "firstOrNull":
@@ -8616,6 +8622,8 @@ extension CallLowerer {
             return interner.intern("kk_list_sortedDescending")
         case "sortedBy":
             return interner.intern("kk_list_sortedBy")
+        case "distinctBy":
+            return interner.intern("kk_list_distinctBy")
         case "sortedByDescending":
             return interner.intern("kk_list_sortedByDescending")
         case "partition":
