@@ -751,6 +751,30 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "div",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("other", pathType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_div_path",
+            isOperator: true,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "div",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("other", types.stringType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_div_string",
+            isOperator: true,
+            symbols: symbols,
+            interner: interner
+        )
+
         // MARK: - Top-level Path() factory (kotlin.io.path.Path)
 
         registerPathTopLevelFunction(
@@ -1358,6 +1382,7 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         externalLinkName: String,
         valueParameterIsVararg: [Bool]? = nil,
+        isOperator: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1372,6 +1397,9 @@ extension DataFlowSemaPhase {
                 && existingSignature.parameterTypes == parameters.map(\.type)
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            if isOperator {
+                symbols.insertFlags([.operatorFunction], for: existing)
+            }
             if let existingSignature = symbols.functionSignature(for: existing),
                existingSignature.returnType != returnType || existingSignature.valueParameterIsVararg != parameterIsVararg {
                 symbols.setFunctionSignature(
@@ -1396,7 +1424,7 @@ extension DataFlowSemaPhase {
             fqName: functionFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: isOperator ? [.synthetic, .operatorFunction] : [.synthetic]
         )
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
