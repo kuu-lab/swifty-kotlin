@@ -433,7 +433,7 @@
 - [ ] STDLIB-COROUTINE-TYPE-008: `SuspendFunction<R>` インターフェースの実装
 
 #### kotlin.coroutines プロパティの実装
-- [ ] STDLIB-COROUTINE-PROP-001: `coroutineContext` 拡張プロパティの実装
+- [x] STDLIB-COROUTINE-PROP-001: `coroutineContext` 拡張プロパティの実装
 
 #### kotlin.coroutines 関数の実装
 - [ ] STDLIB-COROUTINE-FN-001: `Continuation` 関数の実装（factory版）

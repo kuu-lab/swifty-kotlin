@@ -1437,6 +1437,13 @@ public func kk_coroutine_continuation_context(_ continuation: Int) -> Int {
     return runtimeRegisterObject(state.makeContinuationContext())
 }
 
+@_cdecl("kk_coroutine_current_context")
+public func kk_coroutine_current_context() -> Int {
+    let context = RuntimeContinuationState.current?.makeContinuationContext()
+        ?? RuntimeCoroutineContext()
+    return runtimeRegisterObject(context)
+}
+
 @_cdecl("kk_coroutine_continuation_resume_with")
 public func kk_coroutine_continuation_resume_with(_ continuation: Int, _ resultRaw: Int) {
     guard let continuationPtr = UnsafeMutableRawPointer(bitPattern: continuation) else {
