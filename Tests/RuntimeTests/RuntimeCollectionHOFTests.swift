@@ -257,6 +257,10 @@ private let mapEntryValuePlusOne: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_pair_second(pairRaw) + 1
 }
 
+private let adjacentDifference: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, left, right, _ in
+    right - left
+}
+
 private let returnSeven: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, _ in
     gHOFState.addCall()
     return 7
@@ -1186,6 +1190,23 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(mapKeys(map), [1, 2])
         XCTAssertEqual(kk_map_get(map, 1), 99)
         XCTAssertEqual(kk_map_get(map, 2), 20)
+    }
+
+    func testListZipWithNextReturnsAdjacentPairsAndTransformResults() {
+        let values = makeList([1, 3, 6, 10])
+
+        let pairs = listElements(kk_list_zipWithNext(values))
+        XCTAssertEqual(pairs.map { kk_pair_first($0) }, [1, 3, 6])
+        XCTAssertEqual(pairs.map { kk_pair_second($0) }, [3, 6, 10])
+
+        let transformed = kk_list_zipWithNextTransform(
+            values,
+            unsafeBitCast(adjacentDifference, to: Int.self),
+            0,
+            nil
+        )
+        XCTAssertEqual(listElements(transformed), [2, 3, 4])
+        XCTAssertEqual(listElements(kk_list_zipWithNext(makeList([1]))), [])
     }
 
     func testMapKeysToMutatesDestinationAndReturnsIt() {

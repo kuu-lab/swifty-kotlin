@@ -62,6 +62,8 @@ extension ABIMismatchTests {
             "kk_list_toDoubleArray",
             "kk_list_toFloatArray",
             "kk_list_unzip",
+            "kk_list_zipWithNext",
+            "kk_list_zipWithNextTransform",
             "kk_string_hexToShort",
             "kk_string_hexToUByte",
             "kk_string_hexToUByteArray",
