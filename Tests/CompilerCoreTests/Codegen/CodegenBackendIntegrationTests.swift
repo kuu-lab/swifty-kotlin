@@ -1407,6 +1407,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             val list = listOf(3, 1, 2, 1)
             println(list.take(3))
             println(list.drop(2))
+            println(list.takeLast(2))
             println(list.reversed())
             println(list.sorted())
             println(list.distinct())
@@ -1415,6 +1416,12 @@ final class CodegenBackendIntegrationTests: XCTestCase {
                 println("missing-take")
             } catch (e: IllegalArgumentException) {
                 println("negative-take")
+            }
+            try {
+                println(list.takeLast(-1))
+                println("missing-takeLast")
+            } catch (e: IllegalArgumentException) {
+                println("negative-takeLast")
             }
             try {
                 println(list.drop(-1))
@@ -1432,6 +1439,12 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             } catch (e: IllegalArgumentException) {
                 println("negative-param-take")
             }
+            try {
+                println(values.takeLast(-1))
+                println("missing-param-takeLast")
+            } catch (e: IllegalArgumentException) {
+                println("negative-param-takeLast")
+            }
         }
         """
 
@@ -1447,7 +1460,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[3, 1, 2]\n[2, 1]\n[1, 2, 1, 3]\n[1, 1, 2, 3]\n[3, 1, 2]\nnegative-take\nnegative-drop\nnegative-param-take\n")
+            XCTAssertEqual(normalizedStdout, "[3, 1, 2]\n[2, 1]\n[2, 1]\n[1, 2, 1, 3]\n[1, 1, 2, 3]\n[3, 1, 2]\nnegative-take\nnegative-takeLast\nnegative-drop\nnegative-param-take\nnegative-param-takeLast\n")
         }
     }
 

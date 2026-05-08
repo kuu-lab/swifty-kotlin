@@ -413,6 +413,16 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(listElements(result), [])
     }
 
+    func testListTakeLastNegativeCountSetsIllegalArgumentException() {
+        var thrown = 0
+        let result = kk_list_takeLast(makeList([1, 2, 3]), -1, &thrown)
+
+        XCTAssertNotEqual(thrown, 0)
+        let throwable = tryCast(UnsafeMutableRawPointer(bitPattern: thrown)!, to: RuntimeThrowableBox.self)
+        XCTAssertEqual(throwable?.exceptionFQName, "kotlin.IllegalArgumentException")
+        XCTAssertEqual(listElements(result), [])
+    }
+
     func testListReduceRightIndexedUsesIndexValueAndAccumulator() {
         var thrown = 0
         let result = kk_list_reduceRightIndexed(
