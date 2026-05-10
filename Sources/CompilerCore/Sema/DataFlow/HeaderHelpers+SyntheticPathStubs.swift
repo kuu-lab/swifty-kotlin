@@ -11,6 +11,7 @@
 /// - `startsWith(other: Path): Boolean`, `startsWith(other: String): Boolean`
 /// - `endsWith(other: Path): Boolean`, `endsWith(other: String): Boolean`
 /// - `toFile(): File`, `toUri(): URI`, `toAbsolutePath(): Path`
+/// - `URI.toPath(): Path` extension function
 /// - `getName(index: Int): Path`
 /// - `Path.name: String` extension property
 /// - `Path.appendText(text: CharSequence, charset)` extension function
@@ -18,14 +19,20 @@
 /// - `Path.invariantSeparatorsPath: String` extension property
 /// - `Path.absolute(): Path` extension function
 /// - `Path.invariantSeparatorsPathString: String` extension property
-/// - `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
-/// - `createDirectories(): Path`, `deleteIfExists(): Boolean`
+/// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
+/// - `readBytes(): ByteArray`, `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
+/// - `createDirectories(): Path`, `createLinkPointingTo(target): Path`, `deleteIfExists(): Boolean`
+/// - `deleteExisting()`, `deleteRecursively()`
+/// - `Path.fileStore(): FileStore` extension function
+/// - `Path.setOwner(value: UserPrincipal): Path` extension function
 /// - `listDirectoryEntries(): List<Path>`
+/// - `Path.isExecutable()`, `isHidden()`, `isReadable()`, `isSameFileAs()`, `isSymbolicLink()`, `isWritable()`
 /// - Top-level `Path(pathString: String)` factory (kotlin.io.path.Path)
 /// - `Paths.get(pathString: String)` factory (java.nio.file.Paths)
 /// - `CopyActionContext` type surface
 /// - `CopyActionResult` enum surface
 /// - `ExperimentalPathApi` marker annotation surface
+/// - `FileVisitorBuilder` type surface
 /// - `OnErrorResult` enum surface
 /// - `PathWalkOption` enum surface
 ///
@@ -60,6 +67,12 @@ extension DataFlowSemaPhase {
         let kotlinTextPkg = ensurePackage(path: ["kotlin", "text"], symbols: symbols, interner: interner)
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg)
         let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg)
+        let javaNioFilePkg = ensurePackage(
+            path: ["java", "nio", "file"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaNioFilePkgSymbol = symbols.lookup(fqName: javaNioFilePkg)
 
         let charSequenceSymbol = ensureInterfaceSymbol(
             named: "CharSequence",
@@ -76,6 +89,22 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(charSequenceType, for: charSequenceSymbol)
+
+        let byteArraySymbol = ensureClassSymbol(
+            named: "ByteArray",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let kotlinPkgSymbol {
+            symbols.setParentSymbol(kotlinPkgSymbol, for: byteArraySymbol)
+        }
+        let byteArrayType = types.make(.classType(ClassType(
+            classSymbol: byteArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(byteArrayType, for: byteArraySymbol)
 
         let charsetSymbol = ensureClassSymbol(
             named: "Charset",
@@ -111,6 +140,22 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(copyOptionType, for: copyOptionSymbol)
 
+        let openOptionSymbol = ensureInterfaceSymbol(
+            named: "OpenOption",
+            in: javaNioFilePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaNioFilePkgSymbol {
+            symbols.setParentSymbol(javaNioFilePkgSymbol, for: openOptionSymbol)
+        }
+        let openOptionType = types.make(.classType(ClassType(
+            classSymbol: openOptionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(openOptionType, for: openOptionSymbol)
+
         registerPathCopyActionContextSurface(
             packageFQName: kotlinIOPathPkg,
             packageSymbol: kotlinIOPathPkgSymbol,
@@ -122,6 +167,13 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinIOPathPkg,
             packageSymbol: kotlinIOPathPkgSymbol,
             symbols: symbols,
+            interner: interner
+        )
+        registerPathFileVisitorBuilderSurface(
+            packageFQName: kotlinIOPathPkg,
+            packageSymbol: kotlinIOPathPkgSymbol,
+            symbols: symbols,
+            types: types,
             interner: interner
         )
         let onErrorResultSymbol = ensurePathOnErrorResultEnum(
@@ -200,7 +252,6 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
-
         // Resolve java.io.File type for toFile() return
         let javaIOPkg: [InternedString] = [
             interner.intern("java"),
@@ -215,19 +266,65 @@ extension DataFlowSemaPhase {
             types.anyType
         }
 
-        // Resolve java.net.URI type for toUri() return
-        let javaNetPkg: [InternedString] = [
-            interner.intern("java"),
-            interner.intern("net"),
-        ]
-        let uriSymbol = symbols.lookup(fqName: javaNetPkg + [interner.intern("URI")])
-        let uriType: TypeID = if let uriSym = uriSymbol {
-            types.make(.classType(ClassType(
-                classSymbol: uriSym, args: [], nullability: .nonNull
-            )))
-        } else {
-            types.anyType
+        let javaNetPkg = ensurePackage(
+            path: ["java", "net"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaNetPkgSymbol = symbols.lookup(fqName: javaNetPkg)
+        let uriSymbol = ensureClassSymbol(
+            named: "URI",
+            in: javaNetPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaNetPkgSymbol {
+            symbols.setParentSymbol(javaNetPkgSymbol, for: uriSymbol)
         }
+        let uriType = types.make(.classType(ClassType(
+            classSymbol: uriSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(uriType, for: uriSymbol)
+
+        let javaNioFilePackage = ensurePackage(
+            path: ["java", "nio", "file"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaNioFilePackageSymbol = symbols.lookup(fqName: javaNioFilePackage)
+        let fileStoreSymbol = ensureClassSymbol(
+            named: "FileStore",
+            in: javaNioFilePackage,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaNioFilePackageSymbol {
+            symbols.setParentSymbol(javaNioFilePackageSymbol, for: fileStoreSymbol)
+        }
+        let fileStoreType = types.make(.classType(ClassType(
+            classSymbol: fileStoreSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(fileStoreType, for: fileStoreSymbol)
+
+        let javaNioFileAttributePkg = ensurePackage(
+            path: ["java", "nio", "file", "attribute"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaNioFileAttributePkgSymbol = symbols.lookup(fqName: javaNioFileAttributePkg)
+        let userPrincipalSymbol = ensureInterfaceSymbol(
+            named: "UserPrincipal",
+            in: javaNioFileAttributePkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaNioFileAttributePkgSymbol {
+            symbols.setParentSymbol(javaNioFileAttributePkgSymbol, for: userPrincipalSymbol)
+        }
+        let userPrincipalType = types.make(.classType(ClassType(
+            classSymbol: userPrincipalSymbol, args: [], nullability: .nonNull
+        )))
+        symbols.setPropertyType(userPrincipalType, for: userPrincipalSymbol)
 
         // MARK: - Path(pathString: String) constructor
 
@@ -435,6 +532,47 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "fileStore",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: fileStoreType,
+            externalLinkName: "kk_path_fileStore",
+            symbols: symbols,
+            interner: interner
+        )
+
+        for (name, link) in [
+            ("isExecutable", "kk_path_isExecutable"),
+            ("isHidden", "kk_path_isHidden"),
+            ("isReadable", "kk_path_isReadable"),
+            ("isSymbolicLink", "kk_path_isSymbolicLink"),
+            ("isWritable", "kk_path_isWritable"),
+        ] {
+            registerPathExtensionFunction(
+                named: name,
+                packageFQName: kotlinIOPathPkg,
+                receiverType: pathType,
+                parameters: [],
+                returnType: types.booleanType,
+                externalLinkName: link,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        registerPathExtensionFunction(
+            named: "isSameFileAs",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("other", pathType)],
+            returnType: types.booleanType,
+            externalLinkName: "kk_path_isSameFileAs",
+            symbols: symbols,
+            interner: interner
+        )
+
         // MARK: - Path comparison methods
 
         registerPathMemberFunction(
@@ -505,6 +643,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "toPath",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: uriType,
+            parameters: [],
+            returnType: pathType,
+            externalLinkName: "kk_uri_toPath",
+            symbols: symbols,
+            interner: interner
+        )
+
         registerPathMemberFunction(
             named: "toAbsolutePath",
             externalLinkName: "kk_path_toAbsolutePath",
@@ -528,6 +677,17 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - Path read/write methods
+
+        registerPathExtensionFunction(
+            named: "readBytes",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: byteArrayType,
+            externalLinkName: "kk_path_readBytes",
+            symbols: symbols,
+            interner: interner
+        )
 
         registerPathMemberFunction(
             named: "readText",
@@ -558,6 +718,28 @@ extension DataFlowSemaPhase {
             ownerType: pathType,
             parameters: [],
             returnType: listOfStringType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "readLines",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("charset", charsetType)],
+            returnType: listOfStringType,
+            externalLinkName: "kk_path_readLines_charset",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "readText",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("charset", charsetType)],
+            returnType: types.stringType,
+            externalLinkName: "kk_path_readText_charset",
             symbols: symbols,
             interner: interner
         )
@@ -596,6 +778,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "writeBytes",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("array", byteArrayType), ("options", openOptionType)],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_writeBytes",
+            valueParameterIsVararg: [false, true],
+            symbols: symbols,
+            interner: interner
+        )
+
         // MARK: - Path filesystem operations
 
         registerPathMemberFunction(
@@ -605,6 +799,28 @@ extension DataFlowSemaPhase {
             ownerType: pathType,
             parameters: [],
             returnType: pathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "createLinkPointingTo",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("target", pathType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_createLinkPointingTo",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "deleteExisting",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_deleteExisting",
             symbols: symbols,
             interner: interner
         )
@@ -620,6 +836,28 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "setOwner",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("value", userPrincipalType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_setOwner",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "deleteRecursively",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_deleteRecursively",
+            symbols: symbols,
+            interner: interner
+        )
+
         registerPathMemberFunction(
             named: "listDirectoryEntries",
             externalLinkName: "kk_path_listDirectoryEntries",
@@ -627,6 +865,41 @@ extension DataFlowSemaPhase {
             ownerType: pathType,
             parameters: [],
             returnType: listOfPathType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "div",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("other", pathType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_div_path",
+            isOperator: true,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "div",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("other", types.stringType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_div_string",
+            isOperator: true,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "moveTo",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("target", pathType), ("overwrite", types.booleanType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_moveTo_overwrite",
             symbols: symbols,
             interner: interner
         )
@@ -644,13 +917,6 @@ extension DataFlowSemaPhase {
         )
 
         // MARK: - Paths.get() (java.nio.file.Paths)
-
-        let javaNioFilePkg = ensurePackage(
-            path: ["java", "nio", "file"],
-            symbols: symbols,
-            interner: interner
-        )
-        let javaNioFilePkgSymbol = symbols.lookup(fqName: javaNioFilePkg)
 
         let pathsSymbol = ensureClassSymbol(
             named: "Paths",
@@ -901,6 +1167,30 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(enumType, for: child)
             }
         }
+    }
+
+    private func registerPathFileVisitorBuilderSurface(
+        packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let builderSymbol = ensureInterfaceSymbol(
+            named: "FileVisitorBuilder",
+            in: packageFQName,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: builderSymbol)
+        }
+        let builderType = types.make(.classType(ClassType(
+            classSymbol: builderSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(builderType, for: builderSymbol)
     }
 
     private func resolvePathListSymbol(
@@ -1222,9 +1512,11 @@ extension DataFlowSemaPhase {
         externalLinkName: String,
         valueParameterHasDefaultValues: [Bool]? = nil,
         valueParameterIsVararg: [Bool]? = nil,
+        isOperator: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
+        let parameterIsVararg = valueParameterIsVararg ?? Array(repeating: false, count: parameters.count)
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
         let parameterTypes = parameters.map(\.type)
@@ -1241,6 +1533,9 @@ extension DataFlowSemaPhase {
                 && existingSignature.parameterTypes == parameterTypes
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            if isOperator {
+                symbols.insertFlags([.operatorFunction], for: existing)
+            }
             if let existingSignature = symbols.functionSignature(for: existing) {
                 let shouldUpdateSignature =
                     existingSignature.returnType != returnType
@@ -1271,7 +1566,7 @@ extension DataFlowSemaPhase {
             fqName: functionFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: isOperator ? [.synthetic, .operatorFunction] : [.synthetic]
         )
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
