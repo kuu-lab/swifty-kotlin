@@ -1141,6 +1141,7 @@ extension CallTypeChecker {
             interner.intern("forEachIndexed"),
             interner.intern("mapIndexed"),
             interner.intern("sumOf"),
+            interner.intern("min"),
             interner.intern("maxOrNull"),
             interner.intern("minOrNull"),
             interner.intern("onEach"),
@@ -1338,7 +1339,7 @@ extension CallTypeChecker {
              interner.intern("toList"), interner.intern("toTypedArray"), interner.intern("reversed"),
             interner.intern("asReversed"), interner.intern("sorted"),
              interner.intern("distinct"), interner.intern("flatten"), interner.intern("withIndex"),
-             interner.intern("maxOrNull"), interner.intern("minOrNull"), interner.intern("sortedDescending"), interner.intern("filterIsInstance"),
+             interner.intern("min"), interner.intern("maxOrNull"), interner.intern("minOrNull"), interner.intern("sortedDescending"), interner.intern("filterIsInstance"),
              interner.intern("firstOrNull"), interner.intern("lastOrNull"), interner.intern("singleOrNull"), interner.intern("sort"),
              interner.intern("toMutableList"), interner.intern("sum"), interner.intern("average"),
              interner.intern("requireNoNulls"):
@@ -1710,7 +1711,7 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
-        if memberName == interner.intern("minBy") {
+        if memberName == interner.intern("minBy") || memberName == interner.intern("min") {
             return receiverElementType
         }
 

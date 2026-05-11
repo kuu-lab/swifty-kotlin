@@ -1966,6 +1966,18 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testMinReturnsSmallestElementAndThrowsOnEmpty() {
+        var thrown = 0
+
+        let minResult = kk_list_min(makeList([3, 1, 4, 2]), &thrown)
+        XCTAssertEqual(minResult, 1)
+        XCTAssertEqual(thrown, 0)
+
+        let emptyResult = kk_list_min(makeList([]), &thrown)
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     // MARK: - Throwing lambda tests for *To functions
 
     func testAssociateByToThrowingLambdaReturnsSentinelAndSetsOutThrown() {

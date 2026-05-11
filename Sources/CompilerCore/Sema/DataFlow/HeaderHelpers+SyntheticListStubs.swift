@@ -2727,7 +2727,11 @@ extension DataFlowSemaPhase {
             []
         }
 
-        func registerComparableMember(name: String, externalLinkName: String) {
+        func registerComparableMember(
+            name: String,
+            externalLinkName: String,
+            returnType: TypeID = nullableElementType
+        ) {
             let memberName = interner.intern(name)
             let memberFQName = listFQName + [memberName]
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
@@ -2745,7 +2749,7 @@ extension DataFlowSemaPhase {
                 FunctionSignature(
                     receiverType: receiverType,
                     parameterTypes: [],
-                    returnType: nullableElementType,
+                    returnType: returnType,
                     typeParameterSymbols: [listTypeParamSymbol],
                     typeParameterUpperBoundsList: [comparableElementBounds],
                     classTypeParameterCount: 1
@@ -2754,6 +2758,11 @@ extension DataFlowSemaPhase {
             )
         }
 
+        registerComparableMember(
+            name: "min",
+            externalLinkName: "kk_list_min",
+            returnType: listTypeParamType
+        )
         registerComparableMember(name: "maxOrNull", externalLinkName: "kk_list_maxOrNull")
         registerComparableMember(name: "minOrNull", externalLinkName: "kk_list_minOrNull")
 
