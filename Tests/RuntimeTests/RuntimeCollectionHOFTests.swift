@@ -333,6 +333,8 @@ final class RuntimeCollectionHOFTests: XCTestCase {
             nil as UnsafeMutablePointer<Int>?
         )
         XCTAssertEqual(listElements(mapped), [10, 32])
+    }
+
     func testFilterIsInstanceCollectsMatchingRuntimeTypes() {
         let source = makeList([1, runtimeStringRaw("two"), 3])
         let filtered = kk_list_filterIsInstance(source, 3)
