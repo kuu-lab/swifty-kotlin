@@ -1462,6 +1462,24 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertEqual(setElements(target), [1, 2, 3, 4])
     }
 
+    func testCollectionAndIterableToMutableListCopyElements() {
+        let listSource = makeList([1, 2, 3])
+        let collectionCopy = kk_collection_toMutableList(listSource)
+
+        XCTAssertEqual(listElements(collectionCopy), [1, 2, 3])
+        XCTAssertEqual(kk_unbox_bool(kk_mutable_list_add(collectionCopy, 4)), 1)
+        XCTAssertEqual(listElements(listSource), [1, 2, 3])
+        XCTAssertEqual(listElements(collectionCopy), [1, 2, 3, 4])
+
+        let setSource = registerRuntimeObject(RuntimeSetBox(elements: [3, 1, 2]))
+        let iterableCopy = kk_iterable_toMutableList(setSource)
+
+        XCTAssertEqual(listElements(iterableCopy), [3, 1, 2])
+        XCTAssertEqual(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9)), 1)
+        XCTAssertEqual(setElements(setSource), [3, 1, 2])
+        XCTAssertEqual(listElements(iterableCopy), [3, 1, 2, 9])
+    }
+
     func testSetBinaryOperationsWithStringHandlesUseValueEqualityAndPreserveLeftOrder() {
         let leftAlpha = makeRuntimeStringRaw("alpha")
         let leftBeta = makeRuntimeStringRaw("beta")
