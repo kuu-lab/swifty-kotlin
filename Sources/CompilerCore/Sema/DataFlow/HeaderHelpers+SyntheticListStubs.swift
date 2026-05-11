@@ -2080,6 +2080,19 @@ extension DataFlowSemaPhase {
 
         registerMember(name: "flatten", parameterTypes: [], externalLinkName: "kk_list_flatten")
 
+        let listPredicateType = types.make(.functionType(FunctionType(
+            params: [listTypeParamType],
+            returnType: types.booleanType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerMemberOverload(
+            memberName: interner.intern("filterNot"),
+            memberFQName: listFQName + [interner.intern("filterNot")],
+            parameterTypes: [listPredicateType],
+            externalLinkName: "kk_list_filterNot"
+        )
+
         let destinationCollectionType = types.make(.classType(ClassType(
             classSymbol: collectionInterfaceSymbol,
             args: [.out(listTypeParamType)],
