@@ -967,14 +967,6 @@ extension DataFlowSemaPhase {
         return classSymbol
     }
 
-    private func nominalType(_ symbol: SymbolID, types: TypeSystem) -> TypeID {
-        types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
     private func mapOfStringTo(
         _ valueType: TypeID,
         symbols: SymbolTable,
