@@ -873,7 +873,7 @@ extension CodegenBackendIntegrationTests {
         import kotlin.concurrent.AtomicIntArray
 
         fun main() {
-            let values = AtomicIntArray(2)
+            val values = AtomicIntArray(2)
             values.storeAt(0, 10)
             values[1] = 20
             println(values.loadAt(0))
