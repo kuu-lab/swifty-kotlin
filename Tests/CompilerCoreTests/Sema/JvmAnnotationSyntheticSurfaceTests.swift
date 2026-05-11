@@ -555,13 +555,6 @@ final class JvmAnnotationSyntheticSurfaceTests: XCTestCase {
         let symbol = try XCTUnwrap(
             sema.symbols.lookup(fqName: fqName),
             "kotlin.jvm.Synchronized must be registered"
-
-    func testJvmSyntheticAnnotationIsRegistered() throws {
-        let (sema, interner) = try makeSema()
-        let fqName = ["kotlin", "jvm", "JvmSynthetic"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: fqName),
-            "kotlin.jvm.JvmSynthetic must be registered"
         )
         let info = try XCTUnwrap(sema.symbols.symbol(symbol))
 
@@ -577,14 +570,6 @@ final class JvmAnnotationSyntheticSurfaceTests: XCTestCase {
         let target = try XCTUnwrap(
             sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
             "Synchronized must carry @Target metadata"
-
-    func testJvmSyntheticCarriesOfficialTargets() throws {
-        let (sema, interner) = try makeSema()
-        let fqName = ["kotlin", "jvm", "JvmSynthetic"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(sema.symbols.lookup(fqName: fqName))
-        let target = try XCTUnwrap(
-            sema.symbols.annotations(for: symbol).first { $0.annotationFQName == "kotlin.annotation.Target" },
-            "JvmSynthetic must carry @Target metadata"
         )
 
         XCTAssertEqual(
@@ -595,6 +580,37 @@ final class JvmAnnotationSyntheticSurfaceTests: XCTestCase {
                 "AnnotationTarget.PROPERTY_SETTER",
             ]
         )
+    }
+
+    func testSynchronizedResolvesOnFunctionAndAccessors() throws {
+        let source = """
+        import kotlin.jvm.Synchronized
+
+        class LockHost {
+            @Synchronized
+            fun guarded(): Int = 1
+
+            @get:Synchronized
+            @set:Synchronized
+            var count: Int = 0
+        }
+        """
+
+        _ = try makeSema(source: source)
+    }
+
+    func testJvmSyntheticAnnotationIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let fqName = ["kotlin", "jvm", "JvmSynthetic"].map { interner.intern($0) }
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: fqName),
+            "kotlin.jvm.JvmSynthetic must be registered"
+        )
+        let info = try XCTUnwrap(sema.symbols.symbol(symbol))
+
+        XCTAssertEqual(info.kind, .annotationClass)
+        XCTAssertEqual(info.visibility, .public)
+        XCTAssertTrue(info.flags.contains(.synthetic))
     }
 
     func testJvmSyntheticCarriesOfficialTargets() throws {
@@ -616,23 +632,6 @@ final class JvmAnnotationSyntheticSurfaceTests: XCTestCase {
                 "AnnotationTarget.FIELD",
             ]
         )
-    }
-
-    func testSynchronizedResolvesOnFunctionAndAccessors() throws {
-        let source = """
-        import kotlin.jvm.Synchronized
-
-        class LockHost {
-            @Synchronized
-            fun guarded(): Int = 1
-
-            @get:Synchronized
-            @set:Synchronized
-            var count: Int = 0
-        }
-        """
-
-        _ = try makeSema(source: source)
     }
 
     func testJvmSyntheticResolvesOnFileAndFunctionUseSites() throws {

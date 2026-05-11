@@ -150,7 +150,7 @@ extension DataFlowSemaPhase {
                 to: jvmWildcardSymbol,
                 symbols: symbols
             )
-        })
+        }
 
         // @JvmSynthetic - hides Kotlin declarations from Java source by setting
         // the JVM ACC_SYNTHETIC flag.
