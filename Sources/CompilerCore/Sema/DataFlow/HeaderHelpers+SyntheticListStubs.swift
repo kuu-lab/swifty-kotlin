@@ -3503,11 +3503,11 @@ extension DataFlowSemaPhase {
         }
 
         // takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
-        for (funcName, linkName) in [
-            ("takeWhile", "kk_list_takeWhile"),
-            ("dropWhile", "kk_list_dropWhile"),
-            ("takeLastWhile", "kk_list_takeLastWhile"),
-            ("dropLastWhile", "kk_list_dropLastWhile"),
+        for (funcName, linkName, canThrow) in [
+            ("takeWhile", "kk_list_takeWhile", true),
+            ("dropWhile", "kk_list_dropWhile", false),
+            ("takeLastWhile", "kk_list_takeLastWhile", false),
+            ("dropLastWhile", "kk_list_dropLastWhile", false),
         ] {
             let name = interner.intern(funcName)
             let fqName = listFQName + [name]
@@ -3527,6 +3527,7 @@ extension DataFlowSemaPhase {
                         receiverType: receiverType,
                         parameterTypes: [predicateType],
                         returnType: receiverType,
+                        canThrow: canThrow,
                         typeParameterSymbols: [listTypeParamSymbol],
                         classTypeParameterCount: 1
                     ),
