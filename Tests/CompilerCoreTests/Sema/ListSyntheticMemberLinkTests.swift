@@ -2941,6 +2941,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
             values.removeLast()
             values.removeLastOrNull()
             values.clear()
+            values.fill(9)
         }
         """
 
@@ -2963,6 +2964,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
                 ("removeLast", 0, "kk_mutable_list_removeLast"),
                 ("removeLastOrNull", 0, "kk_mutable_list_removeLastOrNull"),
                 ("clear", 0, "kk_mutable_list_clear"),
+                ("fill", 1, "kk_mutable_list_fill"),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {
