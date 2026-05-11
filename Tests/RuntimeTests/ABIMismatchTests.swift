@@ -945,6 +945,8 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[1].type, .intptr)
         XCTAssertEqual(spec.parameters[2].name, "outThrown")
         XCTAssertEqual(spec.parameters[2].type, .nullableIntptrPointer)
+    }
+
     func testKKListTakeWhileSignature() throws {
         let spec = try requireSpec("kk_list_takeWhile")
         XCTAssertEqual(spec.parameters.count, 4)
