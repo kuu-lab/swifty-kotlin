@@ -9016,8 +9016,8 @@ extension CallLowerer {
               || memberName == "isNotEmpty"
               || memberName == "firstNotNullOf"
               || memberName == "firstNotNullOfOrNull"
-              || memberName == "requireNoNulls",
-              memberName == "reduceRight",
+              || memberName == "requireNoNulls"
+              || memberName == "reduceRight",
               case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
               let symbol = sema.symbols.symbol(classType.classSymbol)
         else {
