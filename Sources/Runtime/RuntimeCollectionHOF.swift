@@ -2051,10 +2051,10 @@ public func kk_list_random(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int
 
 @_cdecl("kk_list_randomOrNull")
 public func kk_list_randomOrNull(_ listRaw: Int) -> Int {
-    guard let list = runtimeListBox(from: listRaw) else {
-        invalidContainerPanic(#function, "list")
+    guard let elements = runtimeCollectionElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
     }
-    guard let element = list.elements.randomElement() else {
+    guard let element = elements.randomElement() else {
         return runtimeNullSentinelInt
     }
     return element
