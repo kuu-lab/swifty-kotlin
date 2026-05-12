@@ -6,7 +6,7 @@
 ///
 /// Split out from `CallLowerer.swift`.
 extension CallLowerer {
-    private func appendCallableCaptureLoads(
+    func appendCallableCaptureLoads(
         callableInfo: KIRCallableValueInfo,
         closureExpr: KIRExprID,
         sema: SemaModule,
