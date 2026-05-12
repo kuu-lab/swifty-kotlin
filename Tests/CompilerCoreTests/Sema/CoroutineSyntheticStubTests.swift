@@ -286,7 +286,7 @@ final class CoroutineSyntheticStubTests: XCTestCase {
 
         let ctorFQName = cancellationFQName + [interner.intern("<init>")]
         let constructors = sema.symbols.lookupAll(fqName: ctorFQName)
-        XCTAssertEqual(constructors.count, 3)
+        XCTAssertEqual(constructors.count, 4)
 
         let nullableThrowableType = sema.types.make(.classType(ClassType(
             classSymbol: throwableSymbol,
@@ -296,6 +296,7 @@ final class CoroutineSyntheticStubTests: XCTestCase {
         let expectedParameterTypes: Set<[TypeID]> = [
             [],
             [sema.types.stringType],
+            [nullableThrowableType],
             [sema.types.stringType, nullableThrowableType],
         ]
         let actualParameterTypes = Set(constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes })
