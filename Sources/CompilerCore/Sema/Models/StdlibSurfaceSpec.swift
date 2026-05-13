@@ -66,6 +66,8 @@ enum StdlibSurfaceLambdaExpectation: Equatable, Hashable {
     case indexedReceiverElement(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
     case destinationElement(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
     case indexedDestinationElement(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
+    case mapKey(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
+    case mapValue(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
 }
 
 enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable {
@@ -104,6 +106,15 @@ struct StdlibSurfaceSpec: Equatable, Hashable {
     ) -> StdlibSurfaceSpec? {
         collectionHOFSpecs(ownerKind: ownerKind, memberName: memberName)
             .first { $0.arity.accepts(arity) }
+    }
+
+    static func collectionHOFRuntimeLinkName(
+        ownerKind: StdlibSurfaceOwnerKind,
+        memberName: String,
+        arity: Int,
+        fallback: String
+    ) -> String {
+        collectionHOFMember(ownerKind: ownerKind, memberName: memberName, arity: arity)?.runtimeLinkName ?? fallback
     }
 }
 
@@ -210,8 +221,8 @@ private extension StdlibSurfaceSpec {
         map("mapKeys", 1, "kk_map_mapKeys", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         map("mapValuesTo", 2, "kk_map_mapValuesTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationMapValue)),
         map("mapKeysTo", 2, "kk_map_mapKeysTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationMapKey)),
-        map("filterKeys", 1, "kk_map_filterKeys", returnStrategy: .map, lambdaExpectation: .none),
-        map("filterValues", 1, "kk_map_filterValues", returnStrategy: .map, lambdaExpectation: .none),
+        map("filterKeys", 1, "kk_map_filterKeys", returnStrategy: .map, lambdaExpectation: .mapKey(argumentIndex: 0, returnStrategy: .boolean)),
+        map("filterValues", 1, "kk_map_filterValues", returnStrategy: .map, lambdaExpectation: .mapValue(argumentIndex: 0, returnStrategy: .boolean)),
     ]
 
     static let sequenceHOFMembers: [StdlibSurfaceSpec] = [

@@ -89,11 +89,12 @@ extension DataFlowSemaPhase {
                 flags: flags
             )
             symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFMember(
+            let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
                 ownerKind: .list,
                 memberName: interner.resolve(memberName),
-                arity: parameterTypes.count
-            )?.runtimeLinkName ?? externalLinkName
+                arity: parameterTypes.count,
+                fallback: externalLinkName
+            )
             symbols.setExternalLinkName(resolvedExternalLinkName, for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(

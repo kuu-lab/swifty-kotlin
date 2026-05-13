@@ -115,8 +115,14 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             let cases: [(ownerKind: StdlibSurfaceOwnerKind, ownerFQName: [String], memberName: String, arity: Int)] = [
                 (.list, ["kotlin", "collections", "List"], "filterIndexedTo", 2),
                 (.list, ["kotlin", "collections", "List"], "mapIndexedTo", 2),
+                (.list, ["kotlin", "collections", "List"], "associateTo", 2),
+                (.list, ["kotlin", "collections", "List"], "groupByTo", 2),
+                (.list, ["kotlin", "collections", "Iterable"], "firstNotNullOf", 1),
+                (.list, ["kotlin", "collections", "Iterable"], "sumBy", 1),
                 (.map, ["kotlin", "collections", "Map"], "mapValuesTo", 2),
                 (.map, ["kotlin", "collections", "Map"], "mapKeysTo", 2),
+                (.map, ["kotlin", "collections", "Map"], "filterKeys", 1),
+                (.map, ["kotlin", "collections", "Map"], "filterValues", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "groupBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
             ]
@@ -157,6 +163,14 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             return values.mapValuesTo(destination) { entry -> entry.value.length }
         }
 
+        fun filterKeysSpec(values: Map<Int, String>): Map<Int, String> {
+            return values.filterKeys { key -> key + 1 > 1 }
+        }
+
+        fun filterValuesSpec(values: Map<Int, String>): Map<Int, String> {
+            return values.filterValues { value -> value.length > 1 }
+        }
+
         fun sequenceMapIndexedSpec(values: Sequence<Int>): Sequence<Int> {
             return values.mapIndexed { index, value -> index + value }
         }
@@ -181,6 +195,8 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 ("filterIndexedTo", "MutableList"),
                 ("mapIndexedTo", "MutableList"),
                 ("mapValuesTo", "MutableMap"),
+                ("filterKeys", "Map"),
+                ("filterValues", "Map"),
                 ("mapIndexed", "Sequence"),
             ]
 

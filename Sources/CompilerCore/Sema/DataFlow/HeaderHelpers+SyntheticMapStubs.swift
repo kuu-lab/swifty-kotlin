@@ -365,11 +365,12 @@ extension DataFlowSemaPhase {
                 flags: flags
             )
             symbols.setParentSymbol(mapInterfaceSymbol, for: memberSymbol)
-            let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFMember(
+            let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
                 ownerKind: .map,
                 memberName: interner.resolve(memberName),
-                arity: parameterTypes.count
-            )?.runtimeLinkName ?? externalLinkName
+                arity: parameterTypes.count,
+                fallback: externalLinkName
+            )
             symbols.setExternalLinkName(resolvedExternalLinkName, for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(

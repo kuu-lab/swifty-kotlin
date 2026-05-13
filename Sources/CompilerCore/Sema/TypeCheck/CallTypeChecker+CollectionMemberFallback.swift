@@ -1835,6 +1835,26 @@ extension CallTypeChecker {
         return (destinationCollectionElementType, destinationMapKeyType, destinationMapValueType)
     }
 
+    private func stdlibSurfaceMapEntryTypes(
+        receiverElementType: TypeID,
+        sema: SemaModule
+    ) -> (key: TypeID, value: TypeID) {
+        guard case let .classType(entryType) = sema.types.kind(of: receiverElementType),
+              entryType.args.count >= 2
+        else {
+            return (sema.types.anyType, sema.types.anyType)
+        }
+        let keyType: TypeID = switch entryType.args[0] {
+        case let .invariant(id), let .out(id), let .in(id): id
+        case .star: sema.types.anyType
+        }
+        let valueType: TypeID = switch entryType.args[1] {
+        case let .invariant(id), let .out(id), let .in(id): id
+        case .star: sema.types.anyType
+        }
+        return (keyType, valueType)
+    }
+
     private func stdlibSurfaceLambdaReturnType(
         _ strategy: StdlibSurfaceLambdaReturnStrategy,
         args: [CallArgument],
@@ -1904,6 +1924,16 @@ extension CallTypeChecker {
              let .indexedDestinationElement(argumentIndex: index, returnStrategy: strategy):
             argumentIndex = index
             parameterTypes = [sema.types.intType, receiverElementType]
+            returnStrategy = strategy
+        case let .mapKey(argumentIndex: index, returnStrategy: strategy):
+            let mapEntryTypes = stdlibSurfaceMapEntryTypes(receiverElementType: receiverElementType, sema: sema)
+            argumentIndex = index
+            parameterTypes = [mapEntryTypes.key]
+            returnStrategy = strategy
+        case let .mapValue(argumentIndex: index, returnStrategy: strategy):
+            let mapEntryTypes = stdlibSurfaceMapEntryTypes(receiverElementType: receiverElementType, sema: sema)
+            argumentIndex = index
+            parameterTypes = [mapEntryTypes.value]
             returnStrategy = strategy
         }
         let returnType = stdlibSurfaceLambdaReturnType(

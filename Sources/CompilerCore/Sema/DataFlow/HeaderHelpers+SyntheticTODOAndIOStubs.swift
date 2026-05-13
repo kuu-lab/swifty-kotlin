@@ -1243,11 +1243,12 @@ extension DataFlowSemaPhase {
             flags: flags
         )
         symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-        let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFMember(
+        let resolvedExternalLinkName = StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
             ownerKind: .sequence,
             memberName: name,
-            arity: parameters.count
-        )?.runtimeLinkName ?? externalLinkName
+            arity: parameters.count,
+            fallback: externalLinkName
+        )
         symbols.setExternalLinkName(resolvedExternalLinkName, for: memberSymbol)
         if !annotations.isEmpty {
             symbols.setAnnotations(annotations, for: memberSymbol)
