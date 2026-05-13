@@ -278,6 +278,10 @@ private let valueTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?)
     value * 10
 }
 
+private let associateParityTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    kk_pair_new(value % 2, value * 10)
+}
+
 private let sortedByTens: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value / 10
 }
@@ -2002,6 +2006,36 @@ final class RuntimeCollectionHOFTests: XCTestCase {
     }
 
     // MARK: - associateByTo / associateWithTo / groupByTo tests
+
+    func testListAssociateBuildsMapAndOverwritesDuplicateKeys() {
+        let source = makeList([1, 2, 3])
+
+        let result = kk_list_associate(
+            source,
+            unsafeBitCast(associateParityTimesTen, to: Int.self), 0, nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 0])
+
+        var thrown = 0
+        XCTAssertEqual(kk_map_getValue(result, 1, &thrown), 30)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_map_getValue(result, 0, &thrown), 20)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testListAssociatePropagatesThrowingLambda() {
+        let source = makeList([1])
+        var thrown = 0
+
+        let result = kk_list_associate(
+            source,
+            unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown
+        )
+
+        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
 
     func testAssociateByToBasic() {
         let source = makeList([1, 2, 3])

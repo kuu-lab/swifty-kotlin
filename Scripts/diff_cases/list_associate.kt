@@ -1,19 +1,15 @@
 fun main() {
-    // associateWith: each element becomes the key, lambda gives value
-    val numbers = listOf(1, 2, 3, 4, 5)
-    println(numbers.associateWith { it * it })
+    val numbers = listOf(1, 2, 3, 4)
+    println(numbers.associate { (it % 2) to (it * 10) })
 
     val words = listOf("apple", "banana", "cherry")
-    println(words.associateWith { it.length })
+    println(words.associate { it.first() to it.length })
 
-    // associateWith on single element
     val single = listOf(42)
-    println(single.associateWith { it + 1 })
+    println(single.associate { (it - 40) to (it + 1) })
 
-    // associateWith with string values
-    val ints = listOf(10, 20, 30)
-    println(ints.associateWith { it - 5 })
+    val empty = emptyList<Int>()
+    println(empty.associate { it to it })
 
-    // Chaining: filter then associateWith
-    println(numbers.filter { it > 2 }.associateWith { it * 3 })
+    println(numbers.filter { it > 2 }.associate { it to (it * 3) })
 }
