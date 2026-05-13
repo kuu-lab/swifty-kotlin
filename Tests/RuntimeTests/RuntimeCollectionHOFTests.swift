@@ -2082,6 +2082,33 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertTrue(mapKeys(result).contains(20))  // key for elem 10
     }
 
+    func testListAssociateWithBuildsMapValues() {
+        let source = makeList([1, 2, 3])
+
+        let result = kk_list_associateWith(
+            source,
+            unsafeBitCast(valueTimesTen, to: Int.self), 0, nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 2, 3])
+        XCTAssertEqual(kk_map_get(result, 1), 10)
+        XCTAssertEqual(kk_map_get(result, 2), 20)
+        XCTAssertEqual(kk_map_get(result, 3), 30)
+    }
+
+    func testListAssociateWithPropagatesThrowingLambda() {
+        let source = makeList([1])
+        var thrown = 0
+
+        let result = kk_list_associateWith(
+            source,
+            unsafeBitCast(throwingHOFLambda, to: Int.self), 0, &thrown
+        )
+
+        XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testAssociateWithToBasic() {
         let source = makeList([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
