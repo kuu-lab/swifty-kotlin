@@ -67,7 +67,7 @@
 - [x] STDLIB-COL-CONCRETE-004: `HashSet<E>` 具象クラスの実装（現在は型エイリアスのみ）
 - [x] STDLIB-COL-CONCRETE-005: `LinkedHashMap<K,V>` 具象クラスの実装（現在は型エイリアスのみ）
 - [x] STDLIB-COL-CONCRETE-006: `LinkedHashSet<E>` 具象クラスの実装（現在は型エイリアスのみ）
-- [x] STDLIB-COL-CONCRETE-007: `ArrayDeque<E>` 具象クラスの実装
+- [x] STDLIB-COL-CONCRETE-007: `ArrayDeque<E>`  具象クラスの実装
 
 #### kotlin.collections 関数の実装（A-C）
 - [ ] STDLIB-COL-FN-001: `addAll` 関数の実装（Array版）
