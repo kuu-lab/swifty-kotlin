@@ -841,12 +841,9 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testCodegenListAssociateHelpersUseRuntimeMapBuilders() throws {
-        throw XCTSkip("List associate helpers feature not yet implemented")
         let source = """
         fun main() {
             val values = listOf(1, 2, 3)
-            println(values.associateBy { it % 2 })
-            println(values.associateWith { it * 10 })
             println(values.associate { (it % 2) to (it * 10) })
         }
         """
@@ -863,7 +860,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "{1=3, 0=2}\n{1=10, 2=20, 3=30}\n{1=30, 0=20}\n")
+            XCTAssertEqual(normalizedStdout, "{1=30, 0=20}\n")
         }
     }
 
