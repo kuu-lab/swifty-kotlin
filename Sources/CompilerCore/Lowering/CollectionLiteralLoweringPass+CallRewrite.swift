@@ -400,6 +400,7 @@ extension CollectionLiteralLoweringPass {
                                 thrownResult: nil
                             ))
                         }
+                        if let result { setExprIDs.insert(result.rawValue) }
                         continue
                     }
 
@@ -1009,10 +1010,10 @@ extension CollectionLiteralLoweringPass {
                         }
                     }
 
-                    // --- Rewrite kk_range_iterator on list → kk_list_iterator ---
+                    // --- Rewrite kk_range_iterator on list/set → kk_list_iterator ---
                     if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
                         let argID = arguments[0]
-                        if listExprIDs.contains(argID.rawValue) {
+                        if listExprIDs.contains(argID.rawValue) || setExprIDs.contains(argID.rawValue) {
                             if let result { listIteratorExprIDs.insert(result.rawValue) }
                             loweredBody.append(.call(
                                 symbol: nil,
@@ -1234,6 +1235,23 @@ extension CollectionLiteralLoweringPass {
                     if callee == lookup.listIteratorMemberName, arguments.count == 1 {
                         let receiverID = arguments[0]
                         if listExprIDs.contains(receiverID.rawValue) {
+                            if let result { listIteratorExprIDs.insert(result.rawValue) }
+                            loweredBody.append(.call(
+                                symbol: nil,
+                                callee: lookup.kkListIteratorName,
+                                arguments: [receiverID],
+                                result: result,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            continue
+                        }
+                    }
+
+                    // --- Rewrite explicit iterator() on list/set → kk_list_iterator ---
+                    if callee == lookup.iteratorName, arguments.count == 1 {
+                        let receiverID = arguments[0]
+                        if listExprIDs.contains(receiverID.rawValue) || setExprIDs.contains(receiverID.rawValue) {
                             if let result { listIteratorExprIDs.insert(result.rawValue) }
                             loweredBody.append(.call(
                                 symbol: nil,
