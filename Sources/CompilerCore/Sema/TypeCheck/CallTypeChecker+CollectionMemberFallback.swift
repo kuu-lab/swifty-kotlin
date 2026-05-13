@@ -1473,6 +1473,15 @@ extension CallTypeChecker {
             )))
         }
 
+        if memberName == interner.intern("toTypedArray") {
+            return makeSyntheticArrayType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: receiverElementType
+            )
+        }
+
         if memberName == interner.intern("toIntArray"),
            let intArraySymbol = sema.symbols.lookup(fqName: [
                interner.intern("kotlin"),
