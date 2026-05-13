@@ -2189,8 +2189,9 @@ public func kk_list_windowed_default(_ listRaw: Int, _ size: Int) -> Int {
 
 @_cdecl("kk_list_windowed")
 public func kk_list_windowed(_ listRaw: Int, _ size: Int, _ step: Int) -> Int {
-    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elements = _listBox.elements
+    guard let elements = runtimeCollectionElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
     var windows: [Int] = []
@@ -2205,8 +2206,9 @@ public func kk_list_windowed(_ listRaw: Int, _ size: Int, _ step: Int) -> Int {
 
 @_cdecl("kk_list_windowed_partial")
 public func kk_list_windowed_partial(_ listRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elements = _listBox.elements
+    guard let elements = runtimeCollectionElements(from: listRaw) else {
+        invalidContainerPanic(#function, "collection")
+    }
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
     let partial = partialWindows != 0

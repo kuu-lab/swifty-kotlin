@@ -2,7 +2,7 @@
 
 /// Per-member synthetic Iterable<E> registrations:
 /// `asSequence`, `joinTo`, `firstNotNullOf{,OrNull}`, `all`, `any`, `last`,
-/// `joinToString`, `windowed(transform:)`, `plusElement`,
+/// `joinToString`, `windowed`, `plusElement`,
 /// `minusElement`, `reduceRight*`, `sumBy{,Double}`.
 ///
 /// Split out from `HeaderHelpers+SyntheticIterableStubs.swift`.
@@ -534,6 +534,16 @@ extension DataFlowSemaPhase {
             args: [.out(listTypeParamType)],
             nullability: .nonNull
         )))
+        let listReturnType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.invariant(listTypeParamType)],
+            nullability: .nonNull
+        )))
+        let listOfListReturnType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(listReturnType)],
+            nullability: .nonNull
+        )))
         let transformParameterType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.invariant(listTypeParamType)],
@@ -550,6 +560,36 @@ extension DataFlowSemaPhase {
             args: [.out(types.anyType)],
             nullability: .nonNull
         )))
+
+        func registerWindowedOverload(_ parameterTypes: [TypeID], externalLinkName: String) {
+            let existingOverloads = symbols.lookupAll(fqName: memberFQName)
+            let alreadyRegistered = existingOverloads.contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else { return false }
+                return sig.parameterTypes == parameterTypes
+                    && symbols.externalLinkName(for: symID) == externalLinkName
+            }
+            guard !alreadyRegistered else { return }
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: listOfListReturnType,
+                    typeParameterSymbols: [listTypeParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: memberSymbol
+            )
+        }
 
         func registerWindowedTransformOverload(_ parameterTypes: [TypeID]) {
             let existingOverloads = symbols.lookupAll(fqName: memberFQName)
@@ -581,6 +621,12 @@ extension DataFlowSemaPhase {
             )
         }
 
+        registerWindowedOverload([types.intType], externalLinkName: "kk_list_windowed_default")
+        registerWindowedOverload([types.intType, types.intType], externalLinkName: "kk_list_windowed")
+        registerWindowedOverload(
+            [types.intType, types.intType, types.booleanType],
+            externalLinkName: "kk_list_windowed_partial"
+        )
         registerWindowedTransformOverload([types.intType, transformType])
         registerWindowedTransformOverload([types.intType, types.intType, transformType])
         registerWindowedTransformOverload([types.intType, types.intType, types.booleanType, transformType])

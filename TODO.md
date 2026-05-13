@@ -88,7 +88,7 @@
 - [x] STDLIB-COL-FN-212: `toList` 関数の実装
 - [ ] STDLIB-COL-FN-215: `toMutableList` 関数の実装
 - [x] STDLIB-COL-FN-220: `toTypeArray` 関数の実装
-- [ ] STDLIB-COL-FN-225: `windowed` 関数の実装
+- [x] STDLIB-COL-FN-225: `windowed` 関数の実装
 
 ### Phase 3: I/O・パス・時間・並行（common）
 - [~] STDLIB-GAP-PH3: `kotlin.io`（common） / `kotlin.time` / `kotlin.concurrent` / `kotlin.concurrent.atomics` の未対応を潰す
