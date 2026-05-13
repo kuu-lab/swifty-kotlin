@@ -287,6 +287,22 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
 
+        let bufferedWriterSymbol = ensureClassSymbol(
+            named: "BufferedWriter",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaIOPkgSymbol {
+            symbols.setParentSymbol(javaIOPkgSymbol, for: bufferedWriterSymbol)
+        }
+        let bufferedWriterType = types.make(.classType(ClassType(
+            classSymbol: bufferedWriterSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
+
         let javaNetPkg = ensurePackage(
             path: ["java", "net"],
             symbols: symbols,
@@ -936,6 +952,23 @@ extension DataFlowSemaPhase {
             ],
             returnType: bufferedReaderType,
             externalLinkName: "kk_path_bufferedReader",
+            valueParameterHasDefaultValues: [true, true, false],
+            valueParameterIsVararg: [false, false, true],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "bufferedWriter",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [
+                ("charset", charsetType),
+                ("bufferSize", types.intType),
+                ("options", openOptionType),
+            ],
+            returnType: bufferedWriterType,
+            externalLinkName: "kk_path_bufferedWriter",
             valueParameterHasDefaultValues: [true, true, false],
             valueParameterIsVararg: [false, false, true],
             symbols: symbols,

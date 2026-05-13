@@ -647,3 +647,32 @@ public func kk_path_extension(_ pathRaw: Int) -> Int {
     }
     return pathMakeStringRaw(String(name[name.index(after: dotIndex)...]))
 }
+
+@_cdecl("kk_path_bufferedWriter")
+public func kk_path_bufferedWriter(
+    _ pathRaw: Int,
+    _ charsetRaw: Int,
+    _ bufferSizeRaw: Int,
+    _ optionsRaw: Int
+) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_bufferedWriter received invalid Path handle")
+    }
+    _ = optionsRaw
+    let url = URL(fileURLWithPath: path.pathString)
+    if !FileManager.default.fileExists(atPath: path.pathString) {
+        _ = FileManager.default.createFile(atPath: path.pathString, contents: Data())
+    }
+    do {
+        let fileHandle = try FileHandle(forWritingTo: url)
+        fileHandle.truncateFile(atOffset: 0)
+        let bufferSize = max(1, kk_unbox_int(bufferSizeRaw))
+        return registerRuntimeObject(RuntimeBufferedWriterBox(
+            fileHandle: fileHandle,
+            bufferSize: bufferSize,
+            encoding: pathStringEncoding(for: charsetRaw)
+        ))
+    } catch {
+        return 0
+    }
+}
