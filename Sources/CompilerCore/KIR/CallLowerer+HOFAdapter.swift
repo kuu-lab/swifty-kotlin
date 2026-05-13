@@ -43,7 +43,7 @@ extension CallLowerer {
         let closureExpr = arena.appendExpr(.symbolRef(closureParam.symbol), type: closureParam.type)
         body.append(.constValue(result: closureExpr, value: .symbolRef(closureParam.symbol)))
 
-        let callArguments = appendCallableCaptureLoads(
+        var callArguments = appendCallableCaptureLoads(
             callableInfo: callableInfo,
             closureExpr: closureExpr,
             sema: sema,
