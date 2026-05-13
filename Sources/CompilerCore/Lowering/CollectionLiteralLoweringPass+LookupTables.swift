@@ -393,6 +393,7 @@ struct CollectionLiteralLookupTables {
     let kkArrayToListName: InternedString
     let kkArrayToMutableListName: InternedString
     let kkListToTypedArrayName: InternedString
+    let kkListToCharArrayName: InternedString
     let kkListToBooleanArrayName: InternedString
     let kkListToShortArrayName: InternedString
     let kkListToDoubleArrayName: InternedString
@@ -653,6 +654,7 @@ struct CollectionLiteralLookupTables {
     let toUShortArrayName: InternedString
     let toUIntArrayName: InternedString
     let toULongArrayName: InternedString
+    let toCharArrayName: InternedString
     let toBooleanArrayName: InternedString
     let toShortArrayName: InternedString
     let toDoubleArrayName: InternedString
@@ -1199,6 +1201,7 @@ struct CollectionLiteralLookupTables {
         kkArrayToListName = interner.intern("kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
         kkListToTypedArrayName = interner.intern("kk_list_toTypedArray")
+        kkListToCharArrayName = interner.intern("kk_list_toCharArray")
         kkListToBooleanArrayName = interner.intern("kk_list_toBooleanArray")
         kkListToShortArrayName = interner.intern("kk_list_toShortArray")
         kkListToDoubleArrayName = interner.intern("kk_list_toDoubleArray")
@@ -1451,6 +1454,7 @@ struct CollectionLiteralLookupTables {
         toUShortArrayName = interner.intern("toUShortArray")
         toUIntArrayName = interner.intern("toUIntArray")
         toULongArrayName = interner.intern("toULongArray")
+        toCharArrayName = interner.intern("toCharArray")
         toBooleanArrayName = interner.intern("toBooleanArray")
         toShortArrayName = interner.intern("toShortArray")
         toDoubleArrayName = interner.intern("toDoubleArray")
