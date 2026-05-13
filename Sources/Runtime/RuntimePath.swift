@@ -30,6 +30,46 @@ private func pathMakeStringRaw(_ value: String) -> Int {
     })
 }
 
+private func pathStringValue(from raw: Int) -> String? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+        return nil
+    }
+    return extractString(from: ptr)
+}
+
+private func pathLineElements(from raw: Int) -> [Int]? {
+    if let list = runtimeListBox(from: raw) {
+        return list.elements
+    }
+    if let array = runtimeArrayBox(from: raw) {
+        return array.elements
+    }
+    return nil
+}
+
+private func pathStringEncoding(for charsetRaw: Int) -> String.Encoding {
+    switch charsetRaw {
+    case 1:
+        .isoLatin1
+    case 2:
+        .ascii
+    case 3:
+        .utf16
+    case 4:
+        .utf16BigEndian
+    case 5:
+        .utf16LittleEndian
+    case 6:
+        .utf32
+    case 7:
+        .utf32BigEndian
+    case 8:
+        .utf32LittleEndian
+    default:
+        .utf8
+    }
+}
+
 /// Split a path string into name components, excluding root "/" and empty segments.
 private func pathComponents(_ pathString: String) -> [String] {
     pathString.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
@@ -222,36 +262,6 @@ public func kk_path_writeText(_ pathRaw: Int, _ textRaw: Int, _ outThrown: Unsaf
     return 0
 }
 
-private func pathStringValue(from raw: Int) -> String? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
-        return nil
-    }
-    return extractString(from: ptr)
-}
-
-private func pathStringEncoding(for charsetRaw: Int) -> String.Encoding {
-    switch charsetRaw {
-    case 1:
-        return .isoLatin1
-    case 2:
-        return .ascii
-    case 3:
-        return .utf16
-    case 4:
-        return .utf16BigEndian
-    case 5:
-        return .utf16LittleEndian
-    case 6:
-        return .utf32
-    case 7:
-        return .utf32BigEndian
-    case 8:
-        return .utf32LittleEndian
-    default:
-        return .utf8
-    }
-}
-
 @_cdecl("kk_path_appendText_default")
 public func kk_path_appendText_default(_ pathRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_path_appendText(pathRaw, textRaw, 0, outThrown)
@@ -311,6 +321,40 @@ public func kk_path_copyTo_options(
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
     }
     return targetRaw
+}
+
+@_cdecl("kk_path_appendLines_iterable_default")
+public func kk_path_appendLines_iterable_default(_ pathRaw: Int, _ linesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    kk_path_appendLines_iterable(pathRaw, linesRaw, 0, outThrown)
+}
+
+@_cdecl("kk_path_appendLines_iterable")
+public func kk_path_appendLines_iterable(_ pathRaw: Int, _ linesRaw: Int, _ charsetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_appendLines_iterable received invalid Path handle")
+    }
+    guard let elements = pathLineElements(from: linesRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_appendLines_iterable received invalid Iterable handle")
+    }
+    do {
+        let text = elements.map { pathStringValue(from: $0) ?? "null" }.map { $0 + "\n" }.joined()
+        let encoding = pathStringEncoding(for: charsetRaw)
+        let url = URL(fileURLWithPath: path.pathString)
+        if FileManager.default.fileExists(atPath: path.pathString) {
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            if let data = text.data(using: encoding) ?? text.data(using: .utf8) {
+                try handle.write(contentsOf: data)
+            }
+        } else {
+            try text.write(toFile: path.pathString, atomically: true, encoding: encoding)
+        }
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+    }
+    return pathRaw
 }
 
 @_cdecl("kk_path_appendBytes")

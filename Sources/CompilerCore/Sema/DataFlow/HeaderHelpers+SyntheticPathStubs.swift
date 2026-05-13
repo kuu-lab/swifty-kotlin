@@ -24,6 +24,7 @@
 /// - `Path.readSymbolicLink(): Path` extension function
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
+/// - `Path.appendLines(lines: Iterable<CharSequence>, charset)` extension function
 /// - `Path.absolutePathString(): String` extension function
 /// - `Path.appendBytes(array: ByteArray)` extension function
 /// - `readBytes(): ByteArray`, `readText(): String`, `writeText(text: String)`, `readLines(): List<String>`
@@ -72,6 +73,7 @@ extension DataFlowSemaPhase {
 
         let nullablePathType = types.makeNullable(pathType)
         let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
+        let kotlinCollectionsPkg = ensurePackage(path: ["kotlin", "collections"], symbols: symbols, interner: interner)
         let kotlinTextPkg = ensurePackage(path: ["kotlin", "text"], symbols: symbols, interner: interner)
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg)
         let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg)
@@ -249,6 +251,19 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
+
+        let iterableFQName = kotlinCollectionsPkg + [interner.intern("Iterable")]
+        let iterableSymbol = symbols.lookup(fqName: iterableFQName) ?? registerSyntheticIterableStub(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg
+        )
+        let iterableOfCharSequenceType = types.make(.classType(ClassType(
+            classSymbol: iterableSymbol,
+            args: [.invariant(charSequenceType)],
+            nullability: .nonNull
+        )))
 
         // List<String> type for readLines return
         let listOfStringType: TypeID = if let listSym = listSymbol {
@@ -560,6 +575,28 @@ extension DataFlowSemaPhase {
             receiverType: pathType,
             returnType: types.stringType,
             externalLinkName: "kk_path_invariantSeparatorsPathString",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "appendLines",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("lines", iterableOfCharSequenceType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_appendLines_iterable_default",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "appendLines",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("lines", iterableOfCharSequenceType), ("charset", charsetType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_appendLines_iterable",
             symbols: symbols,
             interner: interner
         )
