@@ -196,16 +196,19 @@ extension DataFlowSemaPhase {
         registerAtomicAsJavaAtomicFunction(
             packageFQName: atomicsPkg,
             receiverPackageFQName: concurrentPkg,
-            receiverName: "AtomicBoolean",
-            javaAtomicName: "AtomicBoolean",
-            externalLinkName: "kk_atomic_bool_asJavaAtomic",
+            receiverName: "AtomicLong",
+            javaAtomicName: "AtomicLong",
+            externalLinkName: "kk_atomic_long_asJavaAtomic",
             symbols: symbols,
             types: types,
             interner: interner
         )
-        registerAtomicReferenceAsJavaAtomicFunction(
+        registerAtomicAsJavaAtomicFunction(
             packageFQName: atomicsPkg,
             receiverPackageFQName: concurrentPkg,
+            receiverName: "AtomicBoolean",
+            javaAtomicName: "AtomicBoolean",
+            externalLinkName: "kk_atomic_bool_asJavaAtomic",
             symbols: symbols,
             types: types,
             interner: interner
