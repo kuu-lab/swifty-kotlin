@@ -30,4 +30,15 @@ fun main() {
     println(setOf(1, 2, 3).map { it * 2 })
     println(setOf(1, 2, 3, 4).mapNotNull { if (it % 2 == 0) it * 10 else null })
     println(setOf(1, 2, 3).flatMap { listOf(it, it * 10) })
+
+    for (item in setOf(4, 5, 6)) {
+        print("$item ")
+    }
+    println()
+
+    val iter = setOf(7, 8).iterator()
+    while (iter.hasNext()) {
+        print("${iter.next()} ")
+    }
+    println()
 }
