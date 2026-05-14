@@ -41,6 +41,7 @@ extension DataFlowSemaPhase {
             includeGetAndDecrementAlias: true,
             includeGetAndSetAlias: true,
             includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -62,6 +63,7 @@ extension DataFlowSemaPhase {
             includeGetAndDecrementAlias: true,
             includeGetAndSetAlias: true,
             includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -232,6 +234,7 @@ extension DataFlowSemaPhase {
             includeGetAndDecrementAlias: true,
             includeGetAndSetAlias: true,
             includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
             includeFetchAndUpdate: true,
             symbols: symbols,
             interner: interner,
@@ -261,6 +264,7 @@ extension DataFlowSemaPhase {
             includeGetAndDecrementAlias: true,
             includeGetAndSetAlias: true,
             includeGetAndAddAlias: true,
+            includeDecrementAndGetAlias: true,
             symbols: symbols,
             interner: interner,
             types: types
@@ -474,6 +478,7 @@ extension DataFlowSemaPhase {
         includeGetAndDecrementAlias: Bool = false,
         includeGetAndSetAlias: Bool = false,
         includeGetAndAddAlias: Bool = false,
+        includeDecrementAndGetAlias: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner,
         types: TypeSystem
@@ -531,6 +536,7 @@ extension DataFlowSemaPhase {
                 includeGetAndIncrementAlias: includeGetAndIncrementAlias,
                 includeGetAndDecrementAlias: includeGetAndDecrementAlias,
                 includeGetAndAddAlias: includeGetAndAddAlias,
+                includeDecrementAndGetAlias: includeDecrementAndGetAlias,
                 symbols: symbols,
                 interner: interner
             )
@@ -938,6 +944,7 @@ extension DataFlowSemaPhase {
         includeGetAndDecrementAlias: Bool = false,
         includeGetAndSetAlias: Bool = false,
         includeGetAndAddAlias: Bool = false,
+        includeDecrementAndGetAlias: Bool = false,
         includeFetchAndUpdate: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner,
@@ -1140,6 +1147,18 @@ extension DataFlowSemaPhase {
                     ownerType: ownerType,
                     name: "getAndDecrement",
                     externalLinkName: "\(prefix)_fetchAndDecrementAt",
+                    returnType: valueType,
+                    parameters: [(name: "index", type: types.intType)],
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
+            if includeDecrementAndGetAlias {
+                registerAtomicMember(
+                    ownerSymbol: symbol,
+                    ownerType: ownerType,
+                    name: "decrementAndGet",
+                    externalLinkName: "\(prefix)_decrementAndFetchAt",
                     returnType: valueType,
                     parameters: [(name: "index", type: types.intType)],
                     symbols: symbols,
@@ -2261,6 +2280,7 @@ extension DataFlowSemaPhase {
         includeGetAndIncrementAlias: Bool = false,
         includeGetAndDecrementAlias: Bool = false,
         includeGetAndAddAlias: Bool = false,
+        includeDecrementAndGetAlias: Bool = false,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -2358,6 +2378,16 @@ extension DataFlowSemaPhase {
             classTypeParameterCount: classTypeParameterCount,
             symbols: symbols, interner: interner
         )
+        if includeDecrementAndGetAlias {
+            registerAtomicMember(
+                ownerSymbol: ownerSymbol, ownerType: ownerType,
+                name: "decrementAndGet", externalLinkName: "\(prefix)_decrementAndFetch",
+                returnType: valueType, parameters: [],
+                typeParameterSymbols: typeParameterSymbols,
+                classTypeParameterCount: classTypeParameterCount,
+                symbols: symbols, interner: interner
+            )
+        }
     }
 
     private func registerAtomicGetAndUpdateMethods(
