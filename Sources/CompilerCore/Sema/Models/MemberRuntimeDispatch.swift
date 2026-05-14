@@ -1,3 +1,5 @@
+import RuntimeABI
+
 enum MemberDispatchReceiverKind: String, Equatable, Hashable {
     case intRange
     case longRange

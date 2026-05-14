@@ -1,4 +1,5 @@
 @testable import CompilerCore
+import RuntimeABI
 import XCTest
 
 final class StdlibSurfaceSpecTests: XCTestCase {
@@ -28,6 +29,17 @@ final class StdlibSurfaceSpecTests: XCTestCase {
         }
     }
 
+    func testCollectionHOFSpecRuntimeLinksAreRegisteredInRuntimeABI() {
+        let abiNames = Set(RuntimeABISpec.allFunctions.map(\.name))
+
+        for spec in StdlibSurfaceSpec.collectionHOFMembers {
+            XCTAssertTrue(
+                abiNames.contains(spec.runtimeLinkName),
+                "Expected RuntimeABISpec to register \(spec.runtimeLinkName) for \(spec.ownerKind.rawValue).\(spec.memberName)"
+            )
+        }
+    }
+
     func testCollectionHOFSpecContainsV1Surface() {
         let expected: Set<SpecKey> = [
             list("map", 1),
@@ -47,8 +59,14 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             list("firstNotNullOf", 1),
             list("firstNotNullOfOrNull", 1),
             list("forEachIndexed", 1),
+            list("onEach", 1),
+            list("onEachIndexed", 1),
             list("mapIndexed", 1),
             list("filterIndexed", 1),
+            list("takeWhile", 1),
+            list("dropWhile", 1),
+            list("takeLastWhile", 1),
+            list("dropLastWhile", 1),
             list("filterTo", 2),
             list("filterNotTo", 2),
             list("mapTo", 2),
@@ -63,11 +81,26 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             list("associateWithTo", 2),
             list("groupByTo", 2),
 
+            set("map", 1),
+            set("filter", 1),
+            set("forEach", 1),
+            set("filterNot", 1),
+            set("mapNotNull", 1),
+            set("flatMap", 1),
+            set("any", 1),
+            set("none", 1),
+            set("all", 1),
+            set("count", 1),
+
             map("forEach", 1),
             map("map", 1),
             map("mapNotNull", 1),
             map("filter", 1),
             map("filterNot", 1),
+            map("count", 1),
+            map("any", 1),
+            map("all", 1),
+            map("none", 1),
             map("mapValues", 1),
             map("mapKeys", 1),
             map("mapValuesTo", 2),
@@ -92,7 +125,16 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("firstNotNullOf", 1),
             sequence("firstNotNullOfOrNull", 1),
             sequence("forEachIndexed", 1),
+            sequence("onEach", 1),
+            sequence("onEachIndexed", 1),
             sequence("mapIndexed", 1),
+            sequence("filterTo", 2),
+            sequence("filterNotTo", 2),
+            sequence("mapTo", 2),
+            sequence("mapIndexedNotNullTo", 2),
+            sequence("filterIndexedTo", 2),
+            sequence("filterNotNullTo", 1),
+            sequence("filterIsInstanceTo", 1),
             sequence("associateTo", 2),
             sequence("associateByTo", 2),
             sequence("associateWithTo", 2),
@@ -245,6 +287,10 @@ private struct SpecKey: Hashable, CustomStringConvertible {
 
 private func list(_ memberName: String, _ arity: Int) -> SpecKey {
     SpecKey(ownerKind: .list, memberName: memberName, arityMinimum: arity, arityMaximum: arity)
+}
+
+private func set(_ memberName: String, _ arity: Int) -> SpecKey {
+    SpecKey(ownerKind: .set, memberName: memberName, arityMinimum: arity, arityMaximum: arity)
 }
 
 private func map(_ memberName: String, _ arity: Int) -> SpecKey {

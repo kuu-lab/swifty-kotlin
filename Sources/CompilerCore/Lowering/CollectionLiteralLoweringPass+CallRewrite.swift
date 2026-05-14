@@ -1,5 +1,6 @@
 // swiftlint:disable file_length
 import Foundation
+import RuntimeABI
 
 extension CollectionLiteralLoweringPass {
 
@@ -1707,7 +1708,7 @@ extension CollectionLiteralLoweringPass {
                         if state.sequenceExprIDs.contains(receiverID.rawValue),
                            !state.arrayExprIDs.contains(receiverID.rawValue)
                         {
-                            let kkName = callee == lookup.mapName ? lookup.kkSequenceMapName : lookup.kkSequenceFilterName
+                            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .sequence, callee: callee, arity: 1) ?? callee
                             loweredBody.append(.call(
                                 symbol: nil,
                                 callee: kkName,
@@ -2785,7 +2786,94 @@ extension CollectionLiteralLoweringPass {
                         if arguments.count == 2 || arguments.count == 3 {
                             let receiverID = arguments[0]
                             let lambdaID = arguments[1]
-                            if state.rangeExprIDs.contains(receiverID.rawValue),
+                            // countName with a List receiver is handled by the dedicated count/first/last
+                            // handler below, which correctly rewrites it to kk_list_count.
+                            // Entering this generic list-HOF path for countName would emit a call with
+                            // the un-rewritten "count" callee and then `continue`, skipping that handler.
+                            if listExprIDs.contains(receiverID.rawValue) && callee != lookup.countName {
+                                let closureRawID: KIRExprID
+                                if arguments.count == 3 {
+                                    closureRawID = arguments[2]
+                                } else {
+                                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                                    closureRawID = zeroExpr
+                                }
+                                let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) ?? callee
+                                let needsListTag = callee == lookup.mapName
+                                    || callee == lookup.mapNotNullName
+                                    || callee == lookup.flatMapName
+                                    || callee == lookup.flatMapIndexedName
+                                    || callee == lookup.filterName
+                                    || callee == lookup.filterNotName
+                                    || callee == lookup.onEachName
+                                let hofResult = module.arena.appendExpr(
+                                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                                )
+                                loweredBody.append(.call(
+                                    symbol: nil,
+                                    callee: kkName,
+                                    arguments: [receiverID, lambdaID, closureRawID],
+                                    result: hofResult,
+                                    canThrow: canThrow,
+                                    thrownResult: thrownResult
+                                ))
+                                if needsListTag, let result {
+                                    listExprIDs.insert(result.rawValue)
+                                    listExprIDs.insert(hofResult.rawValue)
+                                }
+                                if let result {
+                                    loweredBody.append(.copy(from: hofResult, to: result))
+                                }
+                                continue
+                            }
+                            if mapExprIDs.contains(receiverID.rawValue),
+                               callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
+                               || callee == lookup.mapValuesName || callee == lookup.mapKeysName
+                               || callee == lookup.filterKeysName || callee == lookup.filterValuesName
+                               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
+                               || callee == lookup.anyName || callee == lookup.allName
+                               || callee == lookup.noneName
+                               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
+                            {
+                                let closureRawID: KIRExprID
+                                if arguments.count == 3 {
+                                    closureRawID = arguments[2]
+                                } else {
+                                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                                    closureRawID = zeroExpr
+                                }
+                                let kkName = lookup.collectionHOFRuntimeName(ownerKind: .map, callee: callee, arity: 1) ?? callee
+                                let hofResult = module.arena.appendExpr(
+                                    .temporary(Int32(module.arena.expressions.count)), type: nil
+                                )
+                                loweredBody.append(.call(
+                                    symbol: nil,
+                                    callee: kkName,
+                                    arguments: [receiverID, lambdaID, closureRawID],
+                                    result: hofResult,
+                                    canThrow: canThrow,
+                                    thrownResult: thrownResult
+                                ))
+                                if callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName, let result {
+                                    listExprIDs.insert(result.rawValue)
+                                    listExprIDs.insert(hofResult.rawValue)
+                                }
+                                if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
+                                    mapExprIDs.insert(result.rawValue)
+                                    mapExprIDs.insert(hofResult.rawValue)
+                                }
+                                if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
+                                    mapExprIDs.insert(result.rawValue)
+                                    mapExprIDs.insert(hofResult.rawValue)
+                                }
+                                if let result {
+                                    loweredBody.append(.copy(from: hofResult, to: result))
+                                }
+                                continue
+                            }
+                            if rangeExprIDs.contains(receiverID.rawValue),
                                callee == lookup.mapName || callee == lookup.forEachName
                             {
                                 let closureRawID: KIRExprID
@@ -2893,19 +2981,7 @@ extension CollectionLiteralLoweringPass {
                                     loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                                     closureRawID = zeroExpr
                                 }
-                                let kkName: InternedString = switch callee {
-                                case lookup.mapName: lookup.kkSetMapName
-                                case lookup.filterName: lookup.kkSetFilterName
-                                case lookup.forEachName: lookup.kkSetForEachName
-                                case lookup.filterNotName: lookup.kkSetFilterNotName
-                                case lookup.mapNotNullName: lookup.kkSetMapNotNullName
-                                case lookup.flatMapName: lookup.kkSetFlatMapName
-                                case lookup.anyName: lookup.kkSetAnyName
-                                case lookup.noneName: lookup.kkSetNoneName
-                                case lookup.allName: lookup.kkSetAllName
-                                case lookup.countName: lookup.kkSetCountPredicateName
-                                default: callee
-                                }
+                                let kkName = lookup.collectionHOFRuntimeName(ownerKind: .set, callee: callee, arity: 1) ?? callee
                                 let needsListTag = callee == lookup.mapName || callee == lookup.filterName
                                     || callee == lookup.filterNotName || callee == lookup.mapNotNullName
                                     || callee == lookup.flatMapName

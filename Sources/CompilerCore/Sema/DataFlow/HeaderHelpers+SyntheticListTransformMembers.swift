@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import RuntimeABI
 
 /// `List<E>.map` / `flatMap` / `mapNotNull` / `filter` / `mapIndexed` /
 /// other transform members extracted from `HeaderHelpers+SyntheticListStubs.swift`.

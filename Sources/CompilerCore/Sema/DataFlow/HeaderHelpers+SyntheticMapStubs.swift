@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// Map<K,V>, Map.Entry<K,V>, and MutableMap<K,V> interfaces with higher-order members.

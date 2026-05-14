@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 extension CollectionLiteralLoweringPass {
     struct VirtualCallRewriteContext {
@@ -471,18 +472,7 @@ extension CollectionLiteralLoweringPass {
 
         guard arguments.count == 1 else { return false }
 
-        let kkName: InternedString = switch callee {
-        case lookup.mapName: lookup.kkMapMapName
-        case lookup.filterName: lookup.kkMapFilterName
-        case lookup.filterNotName: lookup.kkMapFilterNotName
-        case lookup.filterKeysName: lookup.kkMapFilterKeysName
-        case lookup.filterValuesName: lookup.kkMapFilterValuesName
-        case lookup.forEachName: lookup.kkMapForEachName
-        case lookup.mapValuesName: lookup.kkMapMapValuesName
-        case lookup.mapKeysName: lookup.kkMapMapKeysName
-        case lookup.mapNotNullName: lookup.kkMapMapNotNullName
-        default: callee
-        }
+        let kkName = lookup.collectionHOFRuntimeName(ownerKind: .map, callee: callee, arity: 1) ?? callee
         let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
         loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
         let hofResult = emitHOFCall(
@@ -582,24 +572,7 @@ extension CollectionLiteralLoweringPass {
         else { return false }
         guard arguments.count == 1, listExprIDs.contains(receiver.rawValue) else { return false }
 
-        let kkName: InternedString = switch callee {
-        case lookup.mapName: lookup.kkListMapName
-        case lookup.filterName: lookup.kkListFilterName
-        case lookup.filterNotName: lookup.kkListFilterNotName
-        case lookup.mapNotNullName: lookup.kkListMapNotNullName
-        case lookup.forEachName: lookup.kkListForEachName
-        case lookup.onEachName: lookup.kkListOnEachName
-        case lookup.flatMapName: lookup.kkListFlatMapName
-        case lookup.flatMapIndexedName: lookup.kkListFlatMapIndexedName
-        case lookup.anyName: lookup.kkListAnyName
-        case lookup.noneName: lookup.kkListNoneName
-        case lookup.allName: lookup.kkListAllName
-        case lookup.takeWhileName: lookup.kkListTakeWhileName
-        case lookup.dropWhileName: lookup.kkListDropWhileName
-        case lookup.takeLastWhileName: lookup.kkListTakeLastWhileName
-        case lookup.dropLastWhileName: lookup.kkListDropLastWhileName
-        default: callee
-        }
+        let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) ?? callee
         let needsListTag = callee == lookup.mapName
             || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName || callee == lookup.filterName

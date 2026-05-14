@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 // swiftformat:disable redundantMemberwiseInit
 struct CollectionLiteralLookupTables {
@@ -826,6 +827,7 @@ struct CollectionLiteralLookupTables {
     let arrayOfFactoryNames: Set<InternedString>
     let builderDSLNames: Set<InternedString>
     let stringProducingCallees: Set<InternedString>
+    private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
     init(interner: StringInterner) {
         listOfName = interner.intern("listOf")
@@ -1620,6 +1622,18 @@ struct CollectionLiteralLookupTables {
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
         arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
         builderDSLNames = [buildStringName, buildListName, buildSetName, buildMapName]
+        collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
+            (spec.arity.minimum ... spec.arity.maximum).map { arity in
+                (
+                    CollectionHOFRuntimeKey(
+                        ownerKind: spec.ownerKind,
+                        memberName: interner.intern(spec.memberName),
+                        arity: arity
+                    ),
+                    interner.intern(spec.runtimeLinkName)
+                )
+            }
+        })
 
         stringProducingCallees = [
             interner.intern("kk_string_concat"),
@@ -1666,6 +1680,20 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_build_string_with_capacity"),
         ]
     }
+
+    func collectionHOFRuntimeName(
+        ownerKind: StdlibSurfaceOwnerKind,
+        callee: InternedString,
+        arity: Int
+    ) -> InternedString? {
+        collectionHOFRuntimeNames[CollectionHOFRuntimeKey(ownerKind: ownerKind, memberName: callee, arity: arity)]
+    }
 }
 
 // swiftformat:enable redundantMemberwiseInit
+
+private struct CollectionHOFRuntimeKey: Hashable {
+    let ownerKind: StdlibSurfaceOwnerKind
+    let memberName: InternedString
+    let arity: Int
+}
