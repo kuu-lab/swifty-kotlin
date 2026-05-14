@@ -977,6 +977,10 @@ final class RuntimeCollectionHOFTests: XCTestCase {
 
         let partialWindows = kk_list_windowed_partial(source, 3, 2, 1)
         XCTAssertEqual(listElements(partialWindows).map(listElements), [[1, 2, 3], [3, 4, 5], [5]])
+
+        let setSource = registerRuntimeObject(RuntimeSetBox(elements: [4, 5, 6, 7]))
+        let setWindows = kk_list_windowed_partial(setSource, 3, 2, 1)
+        XCTAssertEqual(listElements(setWindows).map(listElements), [[4, 5, 6], [6, 7]])
     }
 
     func testCollectionMapNotNullPassesSentinelInputsToTransform() {

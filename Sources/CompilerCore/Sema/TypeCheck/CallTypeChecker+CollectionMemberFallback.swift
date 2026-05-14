@@ -1209,6 +1209,37 @@ extension CallTypeChecker {
             return sema.types.anyType
         }
 
+        if memberName == interner.intern("windowed") {
+            let lastArgIsFunctionLike: Bool = if let lastExpr = args.last?.expr,
+                                                 let lastExprNode = ctx.ast.arena.expr(lastExpr) {
+                lastExprNode.isLambdaOrCallableRef
+            } else {
+                false
+            }
+            if !lastArgIsFunctionLike,
+               let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
+            {
+                let windowType = sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(receiverElementType)],
+                    nullability: .nonNull
+                )))
+                if isSequenceReceiver {
+                    return makeSyntheticSequenceType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: windowType
+                    )
+                }
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.out(windowType)],
+                    nullability: .nonNull
+                )))
+            }
+        }
+
         if memberName == interner.intern("requireNoNulls") {
             let elementType = sema.types.makeNonNullable(receiverElementType)
             if isSequenceReceiver {
