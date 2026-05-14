@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import RuntimeABI
 
 /// Synthetic stubs for `Sequence` terminal operators (`toSet`, `toMap`,
 /// `groupBy`, `maxOrNull`, `minOrNull`, `flatten`, `take`, `drop`,

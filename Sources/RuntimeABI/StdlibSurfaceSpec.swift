@@ -1,36 +1,37 @@
 // swiftlint:disable file_length
 
-enum StdlibSurfacePackage: String, Equatable, Hashable {
+public enum StdlibSurfacePackage: String, Equatable, Hashable, Sendable {
     case kotlinCollections = "kotlin.collections"
     case kotlinSequences = "kotlin.sequences"
 }
 
-enum StdlibSurfaceOwnerKind: String, CaseIterable, Equatable, Hashable {
+public enum StdlibSurfaceOwnerKind: String, CaseIterable, Equatable, Hashable, Sendable {
     case list
+    case set
     case map
     case sequence
 }
 
-struct StdlibSurfaceArity: Equatable, Hashable {
-    let minimum: Int
-    let maximum: Int
+public struct StdlibSurfaceArity: Equatable, Hashable, Sendable {
+    public let minimum: Int
+    public let maximum: Int
 
-    init(_ exact: Int) {
+    public init(_ exact: Int) {
         self.minimum = exact
         self.maximum = exact
     }
 
-    init(_ range: ClosedRange<Int>) {
+    public init(_ range: ClosedRange<Int>) {
         self.minimum = range.lowerBound
         self.maximum = range.upperBound
     }
 
-    func accepts(_ count: Int) -> Bool {
+    public func accepts(_ count: Int) -> Bool {
         count >= minimum && count <= maximum
     }
 }
 
-enum StdlibSurfaceReturnStrategy: String, Equatable, Hashable {
+public enum StdlibSurfaceReturnStrategy: String, Equatable, Hashable, Sendable {
     case any
     case nullableAny
     case receiver
@@ -46,7 +47,7 @@ enum StdlibSurfaceReturnStrategy: String, Equatable, Hashable {
     case sequence
 }
 
-enum StdlibSurfaceLambdaReturnStrategy: String, Equatable, Hashable {
+public enum StdlibSurfaceLambdaReturnStrategy: String, Equatable, Hashable, Sendable {
     case any
     case nullableAny
     case boolean
@@ -60,7 +61,7 @@ enum StdlibSurfaceLambdaReturnStrategy: String, Equatable, Hashable {
     case pairOfDestinationKeyValue
 }
 
-enum StdlibSurfaceLambdaExpectation: Equatable, Hashable {
+public enum StdlibSurfaceLambdaExpectation: Equatable, Hashable, Sendable {
     case none
     case receiverElement(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
     case indexedReceiverElement(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
@@ -70,27 +71,28 @@ enum StdlibSurfaceLambdaExpectation: Equatable, Hashable {
     case mapValue(argumentIndex: Int, returnStrategy: StdlibSurfaceLambdaReturnStrategy)
 }
 
-enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable {
+public enum StdlibSurfaceLoweringCategory: String, Equatable, Hashable, Sendable {
     case collectionHOF
+    case setHOF
     case mapHOF
     case sequenceHOF
     case futureUse
 }
 
-struct StdlibSurfaceSpec: Equatable, Hashable {
-    let package: StdlibSurfacePackage
-    let ownerKind: StdlibSurfaceOwnerKind
-    let memberName: String
-    let arity: StdlibSurfaceArity
-    let runtimeLinkName: String
-    let returnStrategy: StdlibSurfaceReturnStrategy
-    let lambdaExpectation: StdlibSurfaceLambdaExpectation
-    let loweringCategory: StdlibSurfaceLoweringCategory
+public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
+    public let package: StdlibSurfacePackage
+    public let ownerKind: StdlibSurfaceOwnerKind
+    public let memberName: String
+    public let arity: StdlibSurfaceArity
+    public let runtimeLinkName: String
+    public let returnStrategy: StdlibSurfaceReturnStrategy
+    public let lambdaExpectation: StdlibSurfaceLambdaExpectation
+    public let loweringCategory: StdlibSurfaceLoweringCategory
 
-    static let collectionHOFMembers: [StdlibSurfaceSpec] =
-        listHOFMembers + mapHOFMembers + sequenceHOFMembers
+    public static let collectionHOFMembers: [StdlibSurfaceSpec] =
+        listHOFMembers + setHOFMembers + mapHOFMembers + sequenceHOFMembers
 
-    static func collectionHOFSpecs(
+    public static func collectionHOFSpecs(
         ownerKind: StdlibSurfaceOwnerKind,
         memberName: String
     ) -> [StdlibSurfaceSpec] {
@@ -99,7 +101,7 @@ struct StdlibSurfaceSpec: Equatable, Hashable {
         }
     }
 
-    static func collectionHOFMember(
+    public static func collectionHOFMember(
         ownerKind: StdlibSurfaceOwnerKind,
         memberName: String,
         arity: Int
@@ -108,13 +110,17 @@ struct StdlibSurfaceSpec: Equatable, Hashable {
             .first { $0.arity.accepts(arity) }
     }
 
-    static func collectionHOFRuntimeLinkName(
+    public static func collectionHOFRuntimeLinkName(
         ownerKind: StdlibSurfaceOwnerKind,
         memberName: String,
         arity: Int,
         fallback: String
     ) -> String {
         collectionHOFMember(ownerKind: ownerKind, memberName: memberName, arity: arity)?.runtimeLinkName ?? fallback
+    }
+
+    public static func collectionHOFRuntimeLinkNames(ownerKind: StdlibSurfaceOwnerKind) -> Set<String> {
+        Set(collectionHOFMembers.lazy.filter { $0.ownerKind == ownerKind }.map(\.runtimeLinkName))
     }
 }
 
@@ -135,6 +141,25 @@ private extension StdlibSurfaceSpec {
             returnStrategy: returnStrategy,
             lambdaExpectation: lambdaExpectation,
             loweringCategory: .collectionHOF
+        )
+    }
+
+    static func set(
+        _ memberName: String,
+        _ arity: Int,
+        _ runtimeLinkName: String,
+        returnStrategy: StdlibSurfaceReturnStrategy,
+        lambdaExpectation: StdlibSurfaceLambdaExpectation
+    ) -> StdlibSurfaceSpec {
+        StdlibSurfaceSpec(
+            package: .kotlinCollections,
+            ownerKind: .set,
+            memberName: memberName,
+            arity: StdlibSurfaceArity(arity),
+            runtimeLinkName: runtimeLinkName,
+            returnStrategy: returnStrategy,
+            lambdaExpectation: lambdaExpectation,
+            loweringCategory: .setHOF
         )
     }
 
@@ -194,8 +219,14 @@ private extension StdlibSurfaceSpec {
         list("firstNotNullOf", 1, "kk_iterable_firstNotNullOf", returnStrategy: .any, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         list("firstNotNullOfOrNull", 1, "kk_iterable_firstNotNullOfOrNull", returnStrategy: .nullableAny, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         list("forEachIndexed", 1, "kk_list_forEachIndexed", returnStrategy: .unit, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
+        list("onEach", 1, "kk_list_onEach", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
+        list("onEachIndexed", 1, "kk_list_onEachIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
         list("mapIndexed", 1, "kk_list_mapIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("filterIndexed", 1, "kk_list_filterIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        list("takeWhile", 1, "kk_list_takeWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        list("dropWhile", 1, "kk_list_dropWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        list("takeLastWhile", 1, "kk_list_takeLastWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        list("dropLastWhile", 1, "kk_list_dropLastWhile", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         list("filterTo", 2, "kk_list_filterTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .boolean)),
         list("filterNotTo", 2, "kk_list_filterNotTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .boolean)),
         list("mapTo", 2, "kk_list_mapTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationElement)),
@@ -211,12 +242,29 @@ private extension StdlibSurfaceSpec {
         list("groupByTo", 2, "kk_list_groupByTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .any)),
     ]
 
+    static let setHOFMembers: [StdlibSurfaceSpec] = [
+        set("map", 1, "kk_set_map", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
+        set("filter", 1, "kk_set_filter", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        set("forEach", 1, "kk_set_forEach", returnStrategy: .unit, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
+        set("filterNot", 1, "kk_set_filterNot", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        set("mapNotNull", 1, "kk_set_mapNotNull", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
+        set("flatMap", 1, "kk_set_flatMap", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
+        set("any", 1, "kk_set_any", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        set("none", 1, "kk_set_none", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        set("all", 1, "kk_set_all", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        set("count", 1, "kk_set_count_predicate", returnStrategy: .int, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+    ]
+
     static let mapHOFMembers: [StdlibSurfaceSpec] = [
         map("forEach", 1, "kk_map_forEach", returnStrategy: .unit, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
         map("map", 1, "kk_map_map", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         map("mapNotNull", 1, "kk_map_mapNotNull", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         map("filter", 1, "kk_map_filter", returnStrategy: .receiver, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         map("filterNot", 1, "kk_map_filterNot", returnStrategy: .receiver, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        map("count", 1, "kk_map_count", returnStrategy: .int, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        map("any", 1, "kk_map_any", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        map("all", 1, "kk_map_all", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
+        map("none", 1, "kk_map_none", returnStrategy: .boolean, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         map("mapValues", 1, "kk_map_mapValues", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         map("mapKeys", 1, "kk_map_mapKeys", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         map("mapValuesTo", 2, "kk_map_mapValuesTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationMapValue)),
@@ -243,7 +291,16 @@ private extension StdlibSurfaceSpec {
         sequence("firstNotNullOf", 1, "kk_sequence_firstNotNullOf", returnStrategy: .any, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         sequence("firstNotNullOfOrNull", 1, "kk_sequence_firstNotNullOfOrNull", returnStrategy: .nullableAny, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         sequence("forEachIndexed", 1, "kk_sequence_forEachIndexed", returnStrategy: .unit, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
+        sequence("onEach", 1, "kk_sequence_onEach", returnStrategy: .sequence, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
+        sequence("onEachIndexed", 1, "kk_sequence_onEachIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .unit)),
         sequence("mapIndexed", 1, "kk_sequence_mapIndexed", returnStrategy: .sequence, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
+        sequence("filterTo", 2, "kk_sequence_filterTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .boolean)),
+        sequence("filterNotTo", 2, "kk_sequence_filterNotTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .boolean)),
+        sequence("mapTo", 2, "kk_sequence_mapTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .destinationElement)),
+        sequence("mapIndexedNotNullTo", 2, "kk_sequence_mapIndexedNotNullTo", returnStrategy: .destinationArgument, lambdaExpectation: .indexedDestinationElement(argumentIndex: 1, returnStrategy: .nullableAny)),
+        sequence("filterIndexedTo", 2, "kk_sequence_filterIndexedTo", returnStrategy: .destinationArgument, lambdaExpectation: .indexedDestinationElement(argumentIndex: 1, returnStrategy: .boolean)),
+        sequence("filterNotNullTo", 1, "kk_sequence_filterNotNullTo", returnStrategy: .destinationArgument, lambdaExpectation: .none),
+        sequence("filterIsInstanceTo", 1, "kk_sequence_filterIsInstanceTo", returnStrategy: .destinationArgument, lambdaExpectation: .none),
         sequence("associateTo", 2, "kk_sequence_associateTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .pairOfDestinationKeyValue)),
         sequence("associateByTo", 2, "kk_sequence_associateByTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .any)),
         sequence("associateWithTo", 2, "kk_sequence_associateWithTo", returnStrategy: .destinationArgument, lambdaExpectation: .destinationElement(argumentIndex: 1, returnStrategy: .any)),

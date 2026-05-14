@@ -17,6 +17,19 @@ public extension RuntimeABISpec {
         )
     }
 
+    private static func stdlibListHOFName(_ memberName: String, arity: Int, fallback: String) -> String {
+        StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
+            ownerKind: .list,
+            memberName: memberName,
+            arity: arity,
+            fallback: fallback
+        )
+    }
+
+    private static func stdlibListHOFSpec(_ memberName: String, arity: Int, fallback: String) -> RuntimeABIFunctionSpec {
+        hofSpec(stdlibListHOFName(memberName, arity: arity, fallback: fallback))
+    }
+
     static let collectionHOFFunctions: [RuntimeABIFunctionSpec] = {
         let foldSpec = RuntimeABIFunctionSpec(
             name: "kk_list_fold",
@@ -109,31 +122,31 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let filterToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_filterTo",
+            name: stdlibListHOFName("filterTo", arity: 2, fallback: "kk_list_filterTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let filterNotToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_filterNotTo",
+            name: stdlibListHOFName("filterNotTo", arity: 2, fallback: "kk_list_filterNotTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let mapToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapTo",
+            name: stdlibListHOFName("mapTo", arity: 2, fallback: "kk_list_mapTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let flatMapToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_flatMapTo",
+            name: stdlibListHOFName("flatMapTo", arity: 2, fallback: "kk_list_flatMapTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let mapNotNullToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapNotNullTo",
+            name: stdlibListHOFName("mapNotNullTo", arity: 2, fallback: "kk_list_mapNotNullTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
@@ -192,19 +205,25 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let mapIndexedToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapIndexedTo",
+            name: stdlibListHOFName("mapIndexedTo", arity: 2, fallback: "kk_list_mapIndexedTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let mapIndexedNotNullToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapIndexedNotNullTo",
+            name: stdlibListHOFName("mapIndexedNotNullTo", arity: 2, fallback: "kk_list_mapIndexedNotNullTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
         )
         let flatMapIndexedToSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_flatMapIndexedTo",
+            name: stdlibListHOFName("flatMapIndexedTo", arity: 2, fallback: "kk_list_flatMapIndexedTo"),
+            parameters: destinationLambdaParams,
+            returnType: .intptr,
+            section: "Collection"
+        )
+        let filterIndexedToSpec = RuntimeABIFunctionSpec(
+            name: stdlibListHOFName("filterIndexedTo", arity: 2, fallback: "kk_list_filterIndexedTo"),
             parameters: destinationLambdaParams,
             returnType: .intptr,
             section: "Collection"
@@ -306,7 +325,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let forEachIndexedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_forEachIndexed",
+            name: stdlibListHOFName("forEachIndexed", arity: 1, fallback: "kk_list_forEachIndexed"),
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -317,7 +336,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         )
         let mapIndexedSpec = RuntimeABIFunctionSpec(
-            name: "kk_list_mapIndexed",
+            name: stdlibListHOFName("mapIndexed", arity: 1, fallback: "kk_list_mapIndexed"),
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -544,6 +563,7 @@ public extension RuntimeABISpec {
                 filterToSpec, filterNotToSpec, mapToSpec, flatMapToSpec,
                 mapNotNullToSpec, filterNotNullToSpec, firstNotNullOfSpec, firstNotNullOfOrNullSpec,
                 iterableAllSpec, iterableAnySpec, iterableLastSpec, mapIndexedToSpec, mapIndexedNotNullToSpec, flatMapIndexedToSpec,
+                filterIndexedToSpec,
             ]
             + genericAfter.flatMap { name in
                 if name == "kk_list_sortedBy" {
@@ -802,10 +822,10 @@ public extension RuntimeABISpec {
                 ),
                 hofSpec("kk_list_sortedWith"),
                 hofSpec("kk_list_partition"),
-                hofSpec("kk_list_takeWhile"),
-                hofSpec("kk_list_dropWhile"),
-                hofSpec("kk_list_takeLastWhile"),
-                hofSpec("kk_list_dropLastWhile"),
+                stdlibListHOFSpec("takeWhile", arity: 1, fallback: "kk_list_takeWhile"),
+                stdlibListHOFSpec("dropWhile", arity: 1, fallback: "kk_list_dropWhile"),
+                stdlibListHOFSpec("takeLastWhile", arity: 1, fallback: "kk_list_takeLastWhile"),
+                stdlibListHOFSpec("dropLastWhile", arity: 1, fallback: "kk_list_dropLastWhile"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_maxBy",
                     parameters: [

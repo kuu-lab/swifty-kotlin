@@ -1,4 +1,5 @@
 // swiftlint:disable file_length
+import RuntimeABI
 
 /// Per-member synthetic Iterable<E> registrations:
 /// `asSequence`, `joinTo`, `firstNotNullOf{,OrNull}`, `all`, `any`, `last`,

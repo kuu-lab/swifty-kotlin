@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 /// Synthetic stdlib stubs for kotlin's not-yet-implemented helper, kotlin.io.println (0-arg), and kotlin.io.readLine (STDLIB-063).
 /// These stubs enable name resolution and type checking; runtime behavior is implemented in Runtime.

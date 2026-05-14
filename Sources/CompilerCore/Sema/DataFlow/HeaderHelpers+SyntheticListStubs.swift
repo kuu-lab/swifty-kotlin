@@ -1,4 +1,5 @@
 import Foundation
+import RuntimeABI
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// List<E> interface and read-only member registrations (iterators, transform, aggregate, conversion).

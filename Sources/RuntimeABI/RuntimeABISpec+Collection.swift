@@ -1,4 +1,22 @@
 public extension RuntimeABISpec {
+    private static func stdlibSetHOFName(_ memberName: String, fallback: String) -> String {
+        StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
+            ownerKind: .set,
+            memberName: memberName,
+            arity: 1,
+            fallback: fallback
+        )
+    }
+
+    private static func stdlibMapHOFName(_ memberName: String, arity: Int, fallback: String) -> String {
+        StdlibSurfaceSpec.collectionHOFRuntimeLinkName(
+            ownerKind: .map,
+            memberName: memberName,
+            arity: arity,
+            fallback: fallback
+        )
+    }
+
     static let collectionFunctions: [RuntimeABIFunctionSpec] = [
         // List
         RuntimeABIFunctionSpec(
@@ -459,7 +477,7 @@ public extension RuntimeABISpec {
         ),
         // Set higher-order functions (STDLIB-COL-118)
         RuntimeABIFunctionSpec(
-            name: "kk_set_map",
+            name: stdlibSetHOFName("map", fallback: "kk_set_map"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -470,7 +488,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_set_filter",
+            name: stdlibSetHOFName("filter", fallback: "kk_set_filter"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -481,7 +499,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_set_forEach",
+            name: stdlibSetHOFName("forEach", fallback: "kk_set_forEach"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -492,7 +510,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_set_filterNot",
+            name: stdlibSetHOFName("filterNot", fallback: "kk_set_filterNot"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -503,7 +521,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_set_mapNotNull",
+            name: stdlibSetHOFName("mapNotNull", fallback: "kk_set_mapNotNull"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -514,7 +532,51 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_set_flatMap",
+            name: stdlibSetHOFName("flatMap", fallback: "kk_set_flatMap"),
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibSetHOFName("any", fallback: "kk_set_any"),
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibSetHOFName("none", fallback: "kk_set_none"),
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibSetHOFName("all", fallback: "kk_set_all"),
+            parameters: [
+                RuntimeABIParameter(name: "setRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibSetHOFName("count", fallback: "kk_set_count_predicate"),
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -587,7 +649,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_forEach",
+            name: stdlibMapHOFName("forEach", arity: 1, fallback: "kk_map_forEach"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -598,7 +660,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_map",
+            name: stdlibMapHOFName("map", arity: 1, fallback: "kk_map_map"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -609,7 +671,29 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_filter",
+            name: stdlibMapHOFName("mapNotNull", arity: 1, fallback: "kk_map_mapNotNull"),
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibMapHOFName("filter", arity: 1, fallback: "kk_map_filter"),
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: stdlibMapHOFName("filterNot", arity: 1, fallback: "kk_map_filterNot"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -662,7 +746,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_filterKeys",
+            name: stdlibMapHOFName("filterKeys", arity: 1, fallback: "kk_map_filterKeys"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -673,7 +757,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_filterValues",
+            name: stdlibMapHOFName("filterValues", arity: 1, fallback: "kk_map_filterValues"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -684,7 +768,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_mapValues",
+            name: stdlibMapHOFName("mapValues", arity: 1, fallback: "kk_map_mapValues"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -695,7 +779,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_mapKeys",
+            name: stdlibMapHOFName("mapKeys", arity: 1, fallback: "kk_map_mapKeys"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -706,7 +790,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_mapKeysTo",
+            name: stdlibMapHOFName("mapKeysTo", arity: 2, fallback: "kk_map_mapKeysTo"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "destRaw", type: .intptr),
@@ -718,7 +802,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_mapValuesTo",
+            name: stdlibMapHOFName("mapValuesTo", arity: 2, fallback: "kk_map_mapValuesTo"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "destRaw", type: .intptr),
@@ -762,7 +846,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_count",
+            name: stdlibMapHOFName("count", arity: 1, fallback: "kk_map_count"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -773,7 +857,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_any",
+            name: stdlibMapHOFName("any", arity: 1, fallback: "kk_map_any"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -784,7 +868,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_all",
+            name: stdlibMapHOFName("all", arity: 1, fallback: "kk_map_all"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -795,7 +879,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_none",
+            name: stdlibMapHOFName("none", arity: 1, fallback: "kk_map_none"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
