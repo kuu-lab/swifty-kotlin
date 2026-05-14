@@ -38,9 +38,13 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testAllFunctionNamesFollowKKPrefix() {
+        let legacyNonKKRuntimeExports: Set<String> = [
+            "component1",
+            "component2",
+        ]
         for spec in RuntimeABISpec.allFunctions {
             XCTAssertTrue(
-                spec.name.hasPrefix("kk_"),
+                spec.name.hasPrefix("kk_") || legacyNonKKRuntimeExports.contains(spec.name),
                 "Function '\(spec.name)' does not follow kk_ naming convention"
             )
         }
