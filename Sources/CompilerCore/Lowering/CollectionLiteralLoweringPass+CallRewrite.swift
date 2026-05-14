@@ -2790,7 +2790,7 @@ extension CollectionLiteralLoweringPass {
                             // handler below, which correctly rewrites it to kk_list_count.
                             // Entering this generic list-HOF path for countName would emit a call with
                             // the un-rewritten "count" callee and then `continue`, skipping that handler.
-                            if listExprIDs.contains(receiverID.rawValue) && callee != lookup.countName {
+                            if state.listExprIDs.contains(receiverID.rawValue) && callee != lookup.countName {
                                 let closureRawID: KIRExprID
                                 if arguments.count == 3 {
                                     closureRawID = arguments[2]
@@ -2819,15 +2819,15 @@ extension CollectionLiteralLoweringPass {
                                     thrownResult: thrownResult
                                 ))
                                 if needsListTag, let result {
-                                    listExprIDs.insert(result.rawValue)
-                                    listExprIDs.insert(hofResult.rawValue)
+                                    state.listExprIDs.insert(result.rawValue)
+                                    state.listExprIDs.insert(hofResult.rawValue)
                                 }
                                 if let result {
                                     loweredBody.append(.copy(from: hofResult, to: result))
                                 }
                                 continue
                             }
-                            if mapExprIDs.contains(receiverID.rawValue),
+                            if state.mapExprIDs.contains(receiverID.rawValue),
                                callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
                                || callee == lookup.mapValuesName || callee == lookup.mapKeysName
                                || callee == lookup.filterKeysName || callee == lookup.filterValuesName
@@ -2857,23 +2857,23 @@ extension CollectionLiteralLoweringPass {
                                     thrownResult: thrownResult
                                 ))
                                 if callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName, let result {
-                                    listExprIDs.insert(result.rawValue)
-                                    listExprIDs.insert(hofResult.rawValue)
+                                    state.listExprIDs.insert(result.rawValue)
+                                    state.listExprIDs.insert(hofResult.rawValue)
                                 }
                                 if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
-                                    mapExprIDs.insert(result.rawValue)
-                                    mapExprIDs.insert(hofResult.rawValue)
+                                    state.mapExprIDs.insert(result.rawValue)
+                                    state.mapExprIDs.insert(hofResult.rawValue)
                                 }
                                 if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
-                                    mapExprIDs.insert(result.rawValue)
-                                    mapExprIDs.insert(hofResult.rawValue)
+                                    state.mapExprIDs.insert(result.rawValue)
+                                    state.mapExprIDs.insert(hofResult.rawValue)
                                 }
                                 if let result {
                                     loweredBody.append(.copy(from: hofResult, to: result))
                                 }
                                 continue
                             }
-                            if rangeExprIDs.contains(receiverID.rawValue),
+                            if state.rangeExprIDs.contains(receiverID.rawValue),
                                callee == lookup.mapName || callee == lookup.forEachName
                             {
                                 let closureRawID: KIRExprID
