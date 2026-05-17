@@ -285,7 +285,9 @@ extension DataFlowSemaPhase {
             symbols.setExtensionPropertyReceiverType(receiverType, for: propertySymbol)
         }
 
+        let javaTypeExternalLinkName = "kk_ktype_javaType"
         symbols.setPropertyType(returnType, for: propertySymbol)
+        symbols.setExternalLinkName(javaTypeExternalLinkName, for: propertySymbol)
 
         let getterSymbol: SymbolID
         if let existingGetter = symbols.extensionPropertyGetterAccessor(for: propertySymbol) {
@@ -303,6 +305,7 @@ extension DataFlowSemaPhase {
             symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
             symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
         }
+        symbols.setExternalLinkName(javaTypeExternalLinkName, for: getterSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,

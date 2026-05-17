@@ -77,5 +77,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "ABIParity"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_ktype_javaType",
+            parameters: [
+                RuntimeABIParameter(name: "ktypeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "ABIParity"
+        ),
     ]
 }
