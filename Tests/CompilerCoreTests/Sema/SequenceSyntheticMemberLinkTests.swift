@@ -2345,6 +2345,10 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         let source = """
         fun scanned(): Sequence<Int> {
             return sequenceOf(1, 2, 3).scan(10) { acc, value ->
+    func testSequenceRunningReduceResolvesInCallExpressions() throws {
+        let source = """
+        fun totals(): Sequence<Int> {
+            return sequenceOf(1, 2, 3).runningReduce { acc, value ->
                 acc + value
             }
         }
@@ -2363,6 +2367,11 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let memberFQName = ["kotlin", "sequences", "Sequence", "scan"]
+                "Expected Sequence.runningReduce surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = ["kotlin", "sequences", "Sequence", "runningReduce"]
                 .map { ctx.interner.intern($0) }
             let links = Set(
                 sema.symbols.lookupAll(fqName: memberFQName)
@@ -2523,6 +2532,7 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             XCTAssertTrue(links.contains("kk_sequence_minByOrNull"))
+            XCTAssertTrue(links.contains("kk_sequence_runningReduce"))
         }
     }
 }

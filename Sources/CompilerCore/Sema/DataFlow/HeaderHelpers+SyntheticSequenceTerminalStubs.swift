@@ -1804,6 +1804,20 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [("operation", reduceIndexedOperationType)],
             returnType: typeParamType,
+        let reduceOperationType = types.make(.functionType(FunctionType(
+            params: [typeParamType, typeParamType],
+            returnType: typeParamType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        // runningReduce(operation): Sequence<T>
+        registerSequenceMemberStub(
+            named: "runningReduce",
+            externalLinkName: "kk_sequence_runningReduce",
+            receiverType: receiverType,
+            parameters: [("operation", reduceOperationType)],
+            returnType: receiverType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -1852,6 +1866,10 @@ extension DataFlowSemaPhase {
                 additionalTypeParameterUpperBoundsList: [[]]
             )
         }
+
+            interner: interner,
+            canThrow: true
+        )
 
         // runningFoldIndexed(initial, operation): Sequence<R>
         let runningFoldIndexedName = interner.intern("runningFoldIndexed")

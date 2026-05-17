@@ -168,6 +168,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("scanIndexed", 2),
             sequence("runningFoldIndexed", 2),
             sequence("scan", 2),
+            sequence("runningReduce", 1),
             sequence("filterTo", 2),
             sequence("filterNotTo", 2),
             sequence("mapTo", 2),
@@ -241,6 +242,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "scan", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "runningReduce", 1),
             ]
 
             for testCase in cases {

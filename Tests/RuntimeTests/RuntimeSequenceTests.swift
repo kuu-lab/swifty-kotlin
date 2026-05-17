@@ -1259,7 +1259,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [])
+        XCTAssertEqual(sequenceElements(result), [])
     }
 
     func testRunningReduceNonEmptySequenceAccumulatesCorrectly() {
@@ -1275,7 +1275,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(thrown, 0)
         // Kotlin: [1, 2, 3].runningReduce { acc, x -> acc + x } == [1, 3, 6]
-        XCTAssertEqual(listElements(result), [1, 3, 6])
+        XCTAssertEqual(sequenceElements(result), [1, 3, 6])
     }
 
     func testRunningReduceSingleElementReturnsThatElement() {
@@ -1290,7 +1290,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [42])
+        XCTAssertEqual(sequenceElements(result), [42])
     }
 
     // MARK: - Sequence runningReduceIndexed tests (STDLIB-SEQ-017)

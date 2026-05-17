@@ -87,9 +87,9 @@ public func kk_sequence_runningReduce(
         return 0
     }
     if !hasAccumulator {
-        return registerRuntimeObject(RuntimeListBox(elements: []))
+        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: results))
+    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
 }
 
 // MARK: - Sequence foldIndexed / runningFoldIndexed / scanIndexed / reduceIndexed / reduceIndexedOrNull
