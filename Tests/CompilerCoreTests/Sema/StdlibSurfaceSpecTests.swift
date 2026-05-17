@@ -119,6 +119,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("associate", 1),
             sequence("associateBy", 1),
             sequence("associateWith", 1),
+            sequence("partition", 1),
             sequence("chunked", 1),
             sequence("sumOf", 1),
             sequence("sumBy", 1),
@@ -170,6 +171,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "groupBy", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "flatMapIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "partition", 1),
             ]
 
             for testCase in cases {
