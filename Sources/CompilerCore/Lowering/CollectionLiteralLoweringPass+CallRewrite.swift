@@ -3489,6 +3489,7 @@ extension CollectionLiteralLoweringPass {
                     }
 
                     if callee == lookup.forEachIndexedName || callee == lookup.mapIndexedName
+                        || callee == lookup.mapIndexedNotNullName
                         || callee == lookup.onEachIndexedName || callee == lookup.flatMapIndexedName {
                         if arguments.count == 2 || arguments.count == 3 {
                             let receiverID = arguments[0]
@@ -3499,6 +3500,8 @@ extension CollectionLiteralLoweringPass {
                                     kkName = lookup.kkListForEachIndexedName
                                 } else if callee == lookup.onEachIndexedName {
                                     kkName = lookup.kkListOnEachIndexedName
+                                } else if callee == lookup.mapIndexedNotNullName {
+                                    kkName = lookup.kkListMapIndexedNotNullName
                                 } else if callee == lookup.flatMapIndexedName {
                                     kkName = lookup.kkListFlatMapIndexedName
                                 } else {
