@@ -2688,6 +2688,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_minus"
                 } else if calleeName == interner.intern("union") {
                     runtimeCallee = "kk_sequence_union"
+                } else if calleeName == interner.intern("reduceRight") {
+                    runtimeCallee = "kk_sequence_reduceRight"
                 } else if calleeName == interner.intern("runningReduceIndexed") {
                     runtimeCallee = "kk_sequence_runningReduceIndexed"
                 } else if calleeName == interner.intern("shuffled") {
@@ -2749,6 +2751,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_windowed_transform"
                         || runtimeCallee == "kk_sequence_onEach"
                         || runtimeCallee == "kk_sequence_onEachIndexed"
+                        || runtimeCallee == "kk_sequence_reduceRight"
                         || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
@@ -2785,6 +2788,16 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_associateWith"),
                        normalizedArgIDs.count == 1
                     {
+                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                            normalizedArgIDs[0],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                    }
+                    if runtimeCallee == "kk_sequence_reduceRight", normalizedArgIDs.count == 1 {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                             normalizedArgIDs[0],
                             sema: sema,

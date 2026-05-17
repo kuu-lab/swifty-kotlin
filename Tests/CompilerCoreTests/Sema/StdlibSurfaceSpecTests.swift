@@ -153,6 +153,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("associateByTo", 2),
             sequence("associateWithTo", 2),
             sequence("groupByTo", 2),
+            sequence("reduceRight", 1),
         ]
 
         let actual = Set(StdlibSurfaceSpec.collectionHOFMembers.map(SpecKey.init(spec:)))
@@ -190,6 +191,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "requireNoNulls", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
             ]
 
             for testCase in cases {
