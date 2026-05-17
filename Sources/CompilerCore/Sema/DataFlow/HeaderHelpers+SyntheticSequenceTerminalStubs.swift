@@ -715,6 +715,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSequenceMemberStub(
+            named: "filterNotTo",
+            externalLinkName: "kk_sequence_filterNotTo",
+            receiverType: receiverType,
+            parameters: [("destination", collectionReturnType), ("predicate", predicateType)],
+            returnType: collectionReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // flatMapIndexed(transform): Sequence<R> for Iterable<R> and Sequence<R> transform results.
         do {
             let memberName = interner.intern("flatMapIndexed")
