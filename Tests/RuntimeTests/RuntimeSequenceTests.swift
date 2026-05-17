@@ -1011,7 +1011,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [10, 11, 13, 16])
+        XCTAssertEqual(sequenceElements(result), [10, 11, 13, 16])
     }
 
     func testRunningFoldIncludesInitialAccumulator() {
@@ -1027,7 +1027,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [5, 6, 8, 11])
+        XCTAssertEqual(sequenceElements(result), [5, 6, 8, 11])
     }
 
     func testRunningFoldIndexedIncludesInitialAccumulatorAndIndex() {
