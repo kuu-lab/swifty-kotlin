@@ -251,7 +251,7 @@
 - [ ] STDLIB-REFLECT-TYPE-022: `KVisibility` enum の実装
 
 #### kotlin.reflect プロパティの実装
-- [ ] STDLIB-REFLECT-PROP-001: `javaType` 拡張プロパティの実装
+- [x] STDLIB-REFLECT-PROP-001: `javaType` 拡張プロパティの実装
 
 #### kotlin.reflect 関数の実装
 - [ ] STDLIB-REFLECT-FN-002: `createInstance` 拡張関数の実装
