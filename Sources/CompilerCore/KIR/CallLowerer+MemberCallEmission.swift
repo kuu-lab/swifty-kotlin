@@ -443,6 +443,31 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
+        if loweredCallee == interner.intern("kk_sequence_filterTo")
+            || loweredCallee == interner.intern("kk_sequence_filterNotTo")
+        {
+            if finalArguments.count == 2 {
+                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    finalArguments[1],
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                finalArguments = [receiver.loweredID, finalArguments[0], fnPtrExpr, envPtrExpr]
+            } else if finalArguments.count == 3, finalArguments[0] == receiver.loweredID {
+                let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                    finalArguments[2],
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+                finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+            } else if finalArguments.count == 3 {
+                finalArguments = [receiver.loweredID] + finalArguments
+            }
+        }
         if (loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
             || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_iterable_any")

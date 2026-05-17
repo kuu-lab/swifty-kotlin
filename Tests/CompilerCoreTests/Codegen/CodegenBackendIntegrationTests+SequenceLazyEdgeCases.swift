@@ -639,4 +639,31 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    func testSequenceFilterNotToAppendsNonMatchingValues() throws {
+        let source = """
+        fun main() {
+            val values = sequenceOf(1, 2, 3, 4, 5)
+            val destination = mutableListOf<Int>(99)
+            val result = values.filterNotTo(destination) { value -> value % 2 == 0 }
+            println(result)
+            println(destination)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SequenceFilterNotToRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "[99, 1, 3, 5]\n[99, 1, 3, 5]\n")
+        }
+    }
 }
