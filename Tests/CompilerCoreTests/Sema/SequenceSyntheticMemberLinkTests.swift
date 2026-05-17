@@ -1912,6 +1912,12 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         fun firstEven(): Int? {
             val values = sequenceOf(1, 2, 3, 4, 5)
             return values.find { value -> value % 2 == 0 }
+    func testSequenceFilterToResolvesInCallExpressions() throws {
+        let source = """
+        fun evens(): MutableList<Int> {
+            val values = sequenceOf(1, 2, 3, 4, 5)
+            val destination = mutableListOf<Int>(99)
+            return values.filterTo(destination) { value -> value % 2 == 0 }
         }
         """
 
@@ -1928,6 +1934,11 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let memberFQName = ["kotlin", "sequences", "Sequence", "find"]
+                "Expected Sequence.filterTo surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = ["kotlin", "sequences", "Sequence", "filterTo"]
                 .map { ctx.interner.intern($0) }
             let links = Set(
                 sema.symbols.lookupAll(fqName: memberFQName)
@@ -2064,6 +2075,7 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                 sema.bindings.isCollectionExpr(callExpr),
                 "Expected filterIsInstanceTo result to be tracked as a collection expression"
             )
+            XCTAssertTrue(links.contains("kk_sequence_filterTo"))
         }
     }
 

@@ -963,6 +963,12 @@ extension CodegenBackendIntegrationTests {
             val values: Sequence<Any> = sequenceOf(1, "two", 3)
             val destination = mutableListOf<Int>(0)
             val result = values.filterIsInstanceTo(destination)
+    func testSequenceFilterToAppendsMatchingValues() throws {
+        let source = """
+        fun main() {
+            val values = sequenceOf(1, 2, 3, 4, 5)
+            val destination = mutableListOf<Int>(99)
+            val result = values.filterTo(destination) { value -> value % 2 == 0 }
             println(result)
             println(destination)
         }
@@ -973,6 +979,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(
                 inputPath: path,
                 moduleName: "SequenceFilterIsInstanceToRuntime",
+                moduleName: "SequenceFilterToRuntime",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -981,6 +988,7 @@ extension CodegenBackendIntegrationTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "[0, 1, 3]\n[0, 1, 3]\n")
+            XCTAssertEqual(normalizedStdout, "[99, 2, 4]\n[99, 2, 4]\n")
         }
     }
 

@@ -2665,6 +2665,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_elementAt"
                 } else if calleeName == elementAtOrNullName {
                     runtimeCallee = "kk_sequence_elementAtOrNull"
+                } else if calleeName == interner.intern("elementAtOrElse") {
+                    runtimeCallee = "kk_sequence_elementAtOrElse"
                 } else if calleeName == filterIndexedName {
                     runtimeCallee = "kk_sequence_filterIndexed"
                 } else if calleeName == lastName {
@@ -2980,6 +2982,18 @@ extension CallLowerer {
                             instructions: &instructions
                         )
                         runtimeArguments = [loweredReceiverID, destinationArg, fnPtrExpr, envPtrExpr]
+                    }
+                    if runtimeCallee == "kk_sequence_elementAtOrElse",
+                       normalizedArgIDs.count == 2
+                    {
+                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                            normalizedArgIDs[1],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr]
                     }
                     instructions.append(.call(
                         symbol: nil,
