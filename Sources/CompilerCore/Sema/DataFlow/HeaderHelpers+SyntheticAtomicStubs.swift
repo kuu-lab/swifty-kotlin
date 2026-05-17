@@ -279,6 +279,12 @@ extension DataFlowSemaPhase {
             interner: interner,
             types: types
         )
+        registerAtomicLongArrayAsJavaAtomicArrayFunction(
+            packageFQName: atomicsPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         registerAtomicRefArrayStub(
             packageFQName: atomicsPkg,
@@ -1657,6 +1663,54 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             returnType: returnType,
             typeParameterSymbols: [typeParamSymbol],
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    private func registerAtomicLongArrayAsJavaAtomicArrayFunction(
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let receiverSymbol = symbols.lookup(
+            fqName: packageFQName + [interner.intern("AtomicLongArray")]
+        ) else {
+            return
+        }
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: receiverSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let javaAtomicPackage = ensurePackage(
+            path: ["java", "util", "concurrent", "atomic"],
+            symbols: symbols,
+            interner: interner
+        )
+        let javaAtomicLongArraySymbol = ensureClassSymbol(
+            named: "AtomicLongArray",
+            in: javaAtomicPackage,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol = symbols.lookup(fqName: javaAtomicPackage) {
+            symbols.setParentSymbol(packageSymbol, for: javaAtomicLongArraySymbol)
+        }
+        let javaAtomicLongArrayType = types.make(.classType(ClassType(
+            classSymbol: javaAtomicLongArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(javaAtomicLongArrayType, for: javaAtomicLongArraySymbol)
+
+        registerAtomicExtensionFunction(
+            packageFQName: packageFQName,
+            name: "asJavaAtomicArray",
+            externalLinkName: "kk_atomic_long_array_asJavaAtomicArray",
+            receiverType: receiverType,
+            returnType: javaAtomicLongArrayType,
             symbols: symbols,
             interner: interner
         )
