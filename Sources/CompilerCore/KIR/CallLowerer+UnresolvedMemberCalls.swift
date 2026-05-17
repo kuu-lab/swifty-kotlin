@@ -106,6 +106,8 @@ extension CallLowerer {
                 return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
+            case "first":
+                return interner.intern("kk_list_first")
             case "firstOrNull":
                 return interner.intern("kk_list_firstOrNull")
             case "lastOrNull":
