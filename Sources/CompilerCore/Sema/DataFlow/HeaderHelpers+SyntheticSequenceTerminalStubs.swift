@@ -213,6 +213,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // take(n: Int): Sequence<T> (STDLIB-SEQ-FN-119)
+        registerSequenceMemberStub(
+            named: "take",
+            externalLinkName: "kk_sequence_take",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // firstNotNullOf<T, R>(transform: (T) -> R?): R
         // Use a method-local T parameter (independent of Sequence's `out T`)
         // so the projection on the receiver does not block referencing T in
