@@ -191,6 +191,15 @@ extension DataFlowSemaPhase {
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
 
+        // sortedDescending(): Sequence<T>
+        registerSequenceOverloadedMemberStub(
+            named: "sortedDescending",
+            externalLinkName: "kk_sequence_sortedDescending",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: receiverType
+        )
+
         // first(): T
         registerSequenceMemberStub(
             named: "first",
