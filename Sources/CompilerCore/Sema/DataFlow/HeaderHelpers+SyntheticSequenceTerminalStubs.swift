@@ -891,6 +891,18 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+        registerSequenceMemberStub(
+            named: "drop",
+            externalLinkName: "kk_sequence_drop",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
         let sequenceElementToIntType = types.make(.functionType(FunctionType(
             params: [typeParamType],
             returnType: types.intType,
