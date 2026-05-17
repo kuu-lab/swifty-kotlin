@@ -185,6 +185,22 @@ extension DataFlowSemaPhase {
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
 
+        // sortedWith(comparator: (T, T) -> Int): Sequence<T>
+        let comparatorType = types.make(.functionType(FunctionType(
+            params: [typeParamType, typeParamType],
+            returnType: types.intType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSequenceOverloadedMemberStub(
+            named: "sortedWith",
+            externalLinkName: "kk_sequence_sortedWith",
+            receiverType: receiverType,
+            parameters: [("comparator", comparatorType)],
+            returnType: receiverType,
+            canThrow: true
+        )
+
         // first(): T
         registerSequenceMemberStub(
             named: "first",
