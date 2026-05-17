@@ -1632,6 +1632,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // distinct(): Sequence<T>
+        registerSequenceMemberStub(
+            named: "distinct",
+            externalLinkName: "kk_sequence_distinct",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-SEQ-008: chunked(size, transform): Sequence<R>
         do {
             let chunkedName = interner.intern("chunked")

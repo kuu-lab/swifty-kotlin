@@ -989,6 +989,12 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(secondList, runtimeNullSentinelInt)
     }
 
+    func testDistinctPreservesFirstOccurrenceOrder() {
+        let result = kk_sequence_distinct(makeSequence([3, 1, 2, 1, 3, 4]))
+
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 1, 2, 4])
+    }
+
     func testFilterIsInstanceKeepsMatchingRuntimeTypes() {
         let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
         let filtered = kk_sequence_filterIsInstance(seq, 3)
