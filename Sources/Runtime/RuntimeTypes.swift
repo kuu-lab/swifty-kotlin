@@ -1039,7 +1039,7 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
 
     func register(classRaw: Int, memberRaw: Int) {
         guard classRaw != 0, classRaw != runtimeNullSentinelInt,
-              memberRaw != 0, memberRaw != runtimeNullSentinelInt
+              isCallableMemberHandle(memberRaw)
         else {
             return
         }
@@ -1054,10 +1054,40 @@ final class RuntimeKMemberRegistry: @unchecked Sendable {
         return membersByClassRaw[classRaw] ?? []
     }
 
+    func functions(for classRaw: Int) -> [Int] {
+        members(for: classRaw, matching: RuntimeKFunctionBox.self)
+    }
+
+    func properties(for classRaw: Int) -> [Int] {
+        members(for: classRaw, matching: RuntimeKPropertyStub.self)
+    }
+
     func reset() {
         lock.lock()
         defer { lock.unlock() }
         membersByClassRaw.removeAll()
+    }
+
+    private func members<T: AnyObject>(for classRaw: Int, matching type: T.Type) -> [Int] {
+        members(for: classRaw).filter { isRuntimeObject($0, of: type) }
+    }
+
+    private func isCallableMemberHandle(_ raw: Int) -> Bool {
+        isRuntimeObject(raw, of: RuntimeKFunctionBox.self)
+            || isRuntimeObject(raw, of: RuntimeKPropertyStub.self)
+    }
+
+    private func isRuntimeObject<T: AnyObject>(_ raw: Int, of type: T.Type) -> Bool {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else {
+            return false
+        }
+        let isObjectPointer = runtimeStorage.withLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        guard isObjectPointer else {
+            return false
+        }
+        return tryCast(ptr, to: type) != nil
     }
 }
 
