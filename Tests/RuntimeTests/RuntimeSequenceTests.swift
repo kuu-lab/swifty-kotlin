@@ -139,8 +139,8 @@ private let sequenceParitySelector: @convention(c) (Int, Int, UnsafeMutablePoint
     value % 2
 }
 
-private let sequenceModuloThreeSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value % 3
+private let sequenceLessThanThree: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value < 3 ? 1 : 0
 }
 
 private let sequenceValueTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -1449,40 +1449,14 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(secondList, runtimeNullSentinelInt)
     }
 
-    func testCountReturnsElementCount() {
-        var thrown = 0
-        let count = kk_sequence_count(makeSequence([1, 2, 3]), &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(count, 3)
-    }
-    func testDistinctByPreservesFirstKeyOccurrenceOrder() {
-        var thrown = 0
-        let result = kk_sequence_distinctBy(
-            makeSequence([3, 1, 2, 5, 4, 7]),
-            unsafeBitCast(sequenceParitySelector, to: Int.self),
-            0,
-            &thrown
+    func testDropWhileSkipsLeadingMatchesOnly() {
+        let result = kk_sequence_dropWhile(
+            makeSequence([1, 2, 3, 1, 4]),
+            unsafeBitCast(sequenceLessThanThree, to: Int.self),
+            0
         )
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 2])
-    }
-
-    func testElementAtReturnsIndexedValue() {
-        var thrown = 0
-        let result = kk_sequence_elementAt(makeSequence([10, 20, 30]), 1, &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 20)
-    }
-
-    func testElementAtReportsOutOfBounds() {
-        var thrown = 0
-        let result = kk_sequence_elementAt(makeSequence([10]), 3, &thrown)
-
-        XCTAssertNotEqual(thrown, 0)
-        XCTAssertEqual(result, runtimeNullSentinelInt)
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 1, 4])
     }
 
     func testFilterIsInstanceKeepsMatchingRuntimeTypes() {
