@@ -59,6 +59,7 @@ struct CollectionLiteralLookupTables {
     let kkListIteratorHasPreviousName: InternedString
     let kkListIteratorPreviousName: InternedString
     let kkListToStringName: InternedString
+    let kkCollectionToMutableListName: InternedString
     let kkSetOfName: InternedString
     let kkSetOfNotNullName: InternedString
     let kkSetSizeName: InternedString
@@ -66,6 +67,7 @@ struct CollectionLiteralLookupTables {
     let kkSetContainsAllName: InternedString
     let kkSetIsEmptyName: InternedString
     let kkSetToStringName: InternedString
+    let kkIterableToMutableSetName: InternedString
     // Set higher-order function ABI names (STDLIB-268)
     let kkSetMapName: InternedString
     let kkSetFilterName: InternedString
@@ -883,6 +885,7 @@ struct CollectionLiteralLookupTables {
         kkListIteratorHasPreviousName = interner.intern("kk_list_iterator_hasPrevious")
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
         kkListToStringName = interner.intern("kk_list_to_string")
+        kkCollectionToMutableListName = interner.intern("kk_collection_toMutableList")
         kkSetOfName = interner.intern("kk_set_of")
         kkSetOfNotNullName = interner.intern("kk_set_of_not_null")
         kkSetSizeName = interner.intern("kk_set_size")
@@ -890,6 +893,7 @@ struct CollectionLiteralLookupTables {
         kkSetContainsAllName = interner.intern("kk_set_containsAll")
         kkSetIsEmptyName = interner.intern("kk_set_is_empty")
         kkSetToStringName = interner.intern("kk_set_to_string")
+        kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
         kkSetMapName = interner.intern("kk_set_map")
         kkSetFilterName = interner.intern("kk_set_filter")
         kkSetForEachName = interner.intern("kk_set_forEach")
