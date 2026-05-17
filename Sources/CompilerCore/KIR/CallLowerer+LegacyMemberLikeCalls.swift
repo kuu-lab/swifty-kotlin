@@ -3428,7 +3428,9 @@ extension CallLowerer {
                 case requireNoNullsID:
                     interner.intern("kk_sequence_requireNoNulls")
                 case interner.intern("asSequence"):
-                    interner.intern("kk_sequence_asSequence")
+                    useIterableRuntimeForTerminalFallback
+                        ? interner.intern("kk_iterable_asSequence")
+                        : interner.intern("kk_sequence_asSequence")
                 case asIterableID:
                     interner.intern("kk_sequence_asIterable")
                 case withIndexID:
