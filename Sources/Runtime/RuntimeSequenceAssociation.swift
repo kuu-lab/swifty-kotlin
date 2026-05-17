@@ -426,14 +426,14 @@ private func runtimeSequenceBestValue(
         outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
         return runtimeNullSentinelInt
     }
-    if returnElement {
-        return bestElement ?? runtimeNullSentinelInt
-    }
     guard let bestSelector else {
         if throwOnEmpty {
-            outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+            return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement), outThrown)
         }
         return runtimeNullSentinelInt
+    }
+    if returnElement {
+        return bestElement ?? runtimeNullSentinelInt
     }
     return bestSelector
 }

@@ -226,6 +226,28 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minOf(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 20)
+
+        let emptyResult = kk_sequence_minOf(
+            makeSequence([]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testFirstNotNullOfOrNullReturnsFirstTransformedValue() {
         var thrown = 0
         let result = kk_sequence_firstNotNullOfOrNull(
