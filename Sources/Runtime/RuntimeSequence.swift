@@ -1314,15 +1314,19 @@ private func evaluateSequence(
             let selector = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
             var seen = Set<RuntimeElementKey>()
             seen.reserveCapacity(elements.count)
-            elements = elements.filter { elem in
+            var distinct: [Int] = []
+            for elem in elements {
                 var thrown = 0
                 let key = maybeUnbox(selector(closureRaw, elem, &thrown))
                 if thrown != 0 {
                     outThrown?.pointee = thrown
-                    return false
+                    return []
                 }
-                return seen.insert(RuntimeElementKey(value: key)).inserted
+                if seen.insert(RuntimeElementKey(value: key)).inserted {
+                    distinct.append(elem)
+                }
             }
+            elements = distinct
         case let .zipStep(otherElements):
             let minCount = min(elements.count, otherElements.count)
             var zipped: [Int] = []
