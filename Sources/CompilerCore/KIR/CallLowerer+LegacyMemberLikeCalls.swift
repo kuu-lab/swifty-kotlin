@@ -2783,7 +2783,12 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if runtimeCallee == "kk_sequence_reduceOrNull", normalizedArgIDs.count == 1 {
+                    if (runtimeCallee == "kk_sequence_reduceOrNull"
+                        || runtimeCallee == "kk_sequence_associate"
+                        || runtimeCallee == "kk_sequence_associateBy"
+                        || runtimeCallee == "kk_sequence_associateWith"),
+                       normalizedArgIDs.count == 1
+                    {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
                             normalizedArgIDs[0],
                             sema: sema,
