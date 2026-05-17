@@ -867,6 +867,27 @@ extension CodegenBackendIntegrationTests {
 
     // MARK: - AtomicLongArray edge cases
 
+    func testCodegenAtomicLongArrayAsJavaAtomicArray() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.AtomicLongArray
+        import kotlin.concurrent.atomics.asJavaAtomicArray
+
+        fun main() {
+            val atomic = AtomicLongArray(1)
+            val javaAtomic: java.util.concurrent.atomic.AtomicLongArray = atomic.asJavaAtomicArray()
+            println("ok")
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicLongArrayAsJavaAtomicArray", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "ok\n")
+        }
+    }
+
     func testCodegenAtomicLongArrayBasicOperations() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
@@ -1150,6 +1171,43 @@ extension CodegenBackendIntegrationTests {
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n1\n3\n3\n5\n5\n7\n7\n")
+        }
+    }
+
+    func testCodegenAtomicAddAndGetOverloads() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+        import kotlin.concurrent.atomics.AtomicInt
+        import kotlin.concurrent.atomics.AtomicIntArray
+        import kotlin.concurrent.atomics.AtomicLong
+        import kotlin.concurrent.atomics.AtomicLongArray
+
+        fun main() {
+            val intValue = AtomicInt(1)
+            println(intValue.addAndGet(2))
+            println(intValue.load())
+
+            val longValue = AtomicLong(3L)
+            println(longValue.addAndGet(4L))
+            println(longValue.load())
+
+            val intArray = AtomicIntArray(1)
+            intArray.storeAt(0, 5)
+            println(intArray.addAndGet(0, 2))
+            println(intArray.loadAt(0))
+
+            val longArray = AtomicLongArray(1)
+            longArray.storeAt(0, 7L)
+            println(longArray.addAndGet(0, 3L))
+            println(longArray.loadAt(0))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AtomicAddAndGet", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "3\n3\n7\n7\n7\n7\n10\n10\n")
         }
     }
 

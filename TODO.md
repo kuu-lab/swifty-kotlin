@@ -67,7 +67,7 @@
 #### kotlin.collections 関数の実装（D-Z）
 - [x] STDLIB-COL-FN-048: `dropLastWhile` 関数の実装
 - [x] STDLIB-COL-FN-060: `filterIsInstance` 関数の実装
-- [ ] STDLIB-COL-FN-071: `first` 関数の実装
+- [x] STDLIB-COL-FN-071: `first` 関数の実装
 - [x] STDLIB-COL-FN-077: `flatMapIndexedTo` 関数の実装
 - [x] STDLIB-COL-FN-078: `flatMapTo` 関数の実装
 - [x] STDLIB-COL-FN-079: `flatten` 関数の実装
@@ -115,7 +115,7 @@
 - [x] STDLIB-ATOMIC-NEW-FN-004: `asJavaAtomic` 関数の実装（AtomicReference版）
 - [x] STDLIB-ATOMIC-NEW-FN-005: `asJavaAtomicArray` 関数の実装（AtomicArray版）
 - [x] STDLIB-ATOMIC-NEW-FN-006: `asJavaAtomicArray` 関数の実装（AtomicIntArray版）
-- [ ] STDLIB-ATOMIC-NEW-FN-007: `asJavaAtomicArray` 関数の実装（AtomicLongArray版）
+- [x] STDLIB-ATOMIC-NEW-FN-007: `asJavaAtomicArray` 関数の実装（AtomicLongArray版）
 - [x] STDLIB-ATOMIC-NEW-FN-008: `asKotlinAtomic` 関数の実装（各オーバーロード）
 - [ ] STDLIB-ATOMIC-NEW-FN-009: `asKotlinAtomicArray` 関数の実装（各オーバーロード）
 - [x] STDLIB-ATOMIC-NEW-FN-012: `AtomicLongArray` 関数の実装（factory版）
@@ -136,12 +136,12 @@
 - [x] STDLIB-ATOMIC-NEW-FN-028: `decrementAndGet` 拡張関数の実装（各オーバーロード）
 - [x] STDLIB-ATOMIC-NEW-FN-029: `getAndIncrement` 拡張関数の実装（各オーバーロード）
 - [x] STDLIB-ATOMIC-NEW-FN-030: `getAndDecrement` 拡張関数の実装（各オーバーロード）
-- [ ] STDLIB-ATOMIC-NEW-FN-031: `addAndGet` 拡張関数の実装（各オーバーロード）
+- [x] STDLIB-ATOMIC-NEW-FN-031: `addAndGet` 拡張関数の実装（各オーバーロード）
 - [x] STDLIB-ATOMIC-NEW-FN-032: `getAndAdd` 拡張関数の実装（各オーバーロード）
 
 #### kotlin.contracts 型の実装
 - [x] STDLIB-CONTRACT-TYPE-001: `CallsInPlace` クラスの実装
-- [ ] STDLIB-CONTRACT-TYPE-009: `Returns` クラスの実装
+- [x] STDLIB-CONTRACT-TYPE-009: `Returns` クラスの実装
 - [x] STDLIB-CONTRACT-TYPE-010: `ReturnsNotNull` クラスの実装
 
 #### kotlin.coroutines.cancellation 関数の実装
