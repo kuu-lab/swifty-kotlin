@@ -65,13 +65,28 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(localeOptionsType, for: localeOptionsSymbol)
-        registerJsDateLocaleOptionsBuilder(
-            packageFQName: kotlinJsPkg,
-            localeOptionsType: localeOptionsType,
+
+        if let dateCompanionSymbol = registerJsDateCompanion(
+            ownerSymbol: dateSymbol,
             symbols: symbols,
             types: types,
             interner: interner
-        )
+        ) {
+            let dateCompanionType = types.make(.classType(ClassType(
+                classSymbol: dateCompanionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            registerJsDateCompanionMember(
+                ownerSymbol: dateCompanionSymbol,
+                ownerType: dateCompanionType,
+                named: "now",
+                returnType: types.doubleType,
+                parameters: [],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         if let dateCompanionSymbol = registerJsDateCompanion(
             ownerSymbol: dateSymbol,
