@@ -26,6 +26,7 @@
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
 /// - `Path.appendLines(lines: Iterable<CharSequence>, charset)` extension function
+/// - `Path.writeLines(lines: Iterable<CharSequence>, charset, options)` extension function
 /// - `Path.writeLines(lines: Sequence<CharSequence>, charset, options)` extension function
 /// - `Path.absolutePathString(): String` extension function
 /// - `Path.appendBytes(array: ByteArray)` extension function
@@ -617,6 +618,23 @@ extension DataFlowSemaPhase {
             parameters: [("lines", iterableOfCharSequenceType), ("charset", charsetType)],
             returnType: pathType,
             externalLinkName: "kk_path_appendLines_iterable",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "writeLines",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [
+                ("lines", iterableOfCharSequenceType),
+                ("charset", charsetType),
+                ("options", openOptionType),
+            ],
+            returnType: pathType,
+            externalLinkName: "kk_path_writeLines_iterable",
+            valueParameterHasDefaultValues: [false, true, false],
+            valueParameterIsVararg: [false, false, true],
             symbols: symbols,
             interner: interner
         )
