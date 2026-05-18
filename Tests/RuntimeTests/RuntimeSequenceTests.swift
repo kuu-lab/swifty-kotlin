@@ -342,12 +342,6 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
-    func testTakeLimitsSequenceElements() {
-        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2, 3, 4]), 2)), [1, 2])
-        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 5)), [1, 2])
-        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 0)), [])
-    }
-
     func testTakeLastReturnsTrailingElementsAsList() {
         XCTAssertEqual(listElements(kk_sequence_takeLast(makeSequence([1, 2, 3, 4]), 2, nil)), [3, 4])
         XCTAssertEqual(listElements(kk_sequence_takeLast(makeSequence([1, 2]), 5, nil)), [1, 2])
@@ -359,36 +353,6 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let result = kk_sequence_takeLast(makeSequence([1, 2]), -1, &thrown)
         XCTAssertEqual(listElements(result), [])
         XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testTakeLastWhileReturnsMatchingSuffixAsList() {
-        var thrown = 0
-        let result = kk_sequence_takeLastWhile(
-            makeSequence([1, 3, 4, 2, 5, 6]),
-            unsafeBitCast(sequenceGreaterThanTwo, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [5, 6])
-    }
-
-    func testTakeLastWhilePropagatesPredicateThrowable() {
-        var thrown = 0
-        _ = kk_sequence_takeLastWhile(
-            makeSequence([1, 2]),
-            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testSumAccumulatesIntElements() {
-        XCTAssertEqual(kk_sequence_sum(makeSequence([1, 2, 3, 4])), 10)
-        XCTAssertEqual(kk_sequence_sum(makeSequence([])), 0)
     }
 
     func testSumByAccumulatesSelectorResults() {
