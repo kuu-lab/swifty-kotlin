@@ -74,46 +74,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerOptionalGetOrNull(
-            optionalSymbol: optionalSymbol,
-            packageFQName: kotlinJvmOptionalsPkg,
-            packageSymbol: optionalsPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerOptionalAsSequence(
-            optionalSymbol: optionalSymbol,
-            packageFQName: kotlinJvmOptionalsPkg,
-            packageSymbol: optionalsPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerOptionalToSet(
-            optionalSymbol: optionalSymbol,
-            packageFQName: kotlinJvmOptionalsPkg,
-            packageSymbol: optionalsPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerOptionalToList(
-            optionalSymbol: optionalSymbol,
-            packageFQName: kotlinJvmOptionalsPkg,
-            packageSymbol: optionalsPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerOptionalGetOrElse(
-            optionalSymbol: optionalSymbol,
-            packageFQName: kotlinJvmOptionalsPkg,
-            packageSymbol: optionalsPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     private func registerOptionalToCollection(
