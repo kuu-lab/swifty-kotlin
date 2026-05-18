@@ -44,6 +44,7 @@
 /// - `Path.setPosixFilePermissions(value: Set<PosixFilePermission>): Path` extension function
 /// - `Path.useLines(charset, block)` extension function
 /// - `Path.listDirectoryEntries(glob: String = "*"): List<Path>` extension function
+/// - `Path.useDirectoryEntries(glob, block)` extension function
 /// - `Path.isExecutable()`, `isHidden()`, `isReadable()`, `isSameFileAs()`, `isSymbolicLink()`, `isWritable()`
 /// - Top-level `Path(pathString: String)` factory (kotlin.io.path.Path)
 /// - Top-level `Path(base: String, vararg subpaths: String)` factory (kotlin.io.path.Path)
@@ -681,6 +682,11 @@ extension DataFlowSemaPhase {
             args: [.out(types.stringType)],
             nullability: .nonNull
         )))
+        let sequenceOfPathType = types.make(.classType(ClassType(
+            classSymbol: sequenceSymbol,
+            args: [.out(pathType)],
+            nullability: .nonNull
+        )))
 
         registerPathExtensionFunction(
             named: "appendLines",
@@ -1294,6 +1300,16 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_path_listDirectoryEntries",
             valueParameterHasDefaultValues: [true],
             symbols: symbols,
+            interner: interner
+        )
+
+        registerPathUseDirectoryEntriesFunction(
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            sequenceOfPathType: sequenceOfPathType,
+            globType: types.stringType,
+            symbols: symbols,
+            types: types,
             interner: interner
         )
 
@@ -2129,6 +2145,130 @@ extension DataFlowSemaPhase {
         )))
         let blockType = types.make(.functionType(FunctionType(
             params: [sequenceOfStringType],
+            returnType: typeParamType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        var valueParameterSymbols: [SymbolID] = []
+        for parameterName in parameters.map(\.name) + ["block"] {
+            let name = interner.intern(parameterName)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: name,
+                fqName: functionFQName + [name, interner.intern(externalLinkName)],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            valueParameterSymbols.append(parameterSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypesPrefix + [blockType],
+                returnType: typeParamType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: valueParameterHasDefaultValuesPrefix + [false],
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
+                typeParameterSymbols: [typeParamSymbol]
+            ),
+            for: functionSymbol
+        )
+    }
+
+    private func registerPathUseDirectoryEntriesFunction(
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        sequenceOfPathType: TypeID,
+        globType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        registerPathUseDirectoryEntriesFunction(
+            packageFQName: packageFQName,
+            receiverType: receiverType,
+            sequenceOfPathType: sequenceOfPathType,
+            parameters: [("glob", globType)],
+            externalLinkName: "kk_path_useDirectoryEntries",
+            valueParameterHasDefaultValuesPrefix: [true],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerPathUseDirectoryEntriesFunction(
+            packageFQName: packageFQName,
+            receiverType: receiverType,
+            sequenceOfPathType: sequenceOfPathType,
+            parameters: [],
+            externalLinkName: "kk_path_useDirectoryEntries_default",
+            valueParameterHasDefaultValuesPrefix: [],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerPathUseDirectoryEntriesFunction(
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        sequenceOfPathType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        externalLinkName: String,
+        valueParameterHasDefaultValuesPrefix: [Bool],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("useDirectoryEntries")
+        let functionFQName = packageFQName + [functionName]
+        let parameterTypesPrefix = parameters.map(\.type)
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && Array(signature.parameterTypes.dropLast()) == parameterTypesPrefix
+                && signature.typeParameterSymbols.count == 1
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        let typeParamName = interner.intern("T")
+        let typeParamSymbol = symbols.define(
+            kind: .typeParameter,
+            name: typeParamName,
+            fqName: functionFQName + [interner.intern("$synthetic"), typeParamName, interner.intern(externalLinkName)],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: typeParamSymbol,
+            nullability: .nonNull
+        )))
+        let blockType = types.make(.functionType(FunctionType(
+            params: [sequenceOfPathType],
             returnType: typeParamType,
             isSuspend: false,
             nullability: .nonNull
