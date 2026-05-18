@@ -808,7 +808,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             try runSema(ctx)
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
-                "fileVisitor(builderAction) top-level function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\\.message))"
+                "fileVisitor(builderAction) top-level function in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
 
             let interner = ctx.interner
