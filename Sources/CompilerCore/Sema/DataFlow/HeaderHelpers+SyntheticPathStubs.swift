@@ -53,10 +53,7 @@
 /// - `Path.forEachDirectoryEntry(glob, action)` extension function
 /// - `Path.forEachLine(charset, action)` extension function
 /// - `Path.setPosixFilePermissions(value: Set<PosixFilePermission>): Path` extension function
-/// - `Path.useLines(charset, block)` extension function
 /// - `Path.listDirectoryEntries(glob: String = "*"): List<Path>` extension function
-/// - `Path.walk(options)` extension function
-/// - `Path.useDirectoryEntries(glob, block)` extension function
 /// - `Path.isExecutable()`, `isHidden()`, `isReadable()`, `isSameFileAs()`, `isSymbolicLink()`, `isWritable()`
 /// - `Path.notExists(vararg options: LinkOption): Boolean`
 /// - Top-level `Path(pathString: String)` factory (kotlin.io.path.Path)
@@ -1647,28 +1644,6 @@ extension DataFlowSemaPhase {
             returnType: listOfPathType,
             externalLinkName: "kk_path_listDirectoryEntries",
             valueParameterHasDefaultValues: [true],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerPathUseDirectoryEntriesFunction(
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            sequenceOfPathType: sequenceOfPathType,
-            globType: types.stringType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerPathExtensionFunction(
-            named: "walk",
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            parameters: [("options", pathWalkOptionType)],
-            returnType: sequenceOfPathType,
-            externalLinkName: "kk_path_walk",
-            valueParameterIsVararg: [true],
             symbols: symbols,
             interner: interner
         )
