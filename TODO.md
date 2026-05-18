@@ -815,17 +815,15 @@
 - [x] STDLIB-JS-FN-024: `List<T>.toJsArray()` を追加する
 - [ ] STDLIB-JS-FN-025: `Long.toJsBigInt()` を追加する
 - [ ] STDLIB-JS-FN-026: `Boolean.toJsBoolean()` を追加する
-- [x] STDLIB-JS-FN-027: `Double.toJsNumber()` を追加する
-- [x] STDLIB-JS-FN-028: `Int.toJsNumber()` を追加する
-- [x] STDLIB-JS-FN-029: `T.toJsReference()` を追加する
-- [x] STDLIB-JS-FN-030: `String.toJsString()` を追加する
-- [x] STDLIB-JS-FN-031: `JsArray<T>.toList()` を追加する
-- [x] STDLIB-JS-FN-032: `JsBigInt.toLong()` を追加する
+- [ ] STDLIB-JS-FN-027: `Double.toJsNumber()` を追加する
+- [ ] STDLIB-JS-FN-028: `Int.toJsNumber()` を追加する
+- [ ] STDLIB-JS-FN-029: `T.toJsReference()` を追加する
+- [ ] STDLIB-JS-FN-030: `String.toJsString()` を追加する
+- [ ] STDLIB-JS-FN-031: `JsArray<T>.toList()` を追加する
+- [ ] STDLIB-JS-FN-032: `JsBigInt.toLong()` を追加する
 - [x] STDLIB-JS-FN-033: `JsAny.toThrowableOrNull()` を追加する
- - [ ] STDLIB-JS-COLLECTIONS-TYPE-001: `kotlin.js.collections.JsArray<E>` external class を追加する
- - [x] STDLIB-JS-COLLECTIONS-TYPE-002: `kotlin.js.collections.JsMap<K, V>` external class を追加する
- - [x] STDLIB-JS-COLLECTIONS-TYPE-001: `kotlin.js.collections.JsArray<E>` external class を追加する
- - [ ] STDLIB-JS-COLLECTIONS-TYPE-002: `kotlin.js.collections.JsMap<K, V>` external class を追加する
+- [ ] STDLIB-JS-COLLECTIONS-TYPE-001: `kotlin.js.collections.JsArray<E>` external class を追加する
+- [ ] STDLIB-JS-COLLECTIONS-TYPE-002: `kotlin.js.collections.JsMap<K, V>` external class を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [x] STDLIB-JS-COLLECTIONS-TYPE-005: `kotlin.js.collections.JsReadonlySet<E>` external interface を追加する
