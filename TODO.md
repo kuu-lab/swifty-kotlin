@@ -741,7 +741,7 @@
 - [x] STDLIB-JVM-PROP-005: `KClass<T>.javaClass` extension property を追加する
 - [ ] STDLIB-JVM-PROP-006: `KClass<T>.javaObjectType` extension property を追加する
 - [ ] STDLIB-JVM-PROP-007: `KClass<T>.javaPrimitiveType` extension property を追加する
-- [ ] STDLIB-JVM-PROP-008: `Class<T>.kotlin` extension property を追加する
+- [x] STDLIB-JVM-PROP-008: `Class<T>.kotlin` extension property を追加する
 - [ ] STDLIB-JVM-OPTIONALS-FN-001: `Optional<T>.asSequence()` を追加する
 - [ ] STDLIB-JVM-OPTIONALS-FN-003: `Optional<T>.getOrElse(defaultValue)` を追加する
 - [ ] STDLIB-JVM-OPTIONALS-FN-004: `Optional<T>.getOrNull()` を追加する
