@@ -49,7 +49,6 @@
 /// - `Path.getLastModifiedTime(vararg options: LinkOption): FileTime` extension function
 /// - `Path.setOwner(value: UserPrincipal): Path` extension function
 /// - `Path.getPosixFilePermissions(vararg options: LinkOption): Set<PosixFilePermission>` extension function
-/// - `Path.setAttribute(attribute, value, vararg options: LinkOption): Path` extension function
 /// - `Path.fileSize(): Long` extension function
 /// - `Path.forEachDirectoryEntry(glob, action)` extension function
 /// - `Path.forEachLine(charset, action)` extension function
