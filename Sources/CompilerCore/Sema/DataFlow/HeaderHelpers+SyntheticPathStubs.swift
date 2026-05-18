@@ -28,11 +28,6 @@
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
 /// - `Path.writer(charset, options)` extension function
-/// - `Path.outputStream(vararg options: OpenOption): OutputStream` extension function
-/// - `Path.moveTo(target: Path, vararg options: CopyOption): Path` extension function
-/// - `Path.inputStream(vararg options: OpenOption): InputStream` extension function
-/// - `Path.reader(charset, vararg options: OpenOption): BufferedReader` extension function
-/// - `Path.inputStream(vararg options: OpenOption): InputStream` extension function
 /// - `Path.appendLines(lines: Iterable<CharSequence>, charset)` extension function
 /// - `Path.writeLines(lines: Sequence<CharSequence>, charset, options)` extension function
 /// - `Path.absolutePathString(): String` extension function
@@ -1351,30 +1346,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_path_writer",
             valueParameterHasDefaultValues: [true, false],
             valueParameterIsVararg: [false, true],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerPathExtensionFunction(
-            named: "outputStream",
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            parameters: [("options", openOptionType)],
-            returnType: outputStreamType,
-            externalLinkName: "kk_path_outputStream",
-            valueParameterIsVararg: [true],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerPathExtensionFunction(
-            named: "inputStream",
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            parameters: [("options", openOptionType)],
-            returnType: inputStreamType,
-            externalLinkName: "kk_path_inputStream",
-            valueParameterIsVararg: [true],
             symbols: symbols,
             interner: interner
         )
