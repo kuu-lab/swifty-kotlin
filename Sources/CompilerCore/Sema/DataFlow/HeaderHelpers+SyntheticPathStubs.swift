@@ -7,7 +7,8 @@
 /// - `toString(): String`
 /// - `resolve(other: String): Path`, `resolve(other: Path): Path`
 /// - `relativize(other: Path): Path`, `normalize(): Path`
-/// - `exists(): Boolean`, `isDirectory(): Boolean`
+/// - `exists(): Boolean`
+/// - `Path.isDirectory(vararg options: LinkOption): Boolean` extension function
 /// - `Path.isRegularFile(vararg options: LinkOption): Boolean` extension function
 /// - `Path.exists(vararg options: LinkOption): Boolean` extension function
 /// - `startsWith(other: Path): Boolean`, `startsWith(other: String): Boolean`
@@ -27,6 +28,7 @@
 /// - `Path.invariantSeparatorsPathString: String` extension property
 /// - `Path.writeBytes(array: ByteArray, vararg options: OpenOption)` extension function
 /// - `Path.writer(charset, options)` extension function
+/// - `Path.outputStream(vararg options: OpenOption): OutputStream` extension function
 /// - `Path.appendLines(lines: Iterable<CharSequence>, charset)` extension function
 /// - `Path.writeLines(lines: Iterable<CharSequence>, charset, options)` extension function
 /// - `Path.writeLines(lines: Sequence<CharSequence>, charset, options)` extension function
@@ -38,9 +40,11 @@
 /// - `Path.fileStore(): FileStore` extension function
 /// - `Path.fileAttributesViewOrNull<V : FileAttributeView>(vararg options: LinkOption): V?` extension function
 /// - `Path.getAttribute(attribute: String, vararg options: LinkOption): Any` extension function
+/// - `Path.getOwner(vararg options: LinkOption): UserPrincipal` extension function
 /// - `Path.setOwner(value: UserPrincipal): Path` extension function
 /// - `Path.getPosixFilePermissions(vararg options: LinkOption): Set<PosixFilePermission>` extension function
 /// - `Path.fileSize(): Long` extension function
+/// - `Path.forEachLine(charset, action)` extension function
 /// - `Path.setPosixFilePermissions(value: Set<PosixFilePermission>): Path` extension function
 /// - `Path.useLines(charset, block)` extension function
 /// - `Path.listDirectoryEntries(glob: String = "*"): List<Path>` extension function
@@ -142,6 +146,12 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(charsetType, for: charsetSymbol)
+        let stringActionType = types.make(.functionType(FunctionType(
+            params: [types.stringType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
 
         let copyOptionPkg = ensurePackage(path: ["java", "nio", "file"], symbols: symbols, interner: interner)
         let copyOptionPkgSymbol = symbols.lookup(fqName: copyOptionPkg)
@@ -345,6 +355,22 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
+
+        let outputStreamSymbol = ensureClassSymbol(
+            named: "OutputStream",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let javaIOPkgSymbol {
+            symbols.setParentSymbol(javaIOPkgSymbol, for: outputStreamSymbol)
+        }
+        let outputStreamType = types.make(.classType(ClassType(
+            classSymbol: outputStreamSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(outputStreamType, for: outputStreamSymbol)
 
         let javaNetPkg = ensurePackage(
             path: ["java", "net"],
@@ -826,13 +852,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerPathMemberFunction(
+        registerPathExtensionFunction(
             named: "isDirectory",
-            externalLinkName: "kk_path_isDirectory",
-            ownerSymbol: pathSymbol,
-            ownerType: pathType,
-            parameters: [],
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("options", linkOptionType)],
             returnType: types.booleanType,
+            externalLinkName: "kk_path_isDirectory",
+            valueParameterIsVararg: [true],
             symbols: symbols,
             interner: interner
         )
@@ -919,6 +946,29 @@ extension DataFlowSemaPhase {
             parameters: [],
             returnType: types.longType,
             externalLinkName: "kk_path_fileSize",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "forEachLine",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("charset", charsetType), ("action", stringActionType)],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_forEachLine",
+            valueParameterHasDefaultValues: [true, false],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "forEachLine",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("action", stringActionType)],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_forEachLine_default",
             symbols: symbols,
             interner: interner
         )
@@ -1167,6 +1217,18 @@ extension DataFlowSemaPhase {
         )
 
         registerPathExtensionFunction(
+            named: "outputStream",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("options", openOptionType)],
+            returnType: outputStreamType,
+            externalLinkName: "kk_path_outputStream",
+            valueParameterIsVararg: [true],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
             named: "bufferedReader",
             packageFQName: kotlinIOPathPkg,
             receiverType: pathType,
@@ -1253,6 +1315,18 @@ extension DataFlowSemaPhase {
             parameters: [("value", userPrincipalType)],
             returnType: pathType,
             externalLinkName: "kk_path_setOwner",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "getOwner",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("options", linkOptionType)],
+            returnType: userPrincipalType,
+            externalLinkName: "kk_path_getOwner",
+            valueParameterIsVararg: [true],
             symbols: symbols,
             interner: interner
         )
