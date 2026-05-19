@@ -459,6 +459,7 @@ extension CallLowerer {
         if loweredCallee == interner.intern("kk_sequence_filterTo")
             || loweredCallee == interner.intern("kk_sequence_filterNotTo")
             || loweredCallee == interner.intern("kk_sequence_mapNotNullTo")
+            || loweredCallee == interner.intern("kk_sequence_mapTo")
         {
             if finalArguments.count == 2 {
                 let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
