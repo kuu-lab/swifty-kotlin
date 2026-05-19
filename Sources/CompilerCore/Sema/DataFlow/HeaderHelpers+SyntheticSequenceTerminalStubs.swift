@@ -213,6 +213,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // takeLast(n: Int): List<T> (STDLIB-SEQ-FN-120)
+        registerSequenceMemberStub(
+            named: "takeLast",
+            externalLinkName: "kk_sequence_takeLast",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: listReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
         // firstNotNullOf<T, R>(transform: (T) -> R?): R
         // Use a method-local T parameter (independent of Sequence's `out T`)
         // so the projection on the receiver does not block referencing T in
@@ -552,6 +567,19 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         registerSequenceMemberStub(
+            named: "sumOf",
+            externalLinkName: "kk_sequence_sumOf",
+            receiverType: receiverType,
+            parameters: [("selector", sequenceElementToIntType)],
+            returnType: types.intType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+        registerSequenceMemberStub(
             named: "sumBy",
             externalLinkName: "kk_sequence_sumBy",
             receiverType: receiverType,
@@ -677,6 +705,20 @@ extension DataFlowSemaPhase {
         registerSequenceMemberStub(
             named: "toHashSet",
             externalLinkName: "kk_sequence_toHashSet",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: mutableSetReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // toSortedSet(): MutableSet<T>
+        registerSequenceMemberStub(
+            named: "toSortedSet",
+            externalLinkName: "kk_sequence_toSortedSet",
             receiverType: receiverType,
             parameters: [],
             returnType: mutableSetReturnType,
