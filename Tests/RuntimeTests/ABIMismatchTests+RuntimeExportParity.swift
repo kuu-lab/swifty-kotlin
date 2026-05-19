@@ -68,6 +68,7 @@ extension ABIMismatchTests {
             "kk_future_getState",
             "kk_js_array_toArray",
             "kk_js_array_toList",
+            "kk_js_map_toMap",
             "kk_jsclass_kotlin",
             "kk_int_to_int",
             "kk_js_array_set",
