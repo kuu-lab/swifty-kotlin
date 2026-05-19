@@ -213,6 +213,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // takeLast(n: Int): List<T> (STDLIB-SEQ-FN-120)
+        registerSequenceMemberStub(
+            named: "takeLast",
+            externalLinkName: "kk_sequence_takeLast",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: listReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
         // firstNotNullOf<T, R>(transform: (T) -> R?): R
         // Use a method-local T parameter (independent of Sequence's `out T`)
         // so the projection on the receiver does not block referencing T in
@@ -552,6 +567,19 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         registerSequenceMemberStub(
+            named: "sumOf",
+            externalLinkName: "kk_sequence_sumOf",
+            receiverType: receiverType,
+            parameters: [("selector", sequenceElementToIntType)],
+            returnType: types.intType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+        registerSequenceMemberStub(
             named: "sumBy",
             externalLinkName: "kk_sequence_sumBy",
             receiverType: receiverType,
@@ -677,6 +705,20 @@ extension DataFlowSemaPhase {
         registerSequenceMemberStub(
             named: "toHashSet",
             externalLinkName: "kk_sequence_toHashSet",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: mutableSetReturnType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // toSortedSet(): MutableSet<T>
+        registerSequenceMemberStub(
+            named: "toSortedSet",
+            externalLinkName: "kk_sequence_toSortedSet",
             receiverType: receiverType,
             parameters: [],
             returnType: mutableSetReturnType,
@@ -1154,6 +1196,67 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 canThrow: true
             )
+        }
+
+        // associate(transform): Map<K, V>
+        if let mapSymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Map"),
+        ]), let pairSymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Pair")]) {
+            let associateName = interner.intern("associate")
+            let associateFQName = sequenceFQName + [associateName]
+            if symbols.lookup(fqName: associateFQName) == nil {
+                let keyTypeParamName = interner.intern("K")
+                let keyTypeParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: keyTypeParamName,
+                    fqName: associateFQName + [keyTypeParamName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+                let valueTypeParamName = interner.intern("V")
+                let valueTypeParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: valueTypeParamName,
+                    fqName: associateFQName + [valueTypeParamName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: []
+                )
+                let keyType = types.make(.typeParam(TypeParamType(symbol: keyTypeParamSymbol, nullability: .nonNull)))
+                let valueType = types.make(.typeParam(TypeParamType(symbol: valueTypeParamSymbol, nullability: .nonNull)))
+                let transformType = types.make(.functionType(FunctionType(
+                    params: [typeParamType],
+                    returnType: types.make(.classType(ClassType(
+                        classSymbol: pairSymbol,
+                        args: [.out(keyType), .out(valueType)],
+                        nullability: .nonNull
+                    ))),
+                    isSuspend: false,
+                    nullability: .nonNull
+                )))
+                let returnType = types.make(.classType(ClassType(
+                    classSymbol: mapSymbol,
+                    args: [.out(keyType), .out(valueType)],
+                    nullability: .nonNull
+                )))
+                registerSequenceMemberStub(
+                    named: "associate",
+                    externalLinkName: "kk_sequence_associate",
+                    receiverType: receiverType,
+                    parameters: [("transform", transformType)],
+                    returnType: returnType,
+                    sequenceSymbol: sequenceSymbol,
+                    sequenceFQName: sequenceFQName,
+                    typeParamSymbol: typeParamSymbol,
+                    symbols: symbols,
+                    interner: interner,
+                    canThrow: true,
+                    additionalTypeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol]
+                )
+            }
         }
 
         // associateWith(valueSelector): Map<T, R>
