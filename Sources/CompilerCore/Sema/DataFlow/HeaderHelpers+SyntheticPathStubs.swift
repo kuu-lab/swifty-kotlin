@@ -41,6 +41,7 @@
 /// - `Path.fileStore(): FileStore` extension function
 /// - `Path.fileAttributesViewOrNull<V : FileAttributeView>(vararg options: LinkOption): V?` extension function
 /// - `Path.getAttribute(attribute: String, vararg options: LinkOption): Any` extension function
+/// - `Path.getOwner(vararg options: LinkOption): UserPrincipal` extension function
 /// - `Path.setOwner(value: UserPrincipal): Path` extension function
 /// - `Path.getPosixFilePermissions(vararg options: LinkOption): Set<PosixFilePermission>` extension function
 /// - `Path.fileSize(): Long` extension function
@@ -1453,21 +1454,6 @@ extension DataFlowSemaPhase {
             returnType: userPrincipalType,
             externalLinkName: "kk_path_getOwner",
             valueParameterIsVararg: [true],
-            symbols: symbols,
-            interner: interner
-        )
-        registerPathExtensionFunction(
-            named: "setAttribute",
-            packageFQName: kotlinIOPathPkg,
-            receiverType: pathType,
-            parameters: [
-                ("attribute", types.stringType),
-                ("value", types.stringType),
-                ("options", linkOptionType),
-            ],
-            returnType: pathType,
-            externalLinkName: "kk_path_setAttribute",
-            valueParameterIsVararg: [false, false, true],
             symbols: symbols,
             interner: interner
         )
