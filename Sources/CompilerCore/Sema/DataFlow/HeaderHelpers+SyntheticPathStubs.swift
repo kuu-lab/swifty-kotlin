@@ -9,6 +9,7 @@
 /// - `relativize(other: Path): Path`, `normalize(): Path`
 /// - `exists(): Boolean`, `isDirectory(): Boolean`
 /// - `Path.isRegularFile(vararg options: LinkOption): Boolean` extension function
+/// - `Path.exists(vararg options: LinkOption): Boolean` extension function
 /// - `startsWith(other: Path): Boolean`, `startsWith(other: String): Boolean`
 /// - `endsWith(other: Path): Boolean`, `endsWith(other: String): Boolean`
 /// - `toFile(): File`, `toUri(): URI`, `toAbsolutePath(): Path`
