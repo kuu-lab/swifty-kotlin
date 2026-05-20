@@ -207,6 +207,7 @@ private extension StdlibSurfaceSpec {
         list("filterNot", 1, "kk_list_filterNot", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         list("mapNotNull", 1, "kk_list_mapNotNull", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .nullableAny)),
         list("flatMap", 1, "kk_list_flatMap", returnStrategy: .list, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
+        list("flatMapIndexed", 1, "kk_list_flatMapIndexed", returnStrategy: .list, lambdaExpectation: .indexedReceiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("forEach", 1, "kk_list_forEach", returnStrategy: .unit, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .unit)),
         list("groupBy", 1, "kk_list_groupBy", returnStrategy: .map, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
         list("groupingBy", 1, "kk_list_groupingBy", returnStrategy: .any, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .any)),
