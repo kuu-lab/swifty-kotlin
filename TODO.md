@@ -247,6 +247,11 @@
 - [x] STDLIB-RANGES-FN-004: `coerceValueIn` 関数の実装
 
 #### kotlin.reflect 型の実装
+- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
+- [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
+- [ ] STDLIB-REFLECT-TYPE-011: `KMutableProperty1` インターフェースの実装
+- [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
+- [ ] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-011: `KMutableProperty1` インターフェースの実装
@@ -271,6 +276,15 @@
 - [x] STDLIB-SEQ-FN-002: `any` 関数の実装
 - [x] STDLIB-SEQ-FN-003: `asIterable` 関数の実装
 - [ ] STDLIB-SEQ-FN-004: `asSequence` 関数の実装
+- [ ] STDLIB-SEQ-FN-005: `associate` 関数の実装
+- [ ] STDLIB-SEQ-FN-006: `associateBy` 関数の実装
+- [x] STDLIB-SEQ-FN-007: `associateByTo` 関数の実装
+- [ ] STDLIB-SEQ-FN-008: `associateTo` 関数の実装
+- [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
+- [ ] STDLIB-SEQ-FN-010: `associateWithTo` 関数の実装
+- [ ] STDLIB-SEQ-FN-011: `averageOf` 関数の実装
+- [ ] STDLIB-SEQ-FN-012: `chunked` 関数の実装
+- [ ] STDLIB-SEQ-FN-013: `constrainOnce` 関数の実装
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
 - [x] STDLIB-SEQ-FN-006: `associateBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-007: `associateByTo` 関数の実装
