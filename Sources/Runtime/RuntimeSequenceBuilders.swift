@@ -306,6 +306,9 @@ public func kk_sequence_mapNotNullTo(
 /// `mapIndexedTo`: Evaluate the sequence and append indexed transformed elements to the destination.
 @_cdecl("kk_sequence_mapIndexedTo")
 public func kk_sequence_mapIndexedTo(
+/// `flatMapTo`: Evaluate the sequence, flatten transform results, and append them.
+@_cdecl("kk_sequence_flatMapTo")
+public func kk_sequence_flatMapTo(
     _ seqRaw: Int,
     _ destRaw: Int,
     _ fnPtr: Int,
@@ -323,6 +326,18 @@ public func kk_sequence_mapIndexedTo(
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
         runtimeAppendToMutableCollection(destRaw, maybeUnbox(result))
+    for elem in elements {
+        var thrown = 0
+        let flattened = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: elem, outThrown: &thrown)
+        if thrown != 0 {
+            return handleCollectionLambdaThrow(thrown, outThrown)
+        }
+        guard let flattenedElements = runtimeIterableElements(from: flattened) else {
+            invalidContainerPanic(#function, "iterable")
+        }
+        for flattenedElement in flattenedElements {
+            runtimeAppendToMutableCollection(destRaw, flattenedElement)
+        }
     }
     return destRaw
 }
