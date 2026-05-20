@@ -1374,6 +1374,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 1, 4])
+    }
     func testDistinctByPreservesFirstKeyOccurrenceOrder() {
         var thrown = 0
         let result = kk_sequence_distinctBy(
