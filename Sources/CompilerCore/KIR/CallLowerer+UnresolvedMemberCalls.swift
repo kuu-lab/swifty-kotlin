@@ -659,6 +659,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_associateWithTo")
             case interner.intern("groupByTo"):
                 return interner.intern("kk_sequence_groupByTo")
+            case interner.intern("flatMapTo"):
+                return interner.intern("kk_sequence_flatMapTo")
             case interner.intern("contains"):
                 return interner.intern("kk_sequence_contains")
             case interner.intern("indexOf"):
@@ -764,6 +766,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_maxWithOrNull")
             case interner.intern("minOf"):
                 return interner.intern("kk_sequence_minOf")
+            case interner.intern("minOfOrNull"):
+                return interner.intern("kk_sequence_minOfOrNull")
             case interner.intern("maxOfOrNull"):
                 return interner.intern("kk_sequence_maxOfOrNull")
             case interner.intern("maxOf"):

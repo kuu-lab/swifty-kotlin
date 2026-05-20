@@ -248,6 +248,7 @@
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-016: `KProperty1` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-016: `KProperty1` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-022: `KVisibility` enum の実装
 
 #### kotlin.reflect プロパティの実装
@@ -278,7 +279,7 @@
 - [ ] STDLIB-SEQ-FN-014: `contains` 関数の実装
 - [ ] STDLIB-SEQ-FN-015: `count` 関数の実装
 - [ ] STDLIB-SEQ-FN-016: `distinct` 関数の実装
-- [ ] STDLIB-SEQ-FN-017: `distinctBy` 関数の実装
+- [x] STDLIB-SEQ-FN-017: `distinctBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-018: `drop` 関数の実装
 - [ ] STDLIB-SEQ-FN-019: `dropWhile` 関数の実装
 - [ ] STDLIB-SEQ-FN-020: `elementAt` 関数の実装
@@ -300,11 +301,11 @@
 - [x] STDLIB-SEQ-FN-038: `flatMap` 関数の実装
 - [x] STDLIB-SEQ-FN-039: `flatMapIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-040: `flatMapIndexedTo` 関数の実装
-- [ ] STDLIB-SEQ-FN-041: `flatMapTo` 関数の実装
+- [x] STDLIB-SEQ-FN-041: `flatMapTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-042: `fold` 関数の実装
 - [x] STDLIB-SEQ-FN-043: `foldIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
-- [ ] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
+- [x] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
 - [x] STDLIB-SEQ-FN-048: `indexOf` 関数の実装
 - [ ] STDLIB-SEQ-FN-049: `indexOfFirst` 関数の実装
@@ -314,7 +315,7 @@
  - [x] STDLIB-SEQ-FN-053: `joinToString` 関数の実装
  - [x] STDLIB-SEQ-FN-054: `last` 関数の実装
 - [ ] STDLIB-SEQ-FN-055: `lastIndexOf` 関数の実装
-- [ ] STDLIB-SEQ-FN-056: `lastOrNull` 関数の実装
+- [x] STDLIB-SEQ-FN-056: `lastOrNull` 関数の実装
 - [x] STDLIB-SEQ-FN-057: `map` 関数の実装
 - [x] STDLIB-SEQ-FN-058: `mapIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-059: `mapIndexedNotNull` 関数の実装
@@ -335,11 +336,11 @@
 - [ ] STDLIB-SEQ-FN-074: `minBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-075: `minByOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-076: `minOf` 関数の実装
-- [ ] STDLIB-SEQ-FN-077: `minOfOrNull` 関数の実装
+- [x] STDLIB-SEQ-FN-077: `minOfOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-078: `minOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-079: `minWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-080: `minWithOrNull` 関数の実装
-- [ ] STDLIB-SEQ-FN-081: `minus` 関数の実装
+- [x] STDLIB-SEQ-FN-081: `minus` 関数の実装
 - [x] STDLIB-SEQ-FN-083: `none` 関数の実装
 - [x] STDLIB-SEQ-FN-084: `onEach` 関数の実装
 - [x] STDLIB-SEQ-FN-085: `onEachIndexed` 関数の実装

@@ -604,6 +604,36 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testSequenceDistinctByResolvesInCallExpressions() throws {
+        let source = """
+        fun uniqueByParity(): Sequence<Int> {
+            val values = sequenceOf(1, 2, 3, 4)
+            return values.distinctBy { value -> value % 2 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected Sequence.distinctBy surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = ["kotlin", "sequences", "Sequence", "distinctBy"]
+                .map { ctx.interner.intern($0) }
+            let links = Set(
+                sema.symbols.lookupAll(fqName: memberFQName)
+                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            XCTAssertTrue(links.contains("kk_sequence_distinctBy"))
+        }
+    }
+
     func testSequenceZipWithNextResolvesInCallExpressions() throws {
         let source = """
         fun adjacentPairCount(): Int {
@@ -907,6 +937,14 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         fun indexedValuesSize(): Int {
             val values = sequenceOf(10, 20, 30)
             return values.withIndex().toList().size
+    func testSequenceMinusResolvesInCallExpressions() throws {
+        fun removeValue(): Sequence<Int> {
+            val values = sequenceOf(1, 2, 3)
+            return values.minus(2)
+        }
+
+        fun removeWithOperator(): Sequence<Int> {
+            return values - 2
         }
         """
 
@@ -923,6 +961,9 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let memberFQName = ["kotlin", "sequences", "Sequence", "withIndex"]
+                "Expected Sequence.minus surface to resolve cleanly, got: \(diagnosticSummary)"
+
+            let memberFQName = ["kotlin", "sequences", "Sequence", "minus"]
                 .map { ctx.interner.intern($0) }
             let links = Set(
                 sema.symbols.lookupAll(fqName: memberFQName)
@@ -945,6 +986,7 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                 return XCTFail("Expected Sequence.withIndex() to return Sequence<IndexedValue<T>>")
             }
             XCTAssertEqual(indexedValueType.classSymbol, indexedValueSymbol)
+            XCTAssertTrue(links.contains("kk_sequence_minus"))
         }
     }
 
@@ -1259,6 +1301,36 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             XCTAssertTrue(links.contains("kk_sequence_filterNotTo"))
+        }
+    }
+
+    func testSequenceMinOfOrNullResolvesInCallExpressions() throws {
+        let source = """
+        fun smallestProjection(): Int? {
+            val values = sequenceOf(5, 2, 3)
+            return values.minOfOrNull { value -> value * 10 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected Sequence.minOfOrNull surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let memberFQName = ["kotlin", "sequences", "Sequence", "minOfOrNull"]
+                .map { ctx.interner.intern($0) }
+            let links = Set(
+                sema.symbols.lookupAll(fqName: memberFQName)
+                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            XCTAssertTrue(links.contains("kk_sequence_minOfOrNull"))
         }
     }
 
