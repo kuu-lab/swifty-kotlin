@@ -839,6 +839,14 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_dynamic_iterator",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_toJsString",
             parameters: [
                 RuntimeABIParameter(name: "stringRaw", type: .intptr),
