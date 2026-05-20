@@ -246,7 +246,7 @@
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-011: `KMutableProperty1` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
-- [ ] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-016: `KProperty1` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-022: `KVisibility` enum の実装
 
@@ -266,7 +266,7 @@
 - [x] STDLIB-SEQ-FN-003: `asIterable` 関数の実装
 - [ ] STDLIB-SEQ-FN-004: `asSequence` 関数の実装
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
-- [ ] STDLIB-SEQ-FN-006: `associateBy` 関数の実装
+- [x] STDLIB-SEQ-FN-006: `associateBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-007: `associateByTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-008: `associateTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
@@ -274,7 +274,7 @@
 - [ ] STDLIB-SEQ-FN-010: `associateWithTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-011: `averageOf` 関数の実装
 - [ ] STDLIB-SEQ-FN-012: `chunked` 関数の実装
-- [ ] STDLIB-SEQ-FN-013: `constrainOnce` 関数の実装
+- [x] STDLIB-SEQ-FN-013: `constrainOnce` 関数の実装
 - [ ] STDLIB-SEQ-FN-014: `contains` 関数の実装
 - [ ] STDLIB-SEQ-FN-015: `count` 関数の実装
 - [ ] STDLIB-SEQ-FN-016: `distinct` 関数の実装
@@ -316,7 +316,7 @@
 - [ ] STDLIB-SEQ-FN-055: `lastIndexOf` 関数の実装
 - [ ] STDLIB-SEQ-FN-056: `lastOrNull` 関数の実装
 - [x] STDLIB-SEQ-FN-057: `map` 関数の実装
-- [ ] STDLIB-SEQ-FN-058: `mapIndexed` 関数の実装
+- [x] STDLIB-SEQ-FN-058: `mapIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-059: `mapIndexedNotNull` 関数の実装
 - [x] STDLIB-SEQ-FN-060: `mapIndexedNotNullTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-061: `mapIndexedTo` 関数の実装
@@ -342,7 +342,7 @@
 - [ ] STDLIB-SEQ-FN-081: `minus` 関数の実装
 - [x] STDLIB-SEQ-FN-083: `none` 関数の実装
 - [x] STDLIB-SEQ-FN-084: `onEach` 関数の実装
-- [ ] STDLIB-SEQ-FN-085: `onEachIndexed` 関数の実装
+- [x] STDLIB-SEQ-FN-085: `onEachIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-086: `partition` 関数の実装
 - [ ] STDLIB-SEQ-FN-087: `plus` 関数の実装
 - [ ] STDLIB-SEQ-FN-088: `plusElement` 関数の実装
@@ -355,10 +355,10 @@
 - [ ] STDLIB-SEQ-FN-095: `reduceRightIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-096: `reduceRightIndexedOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-097: `reduceRightOrNull` 関数の実装
-- [ ] STDLIB-SEQ-FN-098: `requireNoNulls` 関数の実装
+- [x] STDLIB-SEQ-FN-098: `requireNoNulls` 関数の実装
 - [ ] STDLIB-SEQ-FN-099: `reversed` 関数の実装
 - [ ] STDLIB-SEQ-FN-100: `runningFold` 関数の実装
-- [ ] STDLIB-SEQ-FN-101: `runningFoldIndexed` 関数の実装
+- [x] STDLIB-SEQ-FN-101: `runningFoldIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-102: `runningReduce` 関数の実装
 - [ ] STDLIB-SEQ-FN-103: `runningReduceIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-104: `scan` 関数の実装
@@ -368,29 +368,29 @@
 - [x] STDLIB-SEQ-FN-108: `singleOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-109: `slice` 関数の実装
 - [ ] STDLIB-SEQ-FN-110: `sorted` 関数の実装
-- [ ] STDLIB-SEQ-FN-111: `sortedBy` 関数の実装
+- [x] STDLIB-SEQ-FN-111: `sortedBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-112: `sortedByDescending` 関数の実装
 - [ ] STDLIB-SEQ-FN-113: `sortedDescending` 関数の実装
 - [ ] STDLIB-SEQ-FN-114: `sortedWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-115: `subtract` 関数の実装
-- [ ] STDLIB-SEQ-FN-116: `sum` 関数の実装
+- [x] STDLIB-SEQ-FN-116: `sum` 関数の実装
 - [x] STDLIB-SEQ-FN-118: `sumOf` 関数の実装
 - [ ] STDLIB-SEQ-FN-119: `take` 関数の実装
 - [x] STDLIB-SEQ-FN-120: `takeLast` 関数の実装
 - [x] STDLIB-SEQ-FN-121: `takeLastWhile` 関数の実装
 - [x] STDLIB-SEQ-FN-122: `takeWhile` 関数の実装
-- [ ] STDLIB-SEQ-FN-123: `toCollection` 関数の実装
+- [x] STDLIB-SEQ-FN-123: `toCollection` 関数の実装
 - [x] STDLIB-SEQ-FN-124: `toHashSet` 関数の実装
 - [ ] STDLIB-SEQ-FN-125: `toList` 関数の実装
 - [x] STDLIB-SEQ-FN-126: `toMutableList` 関数の実装
-- [ ] STDLIB-SEQ-FN-127: `toMutableSet` 関数の実装
-- [ ] STDLIB-SEQ-FN-128: `toSet` 関数の実装
+- [x] STDLIB-SEQ-FN-127: `toMutableSet` 関数の実装
+- [x] STDLIB-SEQ-FN-128: `toSet` 関数の実装
 - [x] STDLIB-SEQ-FN-129: `toSortedSet` 関数の実装
 - [x] STDLIB-SEQ-FN-130: `union` 関数の実装
 - [x] STDLIB-SEQ-FN-131: `windowed` 関数の実装
 - [ ] STDLIB-SEQ-FN-132: `withIndex` 関数の実装
 - [ ] STDLIB-SEQ-FN-133: `zip` 関数の実装
-- [ ] STDLIB-SEQ-FN-134: `zipWithNext` 関数の実装
+- [x] STDLIB-SEQ-FN-134: `zipWithNext` 関数の実装
 
 #### kotlin.streams 関数の実装
 - [x] STDLIB-STREAMS-FN-001: `asSequence` 関数の実装（各ストリーム型）
@@ -720,7 +720,7 @@
 - [ ] STDLIB-IO-PATH-FN-049: `Path.listDirectoryEntries(glob)` を既存 no-arg stub から公式 glob shape へ広げる
 - [x] STDLIB-IO-PATH-FN-049: `Path.listDirectoryEntries(glob)` を既存 no-arg stub から公式 glob shape へ広げる
 - [x] STDLIB-IO-PATH-FN-050: `Path.moveTo(target, options)` を追加する
-- [ ] STDLIB-IO-PATH-FN-052: `Path.notExists(options)` を追加する
+- [x] STDLIB-IO-PATH-FN-052: `Path.notExists(options)` を追加する
 - [x] STDLIB-IO-PATH-FN-053: `Path.outputStream(options)` を追加する
 - [ ] STDLIB-IO-PATH-FN-054: `Path(pathString)` の公式 top-level factory shape を既存 stub と整合させる
 - [x] STDLIB-IO-PATH-FN-055: `Path(base, subpaths)` top-level factory overload を追加する
@@ -740,11 +740,11 @@
 - [ ] STDLIB-JVM-PROP-002: `Enum.declaringJavaClass` extension property を追加する
 - [x] STDLIB-JVM-PROP-003: `KClass<T>.java` extension property を追加する
 - [x] STDLIB-JVM-PROP-005: `KClass<T>.javaClass` extension property を追加する
-- [ ] STDLIB-JVM-PROP-006: `KClass<T>.javaObjectType` extension property を追加する
+- [x] STDLIB-JVM-PROP-006: `KClass<T>.javaObjectType` extension property を追加する
 - [x] STDLIB-JVM-PROP-007: `KClass<T>.javaPrimitiveType` extension property を追加する
 - [ ] STDLIB-JVM-PROP-008: `Class<T>.kotlin` extension property を追加する
 - [x] STDLIB-JVM-OPTIONALS-FN-001: `Optional<T>.asSequence()` を追加する
-- [ ] STDLIB-JVM-OPTIONALS-FN-003: `Optional<T>.getOrElse(defaultValue)` を追加する
+- [x] STDLIB-JVM-OPTIONALS-FN-003: `Optional<T>.getOrElse(defaultValue)` を追加する
 - [x] STDLIB-JVM-OPTIONALS-FN-004: `Optional<T>.getOrNull()` を追加する
 - [x] STDLIB-JVM-OPTIONALS-FN-005: `Optional<T>.toCollection(destination)` を追加する
 - [ ] STDLIB-JVM-OPTIONALS-FN-006: `Optional<T>.toList()` を追加する
@@ -752,7 +752,7 @@
 - [x] STDLIB-JS-TYPE-003: `kotlin.js.Dynamic` external interface を追加する
 - [x] STDLIB-JS-TYPE-012: `kotlin.js.JsArray` external class を追加する
 - [x] STDLIB-JS-TYPE-013: `kotlin.js.JsBigInt` external class を追加する
-- [ ] STDLIB-JS-TYPE-014: `kotlin.js.JsBoolean` external class を追加する
+- [x] STDLIB-JS-TYPE-014: `kotlin.js.JsBoolean` external class を追加する
 - [x] STDLIB-JS-TYPE-025: `kotlin.js.JsNumber` external class を追加する
 - [ ] STDLIB-JS-TYPE-027: `kotlin.js.JsReference` external interface を追加する
 - [x] STDLIB-JS-TYPE-029: `kotlin.js.JsString` external class を追加する
@@ -773,7 +773,7 @@
 - [x] STDLIB-JS-FN-019: `JsArray<T>.toArray()` を追加する
 - [ ] STDLIB-JS-FN-020: `JsBoolean.toBoolean()` を追加する
 - [x] STDLIB-JS-FN-021: `JsNumber.toDouble()` を追加する
-- [ ] STDLIB-JS-FN-022: `JsNumber.toInt()` を追加する
+- [x] STDLIB-JS-FN-022: `JsNumber.toInt()` を追加する
 - [ ] STDLIB-JS-FN-023: `Array<T>.toJsArray()` を追加する
 - [ ] STDLIB-JS-FN-024: `List<T>.toJsArray()` を追加する
 - [ ] STDLIB-JS-FN-025: `Long.toJsBigInt()` を追加する

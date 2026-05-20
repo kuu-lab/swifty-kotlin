@@ -306,6 +306,11 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testSumAccumulatesIntElements() {
+        XCTAssertEqual(kk_sequence_sum(makeSequence([1, 2, 3, 4])), 10)
+        XCTAssertEqual(kk_sequence_sum(makeSequence([])), 0)
+    }
+
     func testSumByAccumulatesSelectorResults() {
         var thrown = 0
         let result = kk_sequence_sumBy(
@@ -528,6 +533,21 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_map_get(result, 1), 10)
         XCTAssertEqual(kk_map_get(result, 2), 20)
         XCTAssertEqual(kk_map_get(result, 3), 30)
+    }
+
+    func testAssociateByBuildsMapWithLastWriteForDuplicateKeys() {
+        let seq = makeSequence([1, 2, 3])
+
+        let result = kk_sequence_associateBy(
+            seq,
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 0])
+        XCTAssertEqual(kk_map_get(result, 1), 3)
+        XCTAssertEqual(kk_map_get(result, 0), 2)
     }
 
     func testAssociateWithToUsesElementsAsKeys() {
@@ -1366,6 +1386,31 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let copied = kk_sequence_toSortedSet(seq)
 
         XCTAssertEqual(setElements(copied), [1, 2, 3])
+    }
+
+    func testToSetDeduplicatesPreservingOrder() {
+        let seq = makeSequence([3, 1, 2, 1, 3])
+        let copied = kk_sequence_toSet(seq)
+
+        XCTAssertEqual(setElements(copied), [3, 1, 2])
+    }
+
+    func testToCollectionAppendsIntoMutableListDestination() {
+        let seq = makeSequence([1, 2, 3])
+        let destination = makeList([0])
+        let result = kk_sequence_toCollection(seq, destination)
+
+        XCTAssertEqual(result, destination)
+        XCTAssertEqual(listElements(destination), [0, 1, 2, 3])
+    }
+
+    func testToCollectionAppendsIntoMutableSetDestination() {
+        let seq = makeSequence([1, 2, 2, 3])
+        let destination = registerRuntimeObject(RuntimeSetBox(elements: [10, 2]))
+        let result = kk_sequence_toCollection(seq, destination)
+
+        XCTAssertEqual(result, destination)
+        XCTAssertEqual(setElements(destination), [10, 2, 1, 3])
     }
 
     func testToHashSetDeduplicatesPreservingOrder() {
