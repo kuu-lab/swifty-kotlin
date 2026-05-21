@@ -2487,7 +2487,9 @@ public func kk_sequence_indexOf(_ seqRaw: Int, _ element: Int) -> Int {
 
 @_cdecl("kk_sequence_intersect")
 public func kk_sequence_intersect(_ seqRaw: Int, _ otherRaw: Int) -> Int {
-    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    guard let otherElements = runtimeIterableElements(from: otherRaw) else {
+        invalidContainerPanic(#function, "iterable")
+    }
     var otherKeys = Set<RuntimeElementKey>()
     otherKeys.reserveCapacity(otherElements.count)
     for elem in otherElements {
