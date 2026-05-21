@@ -2553,6 +2553,7 @@ extension CallLowerer {
                 let takeLastWhileName = interner.intern("takeLastWhile")
                 let dropWhileName = interner.intern("dropWhile")
                 let sortedByName = interner.intern("sortedBy")
+                let sortedWithName = interner.intern("sortedWith")
                 let sumOfName = interner.intern("sumOf")
                 let sumByName = interner.intern("sumBy")
                 let sumByDoubleName = interner.intern("sumByDouble")
@@ -2608,6 +2609,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_dropWhile"
                 } else if calleeName == sortedByName {
                     runtimeCallee = "kk_sequence_sortedBy"
+                } else if calleeName == sortedWithName {
+                    runtimeCallee = "kk_sequence_sortedWith"
                 } else if calleeName == distinctByName {
                     runtimeCallee = "kk_sequence_distinctBy"
                 } else if calleeName == sumOfName {
@@ -2752,6 +2755,7 @@ extension CallLowerer {
                 }
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_sequence_sortedBy"
+                        || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_distinctBy"
                         || runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
