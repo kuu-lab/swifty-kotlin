@@ -46,7 +46,7 @@
 
 ### Phase 2: コレクション・Sequence・Range
 - [ ] STDLIB-GAP-PH2: `kotlin.collections` / `kotlin.sequences` / `kotlin.ranges` の未対応を潰す
-- [ ] STDLIB-022: range / progression / unsigned range の網羅性を上げる
+- [~] STDLIB-022: range / progression / unsigned range の網羅性を上げる（LongRange `firstOrNull` / `lastOrNull` runtime 済み）
 
 #### kotlin.collections 抽象基底クラスの実装
 
@@ -329,6 +329,9 @@
 - [ ] STDLIB-SEQ-FN-040: `flatMapIndexedTo` 関数の実装
 - [x] STDLIB-SEQ-FN-041: `flatMapTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-042: `fold` 関数の実装
+- [ ] STDLIB-SEQ-FN-043: `foldIndexed` 関数の実装
+- [x] STDLIB-SEQ-FN-044: `forEach` 関数の実装
+- [ ] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
 - [x] STDLIB-SEQ-FN-043: `foldIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [ ] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
@@ -339,6 +342,10 @@
 - [x] STDLIB-SEQ-FN-048: `indexOf` 関数の実装
 - [ ] STDLIB-SEQ-FN-049: `indexOfFirst` 関数の実装
 - [ ] STDLIB-SEQ-FN-050: `indexOfLast` 関数の実装
+- [x] STDLIB-SEQ-FN-051: `intersect` 関数の実装
+- [ ] STDLIB-SEQ-FN-052: `joinTo` 関数の実装
+- [ ] STDLIB-SEQ-FN-053: `joinToString` 関数の実装
+- [ ] STDLIB-SEQ-FN-054: `last` 関数の実装
 - [ ] STDLIB-SEQ-FN-051: `intersect` 関数の実装
  - [x] STDLIB-SEQ-FN-052: `joinTo` 関数の実装
  - [x] STDLIB-SEQ-FN-053: `joinToString` 関数の実装
@@ -353,7 +360,7 @@
 - [x] STDLIB-SEQ-FN-062: `mapNotNull` 関数の実装
 - [x] STDLIB-SEQ-FN-063: `mapNotNullTo` 関数の実装
 - [x] STDLIB-SEQ-FN-064: `mapTo` 関数の実装
-- [ ] STDLIB-SEQ-FN-065: `max` 関数の実装
+- [x] STDLIB-SEQ-FN-065: `max` 関数の実装
 - [x] STDLIB-SEQ-FN-067: `maxByOrNull` 関数の実装
 - [x] STDLIB-SEQ-FN-066: `maxBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-068: `maxOf` 関数の実装
@@ -374,6 +381,8 @@
 - [x] STDLIB-SEQ-FN-084: `onEach` 関数の実装
 - [x] STDLIB-SEQ-FN-085: `onEachIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-086: `partition` 関数の実装
+- [x] STDLIB-SEQ-FN-087: `plus` 関数の実装
+- [ ] STDLIB-SEQ-FN-088: `plusElement` 関数の実装
 - [ ] STDLIB-SEQ-FN-087: `plus` 関数の実装
 - [x] STDLIB-SEQ-FN-088: `plusElement` 関数の実装
 - [ ] STDLIB-SEQ-FN-089: `random` 関数の実装
@@ -381,7 +390,7 @@
 - [ ] STDLIB-SEQ-FN-091: `reduce` 関数の実装
 - [x] STDLIB-SEQ-FN-092: `reduceIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-093: `reduceOrNull` 関数の実装
-- [ ] STDLIB-SEQ-FN-094: `reduceRight` 関数の実装
+- [x] STDLIB-SEQ-FN-094: `reduceRight` 関数の実装
 - [ ] STDLIB-SEQ-FN-095: `reduceRightIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-096: `reduceRightIndexedOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-097: `reduceRightOrNull` 関数の実装
@@ -395,6 +404,8 @@
 - [ ] STDLIB-SEQ-FN-103: `runningReduceIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-104: `scan` 関数の実装
 - [x] STDLIB-SEQ-FN-105: `scanIndexed` 関数の実装
+- [ ] STDLIB-SEQ-FN-106: `shuffled` 関数の実装
+- [x] STDLIB-SEQ-FN-107: `single` 関数の実装
 - [x] STDLIB-SEQ-FN-106: `shuffled` 関数の実装
 - [ ] STDLIB-SEQ-FN-107: `single` 関数の実装
 - [x] STDLIB-SEQ-FN-108: `singleOrNull` 関数の実装
@@ -402,12 +413,12 @@
 - [x] STDLIB-SEQ-FN-110: `sorted` 関数の実装
 - [ ] STDLIB-SEQ-FN-111: `sortedBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-112: `sortedByDescending` 関数の実装
-- [ ] STDLIB-SEQ-FN-113: `sortedDescending` 関数の実装
+- [x] STDLIB-SEQ-FN-113: `sortedDescending` 関数の実装
 - [ ] STDLIB-SEQ-FN-114: `sortedWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-115: `subtract` 関数の実装
 - [x] STDLIB-SEQ-FN-116: `sum` 関数の実装
 - [x] STDLIB-SEQ-FN-118: `sumOf` 関数の実装
-- [ ] STDLIB-SEQ-FN-119: `take` 関数の実装
+- [x] STDLIB-SEQ-FN-119: `take` 関数の実装
 - [x] STDLIB-SEQ-FN-120: `takeLast` 関数の実装
 - [x] STDLIB-SEQ-FN-121: `takeLastWhile` 関数の実装
 - [x] STDLIB-SEQ-FN-122: `takeWhile` 関数の実装

@@ -79,6 +79,12 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let reduceRightOperationType = types.make(.functionType(FunctionType(
+            params: [typeParamType, typeParamType],
+            returnType: typeParamType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
         func nominalCollectionType(_ fqName: [InternedString], elementType: TypeID, invariant: Bool = false) -> TypeID {
             guard let symbol = symbols.lookup(fqName: fqName) else {
                 return types.anyType
@@ -200,6 +206,15 @@ extension DataFlowSemaPhase {
             returnType: receiverType
         )
 
+        // sortedDescending(): Sequence<T>
+        registerSequenceOverloadedMemberStub(
+            named: "sortedDescending",
+            externalLinkName: "kk_sequence_sortedDescending",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: receiverType
+        )
+
         // sortedBy(selector: (T) -> R): Sequence<T>, where R : Comparable<R>
         do {
             let memberName = interner.intern("sortedBy")
@@ -267,6 +282,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // take(n: Int): Sequence<T> (STDLIB-SEQ-FN-119)
+        registerSequenceMemberStub(
+            named: "take",
+            externalLinkName: "kk_sequence_take",
+            receiverType: receiverType,
+            parameters: [("n", types.intType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // randomOrNull(): T?
         registerSequenceMemberStub(
             named: "randomOrNull",
@@ -309,7 +338,6 @@ extension DataFlowSemaPhase {
             interner: interner,
             canThrow: true
         )
-
         // firstNotNullOf<T, R>(transform: (T) -> R?): R
         // Use a method-local T parameter (independent of Sequence's `out T`)
         // so the projection on the receiver does not block referencing T in
@@ -447,6 +475,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // single(): T
+        registerSequenceMemberStub(
+            named: "single",
+            externalLinkName: "kk_sequence_single",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
         // singleOrNull(): T?
         registerSequenceMemberStub(
             named: "singleOrNull",
@@ -552,6 +595,20 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [("element", typeParamType)],
             returnType: types.intType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // intersect(other: Iterable<T>): Set<T>
+        registerSequenceMemberStub(
+            named: "intersect",
+            externalLinkName: "kk_sequence_intersect",
+            receiverType: receiverType,
+            parameters: [("other", iterableReturnType)],
+            returnType: setReturnType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -1393,6 +1450,26 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // plus(other: Sequence<Any>): Sequence<T>
+        let sequenceAnyType = types.make(.classType(ClassType(
+            classSymbol: sequenceSymbol,
+            args: [.out(types.anyType)],
+            nullability: .nonNull
+        )))
+        registerSequenceMemberStub(
+            named: "plus",
+            externalLinkName: "kk_sequence_plus",
+            receiverType: receiverType,
+            parameters: [("other", sequenceAnyType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic]
+        )
+
         // plusElement(element: T): Sequence<T> (STDLIB-SEQ-013)
         registerSequenceMemberStub(
             named: "plusElement",
@@ -1484,6 +1561,20 @@ extension DataFlowSemaPhase {
             receiverType: receiverType,
             parameters: [("initial", types.anyType), ("operation", foldIndexedOperationType)],
             returnType: types.anyType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // reduceRight(operation): T
+        registerSequenceMemberStub(
+            named: "reduceRight",
+            externalLinkName: "kk_sequence_reduceRight",
+            receiverType: receiverType,
+            parameters: [("operation", reduceRightOperationType)],
+            returnType: typeParamType,
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
             typeParamSymbol: typeParamSymbol,
@@ -2264,6 +2355,21 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+
+        // max(): T
+        registerSequenceMemberStub(
+            named: "max",
+            externalLinkName: "kk_sequence_max",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
 
         // maxOrNull(): T?
         do {

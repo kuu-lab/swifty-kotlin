@@ -119,6 +119,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("associate", 1),
             sequence("associateBy", 1),
             sequence("associateWith", 1),
+            sequence("plus", 1),
             sequence("randomOrNull", 0),
             sequence("plusElement", 1),
             sequence("chunked", 1),
@@ -137,6 +138,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("maxWithOrNull", 1),
             sequence("firstNotNullOf", 1),
             sequence("firstNotNullOfOrNull", 1),
+            sequence("intersect", 1),
             sequence("maxOrNull", 0),
             sequence("foldIndexed", 2),
             sequence("forEachIndexed", 1),
@@ -164,6 +166,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("associateByTo", 2),
             sequence("associateWithTo", 2),
             sequence("groupByTo", 2),
+            sequence("reduceRight", 1),
             sequence("reduceIndexed", 1),
         ]
 
@@ -201,6 +204,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "firstNotNullOf", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reversed", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "scanIndexed", 2),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "plus", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "runningFoldIndexed", 2),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "reduceIndexed", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "randomOrNull", 0),
@@ -208,6 +212,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
                 (.sequence, ["kotlin", "sequences", "Sequence"], "requireNoNulls", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 0),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "shuffled", 1),
+                (.sequence, ["kotlin", "sequences", "Sequence"], "reduceRight", 1),
                 (.sequence, ["kotlin", "sequences", "Sequence"], "maxOrNull", 0),
             ]
 
