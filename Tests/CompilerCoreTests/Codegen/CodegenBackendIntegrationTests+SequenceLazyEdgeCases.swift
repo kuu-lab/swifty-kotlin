@@ -451,6 +451,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 15
                 15
+                [2, 4]
                 40
                 [1, 3, 5]
                 [2, 4]
