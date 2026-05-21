@@ -773,9 +773,11 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             let links = Set(
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
             XCTAssertTrue(links.contains("kk_sequence_single"))
+        }
+    }
 
-    func testSequenceTakeLastResolvesInCallExpressions() throws {
     func testSequenceOnEachIndexedResolvesInCallExpressions() throws {
         let source = """
         fun traceIndexedValues(): Sequence<Int> {
