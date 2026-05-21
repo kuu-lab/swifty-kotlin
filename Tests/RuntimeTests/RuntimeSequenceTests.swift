@@ -418,6 +418,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_sequence_maxOrNull(makeSequence([])), runtimeNullSentinelInt)
     }
 
+
     func testMaxWithOrNullReturnsLargestElementAndNullOnEmpty() {
         var thrown = 0
         let result = kk_sequence_maxWithOrNull(
