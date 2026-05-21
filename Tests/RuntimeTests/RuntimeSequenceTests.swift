@@ -1681,6 +1681,22 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(box.message, kEmptySequenceNoSuchElement)
     }
 
+    func testSequenceMaxByOrNullReturnsElementWithLargestSelectorAndNullOnEmpty() {
+        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
+            outThrown?.pointee = 0
+            return -value
+        }
+
+        var thrown = 0
+        let result = kk_sequence_maxByOrNull(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 1)
+
+        let emptyResult = kk_sequence_maxByOrNull(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
     // MARK: - Lazy Sequence Builder Tests (STDLIB-563)
 
     private func listElements(_ listRaw: Int) -> [Int] {
