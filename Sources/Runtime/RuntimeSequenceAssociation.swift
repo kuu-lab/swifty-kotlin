@@ -465,31 +465,12 @@ private func runtimeSequenceBestValue(
     return bestSelector
 }
 
-private func runtimeSequenceExtremumWithOrNull(
 private func runtimeSequenceExtremumWith(
     seqRaw: Int,
     fnPtr: Int,
     closureRaw: Int,
     outThrown: UnsafeMutablePointer<Int>?,
     caller: StaticString,
-    comparisonSign: Int
-) -> Int {
-    let compare = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
-    var bestElement: Int?
-    var didThrow = false
-    let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: caller, outThrown: outThrown) { elem in
-        if let current = bestElement {
-            var thrown = 0
-            let comparison = compare(elem, current, &thrown)
-            if thrown != 0 {
-                _ = handleCollectionLambdaThrow(thrown, outThrown)
-                didThrow = true
-                return false
-            }
-            if (comparisonSign < 0 && comparison < 0) || (comparisonSign > 0 && comparison > 0) {
-                bestElement = elem
-            }
-        } else {
     comparisonSign: Int,
     throwOnEmpty: Bool
 ) -> Int {
@@ -518,8 +499,6 @@ private func runtimeSequenceExtremumWith(
         }
         return true
     }
-    if didThrow { return runtimeExceptionCaughtSentinel }
-    if let outThrown, outThrown.pointee != 0 { return runtimeExceptionCaughtSentinel }
     if didThrow || (outThrown?.pointee ?? 0) != 0 {
         return runtimeExceptionCaughtSentinel
     }
@@ -529,7 +508,6 @@ private func runtimeSequenceExtremumWith(
             outThrown
         )
     }
-    return bestElement ?? runtimeNullSentinelInt
     guard let bestElement else {
         if throwOnEmpty {
             return handleCollectionLambdaThrow(
@@ -594,6 +572,7 @@ public func kk_sequence_maxByOrNull(
     )
 }
 
+
 @_cdecl("kk_sequence_minWithOrNull")
 public func kk_sequence_minWithOrNull(
     _ seqRaw: Int,
@@ -601,9 +580,9 @@ public func kk_sequence_minWithOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    runtimeSequenceExtremumWithOrNull(
+    runtimeSequenceExtremumWith(
         seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
-        caller: #function, comparisonSign: -1
+        caller: #function, comparisonSign: -1, throwOnEmpty: false
     )
 }
 

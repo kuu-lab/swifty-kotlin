@@ -129,6 +129,8 @@ private let sequenceValueTimesTen: @convention(c) (Int, Int, UnsafeMutablePointe
 
 private let sequenceLessThanFour: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value < 4 ? 1 : 0
+}
+
 private let sequenceReverseIntComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
     if lhs > rhs {
         return -1
@@ -423,6 +425,8 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
             runtimeNullSentinelInt
         )
         XCTAssertEqual(thrown, 0)
+    }
+
     func testMaxWithOrNullReturnsLargestElementAndNullOnEmpty() {
         var thrown = 0
         let result = kk_sequence_maxWithOrNull(
