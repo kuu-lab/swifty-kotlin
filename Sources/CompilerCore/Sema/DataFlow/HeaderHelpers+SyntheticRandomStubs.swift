@@ -50,6 +50,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticRandomAsJavaRandom(
+            packageFQName: kotlinRandomPkg,
+            receiverType: randomType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
         registerSyntheticRandomProperty(
             ownerSymbol: randomSymbol,
             name: "Default",
@@ -668,6 +676,30 @@ extension DataFlowSemaPhase {
         )
     }
 
+    private func registerSyntheticRandomAsJavaRandom(
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let javaRandomType = ensureSyntheticJavaRandomType(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        registerSyntheticRandomExtensionFunction(
+            packageFQName: packageFQName,
+            name: "asJavaRandom",
+            externalLinkName: "kk_random_asJavaRandom",
+            receiverType: receiverType,
+            returnType: javaRandomType,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
     private func ensureSyntheticJavaRandomType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -815,6 +847,7 @@ extension DataFlowSemaPhase {
             for: constructorSymbol
         )
     }
+
 
     /// Registers a constructor on the Random symbol (STDLIB-516).
     private func registerSyntheticRandomConstructor(
