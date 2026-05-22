@@ -87,12 +87,28 @@ private let throwingSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int
     return 0
 }
 
+private let ascendingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
+    lhs - rhs
+}
+
+private let throwingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
+    outThrown?.pointee = runtimeAllocateThrowable(message: "sortedWith comparator failed")
+    return 0
+}
+
 private let accumulatingSum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
     acc + value
 }
 
 private let indexedAccumulatingSum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, acc, value, _ in
     acc + index * value
+}
+
+private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, acc, _ in
+    value * 10 + acc
+}
+private let reduceRightIndexedChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, acc, _ in
+    index * 100 + value * 10 + acc
 }
 
 private let throwingAccumulator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
@@ -123,8 +139,16 @@ private let sequenceParitySelector: @convention(c) (Int, Int, UnsafeMutablePoint
     value % 2
 }
 
+private let sequenceModuloThreeSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value % 3
+}
+
 private let sequenceValueTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value * 10
+}
+
+private let sequenceLessThanFour: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value < 4 ? 1 : 0
 }
 
 let sequenceFirstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
@@ -152,6 +176,10 @@ let throwingSequenceDestinationLambda: @convention(c) (Int, Int, UnsafeMutablePo
 let recordingOnEachIndexedAction: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
     appendLazySequenceOnEachIndexedTrace(index * 100 + value)
     return 0
+}
+
+private let keepEvenIndexOrLargeValue: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, value, _ in
+    index.isMultiple(of: 2) || value > 30 ? 1 : 0
 }
 
 let summingWindowTransform: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, windowRaw, _ in
@@ -183,6 +211,24 @@ private let sequenceSumByWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePoi
 
 private let sequenceSumByDoubleWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     kk_double_to_bits(value == 2 ? 1.5 : 0.25)
+}
+
+private let sequenceGreaterThanTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value > 2 ? 1 : 0
+}
+
+private let sequenceNegatedSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    -value
+}
+
+private let sequenceMaxWithOrNullNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
+    lhs - rhs
+}
+
+private let sequenceReverseIntComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
+    if lhs < rhs { return 1 }
+    if lhs > rhs { return -1 }
+    return 0
 }
 
 private func runtimeTestStringHandle(_ value: String) -> Int {
@@ -226,6 +272,50 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testMinByOrNullReturnsElementWithSmallestSelectorAndNullOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minByOrNull(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 3)
+
+        let emptyResult = kk_sequence_minByOrNull(
+            makeSequence([]),
+            unsafeBitCast(sequenceModuloThreeSelector, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
+    func testMinOfOrNullReturnsSmallestSelectedValueAndNullOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minOfOrNull(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 20)
+
+        let emptyResult = kk_sequence_minOfOrNull(
+            makeSequence([]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
     func testFirstNotNullOfOrNullReturnsFirstTransformedValue() {
         var thrown = 0
         let result = kk_sequence_firstNotNullOfOrNull(
@@ -252,6 +342,55 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
+    func testTakeLimitsSequenceElements() {
+        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2, 3, 4]), 2)), [1, 2])
+        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 5)), [1, 2])
+        XCTAssertEqual(sequenceElements(kk_sequence_take(makeSequence([1, 2]), 0)), [])
+    }
+
+    func testTakeLastReturnsTrailingElementsAsList() {
+        XCTAssertEqual(listElements(kk_sequence_takeLast(makeSequence([1, 2, 3, 4]), 2, nil)), [3, 4])
+        XCTAssertEqual(listElements(kk_sequence_takeLast(makeSequence([1, 2]), 5, nil)), [1, 2])
+        XCTAssertEqual(listElements(kk_sequence_takeLast(makeSequence([1, 2]), 0, nil)), [])
+    }
+
+    func testTakeLastNegativeCountSetsThrowable() {
+        var thrown = 0
+        let result = kk_sequence_takeLast(makeSequence([1, 2]), -1, &thrown)
+        XCTAssertEqual(listElements(result), [])
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testTakeLastWhileReturnsMatchingSuffixAsList() {
+        var thrown = 0
+        let result = kk_sequence_takeLastWhile(
+            makeSequence([1, 3, 4, 2, 5, 6]),
+            unsafeBitCast(sequenceGreaterThanTwo, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(result), [5, 6])
+    }
+
+    func testTakeLastWhilePropagatesPredicateThrowable() {
+        var thrown = 0
+        _ = kk_sequence_takeLastWhile(
+            makeSequence([1, 2]),
+            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testSumAccumulatesIntElements() {
+        XCTAssertEqual(kk_sequence_sum(makeSequence([1, 2, 3, 4])), 10)
+        XCTAssertEqual(kk_sequence_sum(makeSequence([])), 0)
+    }
+
     func testSumByAccumulatesSelectorResults() {
         var thrown = 0
         let result = kk_sequence_sumBy(
@@ -265,6 +404,32 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 14)
     }
 
+    func testSumOfAccumulatesSelectorResults() {
+        var thrown = 0
+        let result = kk_sequence_sumOf(
+            makeSequence([1, 2, 3]),
+            unsafeBitCast(sequenceSumByWeightedTwo, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 14)
+    }
+
+    func testAverageOfAveragesSelectorResults() {
+        var thrown = 0
+        let result = kk_sequence_averageOf(
+            makeSequence([1, 2, 3]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_bits_to_double(result), 20.0, accuracy: 0.0001)
+    }
+
     func testSumByDoubleAccumulatesSelectorResults() {
         var thrown = 0
         let result = kk_sequence_sumByDouble(
@@ -276,6 +441,56 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_bits_to_double(result), 2.0, accuracy: 0.0001)
+    }
+
+    func testMaxOfOrNullReturnsLargestSelectorResultAndNullOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_maxOfOrNull(
+            makeSequence([3, 1, 4, 2]),
+            unsafeBitCast(sequenceNegatedSelector, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, -1)
+
+        let emptyResult = kk_sequence_maxOfOrNull(
+            makeSequence([]),
+            unsafeBitCast(sequenceNegatedSelector, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
+    func testMaxOrNullReturnsLargestElementAndNullOnEmpty() {
+        XCTAssertEqual(kk_sequence_maxOrNull(makeSequence([3, 1, 4, 2])), 4)
+        XCTAssertEqual(kk_sequence_maxOrNull(makeSequence([])), runtimeNullSentinelInt)
+    }
+
+    func testMaxWithOrNullReturnsLargestElementAndNullOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_maxWithOrNull(
+            makeSequence([3, 1, 4, 2]),
+            unsafeBitCast(sequenceMaxWithOrNullNaturalComparator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 4)
+
+        let emptyResult = kk_sequence_maxWithOrNull(
+            makeSequence([]),
+            unsafeBitCast(sequenceMaxWithOrNullNaturalComparator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
     }
 
     func testSortedByUsesRuntimeValueComparisonForSelectorKeys() {
@@ -304,6 +519,98 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(listElements(kk_sequence_to_list(sorted, nil)), [])
     }
 
+    func testSortedByDescendingUsesRuntimeValueComparisonForSelectorKeys() {
+        let source = makeSequence([1, 2, 3])
+        let sorted = kk_sequence_sortedByDescending(
+            source,
+            unsafeBitCast(stringKeySelector, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(listElements(kk_sequence_to_list(sorted, nil)), [3, 1, 2])
+    }
+
+    func testSortedByDescendingPropagatesSelectorThrowables() {
+        let source = makeSequence([1, 2, 3])
+        var thrown = 0
+        let sorted = kk_sequence_sortedByDescending(
+            source,
+            unsafeBitCast(throwingSelector, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_sequence_to_list(sorted, nil)), [])
+    }
+
+    func testSortedWithUsesComparatorResults() {
+        let source = makeSequence([3, 1, 2, 1])
+        let sorted = kk_sequence_sortedWith(
+            source,
+            unsafeBitCast(ascendingComparator, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(sequenceElements(sorted), [1, 1, 2, 3])
+    }
+
+    func testSortedWithPropagatesComparatorThrowables() {
+        let source = makeSequence([3, 1, 2])
+        var thrown = 0
+        let sorted = kk_sequence_sortedWith(
+            source,
+            unsafeBitCast(throwingComparator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(sequenceElements(sorted), [])
+    }
+    func testTakeWhileKeepsMatchingPrefixLazily() {
+        let source = makeSequence([1, 2, 3, 4, 2])
+        let taken = kk_sequence_takeWhile(
+            source,
+            unsafeBitCast(sequenceLessThanFour, to: Int.self),
+            0
+        )
+
+        XCTAssertEqual(listElements(kk_sequence_to_list(taken, nil)), [1, 2, 3])
+    }
+
+    func testTakeWhilePropagatesPredicateThrowableOnMaterialization() {
+        let source = makeSequence([1, 2, 3])
+        let taken = kk_sequence_takeWhile(
+            source,
+            unsafeBitCast(throwingSequenceDestinationLambda, to: Int.self),
+            0
+        )
+        var thrown = 0
+        let result = kk_sequence_to_list(taken, &thrown)
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testSortedOrdersSequenceElementsWithRuntimeComparison() {
+        let source = makeSequence([3, 1, 2, 1])
+        let sorted = kk_sequence_sorted(source)
+
+        XCTAssertEqual(sequenceElements(sorted), [1, 1, 2, 3])
+    }
+
+    func testSortedDescendingOrdersSequenceElementsWithRuntimeComparison() {
+        let source = makeSequence([3, 1, 2, 1])
+        let sorted = kk_sequence_sortedDescending(source)
+
+        XCTAssertEqual(sequenceElements(sorted), [3, 2, 1, 1])
+    }
+
+
+
     func testJoinToStringUsesSeparatorPrefixAndPostfix() {
         let seq = makeSequence([1, 2, 3])
         let renderedRaw = kk_sequence_joinToString(
@@ -321,6 +628,43 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(kk_sequence_lastIndexOf(seq, 2), 3)
         XCTAssertEqual(kk_sequence_lastIndexOf(seq, 4), -1)
+    }
+
+    func testJoinToAppendsToStringBuilderAndReturnsDestination() {
+        let seq = makeSequence([1, 2, 3])
+        let builder = kk_string_builder_new_from_string(runtimeTestStringHandle("seed:"))
+
+        let returned = kk_sequence_joinTo(
+            seq,
+            builder,
+            runtimeTestStringHandle("|"),
+            runtimeTestStringHandle("<"),
+            runtimeTestStringHandle(">")
+        )
+
+        XCTAssertEqual(returned, builder)
+        let renderedRaw = kk_string_builder_toString(builder)
+        XCTAssertEqual(extractString(from: UnsafeMutableRawPointer(bitPattern: renderedRaw)), "seed:<1|2|3>")
+    }
+
+    func testLastReturnsFinalElement() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_last(seq, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 3)
+    }
+
+    func testLastOrNullReturnsLastElementOrNullSentinel() {
+        var thrown = 0
+        let result = kk_sequence_lastOrNull(makeSequence([1, 2, 3]), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 3)
+        XCTAssertEqual(kk_sequence_lastOrNull(makeSequence([]), &thrown), runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
     }
 
     func testAssociateToPopulatesExistingDestinationMap() {
@@ -379,6 +723,37 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_map_get(result, 0), 2)
     }
 
+    func testAssociateWithMapsElementsToTransformedValues() {
+        let seq = makeSequence([1, 2, 3])
+
+        let result = kk_sequence_associateWith(
+            seq,
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 2, 3])
+        XCTAssertEqual(kk_map_get(result, 1), 10)
+        XCTAssertEqual(kk_map_get(result, 2), 20)
+        XCTAssertEqual(kk_map_get(result, 3), 30)
+    }
+
+    func testAssociateByBuildsMapWithLastWriteForDuplicateKeys() {
+        let seq = makeSequence([1, 2, 3])
+
+        let result = kk_sequence_associateBy(
+            seq,
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 0])
+        XCTAssertEqual(kk_map_get(result, 1), 3)
+        XCTAssertEqual(kk_map_get(result, 0), 2)
+    }
+
     func testAssociateWithToUsesElementsAsKeys() {
         let seq = makeSequence([1, 2, 3])
         let dest = registerRuntimeObject(RuntimeMapBox(keys: [50], values: [500]))
@@ -415,6 +790,50 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(mapKeys(result), [1, 0])
         XCTAssertEqual(listElements(kk_map_get(result, 1)), [100, 1, 3])
         XCTAssertEqual(listElements(kk_map_get(result, 0)), [4])
+    }
+
+    func testIndexOfLastReturnsLastMatchingPredicateIndexOrMinusOne() {
+        let seq = makeSequence([1, 4, 5, 6])
+        let evenPredicate: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value.isMultiple(of: 2) ? 1 : 0
+        }
+        let greaterThanTenPredicate: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value > 10 ? 1 : 0
+        }
+
+        XCTAssertEqual(kk_sequence_indexOfLast(seq, unsafeBitCast(evenPredicate, to: Int.self), 0, nil), 3)
+        XCTAssertEqual(kk_sequence_indexOfLast(seq, unsafeBitCast(greaterThanTenPredicate, to: Int.self), 0, nil), -1)
+    }
+
+    func testIntersectReturnsDeduplicatedSetInReceiverOrder() {
+        let seq = makeSequence([1, 2, 2, 3, 4])
+        let other = registerRuntimeObject(RuntimeListBox(elements: [2, 4, 5]))
+
+        let result = kk_sequence_intersect(seq, other)
+
+        XCTAssertEqual(setElements(result), [2, 4])
+    }
+    func testGroupByGroupsElementsIntoNewMap() {
+        let seq = makeSequence([1, 2, 3, 4, 5])
+
+        let result = kk_sequence_groupBy(
+            seq,
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            nil
+        )
+
+        XCTAssertEqual(mapKeys(result), [1, 0])
+        XCTAssertEqual(listElements(kk_map_get(result, 1)), [1, 3, 5])
+        XCTAssertEqual(listElements(kk_map_get(result, 0)), [2, 4])
+    }
+
+    func testIndexOfReturnsFirstMatchingIndexOrMinusOne() {
+        let seq = makeSequence([10, 20, 10, 30])
+
+        XCTAssertEqual(kk_sequence_indexOf(seq, 10), 0)
+        XCTAssertEqual(kk_sequence_indexOf(seq, 20), 1)
+        XCTAssertEqual(kk_sequence_indexOf(seq, 99), -1)
     }
 
     func testAssociateToThrowingLambdaReturnsSentinelAndSetsOutThrown() {
@@ -687,7 +1106,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [10, 11, 13, 16])
+        XCTAssertEqual(sequenceElements(result), [10, 11, 13, 16])
     }
 
     func testRunningFoldIncludesInitialAccumulator() {
@@ -703,7 +1122,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [5, 6, 8, 11])
+        XCTAssertEqual(sequenceElements(result), [5, 6, 8, 11])
     }
 
     func testRunningFoldIndexedIncludesInitialAccumulatorAndIndex() {
@@ -711,6 +1130,22 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
 
         let result = kk_sequence_runningFoldIndexed(
+            seq,
+            10,
+            unsafeBitCast(indexedAccumulatingSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(sequenceElements(result), [10, 10, 12, 18])
+    }
+
+    func testScanIndexedIncludesInitialAccumulatorAndIndex() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_scanIndexed(
             seq,
             10,
             unsafeBitCast(indexedAccumulatingSum, to: Int.self),
@@ -782,7 +1217,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [1, 3, 9, 21])
+        XCTAssertEqual(sequenceElements(result), [1, 3, 9, 21])
     }
 
     func testRunningReduceIndexedReturnsEmptyListForEmptySequence() {
@@ -797,7 +1232,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [])
+        XCTAssertEqual(sequenceElements(result), [])
     }
 
     func testRunningReduceIndexedReturnsZeroWhenLambdaThrows() {
@@ -882,7 +1317,142 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 0)
     }
 
-    // MARK: - Sequence indexed reduction tests (STDLIB-556, STDLIB-SEQ-015)
+    // MARK: - Sequence reduction tests (STDLIB-SEQ-FN-093, STDLIB-SEQ-FN-094, STDLIB-556, STDLIB-SEQ-015)
+
+    func testReduceOrNullEmptySequenceReturnsNullSentinel() {
+        let seq = makeSequence([])
+        var thrown = 0
+
+        let result = kk_sequence_reduceOrNull(
+            seq,
+            unsafeBitCast(accumulatingSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testReduceOrNullNonEmptySequenceAccumulates() {
+        let seq = makeSequence([1, 2, 3, 4])
+        var thrown = 0
+
+        let result = kk_sequence_reduceOrNull(
+            seq,
+            unsafeBitCast(accumulatingSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 10)
+    }
+
+    func testReduceOrNullReturnsZeroWhenLambdaThrows() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_reduceOrNull(
+            seq,
+            unsafeBitCast(throwingAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    func testReduceRightEmptySequenceThrows() {
+        let seq = makeSequence([])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRight(
+            seq,
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    func testReduceRightNonEmptySequenceAccumulatesFromRight() {
+        let seq = makeSequence([1, 2, 3, 4])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRight(
+            seq,
+            unsafeBitCast(reduceRightChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 64)
+    }
+
+    func testReduceRightReturnsZeroWhenLambdaThrows() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRight(
+            seq,
+            unsafeBitCast(throwingAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    func testReduceIndexedEmptySequenceThrows() {
+        let seq = makeSequence([])
+        var thrown = 0
+
+        let result = kk_sequence_reduceIndexed(
+            seq,
+            unsafeBitCast(indexedAccumulatingSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    func testReduceIndexedNonEmptySequenceAccumulatesWithIndex() {
+        let seq = makeSequence([1, 2, 3, 4])
+        var thrown = 0
+
+        let result = kk_sequence_reduceIndexed(
+            seq,
+            unsafeBitCast(indexedAccumulatingSum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 21)
+    }
+
+    func testReduceIndexedReturnsZeroWhenLambdaThrows() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_reduceIndexed(
+            seq,
+            unsafeBitCast(throwingIndexedAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
 
     func testReduceIndexedOrNullEmptySequenceReturnsNullSentinel() {
         let seq = makeSequence([])
@@ -919,6 +1489,53 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
 
         let result = kk_sequence_reduceIndexedOrNull(
+            seq,
+            unsafeBitCast(throwingIndexedAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    // MARK: - Sequence right-indexed reduction tests (STDLIB-SEQ-FN-095)
+
+    func testReduceRightIndexedEmptySequenceThrows() {
+        let seq = makeSequence([])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRightIndexed(
+            seq,
+            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+    }
+
+    func testReduceRightIndexedNonEmptySequenceAccumulatesFromRight() {
+        let seq = makeSequence([1, 2, 3, 4])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRightIndexed(
+            seq,
+            unsafeBitCast(reduceRightIndexedChecksum, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 364)
+    }
+
+    func testReduceRightIndexedReturnsZeroWhenLambdaThrows() {
+        let seq = makeSequence([1, 2, 3])
+        var thrown = 0
+
+        let result = kk_sequence_reduceRightIndexed(
             seq,
             unsafeBitCast(throwingIndexedAccumulator, to: Int.self),
             0,
@@ -986,6 +1603,61 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 0)
     }
 
+    func testMinReturnsSmallestElementAndThrowsOnEmpty() {
+        var thrown = 0
+        XCTAssertEqual(kk_sequence_min(makeSequence([3, 1, 4, 2]), &thrown), 1)
+        XCTAssertEqual(thrown, 0)
+
+        let emptyResult = kk_sequence_min(makeSequence([]), &thrown)
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testSequenceSingleReturnsOnlyElement() {
+        let seq = makeSequence([42])
+        var thrown = 0
+
+        let result = kk_sequence_single(seq, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 42)
+    }
+
+    func testSequenceSingleThrowsForEmptyAndMultipleElements() {
+        var emptyThrown = 0
+        let emptyResult = kk_sequence_single(makeSequence([]), &emptyThrown)
+        XCTAssertNotEqual(emptyThrown, 0)
+        XCTAssertEqual(emptyResult, 0)
+
+        var multipleThrown = 0
+        let multipleResult = kk_sequence_single(makeSequence([1, 2]), &multipleThrown)
+        XCTAssertNotEqual(multipleThrown, 0)
+        XCTAssertEqual(multipleResult, 0)
+    }
+
+
+    func testSequenceSingleOrNullReturnsOnlyElement() {
+        let seq = makeSequence([42])
+        var thrown = 0
+
+        let result = kk_sequence_singleOrNull(seq, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 42)
+    }
+
+    func testSequenceSingleOrNullReturnsNullForEmptyAndMultipleElements() {
+        var emptyThrown = 0
+        let emptyResult = kk_sequence_singleOrNull(makeSequence([]), &emptyThrown)
+        XCTAssertEqual(emptyThrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+
+        var multipleThrown = 0
+        let multipleResult = kk_sequence_singleOrNull(makeSequence([1, 2]), &multipleThrown)
+        XCTAssertEqual(multipleThrown, 0)
+        XCTAssertEqual(multipleResult, runtimeNullSentinelInt)
+    }
+
     private func makeArray(_ elements: [Int]) -> Int {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0
@@ -1005,6 +1677,16 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         kk_sequence_from_list(makeList(elements))
     }
 
+    func testFilterIsInstanceToAppendsMatchingRuntimeTypesToDestination() {
+        let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
+        let destination = makeList([0])
+
+        let result = kk_sequence_filterIsInstanceTo(seq, destination, 3)
+
+        XCTAssertEqual(result, destination)
+        XCTAssertEqual(listElements(destination), [0, 1, 3])
+    }
+
     // MARK: - Sequence.constrainOnce (STDLIB-SEQ-006)
 
     func testConstrainOnceReportsIllegalStateOnSecondToList() {
@@ -1020,10 +1702,41 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(secondList, runtimeNullSentinelInt)
     }
 
+    func testCountReturnsElementCount() {
+        var thrown = 0
+        let count = kk_sequence_count(makeSequence([1, 2, 3]), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(count, 3)
+    }
+
+    func testElementAtOrNullReturnsIndexedValueOrNullSentinel() {
+        XCTAssertEqual(kk_sequence_elementAtOrNull(makeSequence([10, 20, 30]), 1), 20)
+        XCTAssertEqual(kk_sequence_elementAtOrNull(makeSequence([10]), 3), runtimeNullSentinelInt)
+    }
+    func testDistinctByPreservesFirstKeyOccurrenceOrder() {
+        var thrown = 0
+        let result = kk_sequence_distinctBy(
+            makeSequence([3, 1, 2, 5, 4, 7]),
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 2])
+    }
+
     func testFilterIsInstanceKeepsMatchingRuntimeTypes() {
         let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
         let filtered = kk_sequence_filterIsInstance(seq, 3)
         XCTAssertEqual(sequenceElements(filtered), [1, 3])
+    }
+
+    func testFilterIndexedKeepsElementsMatchingIndexedPredicate() {
+        let fn = unsafeBitCast(keepEvenIndexOrLargeValue, to: Int.self)
+        let filtered = kk_sequence_filterIndexed(makeSequence([10, 20, 30, 40]), fn, 0, nil)
+        XCTAssertEqual(sequenceElements(filtered), [10, 30, 40])
     }
 
     // MARK: - Sequence shuffled tests (STDLIB-SEQ-019)
@@ -1041,6 +1754,19 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(sequenceElements(kk_sequence_shuffled_random(makeSequence([]), 0)), [])
         XCTAssertEqual(sequenceElements(kk_sequence_shuffled_random(makeSequence([42]), 0)), [42])
+    }
+
+    func testSequenceMaxReturnsLargestElementAndThrowsOnEmpty() throws {
+        var thrown = 0
+        let result = kk_sequence_max(makeSequence([3, 1, 4, 2]), &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 4)
+
+        let emptyResult = kk_sequence_max(makeSequence([]), &thrown)
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+        let box = try XCTUnwrap(throwableBox(from: thrown))
+        XCTAssertEqual(box.message, kEmptySequenceNoSuchElement)
     }
 
     // MARK: - STDLIB-SEQ-014: Sequence.requireNoNulls()
@@ -1096,6 +1822,27 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
     }
 
+    // MARK: - STDLIB-SEQ-FN-099: Sequence.reversed()
+
+    func testSequenceReversedMaterializesInReverseOrder() {
+        let seq = makeSequence([1, 2, 3, 4])
+        let reversed = kk_sequence_reversed(seq)
+        var thrown = 0
+        let list = kk_sequence_to_list(reversed, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(list), [4, 3, 2, 1])
+    }
+
+    func testSequenceReversedEmptySequenceReturnsEmptySequence() {
+        let reversed = kk_sequence_reversed(makeSequence([]))
+        var thrown = 0
+        let list = kk_sequence_to_list(reversed, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(list), [])
+    }
+
     // MARK: - Sequence mutable conversions (STDLIB-SEQ-025)
 
     func testToMutableListReturnsIndependentCopy() {
@@ -1111,6 +1858,38 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let copied = kk_sequence_toMutableSet(seq)
 
         XCTAssertEqual(setElements(copied), [3, 1, 2])
+    }
+
+    func testToSortedSetSortsAndDeduplicates() {
+        let seq = makeSequence([3, 1, 2, 1, 3])
+        let copied = kk_sequence_toSortedSet(seq)
+
+        XCTAssertEqual(setElements(copied), [1, 2, 3])
+    }
+
+    func testToSetDeduplicatesPreservingOrder() {
+        let seq = makeSequence([3, 1, 2, 1, 3])
+        let copied = kk_sequence_toSet(seq)
+
+        XCTAssertEqual(setElements(copied), [3, 1, 2])
+    }
+
+    func testToCollectionAppendsIntoMutableListDestination() {
+        let seq = makeSequence([1, 2, 3])
+        let destination = makeList([0])
+        let result = kk_sequence_toCollection(seq, destination)
+
+        XCTAssertEqual(result, destination)
+        XCTAssertEqual(listElements(destination), [0, 1, 2, 3])
+    }
+
+    func testToCollectionAppendsIntoMutableSetDestination() {
+        let seq = makeSequence([1, 2, 2, 3])
+        let destination = registerRuntimeObject(RuntimeSetBox(elements: [10, 2]))
+        let result = kk_sequence_toCollection(seq, destination)
+
+        XCTAssertEqual(result, destination)
+        XCTAssertEqual(setElements(destination), [10, 2, 1, 3])
     }
 
     func testToHashSetDeduplicatesPreservingOrder() {
@@ -1141,6 +1920,14 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let list = makeList([3, 4])
         let combined = kk_sequence_plus(seq, list)
         XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 4])
+    }
+
+    func testUnionCombinesSequenceAndIterableIntoSet() {
+        let seq = makeSequence([1, 2, 3, 2])
+        let other = makeList([3, 4, 1])
+        let unioned = kk_sequence_union(seq, other)
+
+        XCTAssertEqual(setElements(unioned), [1, 2, 3, 4])
     }
 
     // MARK: - Sequence.minus (STDLIB-562)
@@ -1178,6 +1965,15 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let reduced = kk_sequence_minus(seq, 2)
         let asList = kk_sequence_to_list(reduced, nil)
         XCTAssertEqual(listElements(asList), [1, 3])
+    }
+
+    // MARK: - Sequence.subtract (STDLIB-SEQ-FN-115)
+
+    func testSubtractReturnsSetRemovingIterableElements() {
+        let seq = makeSequence([1, 2, 2, 3, 4])
+        let other = makeList([2, 4, 2])
+        let result = kk_sequence_subtract(seq, other)
+        XCTAssertEqual(setElements(result), [1, 3])
     }
 
     // MARK: - Eager Materialization (Intentional Simplification)
@@ -1235,6 +2031,71 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 42])
     }
 
+    func testSequenceMaxOfReturnsLargestSelectorAndThrowsOnEmpty() throws {
+        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
+            outThrown?.pointee = 0
+            return -value
+        }
+
+        var thrown = 0
+        let result = kk_sequence_maxOf(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, -1)
+
+        thrown = 0
+        let emptyResult = kk_sequence_maxOf(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+        XCTAssertNotEqual(thrown, 0)
+        let box = try XCTUnwrap(throwableBox(from: thrown))
+        XCTAssertEqual(box.message, kEmptySequenceNoSuchElement)
+    }
+
+    func testRandomOrNullReturnsOnlyElementAndNullOnEmpty() {
+        var thrown = 0
+        let only = kk_sequence_randomOrNull(makeSequence([42]), &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(only, 42)
+
+        thrown = 0
+        let emptyResult = kk_sequence_randomOrNull(makeSequence([]), &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
+    func testSequenceMaxByReturnsElementWithLargestSelectorAndThrowsOnEmpty() throws {
+        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
+            outThrown?.pointee = 0
+            return -value
+        }
+
+        var thrown = 0
+        let result = kk_sequence_maxBy(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 1)
+
+        let emptyResult = kk_sequence_maxBy(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+        XCTAssertNotEqual(thrown, 0)
+        let box = try XCTUnwrap(throwableBox(from: thrown))
+        XCTAssertEqual(box.message, kEmptySequenceNoSuchElement)
+    }
+
+    func testSequenceMaxByOrNullReturnsElementWithLargestSelectorAndNullOnEmpty() {
+        let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
+            outThrown?.pointee = 0
+            return -value
+        }
+
+        var thrown = 0
+        let result = kk_sequence_maxByOrNull(makeSequence([3, 1, 4, 2]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 1)
+
+        let emptyResult = kk_sequence_maxByOrNull(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
     // MARK: - Lazy Sequence Builder Tests (STDLIB-563)
 
     private func listElements(_ listRaw: Int) -> [Int] {
@@ -1277,4 +2138,23 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         return keys
     }
 
+
+    func testMinWithReturnsComparatorMinimumAndThrowsOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minWith(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceReverseIntComparator, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(result, 5)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(
+            kk_sequence_minWith(makeSequence([]), unsafeBitCast(sequenceReverseIntComparator, to: Int.self), 0, &thrown),
+            runtimeExceptionCaughtSentinel
+        )
+        XCTAssertNotEqual(thrown, 0)
+    }
 }
