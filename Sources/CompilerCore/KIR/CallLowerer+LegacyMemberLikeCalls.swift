@@ -2555,6 +2555,7 @@ extension CallLowerer {
                 let sortedByName = interner.intern("sortedBy")
                 let sortedWithName = interner.intern("sortedWith")
                 let sortedByDescendingName = interner.intern("sortedByDescending")
+                let averageOfName = interner.intern("averageOf")
                 let sumOfName = interner.intern("sumOf")
                 let sumByName = interner.intern("sumBy")
                 let sumByDoubleName = interner.intern("sumByDouble")
@@ -2577,6 +2578,7 @@ extension CallLowerer {
                 let findLastName = interner.intern("findLast")
                 let lastName = interner.intern("last")
                 let partitionName = interner.intern("partition")
+                let minName = interner.intern("min")
                 let minByOrNullName = interner.intern("minByOrNull")
                 let maxByOrNullName = interner.intern("maxByOrNull")
                 let minOfName = interner.intern("minOf")
@@ -2618,6 +2620,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_sortedByDescending"
                 } else if calleeName == distinctByName {
                     runtimeCallee = "kk_sequence_distinctBy"
+                } else if calleeName == averageOfName {
+                    runtimeCallee = "kk_sequence_averageOf"
                 } else if calleeName == sumOfName {
                     runtimeCallee = "kk_sequence_sumOf"
                 } else if calleeName == sumByName {
@@ -2662,6 +2666,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == partitionName {
                     runtimeCallee = "kk_sequence_partition"
+                } else if calleeName == minName {
+                    runtimeCallee = "kk_sequence_min"
                 } else if calleeName == interner.intern("maxBy") {
                     runtimeCallee = "kk_sequence_maxBy"
                 } else if calleeName == minByOrNullName {
@@ -2744,6 +2750,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_reduceOrNull"
                 } else if calleeName == interner.intern("union") {
                     runtimeCallee = "kk_sequence_union"
+                } else if calleeName == interner.intern("subtract") {
+                    runtimeCallee = "kk_sequence_subtract"
                 } else if calleeName == interner.intern("reduceRight") {
                     runtimeCallee = useIterableRuntimeForCollectionFallback
                         ? "kk_list_reduceRight"
@@ -2775,6 +2783,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_sortedByDescending"
                         || runtimeCallee == "kk_sequence_distinctBy"
+                        || runtimeCallee == "kk_sequence_averageOf"
                         || runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
                         || runtimeCallee == "kk_sequence_sumByDouble"
@@ -2796,6 +2805,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_elementAt"
                         || runtimeCallee == "kk_sequence_last"
                         || runtimeCallee == "kk_iterable_last"
+                        || runtimeCallee == "kk_sequence_min"
                         || runtimeCallee == "kk_sequence_maxBy"
                         || runtimeCallee == "kk_sequence_minByOrNull"
                         || runtimeCallee == "kk_sequence_maxByOrNull"
@@ -2832,7 +2842,9 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                    if (runtimeCallee == "kk_sequence_sumBy"
+                    if (runtimeCallee == "kk_sequence_averageOf"
+                        || runtimeCallee == "kk_sequence_sumOf"
+                        || runtimeCallee == "kk_sequence_sumBy"
                         || runtimeCallee == "kk_sequence_sumByDouble"),
                        normalizedArgIDs.count == 1
                     {
@@ -3417,6 +3429,10 @@ extension CallLowerer {
                     interner.intern("kk_sequence_filterNotNull")
                 case requireNoNullsID:
                     interner.intern("kk_sequence_requireNoNulls")
+                case interner.intern("asSequence"):
+                    useIterableRuntimeForTerminalFallback
+                        ? interner.intern("kk_iterable_asSequence")
+                        : interner.intern("kk_sequence_asSequence")
                 case asIterableID:
                     interner.intern("kk_sequence_asIterable")
                 case withIndexID:

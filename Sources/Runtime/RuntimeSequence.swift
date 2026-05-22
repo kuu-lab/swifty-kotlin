@@ -2494,6 +2494,11 @@ public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
     return seqRaw
 }
 
+@_cdecl("kk_sequence_asSequence")
+public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
+    return seqRaw
+}
+
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     var found = false
@@ -3512,6 +3517,31 @@ public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
     return best ?? runtimeNullSentinelInt
 }
 
+@_cdecl("kk_sequence_min")
+public func kk_sequence_min(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    var best: Int? = nil
+    let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+        if let current = best {
+            if runtimeCompareValues(elem, current) < 0 {
+                best = elem
+            }
+        } else {
+            best = elem
+        }
+        return true
+    }
+    if (outThrown?.pointee ?? 0) != 0 {
+        return runtimeExceptionCaughtSentinel
+    }
+    if let traversalState, traversalState.limitReached {
+        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached), outThrown)
+    }
+    guard let best else {
+        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement), outThrown)
+    }
+    return best
+}
+
 @_cdecl("kk_sequence_flatten")
 public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
     var outerElements: [Int] = []
@@ -3629,4 +3659,19 @@ public func kk_sequence_union(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     let otherElements = runtimeUnboxCollectionElements(otherRaw)
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(selfElements + otherElements)))
+}
+
+@_cdecl("kk_sequence_subtract")
+public func kk_sequence_subtract(_ seqRaw: Int, _ otherRaw: Int) -> Int {
+    let selfElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    var otherKeys = Set<RuntimeElementKey>()
+    otherKeys.reserveCapacity(otherElements.count)
+    for elem in otherElements {
+        otherKeys.insert(RuntimeElementKey(value: elem))
+    }
+    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
+        !otherKeys.contains(RuntimeElementKey(value: elem))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: result))
 }

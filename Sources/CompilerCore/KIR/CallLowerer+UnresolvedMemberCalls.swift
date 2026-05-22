@@ -583,6 +583,7 @@ extension CallLowerer {
             let sortedDescendingName = interner.intern("sortedDescending")
             let joinToName = interner.intern("joinTo")
             let joinToStringName = interner.intern("joinToString")
+            let averageOfName = interner.intern("averageOf")
             let sumOfName = interner.intern("sumOf")
             let sumByName = interner.intern("sumBy")
             let sumByDoubleName = interner.intern("sumByDouble")
@@ -648,6 +649,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_joinTo")
             case joinToStringName:
                 return interner.intern("kk_sequence_joinToString")
+            case averageOfName:
+                return interner.intern("kk_sequence_averageOf")
             case sumOfName:
                 return interner.intern("kk_sequence_sumOf")
             case sumByName:
@@ -716,6 +719,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_filterNotNull")
             case interner.intern("requireNoNulls"):
                 return interner.intern("kk_sequence_requireNoNulls")
+            case interner.intern("asSequence"):
+                return interner.intern("kk_sequence_asSequence")
             case interner.intern("reversed"):
                 return interner.intern("kk_sequence_reversed")
             case interner.intern("asIterable"):
@@ -744,6 +749,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_minus")
             case interner.intern("union"):
                 return interner.intern("kk_sequence_union")
+            case interner.intern("subtract"):
+                return interner.intern("kk_sequence_subtract")
             case interner.intern("ifEmpty"):
                 return interner.intern("kk_sequence_ifEmpty")
             case firstName:
@@ -783,6 +790,8 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_toHashSet")
             case interner.intern("partition"):
                 return interner.intern("kk_sequence_partition")
+            case interner.intern("min"):
+                return interner.intern("kk_sequence_min")
             case interner.intern("maxBy"):
                 return interner.intern("kk_sequence_maxBy")
             case interner.intern("minByOrNull"):
