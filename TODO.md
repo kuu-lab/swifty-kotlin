@@ -302,7 +302,7 @@
 - [ ] STDLIB-SEQ-FN-016: `distinct` 関数の実装
 - [x] STDLIB-SEQ-FN-017: `distinctBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-018: `drop` 関数の実装
-- [ ] STDLIB-SEQ-FN-019: `dropWhile` 関数の実装
+- [x] STDLIB-SEQ-FN-019: `dropWhile` 関数の実装
 - [ ] STDLIB-SEQ-FN-020: `elementAt` 関数の実装
 - [ ] STDLIB-SEQ-FN-021: `elementAtOrElse` 関数の実装
 - [x] STDLIB-SEQ-FN-022: `elementAtOrNull` 関数の実装
@@ -409,7 +409,7 @@
 - [ ] STDLIB-SEQ-FN-100: `runningFold` 関数の実装
 - [x] STDLIB-SEQ-FN-101: `runningFoldIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-102: `runningReduce` 関数の実装
-- [ ] STDLIB-SEQ-FN-103: `runningReduceIndexed` 関数の実装
+- [x] STDLIB-SEQ-FN-103: `runningReduceIndexed` 関数の実装
 - [x] STDLIB-SEQ-FN-104: `scan` 関数の実装
 - [x] STDLIB-SEQ-FN-105: `scanIndexed` 関数の実装
 - [ ] STDLIB-SEQ-FN-106: `shuffled` 関数の実装
@@ -423,7 +423,7 @@
 - [x] STDLIB-SEQ-FN-112: `sortedByDescending` 関数の実装
 - [x] STDLIB-SEQ-FN-113: `sortedDescending` 関数の実装
 - [x] STDLIB-SEQ-FN-114: `sortedWith` 関数の実装
-- [ ] STDLIB-SEQ-FN-115: `subtract` 関数の実装
+- [x] STDLIB-SEQ-FN-115: `subtract` 関数の実装
 - [x] STDLIB-SEQ-FN-116: `sum` 関数の実装
 - [x] STDLIB-SEQ-FN-118: `sumOf` 関数の実装
 - [x] STDLIB-SEQ-FN-119: `take` 関数の実装
@@ -776,7 +776,7 @@
 - [x] STDLIB-IO-PATH-FN-054: `Path(pathString)` の公式 top-level factory shape を既存 stub と整合させる
 - [x] STDLIB-IO-PATH-FN-055: `Path(base, subpaths)` top-level factory overload を追加する
 - [x] STDLIB-IO-PATH-FN-056: `Path.readAttributes<A>(options)` を追加する
-- [ ] STDLIB-IO-PATH-FN-057: `Path.readAttributes(attributes, options)` を追加する
+- [x] STDLIB-IO-PATH-FN-057: `Path.readAttributes(attributes, options)` を追加する
 - [x] STDLIB-IO-PATH-FN-059: `Path.reader(charset, options)` を追加する
 - [x] STDLIB-IO-PATH-FN-066: `Path.setAttribute(attribute, value, options)` を追加する
 - [x] STDLIB-IO-PATH-FN-071: `Path.useDirectoryEntries(glob, block)` を追加する
@@ -815,7 +815,7 @@
 - [x] STDLIB-JS-FN-004: `JsReference<T>.get()` を追加する（`kk_js_reference_get` runtime 済み）
 - [ ] STDLIB-JS-FN-005: `JsArray<T>.get(index)` を追加する
 - [x] STDLIB-JS-FN-006: `RegExpMatch.get(index)` を追加する
-- [ ] STDLIB-JS-FN-007: `dynamic.iterator()` を追加する
+- [x] STDLIB-JS-FN-007: `dynamic.iterator()` を追加する
 - [x] STDLIB-JS-FN-009: `JsArray<T>()` factory を追加する
 - [x] STDLIB-JS-FN-015: `RegExp.reset()` を追加する
 - [x] STDLIB-JS-FN-016: `JsArray<T>.set(index, value)` を追加する
@@ -830,7 +830,7 @@
 - [ ] STDLIB-JS-FN-025: `Long.toJsBigInt()` を追加する
 - [ ] STDLIB-JS-FN-026: `Boolean.toJsBoolean()` を追加する
 - [x] STDLIB-JS-FN-027: `Double.toJsNumber()` を追加する
-- [ ] STDLIB-JS-FN-028: `Int.toJsNumber()` を追加する
+- [x] STDLIB-JS-FN-028: `Int.toJsNumber()` を追加する
 - [x] STDLIB-JS-FN-029: `T.toJsReference()` を追加する
 - [x] STDLIB-JS-FN-030: `String.toJsString()` を追加する
 - [x] STDLIB-JS-FN-031: `JsArray<T>.toList()` を追加する

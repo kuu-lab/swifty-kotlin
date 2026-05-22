@@ -139,6 +139,10 @@ private let sequenceParitySelector: @convention(c) (Int, Int, UnsafeMutablePoint
     value % 2
 }
 
+private let sequenceLessThanThree: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value < 3 ? 1 : 0
+}
+
 private let sequenceModuloThreeSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value % 3
 }
@@ -608,6 +612,8 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(sequenceElements(sorted), [3, 2, 1, 1])
     }
+
+
 
     func testJoinToStringUsesSeparatorPrefixAndPostfix() {
         let seq = makeSequence([1, 2, 3])
@@ -1208,7 +1214,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [1, 3, 9, 21])
+        XCTAssertEqual(sequenceElements(result), [1, 3, 9, 21])
     }
 
     func testRunningReduceIndexedReturnsEmptyListForEmptySequence() {
@@ -1223,7 +1229,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(listElements(result), [])
+        XCTAssertEqual(sequenceElements(result), [])
     }
 
     func testRunningReduceIndexedReturnsZeroWhenLambdaThrows() {
@@ -1693,6 +1699,16 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(secondList, runtimeNullSentinelInt)
     }
 
+    func testDropWhileSkipsLeadingMatchesOnly() {
+        let result = kk_sequence_dropWhile(
+            makeSequence([1, 2, 3, 1, 4]),
+            unsafeBitCast(sequenceLessThanThree, to: Int.self),
+            0
+        )
+
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 1, 4])
+    }
+
     func testCountReturnsElementCount() {
         var thrown = 0
         let count = kk_sequence_count(makeSequence([1, 2, 3]), &thrown)
@@ -1956,6 +1972,15 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let reduced = kk_sequence_minus(seq, 2)
         let asList = kk_sequence_to_list(reduced, nil)
         XCTAssertEqual(listElements(asList), [1, 3])
+    }
+
+    // MARK: - Sequence.subtract (STDLIB-SEQ-FN-115)
+
+    func testSubtractReturnsSetRemovingIterableElements() {
+        let seq = makeSequence([1, 2, 2, 3, 4])
+        let other = makeList([2, 4, 2])
+        let result = kk_sequence_subtract(seq, other)
+        XCTAssertEqual(setElements(result), [1, 3])
     }
 
     // MARK: - Eager Materialization (Intentional Simplification)
