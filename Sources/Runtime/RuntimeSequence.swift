@@ -2494,6 +2494,11 @@ public func kk_sequence_asIterable(_ seqRaw: Int) -> Int {
     return seqRaw
 }
 
+@_cdecl("kk_sequence_asSequence")
+public func kk_sequence_asSequence(_ seqRaw: Int) -> Int {
+    return seqRaw
+}
+
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     var found = false
@@ -2705,6 +2710,29 @@ public func kk_sequence_indexOfFirst(
         return runtimeExceptionCaughtSentinel
     }
     return matchIndex
+}
+
+@_cdecl("kk_sequence_lastIndexOf")
+public func kk_sequence_lastIndexOf(_ seqRaw: Int, _ element: Int) -> Int {
+    var index = -1
+    var currentIndex = 0
+    if let seq = runtimeSequenceBox(from: seqRaw) {
+        runtimeTraverseSequence(seq, outThrown: nil) { elem in
+            if runtimeValuesEqual(elem, element) {
+                index = currentIndex
+            }
+            currentIndex += 1
+            return true
+        }
+    } else {
+        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            if runtimeValuesEqual(elem, element) {
+                index = currentIndex
+            }
+            currentIndex += 1
+        }
+    }
+    return index
 }
 
 @_cdecl("kk_sequence_indexOfLast")
@@ -3157,6 +3185,49 @@ public func kk_sequence_reduceRight(
     return acc
 }
 
+@_cdecl("kk_sequence_reduceRightIndexed")
+public func kk_sequence_reduceRightIndexed(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    var elements: [Int] = []
+    let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+        elements.append(elem)
+        return true
+    }
+    if let outThrown, outThrown.pointee != 0 { return 0 }
+    if let traversalState, traversalState.limitReached {
+        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
+        return 0
+    }
+    guard let last = elements.last else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceCannotReduce)
+        return 0
+    }
+    var acc = maybeUnbox(last)
+    guard elements.count > 1 else { return acc }
+
+    for index in stride(from: elements.count - 2, through: 0, by: -1) {
+        var thrown = 0
+        let nextAcc = runtimeInvokeCollectionLambda3(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            arg1: index,
+            arg2: elements[index],
+            arg3: acc,
+            outThrown: &thrown
+        )
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+        acc = maybeUnbox(nextAcc)
+    }
+    return acc
+}
+
 
 
 // MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
@@ -3515,6 +3586,31 @@ public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
     return best ?? runtimeNullSentinelInt
 }
 
+@_cdecl("kk_sequence_min")
+public func kk_sequence_min(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    var best: Int? = nil
+    let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
+        if let current = best {
+            if runtimeCompareValues(elem, current) < 0 {
+                best = elem
+            }
+        } else {
+            best = elem
+        }
+        return true
+    }
+    if (outThrown?.pointee ?? 0) != 0 {
+        return runtimeExceptionCaughtSentinel
+    }
+    if let traversalState, traversalState.limitReached {
+        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached), outThrown)
+    }
+    guard let best else {
+        return handleCollectionLambdaThrow(runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement), outThrown)
+    }
+    return best
+}
+
 @_cdecl("kk_sequence_flatten")
 public func kk_sequence_flatten(_ seqRaw: Int) -> Int {
     var outerElements: [Int] = []
@@ -3632,4 +3728,19 @@ public func kk_sequence_union(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     let selfElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
     let otherElements = runtimeUnboxCollectionElements(otherRaw)
     return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(selfElements + otherElements)))
+}
+
+@_cdecl("kk_sequence_subtract")
+public func kk_sequence_subtract(_ seqRaw: Int, _ otherRaw: Int) -> Int {
+    let selfElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+    let otherElements = runtimeUnboxCollectionElements(otherRaw)
+    var otherKeys = Set<RuntimeElementKey>()
+    otherKeys.reserveCapacity(otherElements.count)
+    for elem in otherElements {
+        otherKeys.insert(RuntimeElementKey(value: elem))
+    }
+    let result = runtimeDeduplicatePreservingOrder(selfElements).filter { elem in
+        !otherKeys.contains(RuntimeElementKey(value: elem))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
