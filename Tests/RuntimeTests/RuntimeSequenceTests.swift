@@ -155,6 +155,16 @@ private let sequenceLessThanFour: @convention(c) (Int, Int, UnsafeMutablePointer
     value < 4 ? 1 : 0
 }
 
+private let sequenceReverseIntComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
+    if lhs > rhs {
+        return -1
+    }
+    if lhs < rhs {
+        return 1
+    }
+    return 0
+}
+
 let sequenceFirstNullableEvenTimesTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     value.isMultiple(of: 2) ? value * 10 : runtimeNullSentinelInt
 }
@@ -227,12 +237,6 @@ private let sequenceNegatedSelector: @convention(c) (Int, Int, UnsafeMutablePoin
 
 private let sequenceMaxWithOrNullNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
     lhs - rhs
-}
-
-private let sequenceReverseIntComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
-    if lhs < rhs { return 1 }
-    if lhs > rhs { return -1 }
-    return 0
 }
 
 private func runtimeTestStringHandle(_ value: String) -> Int {
@@ -467,6 +471,25 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+    }
+
+    func testMinWithOrNullReturnsComparatorMinimumAndNullOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minWithOrNull(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceReverseIntComparator, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(result, 5)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(
+            kk_sequence_minWithOrNull(makeSequence([]), unsafeBitCast(sequenceReverseIntComparator, to: Int.self), 0, &thrown),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(thrown, 0)
     }
 
     func testMaxOrNullReturnsLargestElementAndNullOnEmpty() {
