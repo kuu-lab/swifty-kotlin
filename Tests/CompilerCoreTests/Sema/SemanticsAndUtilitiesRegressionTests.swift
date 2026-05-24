@@ -2806,6 +2806,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+<<<<<<< HEAD
     func testPathDeleteIfExistsExtensionFunctionInIOPathPackageSurfaceMatchesOfficialShape() throws {
         let source = """
         import kotlin.io.path.Path
@@ -2813,6 +2814,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
 
         fun delete(path: Path): Boolean {
             return path.deleteIfExists()
+=======
+    func testPathCreateParentDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved() throws {
+        let source = """
+        import java.nio.file.attribute.FileAttribute
+        import kotlin.io.path.Path
+        import kotlin.io.path.createParentDirectories
+
+        fun create(path: Path, attribute: FileAttribute<*>): Path {
+            return path.createParentDirectories(attribute)
+>>>>>>> c2823023b (Implement Path.createParentDirectories attributes surface)
         }
         """
 
@@ -2822,7 +2833,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let diagnostics = ctx.diagnostics.diagnostics.map(\.message)
             XCTAssertFalse(
                 ctx.diagnostics.hasError,
+<<<<<<< HEAD
                 "Path.deleteIfExists() extension function in kotlin.io.path should resolve: \(diagnostics)"
+=======
+                "Path.createParentDirectories(attributes) extension function in kotlin.io.path should resolve: \(diagnostics)"
+>>>>>>> c2823023b (Implement Path.createParentDirectories attributes surface)
             )
 
             let interner = ctx.interner
@@ -2830,13 +2845,26 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
             let symbols = sema.symbols
             let types = sema.types
             let pathSymbol = try XCTUnwrap(symbols.lookup(fqName: ["kotlin", "io", "path", "Path"].map(interner.intern)))
+<<<<<<< HEAD
             let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
             let deleteIfExistsSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "deleteIfExists"].map(interner.intern))
             let deleteIfExists = try XCTUnwrap(deleteIfExistsSymbols.first { symbolID in
+=======
+            let fileAttributeSymbol = try XCTUnwrap(symbols.lookup(fqName: ["java", "nio", "file", "attribute", "FileAttribute"].map(interner.intern)))
+            let pathType = types.make(.classType(ClassType(classSymbol: pathSymbol, args: [], nullability: .nonNull)))
+            let fileAttributeStarType = types.make(.classType(ClassType(
+                classSymbol: fileAttributeSymbol,
+                args: [.star],
+                nullability: .nonNull
+            )))
+            let createParentDirectoriesSymbols = symbols.lookupAll(fqName: ["kotlin", "io", "path", "createParentDirectories"].map(interner.intern))
+            let createParentDirectories = try XCTUnwrap(createParentDirectoriesSymbols.first { symbolID in
+>>>>>>> c2823023b (Implement Path.createParentDirectories attributes surface)
                 guard let signature = symbols.functionSignature(for: symbolID) else {
                     return false
                 }
                 return signature.receiverType == pathType
+<<<<<<< HEAD
                     && signature.parameterTypes == []
                     && signature.returnType == types.booleanType
             })
@@ -2866,6 +2894,16 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                 },
                 "Path.deleteIfExists should be registered as a kotlin.io.path extension function, not a Path member"
             )
+=======
+                    && signature.parameterTypes == [fileAttributeStarType]
+                    && signature.returnType == pathType
+            })
+            XCTAssertEqual(symbols.externalLinkName(for: createParentDirectories), "kk_path_createParentDirectories_attributes")
+
+            let signature = try XCTUnwrap(symbols.functionSignature(for: createParentDirectories))
+            XCTAssertEqual(signature.valueParameterIsVararg, [true])
+            XCTAssertEqual(types.nominalTypeParameterSymbols(for: fileAttributeSymbol).count, 1)
+>>>>>>> c2823023b (Implement Path.createParentDirectories attributes surface)
         }
     }
 
