@@ -41,6 +41,12 @@ final class RuntimeStreamsTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(sequenceElements(kk_double_stream_asSequence(makeParallelStream([8, 9]))), [8, 9])
     }
 
+    func testStreamToListConvertsStreamLikeHandles() {
+        let listRaw = kk_stream_toList(makeParallelStream([1, 2, 3]))
+
+        XCTAssertEqual(runtimeListBox(from: listRaw)?.elements, [1, 2, 3])
+    }
+
     func testSequenceAsStreamConvertsSequenceHandles() {
         let streamRaw = kk_sequence_asStream(makeSequence([10, 20, 30]))
 
