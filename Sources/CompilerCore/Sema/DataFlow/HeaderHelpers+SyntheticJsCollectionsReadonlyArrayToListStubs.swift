@@ -1,6 +1,6 @@
 import Foundation
 
-/// Synthetic Kotlin/JS collections `JsReadonlyArray<E>.toList()` conversion surface.
+/// Synthetic Kotlin/JS collections `JsReadonlyArray<E>` conversion surfaces.
 extension DataFlowSemaPhase {
     func registerSyntheticJsCollectionsReadonlyArrayToListStubs(
         symbols: SymbolTable,
@@ -49,6 +49,56 @@ extension DataFlowSemaPhase {
             typeParamSymbol: readonlyArray.typeParameterSymbol,
             symbols: symbols,
             types: types,
+            interner: interner
+        )
+    }
+
+    func registerSyntheticJsCollectionsReadonlyArrayToMutableListStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let pkg = ensurePackage(
+            path: ["kotlin", "js", "collections"],
+            symbols: symbols,
+            interner: interner
+        )
+        let collectionsPkg = ensurePackage(
+            path: ["kotlin", "collections"],
+            symbols: symbols,
+            interner: interner
+        )
+        let readonlyArray = ensureJsReadonlyArrayForToList(
+            packageFQName: pkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        guard let mutableListSymbol = symbols.lookup(fqName: collectionsPkg + [interner.intern("MutableList")]) else {
+            return
+        }
+
+        let typeParamType = types.make(.typeParam(TypeParamType(
+            symbol: readonlyArray.typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: readonlyArray.symbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+        let returnType = types.make(.classType(ClassType(
+            classSymbol: mutableListSymbol,
+            args: [.invariant(typeParamType)],
+            nullability: .nonNull
+        )))
+
+        registerJsReadonlyArrayToMutableListMember(
+            ownerSymbol: readonlyArray.symbol,
+            ownerType: receiverType,
+            returnType: returnType,
+            typeParamSymbol: readonlyArray.typeParameterSymbol,
+            symbols: symbols,
             interner: interner
         )
     }
@@ -121,6 +171,59 @@ extension DataFlowSemaPhase {
         let functionName = interner.intern("toList")
         let functionFQName = ownerInfo.fqName + [functionName]
         let externalLinkName = "kk_js_array_toList"
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbol in
+            guard let signature = symbols.functionSignature(for: symbol) else {
+                return false
+            }
+            return signature.receiverType == ownerType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == returnType
+                && signature.typeParameterSymbols == [typeParamSymbol]
+                && signature.classTypeParameterCount == 1
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            appendJsCollectionsReadonlyArrayToListAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        appendJsCollectionsReadonlyArrayToListAnnotation(to: functionSymbol, symbols: symbols)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: returnType,
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: functionSymbol
+        )
+    }
+
+    private func registerJsReadonlyArrayToMutableListMember(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        returnType: TypeID,
+        typeParamSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let functionName = interner.intern("toMutableList")
+        let functionFQName = ownerInfo.fqName + [functionName]
+        let externalLinkName = "kk_js_array_toMutableList"
 
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbol in
             guard let signature = symbols.functionSignature(for: symbol) else {
