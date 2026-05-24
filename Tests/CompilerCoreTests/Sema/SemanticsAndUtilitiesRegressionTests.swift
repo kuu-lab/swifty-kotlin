@@ -545,7 +545,8 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         fun copyPath(source: Path, target: Path, option: CopyOption): Path {
             val first = source.copyTo(target)
             val second = source.copyTo(target, option)
-            return second
+            val third = source.copyTo(target, true)
+            return third
         }
         """
 
@@ -572,7 +573,14 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
                     && signature.parameterTypes == [pathType, copyOptionType]
                     && signature.returnType == pathType
             })
+            let overwriteCopyTo = try XCTUnwrap(copyToSymbols.first { symbolID in
+                guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+                return signature.receiverType == pathType
+                    && signature.parameterTypes == [pathType, types.booleanType]
+                    && signature.returnType == pathType
+            })
             XCTAssertEqual(symbols.externalLinkName(for: copyTo), "kk_path_copyTo_options")
+            XCTAssertEqual(symbols.externalLinkName(for: overwriteCopyTo), "kk_path_copyTo_overwrite")
 
             let signature = try XCTUnwrap(symbols.functionSignature(for: copyTo))
             XCTAssertEqual(signature.valueParameterHasDefaultValues, [false, false])
@@ -580,9 +588,11 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
 
             let ast = try XCTUnwrap(ctx.ast)
             let callExprs = memberCallExprIDs(named: "copyTo", in: ast, interner: interner)
-            XCTAssertEqual(callExprs.count, 2)
+            XCTAssertEqual(callExprs.count, 3)
+            let chosenCallees = callExprs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }
+            XCTAssertEqual(chosenCallees.filter { $0 == copyTo }.count, 2)
+            XCTAssertEqual(chosenCallees.filter { $0 == overwriteCopyTo }.count, 1)
             for callExpr in callExprs {
-                XCTAssertEqual(sema.bindings.callBinding(for: callExpr)?.chosenCallee, copyTo)
                 XCTAssertEqual(sema.bindings.exprTypes[callExpr], pathType)
             }
         }
