@@ -388,6 +388,32 @@ public func kk_path_copyTo_options(
     return targetRaw
 }
 
+@_cdecl("kk_path_copyTo_overwrite")
+public func kk_path_copyTo_overwrite(
+    _ pathRaw: Int,
+    _ targetRaw: Int,
+    _ overwriteRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let source = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_copyTo_overwrite received invalid source Path handle")
+    }
+    guard let target = runtimePathBox(from: targetRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_copyTo_overwrite received invalid target Path handle")
+    }
+    do {
+        if kk_unbox_bool(overwriteRaw) != 0,
+           FileManager.default.fileExists(atPath: target.pathString) {
+            try FileManager.default.removeItem(atPath: target.pathString)
+        }
+        try FileManager.default.copyItem(atPath: source.pathString, toPath: target.pathString)
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+    }
+    return targetRaw
+}
+
 @_cdecl("kk_path_appendLines_iterable_default")
 public func kk_path_appendLines_iterable_default(_ pathRaw: Int, _ linesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_path_appendLines_iterable(pathRaw, linesRaw, 0, outThrown)
