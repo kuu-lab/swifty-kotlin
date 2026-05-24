@@ -74,6 +74,7 @@
 /// - `ExperimentalPathApi` marker annotation surface
 /// - `FileVisitorBuilder` type surface
 /// - `fileVisitor(builderAction)` top-level function
+/// - `Path.visitFileTree(visitor, maxDepth, followLinks)` extension function
 /// - `OnErrorResult` enum surface
 /// - `PathWalkOption` enum surface
 ///
@@ -1803,6 +1804,22 @@ extension DataFlowSemaPhase {
             parameters: [("builderAction", fileVisitorBuilderActionType)],
             returnType: fileVisitorOfPathType,
             externalLinkName: "kk_path_fileVisitor",
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "visitFileTree",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [
+                ("visitor", fileVisitorOfPathType),
+                ("maxDepth", types.intType),
+                ("followLinks", types.booleanType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_visitFileTree",
+            valueParameterHasDefaultValues: [false, true, true],
             symbols: symbols,
             interner: interner
         )
