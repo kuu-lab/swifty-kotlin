@@ -19,6 +19,7 @@
 /// - `Path.name: String` extension property
 /// - `Path.appendText(text: CharSequence, charset)` extension function
 /// - `Path.copyTo(target: Path, options)` extension function
+/// - `Path.copyTo(target: Path, overwrite: Boolean)` extension function
 /// - `Path.invariantSeparatorsPath: String` extension property
 /// - `Path.absolute(): Path` extension function
 /// - `Path.relativeToOrSelf(base: Path): Path` extension function
@@ -1335,6 +1336,17 @@ extension DataFlowSemaPhase {
             returnType: pathType,
             externalLinkName: "kk_path_copyTo_options",
             valueParameterIsVararg: [false, true],
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerPathExtensionFunction(
+            named: "copyTo",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [("target", pathType), ("overwrite", types.booleanType)],
+            returnType: pathType,
+            externalLinkName: "kk_path_copyTo_overwrite",
             symbols: symbols,
             interner: interner
         )
