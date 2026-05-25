@@ -426,6 +426,28 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testSequenceElementAtReturnsIndexedValue() throws {
+        let source = """
+        fun main() {
+            println(sequenceOf(10, 20, 30).elementAt(1))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SequenceElementAt",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "20\n")
+        }
+    }
 
     // MARK: - filterIsInstance keeps matching runtime types
 
@@ -456,11 +478,15 @@ extension CodegenBackendIntegrationTests {
     // MARK: - terminal ops: count, forEach, fold
 
     func testSequenceTerminalOps() throws {
-        let source = """
+            let source = """
         fun main() {
             val seq = sequenceOf(1, 2, 3, 4, 5)
 
             println(seq.count())
+            println(seq.indexOf(3))
+            println(seq.indexOf(99))
+            println(seq.indexOfFirst { it % 2 == 0 })
+            println(seq.indexOfFirst { it > 10 })
             println(seq.indexOfLast { it % 2 == 0 })
             println(seq.indexOfLast { it > 10 })
 
@@ -496,6 +522,10 @@ extension CodegenBackendIntegrationTests {
                 normalizedStdout,
                 """
                 5
+                2
+                -1
+                1
+                -1
                 3
                 -1
                 15
@@ -876,6 +906,30 @@ extension CodegenBackendIntegrationTests {
                 true
                 """ + "\n"
             )
+        }
+    }
+
+    func testSequenceFindLastReturnsLastMatchingValue() throws {
+        let source = """
+        fun main() {
+            val lastEven = sequenceOf(1, 2, 3, 4, 5).findLast { value -> value % 2 == 0 }
+            println(lastEven)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SequenceFindLastRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "4\n")
         }
     }
 
