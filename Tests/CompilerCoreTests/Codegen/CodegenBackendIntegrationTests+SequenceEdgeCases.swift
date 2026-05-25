@@ -1335,6 +1335,25 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             println(sequenceOf(3, 1, 4, 2).maxOfOrNull { -it })
             println(emptySequence<Int>().maxOfOrNull { it } == null)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SequenceMaxOfOrNull",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "-1\ntrue\n")
+        }
+    }
+
     func testCodegenSequenceMinOrNullReturnsSmallestElementAndNullOnEmpty() throws {
         let source = """
         fun main() {
@@ -1347,7 +1366,6 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "SequenceMaxOfOrNull",
                 moduleName: "SequenceMinOrNull",
                 emit: .executable,
                 outputPath: outputBase
@@ -1356,7 +1374,6 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-1\ntrue\n")
             XCTAssertEqual(normalizedStdout, "2\ntrue\n")
         }
     }
