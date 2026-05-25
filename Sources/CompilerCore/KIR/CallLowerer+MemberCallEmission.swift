@@ -487,6 +487,7 @@ extension CallLowerer {
             } else if finalArguments.count == 3 {
                 finalArguments = [receiver.loweredID] + finalArguments
             }
+        }
         if loweredCallee == interner.intern("kk_sequence_elementAtOrElse"),
            finalArguments.count == 3
         {
