@@ -235,6 +235,10 @@ private let sequenceNegatedSelector: @convention(c) (Int, Int, UnsafeMutablePoin
     -value
 }
 
+private let sequenceMaxWithNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
+    lhs - rhs
+}
+
 private let sequenceMaxWithOrNullNaturalComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
     lhs - rhs
 }
@@ -483,6 +487,29 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_sequence_maxOrNull(makeSequence([])), runtimeNullSentinelInt)
     }
 
+    func testMaxWithReturnsLargestElementAndThrowsOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_maxWith(
+            makeSequence([3, 1, 4, 2]),
+            unsafeBitCast(sequenceMaxWithNaturalComparator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 4)
+
+        thrown = 0
+        let emptyResult = kk_sequence_maxWith(
+            makeSequence([]),
+            unsafeBitCast(sequenceMaxWithNaturalComparator, to: Int.self),
+            0,
+            &thrown
+        )
+
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
+        XCTAssertNotEqual(thrown, 0)
+    }
 
     func testMaxWithOrNullReturnsLargestElementAndNullOnEmpty() {
         var thrown = 0
