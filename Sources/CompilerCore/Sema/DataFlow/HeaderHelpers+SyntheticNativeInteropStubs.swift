@@ -1267,8 +1267,44 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let cOpaquePointerSymbol = ensureClassSymbol(
-            named: "COpaquePointer",
+        let cVariableSymbol = ensureClassSymbol(
+            named: "CVariable",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let cPrimitiveVarSymbol = ensureClassSymbol(
+            named: "CPrimitiveVar",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let cEnumSymbol = ensureInterfaceSymbol(
+            named: "CEnum",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let cEnumVarSymbol = ensureClassSymbol(
+            named: "CEnumVar",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let cFunctionSymbol = ensureClassSymbol(
+            named: "CFunction",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let cOpaqueSymbol = ensureClassSymbol(
+            named: "COpaque",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let nativePtrSymbol = ensureClassSymbol(
+            named: "NativePtr",
             in: cinteropPkg,
             symbols: symbols,
             interner: interner
@@ -1333,11 +1369,35 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let cPointerVarOfSymbol = ensureClassSymbol(
+            named: "CPointerVarOf",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let booleanVarOfSymbol = ensureClassSymbol(
+            named: "BooleanVarOf",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let byteVarOfSymbol = ensureClassSymbol(
+            named: "ByteVarOf",
+            in: cinteropPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         for symbol in [
             nativePointedSymbol,
             cPointedSymbol,
-            cOpaquePointerSymbol,
+            cVariableSymbol,
+            cPrimitiveVarSymbol,
+            cEnumSymbol,
+            cEnumVarSymbol,
+            cFunctionSymbol,
+            cOpaqueSymbol,
+            nativePtrSymbol,
             nativePlacementSymbol,
             nativeFreeablePlacementSymbol,
             deferScopeSymbol,
@@ -1348,6 +1408,9 @@ extension DataFlowSemaPhase {
             cValuesRefSymbol,
             cPointerSymbol,
             cPointerVarSymbol,
+            cPointerVarOfSymbol,
+            booleanVarOfSymbol,
+            byteVarOfSymbol,
         ] {
             if let cinteropPkgSymbol {
                 symbols.setParentSymbol(cinteropPkgSymbol, for: symbol)
@@ -1370,14 +1433,83 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([nativePointedSymbol], for: cPointedSymbol)
         types.setNominalDirectSupertypes([nativePointedSymbol], for: cPointedSymbol)
 
-        let cOpaquePointerType = types.make(.classType(ClassType(
-            classSymbol: cOpaquePointerSymbol,
+        let cVariableType = types.make(.classType(ClassType(
+            classSymbol: cVariableSymbol,
             args: [],
             nullability: .nonNull
         )))
-        symbols.setPropertyType(cOpaquePointerType, for: cOpaquePointerSymbol)
-        symbols.setDirectSupertypes([nativePointedSymbol], for: cOpaquePointerSymbol)
-        types.setNominalDirectSupertypes([nativePointedSymbol], for: cOpaquePointerSymbol)
+        symbols.setPropertyType(cVariableType, for: cVariableSymbol)
+        symbols.setDirectSupertypes([cPointedSymbol], for: cVariableSymbol)
+        types.setNominalDirectSupertypes([cPointedSymbol], for: cVariableSymbol)
+
+        let cPrimitiveVarType = types.make(.classType(ClassType(
+            classSymbol: cPrimitiveVarSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cPrimitiveVarType, for: cPrimitiveVarSymbol)
+        symbols.setDirectSupertypes([cVariableSymbol], for: cPrimitiveVarSymbol)
+        types.setNominalDirectSupertypes([cVariableSymbol], for: cPrimitiveVarSymbol)
+
+        let cEnumType = types.make(.classType(ClassType(
+            classSymbol: cEnumSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cEnumType, for: cEnumSymbol)
+        appendMetadataAnnotations(deprecatedCEnumAnnotations(), to: cEnumSymbol, symbols: symbols)
+        registerSyntheticNativeBitSetProperty(
+            named: "value",
+            ownerSymbol: cEnumSymbol,
+            propertyType: types.anyType,
+            flags: [.synthetic, .abstractType],
+            symbols: symbols,
+            interner: interner
+        )
+
+        let cEnumVarType = types.make(.classType(ClassType(
+            classSymbol: cEnumVarSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cEnumVarType, for: cEnumVarSymbol)
+        symbols.insertFlags([.abstractType], for: cEnumVarSymbol)
+        symbols.setDirectSupertypes([cPrimitiveVarSymbol], for: cEnumVarSymbol)
+        types.setNominalDirectSupertypes([cPrimitiveVarSymbol], for: cEnumVarSymbol)
+
+        let cOpaqueType = types.make(.classType(ClassType(
+            classSymbol: cOpaqueSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cOpaqueType, for: cOpaqueSymbol)
+        symbols.insertFlags([.abstractType], for: cOpaqueSymbol)
+        symbols.setDirectSupertypes([cPointedSymbol], for: cOpaqueSymbol)
+        types.setNominalDirectSupertypes([cPointedSymbol], for: cOpaqueSymbol)
+
+        let nativePtrType = types.make(.classType(ClassType(
+            classSymbol: nativePtrSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(nativePtrType, for: nativePtrSymbol)
+
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cEnumVarSymbol,
+            ownerType: cEnumVarType,
+            parameters: [(name: "rawPtr", type: nativePtrType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: cOpaqueSymbol,
+            ownerType: cOpaqueType,
+            parameters: [(name: "rawPtr", type: nativePtrType)],
+            defaultValues: [false],
+            symbols: symbols,
+            interner: interner
+        )
 
         let nativePlacementType = types.make(.classType(ClassType(
             classSymbol: nativePlacementSymbol,
@@ -1574,9 +1706,200 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        configureSingleTypeParameterNominal(
+            ownerSymbol: cPointerVarOfSymbol,
+            fqName: cinteropPkg + [interner.intern("CPointerVarOf")],
+            parameterName: "T",
+            supertype: cVariableSymbol,
+            supertypeIsGeneric: false,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        configureSingleTypeParameterNominal(
+            ownerSymbol: cFunctionSymbol,
+            fqName: cinteropPkg + [interner.intern("CFunction")],
+            parameterName: "T",
+            supertype: cPointedSymbol,
+            supertypeIsGeneric: false,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if let cFunctionTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cFunctionSymbol).first {
+            symbols.setTypeParameterUpperBounds([types.anyType], for: cFunctionTypeParameterSymbol)
+            let cFunctionTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: cFunctionTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let cFunctionType = types.make(.classType(ClassType(
+                classSymbol: cFunctionSymbol,
+                args: [.invariant(cFunctionTypeParameterType)],
+                nullability: .nonNull
+            )))
+            registerNativeConcurrentConstructor(
+                ownerSymbol: cFunctionSymbol,
+                ownerType: cFunctionType,
+                parameters: [(name: "rawPtr", type: nativePtrType)],
+                defaultValues: [false],
+                typeParameterSymbols: [cFunctionTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        configureSingleTypeParameterNominal(
+            ownerSymbol: booleanVarOfSymbol,
+            fqName: cinteropPkg + [interner.intern("BooleanVarOf")],
+            parameterName: "T",
+            supertype: cPrimitiveVarSymbol,
+            supertypeIsGeneric: false,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if let booleanVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: booleanVarOfSymbol).first {
+            symbols.setTypeParameterUpperBounds([types.booleanType], for: booleanVarOfTypeParameterSymbol)
+            let booleanVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: booleanVarOfTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let booleanVarOfType = types.make(.classType(ClassType(
+                classSymbol: booleanVarOfSymbol,
+                args: [.invariant(booleanVarOfTypeParameterType)],
+                nullability: .nonNull
+            )))
+            registerNativeConcurrentConstructor(
+                ownerSymbol: booleanVarOfSymbol,
+                ownerType: booleanVarOfType,
+                parameters: [(name: "rawPtr", type: nativePtrType)],
+                defaultValues: [false],
+                typeParameterSymbols: [booleanVarOfTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticNativeBitSetProperty(
+                named: "value",
+                ownerSymbol: booleanVarOfSymbol,
+                propertyType: booleanVarOfTypeParameterType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        configureSingleTypeParameterNominal(
+            ownerSymbol: byteVarOfSymbol,
+            fqName: cinteropPkg + [interner.intern("ByteVarOf")],
+            parameterName: "T",
+            supertype: cPrimitiveVarSymbol,
+            supertypeIsGeneric: false,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        if let byteVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: byteVarOfSymbol).first {
+            symbols.setTypeParameterUpperBounds([types.intType], for: byteVarOfTypeParameterSymbol)
+            let byteVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: byteVarOfTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let byteVarOfType = types.make(.classType(ClassType(
+                classSymbol: byteVarOfSymbol,
+                args: [.invariant(byteVarOfTypeParameterType)],
+                nullability: .nonNull
+            )))
+            registerNativeConcurrentConstructor(
+                ownerSymbol: byteVarOfSymbol,
+                ownerType: byteVarOfType,
+                parameters: [(name: "rawPtr", type: nativePtrType)],
+                defaultValues: [false],
+                typeParameterSymbols: [byteVarOfTypeParameterSymbol],
+                classTypeParameterCount: 1,
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticNativeBitSetProperty(
+                named: "value",
+                ownerSymbol: byteVarOfSymbol,
+                propertyType: byteVarOfTypeParameterType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        let booleanVarType = types.make(.classType(ClassType(
+            classSymbol: booleanVarOfSymbol,
+            args: [.invariant(types.booleanType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCInteropTypeAlias(
+            named: "BooleanVar",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            underlyingType: booleanVarType,
+            symbols: symbols,
+            interner: interner
+        )
+        let byteVarType = types.make(.classType(ClassType(
+            classSymbol: byteVarOfSymbol,
+            args: [.invariant(types.intType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCInteropTypeAlias(
+            named: "ByteVar",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            underlyingType: byteVarType,
+            symbols: symbols,
+            interner: interner
+        )
+        let cOpaquePointerUnderlyingType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.out(cPointedType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCInteropTypeAlias(
+            named: "COpaquePointer",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            underlyingType: cOpaquePointerUnderlyingType,
+            symbols: symbols,
+            interner: interner
+        )
+        let cOpaquePointerVarUnderlyingType = types.make(.classType(ClassType(
+            classSymbol: cPointerVarOfSymbol,
+            args: [.invariant(cOpaquePointerUnderlyingType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCInteropTypeAlias(
+            named: "COpaquePointerVar",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            underlyingType: cOpaquePointerVarUnderlyingType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCInteropSingleTypeParameterTypeAlias(
+            named: "CArrayPointer",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            parameterName: "T",
+            targetSymbol: cPointerSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticCInteropSingleTypeParameterTypeAlias(
+            named: "CArrayPointerVar",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            parameterName: "T",
+            targetSymbol: cPointerVarSymbol,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         for primitiveVar in [
-            "ByteVar",
             "UByteVar",
             "ShortVar",
             "UShortVar",
@@ -1859,6 +2182,109 @@ extension DataFlowSemaPhase {
         )))
     }
 
+    private func registerSyntheticCInteropTypeAlias(
+        named aliasName: String,
+        in packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        underlyingType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let aliasSymbol = ensureSyntheticCInteropTypeAliasSymbol(
+            named: aliasName,
+            in: packageFQName,
+            packageSymbol: packageSymbol,
+            symbols: symbols,
+            interner: interner
+        ) else {
+            return
+        }
+        symbols.setTypeAliasUnderlyingType(underlyingType, for: aliasSymbol)
+    }
+
+    private func registerSyntheticCInteropSingleTypeParameterTypeAlias(
+        named aliasName: String,
+        in packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        parameterName: String,
+        targetSymbol: SymbolID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let aliasSymbol = ensureSyntheticCInteropTypeAliasSymbol(
+            named: aliasName,
+            in: packageFQName,
+            packageSymbol: packageSymbol,
+            symbols: symbols,
+            interner: interner
+        ) else {
+            return
+        }
+
+        let aliasFQName = packageFQName + [interner.intern(aliasName)]
+        let parameterInternedName = interner.intern(parameterName)
+        let typeParameterFQName = aliasFQName + [parameterInternedName]
+        let typeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParameterFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: parameterInternedName,
+                fqName: typeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        symbols.setTypeAliasTypeParameters([typeParameterSymbol], for: aliasSymbol)
+
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let underlyingType = types.make(.classType(ClassType(
+            classSymbol: targetSymbol,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        symbols.setTypeAliasUnderlyingType(underlyingType, for: aliasSymbol)
+    }
+
+    private func ensureSyntheticCInteropTypeAliasSymbol(
+        named aliasName: String,
+        in packageFQName: [InternedString],
+        packageSymbol: SymbolID?,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let aliasInternedName = interner.intern(aliasName)
+        let aliasFQName = packageFQName + [aliasInternedName]
+        let aliasSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: aliasFQName),
+           symbols.symbol(existing)?.kind == .typeAlias
+        {
+            aliasSymbol = existing
+            symbols.insertFlags([.synthetic], for: existing)
+        } else if symbols.lookup(fqName: aliasFQName) == nil {
+            aliasSymbol = symbols.define(
+                kind: .typeAlias,
+                name: aliasInternedName,
+                fqName: aliasFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        } else {
+            return nil
+        }
+
+        if let packageSymbol {
+            symbols.setParentSymbol(packageSymbol, for: aliasSymbol)
+        }
+        return aliasSymbol
+    }
+
     private func deprecatedImmutableBlobAnnotations() -> [MetadataAnnotationRecord] {
         [
             MetadataAnnotationRecord(
@@ -1929,6 +2355,15 @@ extension DataFlowSemaPhase {
                 ]
             ),
             MetadataAnnotationRecord(annotationFQName: "kotlinx.cinterop.ExperimentalForeignApi"),
+        ]
+    }
+
+    private func deprecatedCEnumAnnotations() -> [MetadataAnnotationRecord] {
+        [
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.Deprecated",
+                arguments: ["message = \"Will be removed.\""]
+            ),
         ]
     }
 

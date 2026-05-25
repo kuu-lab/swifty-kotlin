@@ -1,16 +1,16 @@
 import Foundation
 
-/// Synthetic JVM stream `DoubleStream.toList()` extension surface.
+/// Synthetic JVM stream `IntStream.toList()` extension surface.
 extension DataFlowSemaPhase {
-    func registerSyntheticDoubleStreamToListStubs(
+    func registerSyntheticIntStreamToListStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
         registerSyntheticPrimitiveStreamToListStubs(
-            streamClassName: "DoubleStream",
-            elementType: types.doubleType,
-            externalLinkName: "kk_double_stream_toList",
+            streamClassName: "IntStream",
+            elementType: types.intType,
+            externalLinkName: "kk_int_stream_toList",
             symbols: symbols,
             types: types,
             interner: interner

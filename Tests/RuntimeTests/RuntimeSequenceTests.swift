@@ -284,6 +284,28 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testMinOfReturnsSmallestSelectedValueAndThrowsOnEmpty() {
+        var thrown = 0
+        let result = kk_sequence_minOf(
+            makeSequence([5, 2, 3]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 20)
+
+        thrown = 0
+        let emptyResult = kk_sequence_minOf(
+            makeSequence([]),
+            unsafeBitCast(sequenceValueTimesTen, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testMinByOrNullReturnsElementWithSmallestSelectorAndNullOnEmpty() {
         var thrown = 0
         let result = kk_sequence_minByOrNull(
@@ -1792,6 +1814,13 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(secondList, runtimeNullSentinelInt)
     }
 
+    func testContainsFindsMatchingElement() {
+        let seq = makeSequence([1, 2, 3])
+
+        XCTAssertEqual(kk_unbox_bool(kk_sequence_contains(seq, 2)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_sequence_contains(seq, 9)), 0)
+    }
+
     func testDropWhileSkipsLeadingMatchesOnly() {
         let result = kk_sequence_dropWhile(
             makeSequence([1, 2, 3, 1, 4]),
@@ -1825,6 +1854,22 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 2])
+    }
+
+    func testElementAtReturnsIndexedValue() {
+        var thrown = 0
+        let result = kk_sequence_elementAt(makeSequence([10, 20, 30]), 1, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 20)
+    }
+
+    func testElementAtReportsOutOfBounds() {
+        var thrown = 0
+        let result = kk_sequence_elementAt(makeSequence([10]), 3, &thrown)
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
     func testFilterIsInstanceKeepsMatchingRuntimeTypes() {
