@@ -1303,12 +1303,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let cOpaquePointerSymbol = ensureClassSymbol(
-            named: "COpaquePointer",
-            in: cinteropPkg,
-            symbols: symbols,
-            interner: interner
-        )
         let nativePtrSymbol = ensureClassSymbol(
             named: "NativePtr",
             in: cinteropPkg,
@@ -1397,7 +1391,6 @@ extension DataFlowSemaPhase {
             cEnumVarSymbol,
             cFunctionSymbol,
             cOpaqueSymbol,
-            cOpaquePointerSymbol,
             nativePtrSymbol,
             nativePlacementSymbol,
             nativeFreeablePlacementSymbol,
@@ -1486,15 +1479,6 @@ extension DataFlowSemaPhase {
         symbols.insertFlags([.abstractType], for: cOpaqueSymbol)
         symbols.setDirectSupertypes([cPointedSymbol], for: cOpaqueSymbol)
         types.setNominalDirectSupertypes([cPointedSymbol], for: cOpaqueSymbol)
-
-        let cOpaquePointerType = types.make(.classType(ClassType(
-            classSymbol: cOpaquePointerSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(cOpaquePointerType, for: cOpaquePointerSymbol)
-        symbols.setDirectSupertypes([nativePointedSymbol], for: cOpaquePointerSymbol)
-        types.setNominalDirectSupertypes([nativePointedSymbol], for: cOpaquePointerSymbol)
 
         let nativePtrType = types.make(.classType(ClassType(
             classSymbol: nativePtrSymbol,
@@ -1848,6 +1832,19 @@ extension DataFlowSemaPhase {
             in: cinteropPkg,
             packageSymbol: cinteropPkgSymbol,
             underlyingType: byteVarType,
+            symbols: symbols,
+            interner: interner
+        )
+        let cOpaquePointerUnderlyingType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.out(cPointedType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticCInteropTypeAlias(
+            named: "COpaquePointer",
+            in: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            underlyingType: cOpaquePointerUnderlyingType,
             symbols: symbols,
             interner: interner
         )
