@@ -39,10 +39,10 @@ public final class TypeCheckSemaPhase: CompilerPhase {
 
         let lazyBoundDecls = collectLazyBoundObjectLiteralDecls(ast: ast)
 
-        // Run consistency checks: every declaration (including nested/member decls)
-        // should have a symbol binding. Use full arena range to avoid silently
-        // skipping nested declarations absent from activeDeclarationIDs.
-        for declID in (0 ..< ast.arena.declCount).map({ DeclID(rawValue: Int32($0)) }) {
+        // Run consistency checks for active declarations only, so incremental
+        // frontends can drop stale declarations from the previous compile.
+        let activeDeclIDs = ast.activeDeclarationIDs
+        for declID in activeDeclIDs {
             if lazyBoundDecls.contains(declID) {
                 continue
             }
@@ -78,7 +78,7 @@ public final class TypeCheckSemaPhase: CompilerPhase {
         )
 
         driver.typeCheckModule(fileScopes: fileScopes, files: ast.files)
-        for declID in lazyBoundDecls where sema.bindings.declSymbols[declID] == nil {
+        for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
                 switch decl {
                 case let .classDecl(classDecl):
