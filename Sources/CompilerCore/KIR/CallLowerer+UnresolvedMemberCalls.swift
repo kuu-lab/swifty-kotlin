@@ -1021,6 +1021,20 @@ extension CallLowerer {
                     ]
                 {
                     return interner.intern("kk_list_reduceRightIndexed")
+                }
+            }
+        case "reduceRightIndexedOrNull":
+            switch knownNames.collectionKind(of: symbol) {
+            case .list?, .set?, .collection?:
+                return interner.intern("kk_list_reduceRightIndexedOrNull")
+            default:
+                if symbol.name == interner.intern("Iterable")
+                    || symbol.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                {
                     return interner.intern("kk_list_reduceRightIndexedOrNull")
                 }
             }
