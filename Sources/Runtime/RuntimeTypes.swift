@@ -1345,6 +1345,20 @@ final class RuntimeBufferedReaderBox {
         return remaining
     }
 
+    func readText() -> String {
+        guard !closed else { return "" }
+        var data = pendingData
+        pendingData.removeAll(keepingCapacity: false)
+        while !reachedEOF {
+            if !readNextChunk() {
+                reachedEOF = true
+            }
+        }
+        data.append(pendingData)
+        pendingData.removeAll(keepingCapacity: false)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// Reads a single character, returning its Unicode scalar value, or -1 on EOF.
     func read() -> Int {
         guard !closed else { return -1 }

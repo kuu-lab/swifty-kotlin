@@ -937,6 +937,15 @@ public func kk_reader_buffered(_ readerRaw: Int, _ bufferSizeRaw: Int, _ outThro
     return readerRaw
 }
 
+@_cdecl("kk_reader_readText")
+public func kk_reader_readText(_ readerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let reader = runtimeBufferedReaderBox(from: readerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_reader_readText received invalid Reader handle")
+    }
+    return fileMakeStringRaw(reader.readText())
+}
+
 // MARK: - STDLIB-IO-091: BufferedWriter
 
 private func runtimeBufferedWriterBox(from raw: Int) -> RuntimeBufferedWriterBox? {

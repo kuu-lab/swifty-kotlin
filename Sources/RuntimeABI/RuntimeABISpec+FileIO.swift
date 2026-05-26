@@ -307,6 +307,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_reader_readText",
+            parameters: [
+                RuntimeABIParameter(name: "readerRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
         // STDLIB-IO-091/093: BufferedWriter
         RuntimeABIFunctionSpec(
             name: "kk_file_bufferedWriter",
