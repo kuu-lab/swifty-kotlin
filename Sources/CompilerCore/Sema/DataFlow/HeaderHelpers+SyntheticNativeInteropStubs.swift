@@ -1727,6 +1727,15 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticNativeTopLevelFunction(
+            named: "free",
+            packageFQName: cinteropPkg,
+            receiverType: nativeFreeablePlacementType,
+            parameters: [(name: "pointed", type: nativePointedType)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
 
         let deferScopeType = types.make(.classType(ClassType(
             classSymbol: deferScopeSymbol,

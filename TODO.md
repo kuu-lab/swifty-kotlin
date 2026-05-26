@@ -634,7 +634,7 @@
 - [ ] STDLIB-CINTEROP-FN-004: `cstr` helper を追加する
 - [ ] STDLIB-CINTEROP-FN-005: `wcstr` helper を追加する
 - [ ] STDLIB-CINTEROP-FN-006: `defer(block)` を追加する
-- [ ] STDLIB-CINTEROP-FN-007: `free(pointed)` を追加する
+- [x] STDLIB-CINTEROP-FN-007: `free(pointed)` を追加する
 - [ ] STDLIB-CINTEROP-FN-008: `memScoped(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
