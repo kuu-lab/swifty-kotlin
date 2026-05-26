@@ -2271,6 +2271,15 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(sequenceElements(combined), [1, 2, 3, 42])
     }
 
+    func testRandomReturnsOnlyElementAndThrowsOnEmpty() {
+        var thrown = 0
+        XCTAssertEqual(kk_sequence_random(makeSequence([42]), &thrown), 42)
+        XCTAssertEqual(thrown, 0)
+        thrown = 0
+        XCTAssertEqual(kk_sequence_random(makeSequence([]), &thrown), 0)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testSequenceMaxOfReturnsLargestSelectorAndThrowsOnEmpty() throws {
         let selector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, outThrown in
             outThrown?.pointee = 0

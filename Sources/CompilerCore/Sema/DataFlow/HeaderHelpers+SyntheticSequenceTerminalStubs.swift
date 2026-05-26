@@ -370,6 +370,21 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // random(): T
+        registerSequenceMemberStub(
+            named: "random",
+            externalLinkName: "kk_sequence_random",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
         // randomOrNull(): T?
         registerSequenceMemberStub(
             named: "randomOrNull",
