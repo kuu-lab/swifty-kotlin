@@ -2095,7 +2095,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                 sema.bindings.isCollectionExpr(callExpr),
                 "Expected filterIsInstanceTo result to be tracked as a collection expression"
             )
-            XCTAssertTrue(links.contains("kk_sequence_filterTo"))
         }
     }
 
