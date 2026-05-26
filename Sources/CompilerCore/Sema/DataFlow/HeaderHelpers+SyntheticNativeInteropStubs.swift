@@ -1273,6 +1273,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let cVariableTypeSymbol = ensureClassSymbol(
+            named: "Type",
+            in: cinteropPkg + [interner.intern("CVariable")],
+            symbols: symbols,
+            interner: interner
+        )
         let cPrimitiveVarSymbol = ensureClassSymbol(
             named: "CPrimitiveVar",
             in: cinteropPkg,
@@ -1436,6 +1442,7 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(cinteropPkgSymbol, for: symbol)
             }
         }
+        symbols.setParentSymbol(cVariableSymbol, for: cVariableTypeSymbol)
 
         let nativePointedType = types.make(.classType(ClassType(
             classSymbol: nativePointedSymbol,
@@ -1462,6 +1469,13 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(cVariableType, for: cVariableSymbol)
         symbols.setDirectSupertypes([cPointedSymbol], for: cVariableSymbol)
         types.setNominalDirectSupertypes([cPointedSymbol], for: cVariableSymbol)
+
+        let cVariableTypeClassType = types.make(.classType(ClassType(
+            classSymbol: cVariableTypeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cVariableTypeClassType, for: cVariableTypeSymbol)
 
         let cPrimitiveVarType = types.make(.classType(ClassType(
             classSymbol: cPrimitiveVarSymbol,
@@ -1818,6 +1832,61 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        if let cPointerVarOfTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cPointerVarOfSymbol).first {
+            symbols.setParentSymbol(cPointerVarOfSymbol, for: cPointerVarOfTypeParameterSymbol)
+            let cPointerStarType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.star],
+                nullability: .nonNull
+            )))
+            symbols.setTypeParameterUpperBounds([cPointerStarType], for: cPointerVarOfTypeParameterSymbol)
+            let cPointerVarOfTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: cPointerVarOfTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let cPointerVarOfType = types.make(.classType(ClassType(
+                classSymbol: cPointerVarOfSymbol,
+                args: [.invariant(cPointerVarOfTypeParameterType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeBitSetConstructor(
+                ownerSymbol: cPointerVarOfSymbol,
+                ownerType: cPointerVarOfType,
+                parameters: [(name: "rawPtr", type: nativePtrType)],
+                defaultValues: [false],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        let cPointerVarOfCompanionName = interner.intern("Companion")
+        let cPointerVarOfCompanionFQName = cinteropPkg + [interner.intern("CPointerVarOf"), cPointerVarOfCompanionName]
+        let cPointerVarOfCompanionSymbol: SymbolID
+        if let existingCompanion = symbols.companionObjectSymbol(for: cPointerVarOfSymbol) {
+            cPointerVarOfCompanionSymbol = existingCompanion
+        } else if let existing = symbols.lookup(fqName: cPointerVarOfCompanionFQName),
+                  symbols.symbol(existing)?.kind == .object
+        {
+            cPointerVarOfCompanionSymbol = existing
+        } else {
+            cPointerVarOfCompanionSymbol = symbols.define(
+                kind: .object,
+                name: cPointerVarOfCompanionName,
+                fqName: cPointerVarOfCompanionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+        }
+        symbols.setParentSymbol(cPointerVarOfSymbol, for: cPointerVarOfCompanionSymbol)
+        symbols.setCompanionObjectSymbol(cPointerVarOfCompanionSymbol, for: cPointerVarOfSymbol)
+        let cPointerVarOfCompanionType = types.make(.classType(ClassType(
+            classSymbol: cPointerVarOfCompanionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(cPointerVarOfCompanionType, for: cPointerVarOfCompanionSymbol)
+        symbols.setDirectSupertypes([cVariableTypeSymbol], for: cPointerVarOfCompanionSymbol)
+        types.setNominalDirectSupertypes([cVariableTypeSymbol], for: cPointerVarOfCompanionSymbol)
         registerSyntheticCPointerVarTypeAlias(
             aliasSymbol: cPointerVarSymbol,
             aliasFQName: cinteropPkg + [interner.intern("CPointerVar")],
