@@ -488,6 +488,18 @@ extension CallLowerer {
                 finalArguments = [receiver.loweredID] + finalArguments
             }
         }
+        if loweredCallee == interner.intern("kk_sequence_elementAtOrElse"),
+           finalArguments.count == 3
+        {
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
+        }
         if (loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
             || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_iterable_any")

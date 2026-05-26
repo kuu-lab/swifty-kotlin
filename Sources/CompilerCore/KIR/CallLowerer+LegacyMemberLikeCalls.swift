@@ -2575,6 +2575,7 @@ extension CallLowerer {
                 let lastIndexOfName = interner.intern("lastIndexOf")
                 let indexOfLastName = interner.intern("indexOfLast")
                 let elementAtName = interner.intern("elementAt")
+                let elementAtOrElseName = interner.intern("elementAtOrElse")
                 let elementAtOrNullName = interner.intern("elementAtOrNull")
                 let filterIndexedName = interner.intern("filterIndexed")
                 let findLastName = interner.intern("findLast")
@@ -2663,6 +2664,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_indexOfLast"
                 } else if calleeName == elementAtName {
                     runtimeCallee = "kk_sequence_elementAt"
+                } else if calleeName == elementAtOrElseName {
+                    runtimeCallee = "kk_sequence_elementAtOrElse"
                 } else if calleeName == elementAtOrNullName {
                     runtimeCallee = "kk_sequence_elementAtOrNull"
                 } else if calleeName == filterIndexedName {
@@ -2818,6 +2821,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_findLast"
                         || runtimeCallee == "kk_sequence_takeLast"
                         || runtimeCallee == "kk_sequence_elementAt"
+                        || runtimeCallee == "kk_sequence_elementAtOrElse"
                         || runtimeCallee == "kk_sequence_last"
                         || runtimeCallee == "kk_iterable_last"
                         || runtimeCallee == "kk_sequence_min"
@@ -3000,6 +3004,18 @@ extension CallLowerer {
                             instructions: &instructions
                         )
                         runtimeArguments = [loweredReceiverID, destinationArg, fnPtrExpr, envPtrExpr]
+                    }
+                    if runtimeCallee == "kk_sequence_elementAtOrElse",
+                       normalizedArgIDs.count == 2
+                    {
+                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                            normalizedArgIDs[1],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        runtimeArguments = [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr]
                     }
                     instructions.append(.call(
                         symbol: nil,
