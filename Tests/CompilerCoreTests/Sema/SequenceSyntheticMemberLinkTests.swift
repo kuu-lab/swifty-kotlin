@@ -1822,10 +1822,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         fun largest(): Int {
             val values = sequenceOf(1, 3, 2)
             return values.maxWith { left, right -> left - right }
-    func testSequenceFilterNotNullResolvesInCallExpressions() throws {
-        let source = """
-        fun values(input: Sequence<Int?>): Sequence<Int> {
-            return input.filterNotNull()
         }
         """
 
@@ -1842,6 +1838,30 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let memberFQName = ["kotlin", "sequences", "Sequence", "maxWith"]
+                .map { ctx.interner.intern($0) }
+            let links = Set(
+                sema.symbols.lookupAll(fqName: memberFQName)
+                    .compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            XCTAssertTrue(links.contains("kk_sequence_maxWith"))
+        }
+    }
+
+    func testSequenceFilterNotNullResolvesInCallExpressions() throws {
+        let source = """
+        fun values(input: Sequence<Int?>): Sequence<Int> {
+            return input.filterNotNull()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
                 "Expected Sequence.filterNotNull surface to resolve cleanly, got: \(diagnosticSummary)"
             )
 
@@ -1852,7 +1872,7 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                 sema.symbols.lookupAll(fqName: memberFQName)
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
-            XCTAssertTrue(links.contains("kk_sequence_maxWith"))
+            XCTAssertTrue(links.contains("kk_sequence_filterNotNull"))
         }
     }
 
