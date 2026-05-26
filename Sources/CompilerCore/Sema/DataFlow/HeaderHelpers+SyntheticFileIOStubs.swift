@@ -122,6 +122,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerFilePackageExtensionFunction(
+            named: "toRelativeString",
+            packageFQName: kotlinIOPkg,
+            receiverType: fileType,
+            parameters: [("base", fileType)],
+            returnType: types.stringType,
+            externalLinkName: "kk_file_toRelativeString",
+            symbols: symbols,
+            interner: interner
+        )
 
         // List<File> type for listFiles return
         let listSymbol = resolveListSymbol(symbols: symbols, interner: interner)

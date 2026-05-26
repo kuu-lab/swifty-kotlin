@@ -135,6 +135,25 @@ private func runtimeFileStartsWith(basePath: String, otherPath: String) -> Bool 
     return zip(base.components, other.components).allSatisfy { $0 == $1 }
 }
 
+private func runtimeFileRelativeString(path: String, basePath: String) -> String {
+    let target = runtimeFilePathRootAndComponents(path)
+    let base = runtimeFilePathRootAndComponents(basePath)
+    guard target.root == base.root else {
+        return runtimeNormalizeFilePath(path)
+    }
+
+    var commonLength = 0
+    while commonLength < target.components.count && commonLength < base.components.count
+        && target.components[commonLength] == base.components[commonLength] {
+        commonLength += 1
+    }
+
+    let ups = Array(repeating: "..", count: base.components.count - commonLength)
+    let remainder = Array(target.components[commonLength...])
+    let relative = (ups + remainder).joined(separator: "/")
+    return relative.isEmpty ? "." : relative
+}
+
 private func fileMakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -559,6 +578,17 @@ public func kk_file_startsWith_string(_ fileRaw: Int, _ otherRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_startsWith_string received invalid other path")
     }
     return kk_box_bool(runtimeFileStartsWith(basePath: file.path, otherPath: other) ? 1 : 0)
+}
+
+@_cdecl("kk_file_toRelativeString")
+public func kk_file_toRelativeString(_ fileRaw: Int, _ baseRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_toRelativeString received invalid File handle")
+    }
+    guard let base = runtimeFileBox(from: baseRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_toRelativeString received invalid base File handle")
+    }
+    return fileMakeStringRaw(runtimeFileRelativeString(path: file.path, basePath: base.path))
 }
 
 @_cdecl("kk_file_path")
