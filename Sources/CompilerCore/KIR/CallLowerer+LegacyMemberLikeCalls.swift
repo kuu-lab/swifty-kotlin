@@ -2773,6 +2773,10 @@ extension CallLowerer {
                     runtimeCallee = useIterableRuntimeForCollectionFallback
                         ? "kk_list_reduceRightIndexed"
                         : "kk_sequence_reduceRightIndexed"
+                } else if calleeName == interner.intern("reduceRightOrNull") {
+                    runtimeCallee = useIterableRuntimeForCollectionFallback
+                        ? "kk_list_reduceRightOrNull"
+                        : "kk_sequence_reduceRightOrNull"
                 } else if calleeName == interner.intern("shuffled") {
                     switch normalizedArgIDs.count {
                     case 0: runtimeCallee = "kk_sequence_shuffled"
@@ -2849,10 +2853,12 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_onEach"
                         || runtimeCallee == "kk_sequence_onEachIndexed"
                         || runtimeCallee == "kk_sequence_reduceOrNull"
-                        || runtimeCallee == "kk_sequence_reduceRight"
-                        || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_reduceRightIndexed"
                         || runtimeCallee == "kk_list_reduceRightIndexed"
+                        || runtimeCallee == "kk_sequence_reduceRight"
+                        || runtimeCallee == "kk_sequence_reduceRightOrNull"
+                        || runtimeCallee == "kk_list_reduceRightOrNull"
+                        || runtimeCallee == "kk_sequence_runningReduceIndexed"
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
@@ -2908,7 +2914,9 @@ extension CallLowerer {
                     }
                     if (runtimeCallee == "kk_sequence_indexOfFirst"
                         || runtimeCallee == "kk_sequence_reduceRightIndexed"
-                        || runtimeCallee == "kk_list_reduceRightIndexed"),
+                        || runtimeCallee == "kk_list_reduceRightIndexed"
+                        || runtimeCallee == "kk_sequence_reduceRightOrNull"
+                        || runtimeCallee == "kk_list_reduceRightOrNull"),
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -2933,6 +2941,18 @@ extension CallLowerer {
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
                     if (runtimeCallee == "kk_sequence_reduceRight" || runtimeCallee == "kk_list_reduceRight"),
+                       normalizedArgIDs.count == 1
+                    {
+                        let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                            normalizedArgIDs[0],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
+                    }
+                    if runtimeCallee == "kk_sequence_reduceRightOrNull",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
