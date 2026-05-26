@@ -294,6 +294,7 @@ private extension StdlibSurfaceSpec {
         sequence("plusElement", 1, "kk_sequence_plus_element", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("chunked", 1, "kk_sequence_chunked", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("contains", 1, "kk_sequence_contains", returnStrategy: .boolean, lambdaExpectation: .none),
+        sequence("drop", 1, "kk_sequence_drop", returnStrategy: .sequence, lambdaExpectation: .none),
         sequence("dropWhile", 1, "kk_sequence_dropWhile", returnStrategy: .sequence, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .boolean)),
         sequence("averageOf", 1, "kk_sequence_averageOf", returnStrategy: .double, lambdaExpectation: .receiverElement(argumentIndex: 0, returnStrategy: .int)),
         sequence("constrainOnce", 0, "kk_sequence_constrainOnce", returnStrategy: .sequence, lambdaExpectation: .none),
