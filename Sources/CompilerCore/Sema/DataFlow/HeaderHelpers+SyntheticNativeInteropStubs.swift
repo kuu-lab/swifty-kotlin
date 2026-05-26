@@ -2126,6 +2126,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerSyntheticNativeBitSetProperty(
+            named: "rawValue",
+            ownerSymbol: cPointerSymbol,
+            propertyType: nativePtrType,
+            symbols: symbols,
+            interner: interner
+        )
         configureSingleTypeParameterNominal(
             ownerSymbol: cPointerVarOfSymbol,
             fqName: cinteropPkg + [interner.intern("CPointerVarOf")],
