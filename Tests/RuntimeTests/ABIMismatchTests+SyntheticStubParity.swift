@@ -31,6 +31,7 @@ extension ABIMismatchTests {
             "kk_readline",
             "kk_readln",
             "kk_readlnOrNull",
+            "kk_file_appendBytes",
             "kk_file_extension",
             "kk_file_invariantSeparatorsPath",
             "kk_file_isRooted",

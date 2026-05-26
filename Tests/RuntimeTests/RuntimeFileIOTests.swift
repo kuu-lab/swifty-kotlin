@@ -45,6 +45,22 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(runtimeListBox(from: bytesRaw)?.elements, [0, 127, -128, -1])
     }
 
+    func testAppendBytesCreatesAndAppendsFile() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let fileRaw = runtimeTestFileHandle(fileURL.path)
+        var thrown = 0
+
+        XCTAssertEqual(kk_file_appendBytes(fileRaw, registerRuntimeObject(RuntimeListBox(elements: [65, 66])), &thrown), 0)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(try Data(contentsOf: fileURL), Data([65, 66]))
+
+        XCTAssertEqual(kk_file_appendBytes(fileRaw, registerRuntimeObject(RuntimeListBox(elements: [67])), &thrown), 0)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(try Data(contentsOf: fileURL), Data([65, 66, 67]))
+    }
+
     func testFileExtensionReturnsLastComponentSuffix() {
         XCTAssertEqual(
             readString(kk_file_extension(runtimeTestFileHandle("/tmp/archive.tar.gz"))),

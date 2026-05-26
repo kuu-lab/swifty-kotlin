@@ -35,6 +35,24 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(fileType, for: fileSymbol)
 
+        let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
+        let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg)
+        let byteArraySymbol = ensureClassSymbol(
+            named: "ByteArray",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let kotlinPkgSymbol {
+            symbols.setParentSymbol(kotlinPkgSymbol, for: byteArraySymbol)
+        }
+        let byteArrayType = types.make(.classType(ClassType(
+            classSymbol: byteArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        symbols.setPropertyType(byteArrayType, for: byteArraySymbol)
+
         let kotlinIOPkg = ensurePackage(path: ["kotlin", "io"], symbols: symbols, interner: interner)
         registerFilePackageExtensionProperty(
             named: "extension",
@@ -129,6 +147,16 @@ extension DataFlowSemaPhase {
             parameters: [("base", fileType)],
             returnType: types.stringType,
             externalLinkName: "kk_file_toRelativeString",
+            symbols: symbols,
+            interner: interner
+        )
+        registerFilePackageExtensionFunction(
+            named: "appendBytes",
+            packageFQName: kotlinIOPkg,
+            receiverType: fileType,
+            parameters: [("array", byteArrayType)],
+            returnType: types.unitType,
+            externalLinkName: "kk_file_appendBytes",
             symbols: symbols,
             interner: interner
         )

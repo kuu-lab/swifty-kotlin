@@ -60,6 +60,16 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_file_appendBytes",
+            parameters: [
+                RuntimeABIParameter(name: "fileRaw", type: .intptr),
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_file_forEachLine",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
