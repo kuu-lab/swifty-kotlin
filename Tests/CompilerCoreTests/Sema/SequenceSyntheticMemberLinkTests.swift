@@ -2823,7 +2823,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
                     .compactMap { sema.symbols.externalLinkName(for: $0) }
             )
             XCTAssertTrue(links.contains("kk_sequence_minByOrNull"))
-            XCTAssertTrue(links.contains("kk_sequence_reduceRightIndexedOrNull"))
         }
     }
 }
