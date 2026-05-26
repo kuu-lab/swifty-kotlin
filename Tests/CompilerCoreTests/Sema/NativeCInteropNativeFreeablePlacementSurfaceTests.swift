@@ -11,11 +11,14 @@ final class NativeCInteropNativeFreeablePlacementSurfaceTests: XCTestCase {
         )
         let sema = try XCTUnwrap(ctx.sema)
         let interner = ctx.interner
-        func cinteropSymbol(_ path: String...) throws -> SymbolID {
+        func cinteropSymbol(_ path: [String]) throws -> SymbolID {
             try XCTUnwrap(
                 sema.symbols.lookup(fqName: (["kotlinx", "cinterop"] + path).map { interner.intern($0) }),
                 "kotlinx.cinterop.\(path.joined(separator: ".")) must be registered"
             )
+        }
+        func cinteropSymbol(_ path: String...) throws -> SymbolID {
+            try cinteropSymbol(path)
         }
         func cinteropType(_ path: String...) throws -> TypeID {
             sema.types.make(.classType(ClassType(
