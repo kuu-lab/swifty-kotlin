@@ -1566,6 +1566,28 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(deferScopeType, for: deferScopeSymbol)
         symbols.insertFlags([.openType], for: deferScopeSymbol)
+        registerSyntheticNativeBitSetConstructor(
+            ownerSymbol: deferScopeSymbol,
+            ownerType: deferScopeType,
+            parameters: [],
+            defaultValues: [],
+            symbols: symbols,
+            interner: interner
+        )
+        let deferBlockType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.unitType
+        )))
+        registerSyntheticNativeBitSetMemberFunction(
+            named: "defer",
+            ownerSymbol: deferScopeSymbol,
+            receiverType: deferScopeType,
+            parameters: [(name: "block", type: deferBlockType)],
+            returnType: types.unitType,
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
 
         let autofreeScopeType = types.make(.classType(ClassType(
             classSymbol: autofreeScopeSymbol,
