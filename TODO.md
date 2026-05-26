@@ -208,8 +208,10 @@
 - [ ] STDLIB-SEQ-FN-016: `distinct` 関数の実装
 - [ ] STDLIB-SEQ-FN-017: `distinctBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-018: `drop` 関数の実装
+- [ ] STDLIB-SEQ-FN-019: `dropWhile` 関数の実装
 - [x] STDLIB-SEQ-FN-020: `elementAt` 関数の実装
-- [ ] STDLIB-SEQ-FN-021: `elementAtOrElse` 関数の実装
+- [x] STDLIB-SEQ-FN-021: `elementAtOrElse` 関数の実装
+- [ ] STDLIB-SEQ-FN-022: `elementAtOrNull` 関数の実装
 - [ ] STDLIB-SEQ-FN-023: `filter` 関数の実装
 - [ ] STDLIB-SEQ-FN-024: `filterIndexed` 関数の実装
 - [x] STDLIB-SEQ-FN-025: `filterIndexedTo` 関数の実装
@@ -565,10 +567,17 @@
 
 ### Phase 5: 非スコープ/高度領域
 - [x] STDLIB-IO-PATH-FN-015: `Path.createFile(attributes)` を追加する
+<<<<<<< HEAD
 - [ ] STDLIB-IO-PATH-FN-017: `Path.createParentDirectories(attributes)` を追加する
 - [x] STDLIB-IO-PATH-FN-021: `createTempFile(prefix, suffix, attributes)` を追加する
 - [x] STDLIB-IO-PATH-FN-024: `Path.deleteIfExists()` の公式 return/annotation shape を既存 stub と整合させる
 - [x] STDLIB-IO-PATH-FN-073: `Path.visitFileTree(visitor, maxDepth, followLinks)` を追加する
+=======
+- [x] STDLIB-IO-PATH-FN-017: `Path.createParentDirectories(attributes)` を追加する
+- [ ] STDLIB-IO-PATH-FN-021: `createTempFile(prefix, suffix, attributes)` を追加する
+- [ ] STDLIB-IO-PATH-FN-024: `Path.deleteIfExists()` の公式 return/annotation shape を既存 stub と整合させる
+- [ ] STDLIB-IO-PATH-FN-073: `Path.visitFileTree(visitor, maxDepth, followLinks)` を追加する
+>>>>>>> c2823023b (Implement Path.createParentDirectories attributes surface)
 - [ ] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
  - [ ] STDLIB-JS-COLLECTIONS-TYPE-001: `kotlin.js.collections.JsArray<E>` external class を追加する
  - [x] STDLIB-JS-COLLECTIONS-TYPE-002: `kotlin.js.collections.JsMap<K, V>` external class を追加する
@@ -606,20 +615,20 @@
 - [x] STDLIB-CINTEROP-TYPE-014: `kotlinx.cinterop.COpaque` class surface を追加する
 - [x] STDLIB-CINTEROP-TYPE-015: `kotlinx.cinterop.COpaquePointer` typealias shape を既存 class stub と整合させる
 - [x] STDLIB-CINTEROP-TYPE-016: `kotlinx.cinterop.COpaquePointerVar` typealias を追加する
-- [ ] STDLIB-CINTEROP-TYPE-017: `kotlinx.cinterop.CPointed` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-018: `kotlinx.cinterop.CPointer<T>` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-019: `kotlinx.cinterop.CPointerVar<T>` typealias shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-017: `kotlinx.cinterop.CPointed` class shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-018: `kotlinx.cinterop.CPointer<T>` class shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-019: `kotlinx.cinterop.CPointerVar<T>` typealias shape を公式 surface と整合させる
 - [ ] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-021: `kotlinx.cinterop.CPrimitiveVar` sealed class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-022: `kotlinx.cinterop.CStructVar` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-022: `kotlinx.cinterop.CStructVar` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-023: `kotlinx.cinterop.CValue<T>` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-024: `kotlinx.cinterop.CValues<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-024: `kotlinx.cinterop.CValues<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-025: `kotlinx.cinterop.CValuesRef<T>` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-026: `kotlinx.cinterop.CVariable` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-027: `kotlinx.cinterop.DeferScope` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-028: `kotlinx.cinterop.NativeFreeablePlacement` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-026: `kotlinx.cinterop.CVariable` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-027: `kotlinx.cinterop.DeferScope` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-028: `kotlinx.cinterop.NativeFreeablePlacement` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-029: `kotlinx.cinterop.NativePlacement` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-030: `kotlinx.cinterop.StableRef<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-030: `kotlinx.cinterop.StableRef<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-PROP-001: `CPointer<T>.pointed` property を追加する
 - [ ] STDLIB-CINTEROP-PROP-002: `CPointer<T>.rawValue` property を追加する
 - [ ] STDLIB-CINTEROP-PROP-003: `nativeHeap` property を追加する

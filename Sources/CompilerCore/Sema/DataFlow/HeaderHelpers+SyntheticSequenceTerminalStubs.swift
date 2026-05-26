@@ -777,6 +777,43 @@ extension DataFlowSemaPhase {
             interner: interner,
             canThrow: true
         )
+        // elementAtOrElse<T>(index: Int, defaultValue: (Int) -> T): T
+        // Use a method-local T so Sequence's `out T` projection does not block
+        // returning T from the default lambda.
+        do {
+            let memberName = interner.intern("elementAtOrElse")
+            let methodTName = interner.intern("T")
+            let methodTFQName = sequenceFQName + [memberName, methodTName]
+            let methodTSymbol = symbols.lookup(fqName: methodTFQName) ?? symbols.define(
+                kind: .typeParameter,
+                name: methodTName,
+                fqName: methodTFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let methodTType = types.make(.typeParam(TypeParamType(symbol: methodTSymbol, nullability: .nonNull)))
+            let methodReceiverType = types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(methodTType)],
+                nullability: .nonNull
+            )))
+            let defaultValueType = types.make(.functionType(FunctionType(
+                params: [types.intType],
+                returnType: methodTType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceOverloadedMemberStub(
+                named: "elementAtOrElse",
+                externalLinkName: "kk_sequence_elementAtOrElse",
+                receiverType: methodReceiverType,
+                parameters: [("index", types.intType), ("defaultValue", defaultValueType)],
+                returnType: methodTType,
+                additionalTypeParameterSymbols: [methodTSymbol],
+                canThrow: true
+            )
+        }
 
         // findLast(predicate: (T) -> Boolean): T?
         registerSequenceMemberStub(
@@ -1811,6 +1848,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // reduceRightOrNull(operation): T?
+        registerSequenceMemberStub(
+            named: "reduceRightOrNull",
+            externalLinkName: "kk_sequence_reduceRightOrNull",
+            receiverType: receiverType,
+            parameters: [("operation", reduceRightOperationType)],
+            returnType: types.makeNullable(typeParamType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // scan(initial, operation): Sequence<R>
         let scanName = interner.intern("scan")
         let scanFQName = sequenceFQName + [scanName]
@@ -1852,7 +1903,6 @@ extension DataFlowSemaPhase {
                 additionalTypeParameterUpperBoundsList: [[]]
             )
         }
-
         // runningFoldIndexed(initial, operation): Sequence<R>
         let runningFoldIndexedName = interner.intern("runningFoldIndexed")
         let runningFoldIndexedFQName = sequenceFQName + [runningFoldIndexedName]
@@ -2469,43 +2519,27 @@ extension DataFlowSemaPhase {
         }
 
         // maxWith(comparator): T
-        do {
-            let comparatorType = if let comparatorSymbol = symbols.lookupByShortName(interner.intern("Comparator")).first {
-                types.make(.classType(ClassType(
-                    classSymbol: comparatorSymbol,
-                    args: [.invariant(typeParamType)],
-                    nullability: .nonNull
-                )))
-            } else {
-                types.make(.functionType(FunctionType(
-                    params: [typeParamType, typeParamType],
-                    returnType: types.intType,
-                    isSuspend: false,
-                    nullability: .nonNull
-                )))
-            }
-            registerSequenceMemberStub(
-                named: "maxWith",
-                externalLinkName: "kk_sequence_maxWith",
-                receiverType: receiverType,
-                parameters: [("comparator", comparatorType)],
-                returnType: typeParamType,
-                sequenceSymbol: sequenceSymbol,
-                sequenceFQName: sequenceFQName,
-                typeParamSymbol: typeParamSymbol,
-                symbols: symbols,
-                interner: interner,
-                canThrow: true,
-                flags: [.synthetic, .inlineFunction]
-            )
-        }
+        registerSequenceMemberStub(
+            named: "maxWith",
+            externalLinkName: "kk_sequence_maxWith",
+            receiverType: receiverType,
+            parameters: [("comparator", comparatorTypeForSequence)],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true,
+            flags: [.synthetic, .inlineFunction]
+        )
 
         // minWithOrNull(comparator: Comparator<in T>): T?
         registerSequenceMemberStub(
             named: "minWithOrNull",
             externalLinkName: "kk_sequence_minWithOrNull",
             receiverType: receiverType,
-            parameters: [("comparator", comparatorType)],
+            parameters: [("comparator", comparatorTypeForSequence)],
             returnType: types.makeNullable(typeParamType),
             sequenceSymbol: sequenceSymbol,
             sequenceFQName: sequenceFQName,
