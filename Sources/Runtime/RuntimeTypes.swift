@@ -1482,6 +1482,13 @@ final class RuntimeInputStreamBox {
         return writableCount
     }
 
+    func readRemainingBytes() -> [Int] {
+        guard !closed else { return [] }
+        let remaining = data[offset ..< data.count].map { Int(Int8(bitPattern: $0)) }
+        offset = data.count
+        return remaining
+    }
+
     func mark(readLimit: Int) {
         // FileInputStream does not support mark/reset; this is a no-op.
     }

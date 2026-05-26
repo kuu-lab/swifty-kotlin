@@ -1117,6 +1117,15 @@ public func kk_input_stream_read_bytes(_ streamRaw: Int, _ bytesRaw: Int, _ outT
     return stream.read(into: list)
 }
 
+@_cdecl("kk_input_stream_readBytes")
+public func kk_input_stream_readBytes(_ streamRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let stream = runtimeInputStreamBox(from: streamRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_input_stream_readBytes received invalid InputStream handle")
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: stream.readRemainingBytes()))
+}
+
 @_cdecl("kk_input_stream_mark")
 public func kk_input_stream_mark(_ streamRaw: Int, _ readLimitRaw: Int) -> Int {
     guard let stream = runtimeInputStreamBox(from: streamRaw) else {
