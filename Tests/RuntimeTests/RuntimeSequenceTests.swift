@@ -526,23 +526,9 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
     }
 
-    func testMinWithOrNullReturnsComparatorMinimumAndNullOnEmpty() {
-        var thrown = 0
-        let result = kk_sequence_minWithOrNull(
-            makeSequence([5, 2, 3]),
-            unsafeBitCast(sequenceReverseIntComparator, to: Int.self),
-            0,
-            &thrown
-        )
-        XCTAssertEqual(result, 5)
-        XCTAssertEqual(thrown, 0)
-
-        thrown = 0
-        XCTAssertEqual(
-            kk_sequence_minWithOrNull(makeSequence([]), unsafeBitCast(sequenceReverseIntComparator, to: Int.self), 0, &thrown),
-            runtimeNullSentinelInt
-        )
-        XCTAssertEqual(thrown, 0)
+    func testMinOrNullReturnsSmallestElementAndNullOnEmpty() {
+        XCTAssertEqual(kk_sequence_minOrNull(makeSequence([5, 2, 3])), 2)
+        XCTAssertEqual(kk_sequence_minOrNull(makeSequence([])), runtimeNullSentinelInt)
     }
 
     func testMaxOrNullReturnsLargestElementAndNullOnEmpty() {

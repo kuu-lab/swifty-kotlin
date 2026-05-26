@@ -216,6 +216,16 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("MutableSet"),
         ], elementType: typeParamType, invariant: true)
+        let comparableElementBounds: [TypeID] = {
+            guard let comparableSymbol = types.comparableInterfaceSymbol else {
+                return []
+            }
+            return [types.make(.classType(ClassType(
+                classSymbol: comparableSymbol,
+                args: [.in(typeParamType)],
+                nullability: .nonNull
+            )))]
+        }()
 
         // sortedWith(comparator: (T, T) -> Int): Sequence<T>
         let comparatorType = types.make(.functionType(FunctionType(
@@ -2870,48 +2880,51 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // minOrNull(): T?
-        registerSequenceMemberStub(
-            named: "minOrNull",
-            externalLinkName: "kk_sequence_minOrNull",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: types.makeNullable(types.anyType),
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
+        do {
+            if types.comparableInterfaceSymbol == nil {
+                registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
+            }
+            let minComparableElementBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
+                [types.make(.classType(ClassType(
+                    classSymbol: comparableSymbol,
+                    args: [.invariant(typeParamType)],
+                    nullability: .nonNull
+                )))]
+            } else {
+                []
+            }
 
-        if types.comparableInterfaceSymbol == nil {
-            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
-        }
-        let comparableElementBounds: [TypeID] = if let comparableSymbol = types.comparableInterfaceSymbol {
-            [types.make(.classType(ClassType(
-                classSymbol: comparableSymbol,
-                args: [.invariant(typeParamType)],
-                nullability: .nonNull
-            )))]
-        } else {
-            []
-        }
+            // minOrNull(): T?
+            registerSequenceMemberStub(
+                named: "minOrNull",
+                externalLinkName: "kk_sequence_minOrNull",
+                receiverType: receiverType,
+                parameters: [],
+                returnType: types.makeNullable(typeParamType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                typeParameterUpperBounds: minComparableElementBounds
+            )
 
-        // min(): T
-        registerSequenceMemberStub(
-            named: "min",
-            externalLinkName: "kk_sequence_min",
-            receiverType: receiverType,
-            parameters: [],
-            returnType: typeParamType,
-            sequenceSymbol: sequenceSymbol,
-            sequenceFQName: sequenceFQName,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner,
-            canThrow: true,
-            typeParameterUpperBounds: comparableElementBounds
-        )
+            // min(): T
+            registerSequenceMemberStub(
+                named: "min",
+                externalLinkName: "kk_sequence_min",
+                receiverType: receiverType,
+                parameters: [],
+                returnType: typeParamType,
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: typeParamSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                typeParameterUpperBounds: minComparableElementBounds
+            )
+        }
 
         // flatten(): Sequence<T>
         registerSequenceMemberStub(

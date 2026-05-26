@@ -147,6 +147,7 @@ final class StdlibSurfaceSpecTests: XCTestCase {
             sequence("first", 0),
             sequence("firstOrNull", 0),
             sequence("maxWithOrNull", 1),
+            sequence("minOrNull", 0),
             sequence("minWith", 1),
             sequence("firstNotNullOf", 1),
             sequence("firstNotNullOfOrNull", 1),
