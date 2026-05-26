@@ -2669,6 +2669,8 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_elementAtOrElse"
                 } else if calleeName == elementAtOrNullName {
                     runtimeCallee = "kk_sequence_elementAtOrNull"
+                } else if calleeName == interner.intern("elementAtOrElse") {
+                    runtimeCallee = "kk_sequence_elementAtOrElse"
                 } else if calleeName == filterIndexedName {
                     runtimeCallee = "kk_sequence_filterIndexed"
                 } else if calleeName == lastName {
