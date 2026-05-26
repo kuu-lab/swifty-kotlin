@@ -114,6 +114,14 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(readString(kk_file_path(noParentSibling)), "other.txt")
     }
 
+    func testFileStartsWithComparesRootsAndComponents() {
+        let file = runtimeTestFileHandle("/tmp/alpha/beta.txt")
+        XCTAssertEqual(kk_unbox_bool(kk_file_startsWith_string(file, runtimeStringRaw("/tmp/alpha"))), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_file_startsWith_string(file, runtimeStringRaw("/tmp/alph"))), 0)
+        XCTAssertEqual(kk_unbox_bool(kk_file_startsWith_file(file, runtimeTestFileHandle("/tmp"))), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_file_startsWith_file(file, runtimeTestFileHandle("tmp"))), 0)
+    }
+
     private func makeTempFile(contents: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try contents.write(to: url, atomically: true, encoding: .utf8)

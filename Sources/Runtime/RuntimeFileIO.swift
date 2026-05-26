@@ -114,6 +114,27 @@ private func runtimeResolveSiblingPath(basePath: String, relativePath: String) -
     return (parent as NSString).appendingPathComponent(relativePath)
 }
 
+private func runtimeFilePathRootAndComponents(_ path: String) -> (root: String, components: [String]) {
+    let normalized = runtimeNormalizeFilePath(path)
+    let rootLength = runtimeFileRootLength(normalized)
+    let rootEnd = normalized.index(normalized.startIndex, offsetBy: rootLength)
+    let root = String(normalized[..<rootEnd])
+    let rest = String(normalized[rootEnd...])
+    let components = rest.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+    return (root, components)
+}
+
+private func runtimeFileStartsWith(basePath: String, otherPath: String) -> Bool {
+    let base = runtimeFilePathRootAndComponents(basePath)
+    let other = runtimeFilePathRootAndComponents(otherPath)
+    guard base.root == other.root,
+          base.components.count >= other.components.count
+    else {
+        return false
+    }
+    return zip(base.components, other.components).allSatisfy { $0 == $1 }
+}
+
 private func fileMakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -514,6 +535,30 @@ public func kk_file_resolveSibling_string(_ fileRaw: Int, _ relativeRaw: Int) ->
     return registerRuntimeObject(RuntimeFileBox(
         runtimeResolveSiblingPath(basePath: file.path, relativePath: relative)
     ))
+}
+
+@_cdecl("kk_file_startsWith_file")
+public func kk_file_startsWith_file(_ fileRaw: Int, _ otherRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_startsWith_file received invalid File handle")
+    }
+    guard let other = runtimeFileBox(from: otherRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_startsWith_file received invalid other File handle")
+    }
+    return kk_box_bool(runtimeFileStartsWith(basePath: file.path, otherPath: other.path) ? 1 : 0)
+}
+
+@_cdecl("kk_file_startsWith_string")
+public func kk_file_startsWith_string(_ fileRaw: Int, _ otherRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_startsWith_string received invalid File handle")
+    }
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: otherRaw),
+          let other = extractString(from: ptr)
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_startsWith_string received invalid other path")
+    }
+    return kk_box_bool(runtimeFileStartsWith(basePath: file.path, otherPath: other) ? 1 : 0)
 }
 
 @_cdecl("kk_file_path")
