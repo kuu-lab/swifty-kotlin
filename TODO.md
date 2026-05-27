@@ -171,10 +171,12 @@
 
 #### kotlin.random 関数の実装
 - [ ] STDLIB-RANDOM-FN-001: `asJavaRandom` 関数の実装
+- [ ] STDLIB-RANDOM-FN-002: `asKotlinRandom` 関数の実装
 
 #### kotlin.ranges 関数の実装
 
 #### kotlin.reflect 型の実装
+- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-011: `KMutableProperty1` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
@@ -183,17 +185,19 @@
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 
 #### kotlin.reflect プロパティの実装
-- [ ] STDLIB-REFLECT-PROP-001: `javaType` 拡張プロパティの実装
+- [x] STDLIB-REFLECT-PROP-001: `javaType` 拡張プロパティの実装
 
 #### kotlin.reflect 関数の実装
 
 #### kotlin.sequences 型の実装
 - [ ] STDLIB-SEQ-TYPE-001: `Sequence` インターフェースの実装
+- [x] STDLIB-SEQ-TYPE-002: `SequenceScope` クラスの実装
 - [ ] STDLIB-SEQ-TYPE-002: `SequenceScope` クラスの実装
 
 #### kotlin.sequences 関数の実装
 - [ ] STDLIB-SEQ-FN-005: `associate` 関数の実装
 - [ ] STDLIB-SEQ-FN-006: `associateBy` 関数の実装
+- [ ] STDLIB-SEQ-FN-007: `associateByTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-008: `associateTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-010: `associateWithTo` 関数の実装
@@ -204,16 +208,18 @@
 - [ ] STDLIB-SEQ-FN-015: `count` 関数の実装
 - [ ] STDLIB-SEQ-FN-016: `distinct` 関数の実装
 - [ ] STDLIB-SEQ-FN-017: `distinctBy` 関数の実装
-- [ ] STDLIB-SEQ-FN-018: `drop` 関数の実装
+- [x] STDLIB-SEQ-FN-018: `drop` 関数の実装
+- [ ] STDLIB-SEQ-FN-019: `dropWhile` 関数の実装
 - [x] STDLIB-SEQ-FN-020: `elementAt` 関数の実装
-- [ ] STDLIB-SEQ-FN-021: `elementAtOrElse` 関数の実装
-- [ ] STDLIB-SEQ-FN-023: `filter` 関数の実装
+- [x] STDLIB-SEQ-FN-021: `elementAtOrElse` 関数の実装
+- [ ] STDLIB-SEQ-FN-022: `elementAtOrNull` 関数の実装
+- [x] STDLIB-SEQ-FN-023: `filter` 関数の実装
 - [ ] STDLIB-SEQ-FN-025: `filterIndexedTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-026: `filterIsInstance` 関数の実装
 - [ ] STDLIB-SEQ-FN-027: `filterIsInstanceTo` 関数の実装
- - [ ] STDLIB-SEQ-FN-029: `filterNotNull` 関数の実装
+ - [x] STDLIB-SEQ-FN-029: `filterNotNull` 関数の実装
  - [ ] STDLIB-SEQ-FN-030: `filterNotTo` 関数の実装
-- [ ] STDLIB-SEQ-FN-031: `filterTo` 関数の実装
+- [x] STDLIB-SEQ-FN-031: `filterTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-033: `findLast` 関数の実装
 - [ ] STDLIB-SEQ-FN-040: `flatMapIndexedTo` 関数の実装
 - [ ] STDLIB-SEQ-FN-042: `fold` 関数の実装
@@ -561,7 +567,7 @@
 
 ### Phase 5: 非スコープ/高度領域
 - [x] STDLIB-IO-PATH-FN-015: `Path.createFile(attributes)` を追加する
-- [ ] STDLIB-IO-PATH-FN-017: `Path.createParentDirectories(attributes)` を追加する
+- [x] STDLIB-IO-PATH-FN-017: `Path.createParentDirectories(attributes)` を追加する
 - [x] STDLIB-IO-PATH-FN-021: `createTempFile(prefix, suffix, attributes)` を追加する
 - [x] STDLIB-IO-PATH-FN-024: `Path.deleteIfExists()` の公式 return/annotation shape を既存 stub と整合させる
 - [x] STDLIB-IO-PATH-FN-073: `Path.visitFileTree(visitor, maxDepth, followLinks)` を追加する
@@ -576,6 +582,8 @@
 - [x] STDLIB-JS-COLLECTIONS-FN-004: `JsReadonlyMap<K,V>.toMutableMap()` を追加する
 - [x] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
+- [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
+- [x] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [x] STDLIB-STREAMS-FN-006: `DoubleStream.toList()` を追加する
 - [x] STDLIB-STREAMS-FN-007: `IntStream.toList()` を追加する
 - [x] STDLIB-STREAMS-FN-008: `LongStream.toList()` を追加する
@@ -602,30 +610,30 @@
 - [x] STDLIB-CINTEROP-TYPE-014: `kotlinx.cinterop.COpaque` class surface を追加する
 - [x] STDLIB-CINTEROP-TYPE-015: `kotlinx.cinterop.COpaquePointer` typealias shape を既存 class stub と整合させる
 - [x] STDLIB-CINTEROP-TYPE-016: `kotlinx.cinterop.COpaquePointerVar` typealias を追加する
-- [ ] STDLIB-CINTEROP-TYPE-017: `kotlinx.cinterop.CPointed` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-018: `kotlinx.cinterop.CPointer<T>` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-019: `kotlinx.cinterop.CPointerVar<T>` typealias shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-017: `kotlinx.cinterop.CPointed` class shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-018: `kotlinx.cinterop.CPointer<T>` class shape を公式 surface と整合させる
+- [x] STDLIB-CINTEROP-TYPE-019: `kotlinx.cinterop.CPointerVar<T>` typealias shape を公式 surface と整合させる
 - [ ] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-021: `kotlinx.cinterop.CPrimitiveVar` sealed class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-022: `kotlinx.cinterop.CStructVar` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-023: `kotlinx.cinterop.CValue<T>` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-024: `kotlinx.cinterop.CValues<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-022: `kotlinx.cinterop.CStructVar` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-023: `kotlinx.cinterop.CValue<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-024: `kotlinx.cinterop.CValues<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-025: `kotlinx.cinterop.CValuesRef<T>` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-026: `kotlinx.cinterop.CVariable` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-027: `kotlinx.cinterop.DeferScope` class surface を追加する
-- [ ] STDLIB-CINTEROP-TYPE-028: `kotlinx.cinterop.NativeFreeablePlacement` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-026: `kotlinx.cinterop.CVariable` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-027: `kotlinx.cinterop.DeferScope` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-028: `kotlinx.cinterop.NativeFreeablePlacement` class surface を追加する
 - [ ] STDLIB-CINTEROP-TYPE-029: `kotlinx.cinterop.NativePlacement` class shape を公式 surface と整合させる
-- [ ] STDLIB-CINTEROP-TYPE-030: `kotlinx.cinterop.StableRef<T>` class surface を追加する
-- [ ] STDLIB-CINTEROP-PROP-001: `CPointer<T>.pointed` property を追加する
-- [ ] STDLIB-CINTEROP-PROP-002: `CPointer<T>.rawValue` property を追加する
-- [ ] STDLIB-CINTEROP-PROP-003: `nativeHeap` property を追加する
-- [ ] STDLIB-CINTEROP-FN-001: `alloc<T>()` を追加する
+- [x] STDLIB-CINTEROP-TYPE-030: `kotlinx.cinterop.StableRef<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-PROP-001: `CPointer<T>.pointed` property を追加する
+- [x] STDLIB-CINTEROP-PROP-002: `CPointer<T>.rawValue` property を追加する
+- [x] STDLIB-CINTEROP-PROP-003: `nativeHeap` property を追加する
+- [x] STDLIB-CINTEROP-FN-001: `alloc<T>()` を追加する
 - [ ] STDLIB-CINTEROP-FN-002: `allocArray<T>(length)` を追加する
-- [ ] STDLIB-CINTEROP-FN-003: `asStableRef<T>()` を追加する
+- [x] STDLIB-CINTEROP-FN-003: `asStableRef<T>()` を追加する
 - [ ] STDLIB-CINTEROP-FN-004: `cstr` helper を追加する
-- [ ] STDLIB-CINTEROP-FN-005: `wcstr` helper を追加する
+- [x] STDLIB-CINTEROP-FN-005: `wcstr` helper を追加する
 - [ ] STDLIB-CINTEROP-FN-006: `defer(block)` を追加する
-- [ ] STDLIB-CINTEROP-FN-007: `free(pointed)` を追加する
+- [x] STDLIB-CINTEROP-FN-007: `free(pointed)` を追加する
 - [ ] STDLIB-CINTEROP-FN-008: `memScoped(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
