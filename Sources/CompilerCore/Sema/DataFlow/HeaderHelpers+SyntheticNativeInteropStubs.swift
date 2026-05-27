@@ -2498,6 +2498,83 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // fun <T : CPointed> Array<CPointer<T>?>.toCValues(): CValues<CPointerVar<T>>
+        let arrayCPointerToCValuesFnName = interner.intern("toCValues")
+        let arrayCPointerToCValuesFQName = cinteropPkg + [arrayCPointerToCValuesFnName]
+        let arrayCPointerToCValuesTypeParamName = interner.intern("T")
+        let arrayCPointerToCValuesTypeParamFQName = arrayCPointerToCValuesFQName
+            + [interner.intern("Array")]
+            + [arrayCPointerToCValuesTypeParamName]
+        let arrayCPointerToCValuesTypeParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: arrayCPointerToCValuesTypeParamFQName) {
+            arrayCPointerToCValuesTypeParamSymbol = existing
+        } else {
+            arrayCPointerToCValuesTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: arrayCPointerToCValuesTypeParamName,
+                fqName: arrayCPointerToCValuesTypeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.insertFlags([.synthetic], for: arrayCPointerToCValuesTypeParamSymbol)
+        symbols.setTypeParameterUpperBounds(
+            [cPointedType],
+            for: arrayCPointerToCValuesTypeParamSymbol
+        )
+        let arrayCPointerToCValuesTypeParamType = types.make(.typeParam(TypeParamType(
+            symbol: arrayCPointerToCValuesTypeParamSymbol,
+            nullability: .nonNull
+        )))
+        let arrayCPointerElementType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(arrayCPointerToCValuesTypeParamType)],
+            nullability: .nullable
+        )))
+        let arraySymbolForToCValues = ensureClassSymbol(
+            named: "Array",
+            in: [interner.intern("kotlin")],
+            symbols: symbols,
+            interner: interner
+        )
+        let arrayCPointerReceiverType = types.make(.classType(ClassType(
+            classSymbol: arraySymbolForToCValues,
+            args: [.invariant(arrayCPointerElementType)],
+            nullability: .nonNull
+        )))
+        // CPointerVar<T> is a typealias for CPointerVarOf<CPointer<T>>; expand here
+        // so the inferred return type matches user-site expansion done by the
+        // type-alias resolver (mirrors the `cstr` registration above which uses
+        // the expanded `ByteVarOf<Int>` instead of the `ByteVar` alias).
+        let arrayCPointerToCValuesNonNullPointerType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(arrayCPointerToCValuesTypeParamType)],
+            nullability: .nonNull
+        )))
+        let arrayCPointerToCValuesPointerVarType = types.make(.classType(ClassType(
+            classSymbol: cPointerVarOfSymbol,
+            args: [.invariant(arrayCPointerToCValuesNonNullPointerType)],
+            nullability: .nonNull
+        )))
+        let arrayCPointerToCValuesReturnType = types.make(.classType(ClassType(
+            classSymbol: cValuesSymbol,
+            args: [.invariant(arrayCPointerToCValuesPointerVarType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "toCValues",
+            packageFQName: cinteropPkg,
+            receiverType: arrayCPointerReceiverType,
+            parameters: [],
+            returnType: arrayCPointerToCValuesReturnType,
+            typeParameterSymbols: [arrayCPointerToCValuesTypeParamSymbol],
+            typeParameterUpperBoundsList: [[cPointedType]],
+            symbols: symbols,
+            interner: interner
+        )
+
         let cOpaquePointerUnderlyingType = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.out(cPointedType)],

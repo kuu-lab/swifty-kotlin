@@ -99,15 +99,7 @@ extension CallTypeChecker {
            case let .classType(actualCt) = sema.types.kind(of: actual),
            actualCt.classSymbol == declaredCt.classSymbol,
            declaredCt.args.contains(where: { arg in
-               switch arg {
-               case let .invariant(t), let .out(t), let .in(t):
-                   if case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(t)) {
-                       return true
-                   }
-                   return false
-               case .star:
-                   return false
-               }
+               argContainsTypeParam(arg, sema: sema)
            })
         {
             return true
@@ -118,6 +110,44 @@ extension CallTypeChecker {
             return typeArgumentLikeMatch(actual: actualKClass.argument, declared: declaredKClass.argument)
         }
         return false
+    }
+
+    /// Returns true if the given type argument projection contains a type parameter
+    /// reference anywhere within its nested generic structure.  Used by
+    /// `extensionSyntheticFallbackReceiverMatches` to keep candidates whose
+    /// receiver shape depends on a type variable that the constraint solver will
+    /// pin during inference (e.g. `Array<CPointer<T>?>.toCValues()`).
+    private func argContainsTypeParam(_ arg: TypeArg, sema: SemaModule) -> Bool {
+        switch arg {
+        case let .invariant(t), let .out(t), let .in(t):
+            return typeContainsTypeParam(t, sema: sema)
+        case .star:
+            return false
+        }
+    }
+
+    private func typeContainsTypeParam(_ type: TypeID, sema: SemaModule) -> Bool {
+        let nonNull = sema.types.makeNonNullable(type)
+        switch sema.types.kind(of: nonNull) {
+        case .typeParam:
+            return true
+        case let .classType(classType):
+            return classType.args.contains { arg in
+                argContainsTypeParam(arg, sema: sema)
+            }
+        case let .kClassType(kClass):
+            return typeContainsTypeParam(kClass.argument, sema: sema)
+        case let .functionType(fn):
+            if let receiver = fn.receiver, typeContainsTypeParam(receiver, sema: sema) {
+                return true
+            }
+            for param in fn.params where typeContainsTypeParam(param, sema: sema) {
+                return true
+            }
+            return typeContainsTypeParam(fn.returnType, sema: sema)
+        default:
+            return false
+        }
     }
 
     func tryBuiltinFlowMemberCall(
