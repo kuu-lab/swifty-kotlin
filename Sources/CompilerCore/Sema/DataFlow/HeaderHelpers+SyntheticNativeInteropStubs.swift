@@ -3050,6 +3050,28 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        // fun CPointer<IntVar>.toKStringFromUtf32(): String
+        if let intVarSymbolForUtf32 = symbols.lookup(fqName: cinteropPkg + [interner.intern("IntVar")]) {
+            let intVarTypeForUtf32 = types.make(.classType(ClassType(
+                classSymbol: intVarSymbolForUtf32,
+                args: [],
+                nullability: .nonNull
+            )))
+            let toKStringFromUtf32ReceiverType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(intVarTypeForUtf32)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toKStringFromUtf32",
+                packageFQName: cinteropPkg,
+                receiverType: toKStringFromUtf32ReceiverType,
+                parameters: [],
+                returnType: types.stringType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // fun CPointer<ShortVar>.toKString(): String
         if let shortVarSymbolForToKString = symbols.lookup(fqName: cinteropPkg + [interner.intern("ShortVar")]) {
