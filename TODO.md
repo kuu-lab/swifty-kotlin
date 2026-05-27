@@ -137,7 +137,7 @@
 - [ ] STDLIB-IO-PATH-PROP-001: `extension` 拡張プロパティの実装
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-007: `bufferedReader` 関数の実装
+- [x] STDLIB-IO-PATH-FN-007: `bufferedReader` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-010: `copyToRecursively` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-012: `createTempDirectory` 関数の実装
