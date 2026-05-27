@@ -480,7 +480,10 @@ private func runtimeSequenceBestValue(
     if returnElement {
         guard let bestElement else {
             if throwOnEmpty {
-                outThrown?.pointee = runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement)
+                return handleCollectionLambdaThrow(
+                    runtimeAllocateThrowable(message: kEmptySequenceNoSuchElement),
+                    outThrown
+                )
             }
             return runtimeNullSentinelInt
         }
@@ -550,6 +553,19 @@ private func runtimeSequenceExtremumWith(
     return bestElement
 }
 
+@_cdecl("kk_sequence_maxWith")
+public func kk_sequence_maxWith(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSequenceExtremumWith(
+        seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
+        caller: #function, comparisonSign: 1, throwOnEmpty: true
+    )
+}
+
 @_cdecl("kk_sequence_maxWithOrNull")
 public func kk_sequence_maxWithOrNull(
     _ seqRaw: Int,
@@ -573,6 +589,19 @@ public func kk_sequence_minWith(
     runtimeSequenceExtremumWith(
         seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
         caller: #function, comparisonSign: -1, throwOnEmpty: true
+    )
+}
+
+@_cdecl("kk_sequence_minBy")
+public func kk_sequence_minBy(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSequenceBestValue(
+        seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
+        caller: #function, comparisonSign: -1, returnElement: true, throwOnEmpty: true
     )
 }
 
@@ -612,6 +641,20 @@ public func kk_sequence_maxByOrNull(
     runtimeSequenceBestValue(
         seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
         caller: #function, comparisonSign: 1, returnElement: true, throwOnEmpty: false
+    )
+}
+
+
+@_cdecl("kk_sequence_minWithOrNull")
+public func kk_sequence_minWithOrNull(
+    _ seqRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeSequenceExtremumWith(
+        seqRaw: seqRaw, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown,
+        caller: #function, comparisonSign: -1, throwOnEmpty: false
     )
 }
 

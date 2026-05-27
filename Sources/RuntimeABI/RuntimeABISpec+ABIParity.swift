@@ -114,6 +114,9 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_kclass_javaObjectType", parameters: [
             p("kclassRaw", .intptr),
         ]),
+        abiParitySpec("kk_enum_declaringJavaClass", parameters: [
+            p("enumRaw", .intptr),
+        ]),
         abiParitySpec("kk_class_kotlin", parameters: [
             p("classRaw", .intptr),
         ]),
@@ -1197,6 +1200,9 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_worker_request_termination", parameters: [
             p("workerHandle", .intptr),
             p("processScheduledRaw", .intptr),
+        ]),
+        abiParitySpec("kk_ktype_javaType", parameters: [
+            p("ktypeRaw", .intptr),
         ]),
     ]
 }
