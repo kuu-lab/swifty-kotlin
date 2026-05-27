@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
+    override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testPathCopyToOptionsCopiesFileAndReturnsTargetPath() throws {
         let sourceURL = try makeTempFile(contents: "copy me")
         let targetURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -33,6 +34,42 @@ final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
         let targetRaw = runtimeTestPathHandle(targetURL.path)
         var thrown = 0
         let resultRaw = kk_path_copyTo_options(sourceRaw, targetRaw, 0, &thrown)
+
+        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(resultRaw, targetRaw)
+        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "existing")
+    }
+
+    func testPathCopyToOverwriteReplacesExistingTarget() throws {
+        let sourceURL = try makeTempFile(contents: "replacement")
+        let targetURL = try makeTempFile(contents: "existing")
+        defer {
+            try? FileManager.default.removeItem(at: sourceURL)
+            try? FileManager.default.removeItem(at: targetURL)
+        }
+
+        let sourceRaw = runtimeTestPathHandle(sourceURL.path)
+        let targetRaw = runtimeTestPathHandle(targetURL.path)
+        var thrown = 0
+        let resultRaw = kk_path_copyTo_overwrite(sourceRaw, targetRaw, kk_box_bool(1), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(resultRaw, targetRaw)
+        XCTAssertEqual(try String(contentsOf: targetURL, encoding: .utf8), "replacement")
+    }
+
+    func testPathCopyToOverwriteFalseReportsExistingTarget() throws {
+        let sourceURL = try makeTempFile(contents: "replacement")
+        let targetURL = try makeTempFile(contents: "existing")
+        defer {
+            try? FileManager.default.removeItem(at: sourceURL)
+            try? FileManager.default.removeItem(at: targetURL)
+        }
+
+        let sourceRaw = runtimeTestPathHandle(sourceURL.path)
+        let targetRaw = runtimeTestPathHandle(targetURL.path)
+        var thrown = 0
+        let resultRaw = kk_path_copyTo_overwrite(sourceRaw, targetRaw, kk_box_bool(0), &thrown)
 
         XCTAssertNotEqual(thrown, 0)
         XCTAssertEqual(resultRaw, targetRaw)
