@@ -2910,6 +2910,35 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        // fun DoubleArray.toCValues(): CValues<DoubleVar>
+        if let doubleVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("DoubleVar")]) {
+            let doubleVarType = types.make(.classType(ClassType(
+                classSymbol: doubleVarSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let doubleArrayReceiverType = syntheticClassType(
+                packagePath: ["kotlin"],
+                name: "DoubleArray",
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            let doubleArrayToCValuesReturnType = types.make(.classType(ClassType(
+                classSymbol: cValuesSymbol,
+                args: [.invariant(doubleVarType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toCValues",
+                packageFQName: cinteropPkg,
+                receiverType: doubleArrayReceiverType,
+                parameters: [],
+                returnType: doubleArrayToCValuesReturnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // fun ULongArray.toCValues(): CValues<ULongVar>
         if let uLongVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("ULongVar")]) {
