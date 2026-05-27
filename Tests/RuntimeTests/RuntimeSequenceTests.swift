@@ -297,6 +297,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
             0,
             &thrown
         )
+
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 20)
 
@@ -307,7 +308,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
             0,
             &thrown
         )
-        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
     }
 
@@ -2294,7 +2295,7 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         thrown = 0
         let emptyResult = kk_sequence_maxOf(makeSequence([]), unsafeBitCast(selector, to: Int.self), 0, &thrown)
-        XCTAssertEqual(emptyResult, runtimeNullSentinelInt)
+        XCTAssertEqual(emptyResult, runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
         let box = try XCTUnwrap(throwableBox(from: thrown))
         XCTAssertEqual(box.message, kEmptySequenceNoSuchElement)
