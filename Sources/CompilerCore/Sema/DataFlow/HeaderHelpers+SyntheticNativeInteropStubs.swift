@@ -2284,6 +2284,57 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // inline fun <reified T : Any> unwrapKotlinObjectHolder(holder: COpaquePointer?): T
+        let unwrapHolderFunctionName = interner.intern("unwrapKotlinObjectHolder")
+        let unwrapHolderFunctionFQName = cinteropPkg + [unwrapHolderFunctionName]
+        let unwrapHolderTypeParameterName = interner.intern("T")
+        let unwrapHolderTypeParameterFQName = unwrapHolderFunctionFQName + [unwrapHolderTypeParameterName]
+        let unwrapHolderTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: unwrapHolderTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: unwrapHolderTypeParameterName,
+                fqName: unwrapHolderTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic, .reifiedTypeParameter]
+            )
+        }
+        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: unwrapHolderTypeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([types.anyType], for: unwrapHolderTypeParameterSymbol)
+        let unwrapHolderTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: unwrapHolderTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let unwrapHolderHolderType: TypeID = if let cOpaquePointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("COpaquePointer")]) {
+            types.make(.classType(ClassType(
+                classSymbol: cOpaquePointerSymbol,
+                args: [],
+                nullability: .nullable
+            )))
+        } else {
+            types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.star],
+                nullability: .nullable
+            )))
+        }
+        registerSyntheticNativeTopLevelFunction(
+            named: "unwrapKotlinObjectHolder",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [(name: "holder", type: unwrapHolderHolderType)],
+            returnType: unwrapHolderTypeParameterType,
+            typeParameterSymbols: [unwrapHolderTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[types.anyType]],
+            reifiedTypeParameterIndices: [0],
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
         configureSingleTypeParameterNominal(
             ownerSymbol: cPointerVarOfSymbol,
             fqName: cinteropPkg + [interner.intern("CPointerVarOf")],
