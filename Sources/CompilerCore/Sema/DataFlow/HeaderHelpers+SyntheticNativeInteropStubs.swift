@@ -1753,6 +1753,28 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticNativePlacementAllocArrayFunction(
+            lengthType: types.longType,
+            typeParameterDiscriminator: "$lengthLong",
+            cVariableType: cVariableType,
+            cPointerSymbol: cPointerSymbol,
+            nativePlacementType: nativePlacementType,
+            packageFQName: cinteropPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        registerSyntheticNativePlacementAllocArrayFunction(
+            lengthType: types.intType,
+            typeParameterDiscriminator: "$lengthInt",
+            cVariableType: cVariableType,
+            cPointerSymbol: cPointerSymbol,
+            nativePlacementType: nativePlacementType,
+            packageFQName: cinteropPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         let nativeFreeablePlacementType = types.make(.classType(ClassType(
             classSymbol: nativeFreeablePlacementSymbol,
@@ -1963,6 +1985,45 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        symbols.insertFlags([.abstractType], for: cValuesRefSymbol)
+        if let cValuesRefTypeParameterSymbol = types.nominalTypeParameterSymbols(for: cValuesRefSymbol).first {
+            symbols.setTypeParameterUpperBounds([cPointedType], for: cValuesRefTypeParameterSymbol)
+            let cValuesRefTypeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: cValuesRefTypeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let cValuesRefType = types.make(.classType(ClassType(
+                classSymbol: cValuesRefSymbol,
+                args: [.invariant(cValuesRefTypeParameterType)],
+                nullability: .nonNull
+            )))
+            let cPointerToCValuesRefTypeParameterType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(cValuesRefTypeParameterType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeBitSetConstructor(
+                ownerSymbol: cValuesRefSymbol,
+                ownerType: cValuesRefType,
+                parameters: [],
+                defaultValues: [],
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticNativeBitSetMemberFunction(
+                named: "getPointer",
+                ownerSymbol: cValuesRefSymbol,
+                receiverType: cValuesRefType,
+                parameters: [(name: "scope", type: autofreeScopeType)],
+                returnType: cPointerToCValuesRefTypeParameterType,
+                typeParameterSymbols: [cValuesRefTypeParameterSymbol],
+                typeParameterUpperBoundsList: [[cPointedType]],
+                classTypeParameterCount: 1,
+                flags: [.synthetic, .abstractType],
+                symbols: symbols,
+                interner: interner
+            )
+        }
         configureSingleTypeParameterNominal(
             ownerSymbol: cValueSymbol,
             fqName: cinteropPkg + [interner.intern("CValue")],
@@ -2146,6 +2207,54 @@ extension DataFlowSemaPhase {
             named: "rawValue",
             ownerSymbol: cPointerSymbol,
             propertyType: nativePtrType,
+            symbols: symbols,
+            interner: interner
+        )
+        // inline fun <reified T : CPointed> CPointer<*>.reinterpret(): CPointer<T>
+        let reinterpretStarReceiverType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.star],
+            nullability: .nonNull
+        )))
+        let reinterpretFunctionName = interner.intern("reinterpret")
+        let reinterpretFunctionFQName = cinteropPkg + [reinterpretFunctionName]
+        let reinterpretTypeParameterName = interner.intern("T")
+        let reinterpretTypeParameterFQName = reinterpretFunctionFQName + [reinterpretTypeParameterName]
+        let reinterpretTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: reinterpretTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: reinterpretTypeParameterName,
+                fqName: reinterpretTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic, .reifiedTypeParameter]
+            )
+        }
+        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: reinterpretTypeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([cPointedType], for: reinterpretTypeParameterSymbol)
+        let reinterpretTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: reinterpretTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let reinterpretReturnType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(reinterpretTypeParameterType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "reinterpret",
+            packageFQName: cinteropPkg,
+            receiverType: reinterpretStarReceiverType,
+            parameters: [],
+            returnType: reinterpretReturnType,
+            typeParameterSymbols: [reinterpretTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[cPointedType]],
+            reifiedTypeParameterIndices: [0],
+            flags: [.synthetic, .inlineFunction],
             symbols: symbols,
             interner: interner
         )
@@ -2357,6 +2466,20 @@ extension DataFlowSemaPhase {
             in: cinteropPkg,
             packageSymbol: cinteropPkgSymbol,
             underlyingType: byteVarType,
+            symbols: symbols,
+            interner: interner
+        )
+        let cstrReturnType = types.make(.classType(ClassType(
+            classSymbol: cValuesSymbol,
+            args: [.invariant(byteVarType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeExtensionProperty(
+            named: "cstr",
+            packageFQName: cinteropPkg,
+            packageSymbol: cinteropPkgSymbol,
+            receiverType: types.stringType,
+            propertyType: cstrReturnType,
             symbols: symbols,
             interner: interner
         )
@@ -3644,6 +3767,60 @@ extension DataFlowSemaPhase {
         symbols.setFunctionSignature(getterSignature, for: getterSymbol)
         symbols.setExtensionPropertyGetterAccessor(getterSymbol, for: propertySymbol)
         symbols.setAccessorOwnerProperty(propertySymbol, for: getterSymbol)
+    }
+
+    private func registerSyntheticNativePlacementAllocArrayFunction(
+        lengthType: TypeID,
+        typeParameterDiscriminator: String,
+        cVariableType: TypeID,
+        cPointerSymbol: SymbolID,
+        nativePlacementType: TypeID,
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("allocArray")
+        let functionFQName = packageFQName + [functionName]
+        let typeParameterName = interner.intern("T")
+        let typeParameterFQName = functionFQName + [interner.intern(typeParameterDiscriminator), typeParameterName]
+        let typeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParameterFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParameterName,
+                fqName: typeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic, .reifiedTypeParameter]
+            )
+        }
+        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: typeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([cVariableType], for: typeParameterSymbol)
+
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let cArrayPointerReturnType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(typeParameterType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "allocArray",
+            packageFQName: packageFQName,
+            receiverType: nativePlacementType,
+            parameters: [(name: "length", type: lengthType)],
+            returnType: cArrayPointerReturnType,
+            typeParameterSymbols: [typeParameterSymbol],
+            typeParameterUpperBoundsList: [[cVariableType]],
+            reifiedTypeParameterIndices: [0],
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func registerSyntheticNativeTopLevelFunction(
