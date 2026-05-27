@@ -1221,6 +1221,26 @@ public func kk_print_writer_close(_ writerRaw: Int) -> Int {
     return 0
 }
 
+// MARK: - STDLIB-IO-FN-006: Writer.buffered(bufferSize)
+
+@_cdecl("kk_writer_buffered_default")
+public func kk_writer_buffered_default(_ writerRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    kk_writer_buffered(writerRaw, 8192, outThrown)
+}
+
+@_cdecl("kk_writer_buffered")
+public func kk_writer_buffered(_ writerRaw: Int, _ bufferSizeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard bufferSizeRaw > 0 else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: bufferSize must be positive")
+        return 0
+    }
+    guard runtimeBufferedWriterBox(from: writerRaw) != nil else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_writer_buffered received invalid Writer handle")
+    }
+    return writerRaw
+}
+
 @_cdecl("kk_file_inputStream")
 public func kk_file_inputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0

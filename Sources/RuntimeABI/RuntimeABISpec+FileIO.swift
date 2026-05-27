@@ -305,6 +305,26 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        // STDLIB-IO-FN-006: Writer.buffered
+        RuntimeABIFunctionSpec(
+            name: "kk_writer_buffered_default",
+            parameters: [
+                RuntimeABIParameter(name: "writerRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_writer_buffered",
+            parameters: [
+                RuntimeABIParameter(name: "writerRaw", type: .intptr),
+                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_file_inputStream",
             parameters: [

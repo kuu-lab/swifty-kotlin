@@ -475,6 +475,12 @@ extension ABIMismatchTests {
         "kk_url_readBytes",
     ]
 
+    // MARK: kotlin.io Writer.buffered (STDLIB-IO-FN-006)
+    private static let kotlinIOWriterBufferedStubLinkNames: Set<String> = [
+        "kk_writer_buffered",
+        "kk_writer_buffered_default",
+    ]
+
     /// Union of every category. New categories should be added below.
     /// Each category lives in its own `static let` above so that parallel
     /// branches editing different category Sets do not collide.
@@ -503,6 +509,7 @@ extension ABIMismatchTests {
         result.formUnion(base64StubLinkNames)
         result.formUnion(kotlinVersionStubLinkNames)
         result.formUnion(urlStubLinkNames)
+        result.formUnion(kotlinIOWriterBufferedStubLinkNames)
         return result
     }
 

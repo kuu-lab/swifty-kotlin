@@ -690,6 +690,12 @@ extension DataFlowSemaPhase {
 
         // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091/093)
 
+        let writerSymbol = ensureClassSymbol(
+            named: "Writer",
+            in: javaIOPkg,
+            symbols: symbols,
+            interner: interner
+        )
         let bufferedWriterSymbol = ensureClassSymbol(
             named: "BufferedWriter",
             in: javaIOPkg,
@@ -697,17 +703,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         if let javaIOPkgSymbol {
+            symbols.setParentSymbol(javaIOPkgSymbol, for: writerSymbol)
             symbols.setParentSymbol(javaIOPkgSymbol, for: bufferedWriterSymbol)
         }
+        let writerType = types.make(.classType(ClassType(
+            classSymbol: writerSymbol, args: [], nullability: .nonNull
+        )))
         let bufferedWriterType = types.make(.classType(ClassType(
             classSymbol: bufferedWriterSymbol, args: [], nullability: .nonNull
         )))
+        symbols.setPropertyType(writerType, for: writerSymbol)
         symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
 
         // Register BufferedWriter as a Closeable subtype (STDLIB-IO-093)
         if let closeableSymbol = types.closeableInterfaceSymbol {
-            symbols.setDirectSupertypes([closeableSymbol], for: bufferedWriterSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: bufferedWriterSymbol)
+            symbols.setDirectSupertypes([closeableSymbol], for: writerSymbol)
+            types.setNominalDirectSupertypes([closeableSymbol], for: writerSymbol)
+            symbols.setDirectSupertypes([writerSymbol, closeableSymbol], for: bufferedWriterSymbol)
+            types.setNominalDirectSupertypes([writerSymbol, closeableSymbol], for: bufferedWriterSymbol)
+        } else {
+            symbols.setDirectSupertypes([writerSymbol], for: bufferedWriterSymbol)
+            types.setNominalDirectSupertypes([writerSymbol], for: bufferedWriterSymbol)
         }
 
         // File.bufferedWriter() -> BufferedWriter
@@ -1466,6 +1482,30 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+
+        // MARK: - kotlin.io.Writer.buffered (STDLIB-IO-FN-006)
+        // Writer.buffered(): BufferedWriter
+        // Writer.buffered(bufferSize: Int): BufferedWriter
+        registerFilePackageExtensionFunction(
+            named: "buffered",
+            packageFQName: kotlinIOPkg,
+            receiverType: writerType,
+            parameters: [],
+            returnType: bufferedWriterType,
+            externalLinkName: "kk_writer_buffered_default",
+            symbols: symbols,
+            interner: interner
+        )
+        registerFilePackageExtensionFunction(
+            named: "buffered",
+            packageFQName: kotlinIOPkg,
+            receiverType: writerType,
+            parameters: [("bufferSize", intType)],
+            returnType: bufferedWriterType,
+            externalLinkName: "kk_writer_buffered",
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Private Helpers
@@ -1927,6 +1967,79 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
         symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
         symbols.setPropertyType(returnType, for: propertySymbol)
+    }
+
+    /// Registers a synthetic top-level extension function on a receiver type within
+    /// a package (e.g. `kotlin.io.Writer.buffered()`).
+    private func registerFilePackageExtensionFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        externalLinkName: String,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        let parameterTypes = parameters.map(\.type)
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes == parameterTypes
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: receiverType,
+                    parameterTypes: parameterTypes,
+                    returnType: returnType
+                ),
+                for: existing
+            )
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+
+        var parameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
+            parameterSymbols.append(parameterSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameterTypes,
+                returnType: returnType,
+                valueParameterSymbols: parameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
+                valueParameterIsVararg: Array(repeating: false, count: parameters.count)
+            ),
+            for: functionSymbol
+        )
     }
 
 }
