@@ -423,7 +423,7 @@
 - [x] STDLIB-TEXT-FN-078: `take` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [x] STDLIB-TEXT-FN-080: `takeLast` 関数の実装
-- [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
+- [x] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [ ] STDLIB-TEXT-FN-082: `takeWhile` 関数の実装
 - [ ] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
 - [ ] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
@@ -668,7 +668,7 @@
 - [x] STDLIB-CINTEROP-FN-012: `readValue()` を追加する
 - [ ] STDLIB-CINTEROP-FN-013: `refTo(index)` を追加する
 - [x] STDLIB-CINTEROP-FN-014: `reinterpret<T>()` を追加する
-- [ ] STDLIB-CINTEROP-FN-015: `CPointer<T>.get(index)` を追加する
+- [x] STDLIB-CINTEROP-FN-015: `CPointer<T>.get(index)` を追加する
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
