@@ -1106,6 +1106,9 @@ public extension RuntimeABISpec {
             p("endRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_string_toBigDecimalOrNull", parameters: [
+            p("strRaw", .intptr),
+        ]),
         abiParitySpec("kk_string_toBigInteger", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
