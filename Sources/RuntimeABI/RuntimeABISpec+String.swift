@@ -1272,6 +1272,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        // STDLIB-TEXT-PROP-009: Char.isJavaIdentifierPart
+        RuntimeABIFunctionSpec(
+            name: "kk_char_isJavaIdentifierPart",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
         RuntimeABIFunctionSpec(
             name: "kk_char_isJavaIdentifierStart",
