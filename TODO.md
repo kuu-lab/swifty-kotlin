@@ -351,6 +351,7 @@
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
+- [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-011: `concat` 関数の実装
@@ -370,6 +371,9 @@
 - [x] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
+- [ ] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
+- [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
+- [ ] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-028: `isEmpty` 関数の実装
 - [x] STDLIB-TEXT-FN-029: `isNotBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-030: `isNotEmpty` 関数の実装
@@ -574,13 +578,11 @@
 - [ ] STDLIB-COMP-FN-055: `minWith` 関数の実装
 - [x] STDLIB-COMP-FN-056: `minWithOrNull` 関数の実装
 - [x] STDLIB-COMP-FN-057: `naturalOrder` 関数の実装
-- [ ] STDLIB-COMP-FN-058: `naturalOrderComparator` 関数の実装
 - [ ] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
 - [x] STDLIB-COMP-FN-060: `nullsFirst` 関数の実装（Comparator版）
 - [ ] STDLIB-COMP-FN-061: `nullsLast` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
 - [x] STDLIB-COMP-FN-063: `reverseOrder` 関数の実装
-- [ ] STDLIB-COMP-FN-064: `reverseOrderComparator` 関数の実装
 - [ ] STDLIB-ANNO-002: annotation sema / diagnostics を整える
  - [x] STDLIB-ANNO-001: `kotlin.annotation` の対象一覧を固定
  - [x] STDLIB-ANNO-002: annotation sema / diagnostics を整える
