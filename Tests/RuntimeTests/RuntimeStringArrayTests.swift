@@ -414,6 +414,33 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(thrownOutput.contains("replaceFirstChar failure"))
     }
 
+    // MARK: - STDLIB-TEXT-FN-009: String.capitalize
+
+    func testStringCapitalizeUppercasesFirstCharacter() {
+        let result = kk_string_capitalize(rawFromRuntimeString("hello"))
+        XCTAssertEqual(runtimeStringValue(result), "Hello")
+    }
+
+    func testStringCapitalizeLeavesTailUnchanged() {
+        let result = kk_string_capitalize(rawFromRuntimeString("hELLO"))
+        XCTAssertEqual(runtimeStringValue(result), "HELLO")
+    }
+
+    func testStringCapitalizeEmptyStringReturnsEmpty() {
+        let result = kk_string_capitalize(rawFromRuntimeString(""))
+        XCTAssertEqual(runtimeStringValue(result), "")
+    }
+
+    func testStringCapitalizeAlreadyUppercasedFirstChar() {
+        let result = kk_string_capitalize(rawFromRuntimeString("Hello"))
+        XCTAssertEqual(runtimeStringValue(result), "Hello")
+    }
+
+    func testStringCapitalizeSingleChar() {
+        let result = kk_string_capitalize(rawFromRuntimeString("a"))
+        XCTAssertEqual(runtimeStringValue(result), "A")
+    }
+
     func testStringStartsWithEndsWithContains() {
         let source = rawFromRuntimeString("HelloWorld")
         XCTAssertEqual(kk_unbox_bool(kk_string_startsWith(source, rawFromRuntimeString("Hello"))), 1)

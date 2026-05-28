@@ -65,6 +65,7 @@ extension ABILoweringPass {
             interner.intern("kk_string_trim"),
             interner.intern("kk_string_lowercase"),
             interner.intern("kk_string_uppercase"),
+            interner.intern("kk_string_capitalize"),
             interner.intern("kk_locale_new"),
             interner.intern("kk_string_lowercase_locale"),
             interner.intern("kk_string_uppercase_locale"),

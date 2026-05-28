@@ -170,6 +170,17 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale"))
     }
 
+    // STDLIB-TEXT-FN-009
+    func testCapitalizeStubHasCorrectExternalLink() throws {
+        let (sema, interner) = try makeSema()
+
+        XCTAssertEqual(
+            externalLink(for: "capitalize", sema: sema, interner: interner),
+            "kk_string_capitalize",
+            "String.capitalize should link to kk_string_capitalize"
+        )
+    }
+
     func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
