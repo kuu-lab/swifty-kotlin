@@ -1291,6 +1291,35 @@ public func kk_path_bufferedWriter(
     }
 }
 
+@_cdecl("kk_path_writer")
+public func kk_path_writer(
+    _ pathRaw: Int,
+    _ charsetRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_writer received invalid Path handle")
+    }
+    _ = optionsRaw
+    let url = URL(fileURLWithPath: path.pathString)
+    if !FileManager.default.fileExists(atPath: path.pathString) {
+        _ = FileManager.default.createFile(atPath: path.pathString, contents: Data())
+    }
+    do {
+        let fileHandle = try FileHandle(forWritingTo: url)
+        fileHandle.truncateFile(atOffset: 0)
+        return registerRuntimeObject(RuntimeBufferedWriterBox(
+            fileHandle: fileHandle,
+            encoding: pathStringEncoding(for: charsetRaw)
+        ))
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        return 0
+    }
+}
+
 @_cdecl("kk_path_appendLines_sequence_default")
 public func kk_path_appendLines_sequence_default(_ pathRaw: Int, _ linesRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     kk_path_appendLines_sequence(pathRaw, linesRaw, 0, outThrown)
