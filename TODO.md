@@ -451,7 +451,7 @@
 - [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
-- [ ] STDLIB-TEXT-FN-109: `toTypedArray` 関数の実装
+- [x] STDLIB-TEXT-FN-109: `toTypedArray` 関数の実装
 - [x] STDLIB-TEXT-FN-110: `trim` 関数の実装
 - [x] STDLIB-TEXT-FN-111: `trimEnd` 関数の実装
 - [x] STDLIB-TEXT-FN-112: `trimIndent` 関数の実装
@@ -570,7 +570,7 @@
 - [ ] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
 - [ ] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
 - [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
-- [ ] STDLIB-COMP-FN-054: `minOfOrNull` 関数の実装（各オーバーロード）
+- [x] STDLIB-COMP-FN-054: `minOfOrNull` 関数の実装（各オーバーロード）
 - [ ] STDLIB-COMP-FN-055: `minWith` 関数の実装
 - [x] STDLIB-COMP-FN-056: `minWithOrNull` 関数の実装
 - [x] STDLIB-COMP-FN-057: `naturalOrder` 関数の実装

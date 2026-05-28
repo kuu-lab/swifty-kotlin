@@ -47,3 +47,29 @@ final class StringToCharArrayFunctionTests: XCTestCase {
         )
     }
 }
+
+/// STDLIB-TEXT-FN-109: Validates that `String.toTypedArray()` resolves through Sema
+/// and links to the `kk_string_toTypedArray` runtime entry.
+///
+/// The synthetic extension function is registered in
+/// `HeaderHelpers+SyntheticStringStubs.swift` and the runtime implementation
+/// lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
+final class StringToTypedArrayFunctionTests: XCTestCase {
+    func testToTypedArrayResolvesInSource() throws {
+        let ctx = makeContextFromSource("""
+        fun explode(s: String): Array<Char> {
+            return s.toTypedArray()
+        }
+
+        fun explodeLiteral(): Array<Char> {
+            return "hello".toTypedArray()
+        }
+        """)
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "Expected toTypedArray to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+}

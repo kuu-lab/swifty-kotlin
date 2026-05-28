@@ -273,6 +273,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "reversed": "kk_string_reversed",
             "toList": "kk_string_toList",
             "toCharArray": "kk_string_toCharArray",
+            "toTypedArray": "kk_string_toTypedArray",
         ]
         for (member, expectedLink) in expected {
             XCTAssertEqual(
