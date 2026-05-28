@@ -1219,7 +1219,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-186: substringBefore / substringAfter / substringBeforeLast / substringAfterLast ---
+        // --- STDLIB-186 / STDLIB-TEXT-FN-074..077: substringBefore / substringAfter /
+        // substringBeforeLast / substringAfterLast ---
+        //
+        // Kotlin exposes four overloads per direction:
+        //   String.substringBefore(delimiter: Char, missingDelimiterValue: String = this)
+        //   String.substringBefore(delimiter: String, missingDelimiterValue: String = this)
+        // ... and analogously for substringAfter / *-Last. We register the explicit
+        // `missingDelimiterValue` parameter so call sites can pass the argument; the
+        // runtime helpers accept `0` (a null raw) when the default `this` should be used.
 
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
@@ -1227,6 +1235,21 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "substringBefore",
+            externalLinkName: "kk_string_substringBefore_char",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", charType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1240,6 +1263,21 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "substringAfter",
+            externalLinkName: "kk_string_substringAfter_char",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", charType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1253,6 +1291,21 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "substringBeforeLast",
+            externalLinkName: "kk_string_substringBeforeLast_char",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", charType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1266,6 +1319,21 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "substringAfterLast",
+            externalLinkName: "kk_string_substringAfterLast_char",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", charType, false, false),
+                ("missingDelimiterValue", stringType, true, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
