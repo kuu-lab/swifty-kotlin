@@ -677,7 +677,7 @@
 - [x] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [x] STDLIB-CINTEROP-FN-043: `vectorOf(Float, Float, Float, Float)` の公式 annotation/signature を既存 stub と整合させる
 - [x] STDLIB-CINTEROP-FN-044: `vectorOf(Int, Int, Int, Int)` の公式 annotation/signature を既存 stub と整合させる
-- [ ] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
+- [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [x] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
 - [x] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
 - [x] STDLIB-CINTEROP-FN-048: `zeroValue<T>(size, align)` を追加する
@@ -689,7 +689,7 @@
 - [x] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
 - [ ] STDLIB-CINTEROP-FN-046: `writeBits(ptr, offset, size, value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-047: `zeroValue<T>()` を追加する
-- [ ] STDLIB-CINTEROP-FN-048: `zeroValue<T>(size, align)` を追加する
+- [x] STDLIB-CINTEROP-FN-048: `zeroValue<T>(size, align)` を追加する
 - [x] STDLIB-CINTEROP-INTERNAL-TYPE-001: `kotlinx.cinterop.internal.CCall` annotation を追加する
 - [x] STDLIB-CINTEROP-INTERNAL-TYPE-002: `kotlinx.cinterop.internal.CEnumEntryAlias` annotation を追加する
 - [x] STDLIB-CINTEROP-INTERNAL-TYPE-003: `kotlinx.cinterop.internal.CEnumVarTypeSize` annotation を追加する
@@ -698,8 +698,8 @@
 - [x] STDLIB-CINTEROP-INTERNAL-TYPE-006: `kotlinx.cinterop.internal.CStruct` annotation を追加する
 - [ ] STDLIB-CINTEROP-INTERNAL-FN-001: `convertBlockPtrToKotlinFunction(blockPtr)` を追加する
 - [x] STDLIB-CINTEROP-INTERNAL-FN-002: `detachObjCObject(obj)` を追加する
-- [ ] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
-- [ ] STDLIB-CINTEROP-INTERNAL-FN-002: `detachObjCObject(obj)` を追加する
+- [x] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
+- [x] STDLIB-CINTEROP-INTERNAL-FN-002: `detachObjCObject(obj)` を追加する
 - [x] STDLIB-DOM-TYPE-001: `org.w3c.dom.ItemArrayLike<T>` external interface を追加する
 - [ ] STDLIB-DOM-FN-001: `ItemArrayLike<T>.asList()` を追加する
 - [ ] STDLIB-JVM-166: Java プレビュー機能の実装
