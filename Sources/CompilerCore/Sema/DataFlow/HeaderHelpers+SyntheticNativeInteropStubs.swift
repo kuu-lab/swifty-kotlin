@@ -3363,6 +3363,10 @@ extension DataFlowSemaPhase {
         if let kTypeSym = symbols.lookup(fqName: kotlinReflectPkg + [interner.intern("KType")]) {
             kTypeType = types.make(.classType(ClassType(
                 classSymbol: kTypeSym,
+        // fun writeBits(ptr: COpaquePointer, offset: Long, size: Int, value: Long)
+        let writeBitsPtrType: TypeID = if let cOpaquePointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("COpaquePointer")]) {
+            types.make(.classType(ClassType(
+                classSymbol: cOpaquePointerSymbol,
                 args: [],
                 nullability: .nonNull
             )))
@@ -3398,6 +3402,27 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+            types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.star],
+                nullability: .nonNull
+            )))
+        }
+        registerSyntheticNativeTopLevelFunction(
+            named: "writeBits",
+            packageFQName: cinteropPkg,
+            receiverType: nil,
+            parameters: [
+                (name: "ptr", type: writeBitsPtrType),
+                (name: "offset", type: types.longType),
+                (name: "size", type: types.intType),
+                (name: "value", type: types.longType),
+            ],
+            returnType: types.unitType,
+            annotations: [MetadataAnnotationRecord(annotationFQName: "kotlinx.cinterop.ExperimentalForeignApi")],
+            symbols: symbols,
+            interner: interner
+        )
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
             cinteropPkgSymbol: cinteropPkgSymbol,
