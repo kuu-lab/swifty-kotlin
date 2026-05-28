@@ -839,6 +839,50 @@ public func kk_comparator_nulls_last_trampoline(
     return result
 }
 
+// MARK: - nullsFirst/nullsLast natural order (STDLIB-COMP-FN-059/060)
+
+private final class RuntimeNullsNaturalComparatorBox {}
+
+@_cdecl("kk_comparator_nulls_first_natural_trampoline")
+public func kk_comparator_nulls_first_natural_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let result = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: true) { return result }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_first_natural")
+public func kk_comparator_nulls_first_natural() -> Int {
+    let raw = registerRuntimeObject(RuntimeNullsNaturalComparatorBox())
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_nulls_first_natural_trampoline)
+    return raw
+}
+
+@_cdecl("kk_comparator_nulls_last_natural_trampoline")
+public func kk_comparator_nulls_last_natural_trampoline(
+    _ closureRaw: Int,
+    _ a: Int,
+    _ b: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    _ = closureRaw
+    _ = outThrown
+    if let result = runtimeCompareNullableOrder(a: a, b: b, nullsFirst: false) { return result }
+    return runtimeCompareValues(a, b)
+}
+
+@_cdecl("kk_comparator_nulls_last_natural")
+public func kk_comparator_nulls_last_natural() -> Int {
+    let raw = registerRuntimeObject(RuntimeNullsNaturalComparatorBox())
+    runtimeRegisterComparatorCompareMethod(raw, kk_comparator_nulls_last_natural_trampoline)
+    return raw
+}
+
 /// reversed: wraps a comparator and negates its result.
 @_cdecl("kk_comparator_reversed")
 public func kk_comparator_reversed(_ cFn: Int, _ cClosure: Int) -> Int {
