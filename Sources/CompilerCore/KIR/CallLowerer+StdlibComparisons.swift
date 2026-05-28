@@ -19,15 +19,17 @@ extension CallLowerer {
             return nil
         }
 
-        let isStdlibMaxOfCall = chosenSymbol.fqName.count >= 3
+        let stdlibComparisonName = chosenSymbol.fqName.count >= 3
             && chosenSymbol.fqName[0] == interner.intern("kotlin")
             && chosenSymbol.fqName[1] == interner.intern("comparisons")
-            && interner.resolve(chosenSymbol.name) == "maxOf"
+            ? interner.resolve(chosenSymbol.name)
+            : ""
 
         guard let specialKind = sema.bindings.stdlibSpecialCallKind(for: exprID) else {
-            if isStdlibMaxOfCall {
-                return lowerRemainingMaxOfCallExpr(
+            if stdlibComparisonName == "maxOf" || stdlibComparisonName == "minOf" {
+                return lowerRemainingMaxMinOfCallExpr(
                     exprID,
+                    isMax: stdlibComparisonName == "maxOf",
                     args: args,
                     callBinding: callBinding,
                     chosenCallee: chosenCallee,
@@ -94,8 +96,9 @@ extension CallLowerer {
         }
     }
 
-    private func lowerRemainingMaxOfCallExpr(
+    private func lowerRemainingMaxMinOfCallExpr(
         _ exprID: ExprID,
+        isMax: Bool,
         args: [CallArgument],
         callBinding: CallBinding?,
         chosenCallee: SymbolID,
@@ -131,8 +134,13 @@ extension CallLowerer {
             && !isComparatorMaxOf
             && signature.typeParameterSymbols.isEmpty
             && signature.parameterTypes.allSatisfy({ isUnsignedType($0, sema: sema) })
+        let isSignedNumericMaxOf = !isGenericComparableMaxOf
+            && !isComparatorMaxOf
+            && !isUnsignedMaxOf
+            && signature.typeParameterSymbols.isEmpty
+            && signature.parameterTypes.allSatisfy({ isSupportedSignedNumericType($0, sema: sema) })
 
-        guard isGenericComparableMaxOf || isComparatorMaxOf || isUnsignedMaxOf else {
+        guard isGenericComparableMaxOf || isComparatorMaxOf || isUnsignedMaxOf || isSignedNumericMaxOf else {
             return nil
         }
 
@@ -154,29 +162,29 @@ extension CallLowerer {
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
-        func selectGreater(lhs: KIRExprID, rhs: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
+        func selectCandidate(candidate: KIRExprID, current: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
             let useRightLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
             let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
 
             instructions.append(.jumpIfEqual(lhs: conditionExpr, rhs: falseExpr, target: useRightLabel))
-            instructions.append(.copy(from: lhs, to: resultExpr))
+            instructions.append(.copy(from: candidate, to: resultExpr))
             instructions.append(.jump(endLabel))
             instructions.append(.label(useRightLabel))
-            instructions.append(.copy(from: rhs, to: resultExpr))
+            instructions.append(.copy(from: current, to: resultExpr))
             instructions.append(.label(endLabel))
             return resultExpr
         }
 
         enum ComparisonStrategy {
-            case unsigned
+            case direct
             case genericComparable
             case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
         }
 
         let comparisonStrategy: ComparisonStrategy
-        if isUnsignedMaxOf {
-            comparisonStrategy = .unsigned
+        if isUnsignedMaxOf || isSignedNumericMaxOf {
+            comparisonStrategy = .direct
         } else if isGenericComparableMaxOf {
             comparisonStrategy = .genericComparable
         } else {
@@ -217,16 +225,17 @@ extension CallLowerer {
             return currentExpr
         }
 
+        let comparisonOp: KIRBinaryOp = isMax ? .greaterThan : .lessThan
         for argIndex in comparisonArgIndices.dropFirst() {
             let candidateExpr = loweredArgIDs[argIndex]
             let conditionExpr: KIRExprID
             switch comparisonStrategy {
-            case .unsigned:
+            case .direct:
                 conditionExpr = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
                     type: boolType
                 )
-                instructions.append(.binary(op: .greaterThan, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
+                instructions.append(.binary(op: comparisonOp, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
             case .genericComparable:
                 let compareResultExpr = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
@@ -245,7 +254,7 @@ extension CallLowerer {
                     type: boolType
                 )
                 instructions.append(.binary(
-                    op: .greaterThan,
+                    op: comparisonOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr
@@ -268,13 +277,13 @@ extension CallLowerer {
                     type: boolType
                 )
                 instructions.append(.binary(
-                    op: .greaterThan,
+                    op: comparisonOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr
                 ))
             }
-            currentExpr = selectGreater(lhs: candidateExpr, rhs: currentExpr, conditionExpr: conditionExpr)
+            currentExpr = selectCandidate(candidate: candidateExpr, current: currentExpr, conditionExpr: conditionExpr)
         }
         return currentExpr
     }
@@ -320,6 +329,17 @@ extension CallLowerer {
         default:
             return false
         }
+    }
+
+    private func isSupportedSignedNumericType(
+        _ type: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        let nonNull = sema.types.withNullability(.nonNull, for: type)
+        return nonNull == sema.types.intType
+            || nonNull == sema.types.longType
+            || nonNull == sema.types.doubleType
+            || nonNull == sema.types.floatType
     }
 
     /// Lowers maxOf(a, b) / minOf(a, b) as: if (a > b) a else b
