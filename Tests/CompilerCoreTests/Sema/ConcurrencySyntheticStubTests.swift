@@ -140,4 +140,173 @@ final class ConcurrencySyntheticStubTests: XCTestCase {
         }
     }
 
+    // MARK: - fixedRateTimer (STDLIB-CONC-FN-004)
+
+    func testJavaUtilTimerClassIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let timerFQName = ["java", "util", "Timer"].map { interner.intern($0) }
+        let timerSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: timerFQName),
+            "Expected java.util.Timer to be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(timerSymbol)?.kind, .class)
+    }
+
+    func testJavaUtilTimerTaskClassIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let timerTaskFQName = ["java", "util", "TimerTask"].map { interner.intern($0) }
+        let timerTaskSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: timerTaskFQName),
+            "Expected java.util.TimerTask to be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(timerTaskSymbol)?.kind, .class)
+    }
+
+    func testJavaUtilDateClassIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+
+        let dateFQName = ["java", "util", "Date"].map { interner.intern($0) }
+        let dateSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: dateFQName),
+            "Expected java.util.Date to be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(dateSymbol)?.kind, .class)
+    }
+
+    func testFixedRateTimerWithInitialDelaySignature() throws {
+        let (sema, interner) = try makeSema()
+
+        let timerFQName = ["java", "util", "Timer"].map { interner.intern($0) }
+        let timerSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: timerFQName))
+        let timerType = sema.types.make(.classType(ClassType(
+            classSymbol: timerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let timerTaskFQName = ["java", "util", "TimerTask"].map { interner.intern($0) }
+        let timerTaskSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: timerTaskFQName))
+        let timerTaskType = sema.types.make(.classType(ClassType(
+            classSymbol: timerTaskSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let actionType = sema.types.make(.functionType(FunctionType(
+            receiver: timerTaskType,
+            params: [],
+            returnType: sema.types.unitType
+        )))
+
+        let fixedRateTimerFQName = ["kotlin", "concurrent", "fixedRateTimer"].map { interner.intern($0) }
+        let matchingSymbol = sema.symbols.lookupAll(fqName: fixedRateTimerFQName).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.parameterTypes.count == 5
+                && signature.parameterTypes[0] == sema.types.makeNullable(sema.types.stringType)
+                && signature.parameterTypes[1] == sema.types.booleanType
+                && signature.parameterTypes[2] == sema.types.longType
+                && signature.parameterTypes[3] == sema.types.longType
+                && signature.parameterTypes[4] == actionType
+                && signature.returnType == timerType
+        }
+        let signature = try XCTUnwrap(
+            matchingSymbol.flatMap { sema.symbols.functionSignature(for: $0) },
+            "Expected fixedRateTimer(name, daemon, initialDelay, period, action) to be registered"
+        )
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, true, false, false])
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: try XCTUnwrap(matchingSymbol)),
+            "kk_fixed_rate_timer_delay"
+        )
+    }
+
+    func testFixedRateTimerWithStartAtSignature() throws {
+        let (sema, interner) = try makeSema()
+
+        let timerFQName = ["java", "util", "Timer"].map { interner.intern($0) }
+        let timerSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: timerFQName))
+        let timerType = sema.types.make(.classType(ClassType(
+            classSymbol: timerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let timerTaskFQName = ["java", "util", "TimerTask"].map { interner.intern($0) }
+        let timerTaskSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: timerTaskFQName))
+        let timerTaskType = sema.types.make(.classType(ClassType(
+            classSymbol: timerTaskSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let dateFQName = ["java", "util", "Date"].map { interner.intern($0) }
+        let dateSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: dateFQName))
+        let dateType = sema.types.make(.classType(ClassType(
+            classSymbol: dateSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let actionType = sema.types.make(.functionType(FunctionType(
+            receiver: timerTaskType,
+            params: [],
+            returnType: sema.types.unitType
+        )))
+
+        let fixedRateTimerFQName = ["kotlin", "concurrent", "fixedRateTimer"].map { interner.intern($0) }
+        let matchingSymbol = sema.symbols.lookupAll(fqName: fixedRateTimerFQName).first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == nil
+                && signature.parameterTypes.count == 5
+                && signature.parameterTypes[0] == sema.types.makeNullable(sema.types.stringType)
+                && signature.parameterTypes[1] == sema.types.booleanType
+                && signature.parameterTypes[2] == dateType
+                && signature.parameterTypes[3] == sema.types.longType
+                && signature.parameterTypes[4] == actionType
+                && signature.returnType == timerType
+        }
+        let signature = try XCTUnwrap(
+            matchingSymbol.flatMap { sema.symbols.functionSignature(for: $0) },
+            "Expected fixedRateTimer(name, daemon, startAt, period, action) to be registered"
+        )
+        XCTAssertEqual(signature.valueParameterHasDefaultValues, [true, true, false, false, false])
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: try XCTUnwrap(matchingSymbol)),
+            "kk_fixed_rate_timer_start_at"
+        )
+    }
+
+    func testFixedRateTimerWithInitialDelayResolvesInSource() throws {
+        let source = """
+        import kotlin.concurrent.fixedRateTimer
+
+        fun probe() {
+            fixedRateTimer(
+                name = "test",
+                daemon = false,
+                initialDelay = 0L,
+                period = 1000L
+            ) {
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected fixedRateTimer(initialDelay) call to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
 }
