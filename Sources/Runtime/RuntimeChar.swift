@@ -347,6 +347,33 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
     return kk_box_bool(scalar.properties.generalCategory == .format ? 1 : 0)
 }
 
+// STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
+// Mirrors Java's Character.isUnicodeIdentifierPart semantics:
+// letters, combining marks, digits, connecting punctuation, non-spacing marks,
+// and numeric letters are all valid identifier-part characters.
+@_cdecl("kk_char_isUnicodeIdentifierPart")
+public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
+    guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
+    let props = scalar.properties
+    switch props.generalCategory {
+    case .uppercaseLetter,
+         .lowercaseLetter,
+         .titlecaseLetter,
+         .modifierLetter,
+         .otherLetter,
+         .letterNumber,
+         .nonspacingMark,
+         .spacingMark,
+         .enclosingMark,
+         .decimalNumber,
+         .connectorPunctuation,
+         .format:
+        return kk_box_bool(1)
+    default:
+        return kk_box_bool(0)
+    }
+}
+
 // MARK: - STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
 
 /// fun Char.isJavaIdentifierStart(): Boolean
