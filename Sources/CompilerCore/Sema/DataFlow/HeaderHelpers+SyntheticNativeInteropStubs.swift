@@ -2683,6 +2683,34 @@ extension DataFlowSemaPhase {
             symbols.setDirectSupertypes([cPointedSymbol], for: symbol)
             types.setNominalDirectSupertypes([cPointedSymbol], for: symbol)
         }
+        if let intArraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("IntArray")]),
+           let intVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("IntVar")])
+        {
+            let intArrayType = types.make(.classType(ClassType(
+                classSymbol: intArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let intVarType = types.make(.classType(ClassType(
+                classSymbol: intVarSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let intArrayToCValuesReturnType = types.make(.classType(ClassType(
+                classSymbol: cValuesSymbol,
+                args: [.invariant(intVarType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toCValues",
+                packageFQName: cinteropPkg,
+                receiverType: intArrayType,
+                parameters: [],
+                returnType: intArrayToCValuesReturnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
         if let uShortVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("UShortVar")]) {
             let uShortVarType = types.make(.classType(ClassType(
                 classSymbol: uShortVarSymbol,
