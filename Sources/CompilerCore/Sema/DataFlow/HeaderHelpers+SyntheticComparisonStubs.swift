@@ -233,7 +233,7 @@ extension DataFlowSemaPhase {
         )))
         let comparableUpperBounds: [TypeID] = [types.make(.classType(ClassType(
             classSymbol: comparableSymbol,
-            args: [.in(tParamType)],
+            args: [.invariant(tParamType)],
             nullability: .nonNull
         )))]
 
