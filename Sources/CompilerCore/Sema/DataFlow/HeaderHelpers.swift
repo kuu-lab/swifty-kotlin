@@ -1148,6 +1148,7 @@ extension DataFlowSemaPhase {
         registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsStaticStubs(symbols: symbols, interner: interner)
         registerSyntheticJsExternalArgumentStubs(symbols: symbols, interner: interner)
+        registerSyntheticW3cDomItemArrayLikeStubs(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.
