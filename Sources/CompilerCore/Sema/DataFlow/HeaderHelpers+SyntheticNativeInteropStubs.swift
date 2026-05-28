@@ -2739,6 +2739,20 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
+            let cPointerUShortVarType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(uShortVarType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toKString",
+                packageFQName: cinteropPkg,
+                receiverType: cPointerUShortVarType,
+                parameters: [],
+                returnType: types.stringType,
+                symbols: symbols,
+                interner: interner
+            )
             let wcstrReturnType = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(uShortVarType)],
