@@ -126,6 +126,14 @@ extension DataFlowSemaPhase {
             comparisonsPkg: comparisonsPkg,
             comparisonsPackageSymbol: comparisonsPackageSymbol
         )
+        registerSyntheticMinOfUnsignedStub(
+            typeID: types.ubyteType,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            comparisonsPkg: comparisonsPkg,
+            comparisonsPackageSymbol: comparisonsPackageSymbol
+        )
 
         registerCompareValuesAndCompareValuesBy(
             symbols: symbols,
@@ -507,6 +515,50 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+    }
+
+    private func registerSyntheticMinOfUnsignedStub(
+        typeID: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        comparisonsPkg: [InternedString],
+        comparisonsPackageSymbol: SymbolID
+    ) {
+        registerSyntheticComparisonFunction(
+            named: "minOf",
+            parameterTypes: [typeID, typeID],
+            returnType: typeID,
+            parameterNames: ["a", "b"],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            types: types,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticComparisonFunction(
+            named: "minOf",
+            parameterTypes: [typeID, typeID, typeID],
+            returnType: typeID,
+            parameterNames: ["a", "b", "c"],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            types: types,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticComparisonFunction(
+            named: "minOf",
+            parameterTypes: [typeID, typeID],
+            returnType: typeID,
+            parameterNames: ["a", "other"],
+            valueParameterIsVararg: [false, true],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            types: types,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     private func registerCompareValuesAndCompareValuesBy(
