@@ -205,6 +205,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-009: String.capitalize (deprecated since Kotlin 1.5) ---
+        registerSyntheticStringExtensionFunction(
+            named: "capitalize",
+            externalLinkName: "kk_string_capitalize",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,

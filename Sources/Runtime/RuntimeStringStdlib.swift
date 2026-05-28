@@ -106,6 +106,21 @@ public func kk_string_uppercase(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased())
 }
 
+// MARK: - STDLIB-TEXT-FN-009: String.capitalize (deprecated)
+
+// Kotlin: `fun String.capitalize(): String` — uppercase the first character,
+// leave the rest unchanged. Deprecated since Kotlin 1.5; use replaceFirstChar.
+@_cdecl("kk_string_capitalize")
+public func kk_string_capitalize(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let first = source.unicodeScalars.first else {
+        return runtimeMakeStringRaw("")
+    }
+    let uppercasedFirst = String(first).uppercased()
+    let tail = String(source.unicodeScalars.dropFirst())
+    return runtimeMakeStringRaw(uppercasedFirst + tail)
+}
+
 @_cdecl("kk_string_lowercase_locale")
 public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

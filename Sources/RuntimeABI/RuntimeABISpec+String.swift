@@ -85,6 +85,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        // STDLIB-TEXT-FN-009: String.capitalize (deprecated since Kotlin 1.5)
+        RuntimeABIFunctionSpec(
+            name: "kk_string_capitalize",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_locale_new",
             parameters: [
