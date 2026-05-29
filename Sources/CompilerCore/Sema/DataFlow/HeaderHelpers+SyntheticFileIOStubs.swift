@@ -1604,18 +1604,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerKotlinIOExtensionFunction(
-            named: "copyTo",
-            packageFQName: kotlinIOPkg,
-            receiverType: readerType,
-            parameters: [("out", writerType)],
-            returnType: types.longType,
-            externalLinkName: "kk_reader_copyTo_default",
-            valueParameterHasDefaultValues: [false],
-            valueParameterIsVararg: [false],
-            symbols: symbols,
-            interner: interner
-        )
+        // Note: the single-arg overload is omitted intentionally — the two-arg
+        // form above already marks bufferSize as having a default value, so
+        // `reader.copyTo(writer)` resolves to that entry without ambiguity.
 
         // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
         //
