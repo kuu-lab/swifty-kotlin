@@ -1324,6 +1324,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        // STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toTypedArray",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         // STDLIB-640: CharArray.concatToString()
         RuntimeABIFunctionSpec(
             name: "kk_chararray_concatToString",

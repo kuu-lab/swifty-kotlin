@@ -339,6 +339,17 @@ public func kk_string_toCharArray(_ strRaw: Int) -> Int {
     return runtimeMakeArrayRaw(charRaws)
 }
 
+// MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
+
+/// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
+/// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
+/// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
+@_cdecl("kk_string_toTypedArray")
+public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
+    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    return runtimeMakeArrayRaw(charRaws)
+}
+
 // MARK: - STDLIB-640: CharArray.concatToString()
 
 /// Converts a `CharArray` to a `String` by concatenating all characters.

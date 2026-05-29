@@ -987,6 +987,28 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-109: String.toTypedArray(): Array<Char>
+        let arrayCharType: TypeID
+        if let arraySymbol = symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("Array")]) {
+            arrayCharType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(charType)],
+                nullability: .nonNull
+            )))
+        } else {
+            arrayCharType = types.anyType
+        }
+        registerSyntheticStringExtensionFunction(
+            named: "toTypedArray",
+            externalLinkName: "kk_string_toTypedArray",
+            receiverType: stringType,
+            parameters: [],
+            returnType: arrayCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-317: String.asIterable() — returns lazy Iterable<Char>
         let iterableCharType = makeIterableType(
             symbols: symbols,

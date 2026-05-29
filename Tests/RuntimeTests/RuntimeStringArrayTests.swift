@@ -206,6 +206,39 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
     }
 
+    // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray()
+
+    func testStringToTypedArrayReturnsBoxedArrayOfChar() {
+        let arrayRaw = kk_string_toTypedArray(rawFromRuntimeString("abc"))
+        let array = runtimeArrayBox(from: arrayRaw)
+        XCTAssertNotNil(array, "toTypedArray should return a RuntimeArrayBox")
+        let expected = [97, 98, 99] // 'a', 'b', 'c'
+        XCTAssertEqual(array?.elements.count, 3)
+        XCTAssertEqual(array?.elements.map(kk_unbox_char), expected)
+    }
+
+    func testStringToTypedArrayEmptyStringReturnsEmptyArray() {
+        let arrayRaw = kk_string_toTypedArray(rawFromRuntimeString(""))
+        let array = runtimeArrayBox(from: arrayRaw)
+        XCTAssertNotNil(array, "toTypedArray on empty string should return a RuntimeArrayBox")
+        XCTAssertEqual(array?.elements.count, 0)
+    }
+
+    func testStringToTypedArrayIsDistinctFromToCharArray() {
+        let strRaw = rawFromRuntimeString("hi")
+        let typedArrayRaw = kk_string_toTypedArray(strRaw)
+        let charArrayRaw = kk_string_toCharArray(strRaw)
+        // Both should decode to the same char values but are distinct array objects
+        let typedArray = runtimeArrayBox(from: typedArrayRaw)
+        let charArray = runtimeArrayBox(from: charArrayRaw)
+        XCTAssertNotNil(typedArray)
+        XCTAssertNotNil(charArray)
+        let expected = [104, 105] // 'h', 'i'
+        XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
+        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+        XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+    }
+
     // MARK: - STDLIB-317: String.asIterable() tests
 
     func testStringAsIterableReturnsLazyBox() {
