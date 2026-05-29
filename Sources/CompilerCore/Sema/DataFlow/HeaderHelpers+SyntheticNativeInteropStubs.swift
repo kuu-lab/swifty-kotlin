@@ -3323,6 +3323,27 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        if let byteVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("ByteVar")]) {
+            let byteVarType = types.make(.classType(ClassType(
+                classSymbol: byteVarSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let cstrReturnType = types.make(.classType(ClassType(
+                classSymbol: cValuesSymbol,
+                args: [.invariant(byteVarType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeExtensionProperty(
+                named: "cstr",
+                packageFQName: cinteropPkg,
+                packageSymbol: cinteropPkgSymbol,
+                receiverType: types.stringType,
+                propertyType: cstrReturnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // fun LongArray.toCValues(): CValues<LongVar>
         if let longVarSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("LongVar")]) {
