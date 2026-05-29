@@ -111,4 +111,42 @@ final class W3cDomItemArrayLikeTests: XCTestCase {
         }
         XCTAssertEqual(returnArg, sema.types.stringType)
     }
+
+    func testItemArrayLikeAsListResolvesInSource() throws {
+        let source = """
+        import org.w3c.dom.ItemArrayLike
+        import org.w3c.dom.asList
+
+        fun list(values: ItemArrayLike<String>): List<String> = values.asList()
+        """
+        let (sema, interner) = try makeSema(source: source)
+        let functionSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: [interner.intern("list")])
+        )
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
+        let listSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: ["kotlin", "collections", "List"].map { interner.intern($0) })
+        )
+
+        guard case let .classType(returnClassType) = sema.types.kind(of: signature.returnType) else {
+            return XCTFail("Expected list() to return List<String>")
+        }
+        XCTAssertEqual(returnClassType.classSymbol, listSymbol)
+        XCTAssertEqual(returnClassType.args, [.out(sema.types.stringType)])
+    }
+
+    func testItemArrayLikeAsListSurfaceIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let pkg = ["org", "w3c", "dom"].map { interner.intern($0) }
+        let functionSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: pkg + [interner.intern("asList")]),
+            "ItemArrayLike.asList must be registered"
+        )
+        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: functionSymbol))
+
+        XCTAssertEqual(sema.symbols.symbol(functionSymbol)?.kind, .function)
+        XCTAssertEqual(signature.parameterTypes, [])
+        XCTAssertEqual(signature.typeParameterSymbols.count, 1)
+        XCTAssertEqual(sema.symbols.externalLinkName(for: functionSymbol), "kk_dom_itemArrayLike_asList")
+    }
 }
