@@ -3525,6 +3525,16 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "withIndex",
+            externalLinkName: "kk_string_withIndex",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: iterableIndexedValueCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-534: String?.orEmpty() ---
 

@@ -1074,10 +1074,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let resultRaw = kk_string_withIndex(strRaw)
         let list = runtimeListBox(from: resultRaw)
         XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
+        XCTAssertEqual(list?.elements.count, 4)
 
-        let expectedIndices = [0, 1, 2]
-        let expectedScalars = [97, 233, 128_059] // 'a', 'é', '🐻'
+        let expectedIndices = [0, 1, 2, 3]
+        let expectedScalars = [97, 233, 0xD83D, 0xDC3B] // 'a', 'é', high surrogate, low surrogate
         for (i, elem) in (list?.elements ?? []).enumerated() {
             XCTAssertEqual(kk_pair_first(elem), expectedIndices[i], "Index mismatch at \(i)")
             XCTAssertEqual(kk_unbox_char(kk_pair_second(elem)), expectedScalars[i], "Scalar mismatch at \(i)")

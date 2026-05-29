@@ -423,16 +423,16 @@ public func kk_string_asSequence(_ strRaw: Int) -> Int {
 
 // MARK: - STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
 
-/// Returns an `Iterable<IndexedValue<Char>>` that wraps each character with its index.
+/// Returns an `Iterable<IndexedValue<Char>>` that wraps each UTF-16 code unit with its index.
 /// Each element is an `IndexedValue<Char>` represented as a `RuntimePairBox(index, boxedChar)`.
 /// The list is materialised eagerly (strings are immutable).
 @_cdecl("kk_string_withIndex")
 public func kk_string_withIndex(_ strRaw: Int) -> Int {
-    let scalars = runtimeStringScalars(strRaw)
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     var elements: [Int] = []
-    elements.reserveCapacity(scalars.count)
-    for (idx, scalar) in scalars.enumerated() {
-        let charRaw = kk_box_char(Int(scalar.value))
+    elements.reserveCapacity(codeUnits.count)
+    for (idx, codeUnit) in codeUnits.enumerated() {
+        let charRaw = kk_box_char(Int(codeUnit))
         elements.append(runtimeIndexedValueNew(index: idx, value: charRaw))
     }
     return runtimeMakeListRaw(elements)
