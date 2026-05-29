@@ -310,6 +310,8 @@ Runtime comparator behavior and failure propagation are pinned by `RuntimeCompar
 | `Platform.isDebugBinary` | Done | `kk_platform_isDebugBinary` |
 
 Platform runtime behavior is pinned by `RuntimePlatformInfoTests` and `RuntimePlatformTests`.
+Common-to-native Platform bridge behavior is pinned by `NativePlatformBridgeTests` and
+`BuildKIRRegressionTests+NativePlatform`.
 
 ### `kotlinx.cinterop` types
 
