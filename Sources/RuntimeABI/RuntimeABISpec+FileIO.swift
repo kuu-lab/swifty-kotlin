@@ -601,7 +601,6 @@ public extension RuntimeABISpec {
             name: "kk_print_writer_close",
             parameters: [
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "FileIO"
