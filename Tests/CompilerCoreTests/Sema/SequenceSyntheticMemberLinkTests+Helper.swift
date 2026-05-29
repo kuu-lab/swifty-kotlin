@@ -2,7 +2,7 @@
 import Foundation
 import XCTest
 
-extension SequenceSyntheticMemberLinkTests {
+extension XCTestCase {
     /// Shared helper for the "Sequence synthetic member link" test pattern.
     ///
     /// Almost every test in `SequenceSyntheticMemberLinkTests.swift` follows
