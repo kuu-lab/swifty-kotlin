@@ -308,7 +308,7 @@
 #### kotlin.text 型の実装
 - [x] STDLIB-TEXT-TYPE-001: `Appendable` インターフェースの実装
 - [x] STDLIB-TEXT-TYPE-002: `CharacterCodingException` クラスの実装
-- [ ] STDLIB-TEXT-TYPE-003: `CharCategory` enum の実装
+- [x] STDLIB-TEXT-TYPE-003: `CharCategory` enum の実装
 - [x] STDLIB-TEXT-TYPE-004: `CharDirectionality` enum の実装
 - [ ] STDLIB-TEXT-TYPE-005: `Charsets` オブジェクトの実装
 - [ ] STDLIB-TEXT-TYPE-006: `HexFormat` クラスの実装
@@ -323,11 +323,11 @@
 #### kotlin.text プロパティの実装
 - [ ] STDLIB-TEXT-PROP-001: `CASE_INSENSITIVE_ORDER` プロパティの実装
 - [ ] STDLIB-TEXT-PROP-002: `category` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-004: `isDefined` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-005: `isDigit` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-006: `isHighSurrogate` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-007: `isISOControl` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-007: `isISOControl` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-008: `isIdentifierIgnorable` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-009: `isJavaIdentifierPart` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-010: `isJavaIdentifierStart` 拡張プロパティの実装
@@ -355,7 +355,7 @@
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
-- [ ] STDLIB-TEXT-FN-011: `concat` 関数の実装
+- [x] STDLIB-TEXT-FN-011: `concat` 関数の実装
 - [x] STDLIB-TEXT-FN-012: `contains` 関数の実装
 - [ ] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
@@ -373,7 +373,7 @@
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [ ] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-028: `isEmpty` 関数の実装
-- [ ] STDLIB-TEXT-FN-029: `isNotBlank` 関数の実装
+- [x] STDLIB-TEXT-FN-029: `isNotBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-030: `isNotEmpty` 関数の実装
 - [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [x] STDLIB-TEXT-FN-032: `isNullOrBlank` 関数の実装
