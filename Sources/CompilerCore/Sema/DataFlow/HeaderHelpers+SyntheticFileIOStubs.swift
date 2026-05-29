@@ -239,6 +239,28 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let iteratorOfFileType: TypeID = if let iteratorSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("Iterator")]
+        ) {
+            types.make(.classType(ClassType(
+                classSymbol: iteratorSymbol,
+                args: [.out(fileType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
+        registerFileMemberFunction(
+            named: "iterator",
+            externalLinkName: "kk_file_tree_walk_iterator",
+            ownerSymbol: fileTreeWalkSymbol,
+            ownerType: fileTreeWalkType,
+            parameters: [],
+            returnType: iteratorOfFileType,
+            flags: [.synthetic, .operatorFunction, .overrideMember],
+            symbols: symbols,
+            interner: interner
+        )
 
         // List<File> type for listFiles return
         let listSymbol = resolveListSymbol(symbols: symbols, interner: interner)
@@ -1774,6 +1796,7 @@ extension DataFlowSemaPhase {
         ownerType: TypeID,
         parameters: [(name: String, type: TypeID)],
         returnType: TypeID,
+        flags: SymbolFlags = [.synthetic],
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -1794,6 +1817,7 @@ extension DataFlowSemaPhase {
                   existingInfo.flags.contains(.synthetic) || existingInfo.declSite == nil else {
                 return
             }
+            symbols.insertFlags(flags, for: existing)
             symbols.setExternalLinkName(externalLinkName, for: existing)
             // Update the signature if the return type diverges from the intended type
             if let existingSignature = symbols.functionSignature(for: existing),
@@ -1820,7 +1844,7 @@ extension DataFlowSemaPhase {
             fqName: functionFQName,
             declSite: nil,
             visibility: .public,
-            flags: [.synthetic]
+            flags: flags
         )
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
