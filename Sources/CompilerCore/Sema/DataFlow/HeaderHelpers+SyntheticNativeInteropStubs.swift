@@ -1755,6 +1755,61 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        func registerNativePlacementAllocArrayLengthOverload(
+            lengthType: TypeID,
+            typeParameterDiscriminator: String
+        ) {
+            let allocArrayName = interner.intern("allocArray")
+            let allocArrayFQName = cinteropPkg + [allocArrayName]
+            let typeParameterName = interner.intern("T")
+            let typeParameterFQName = allocArrayFQName + [interner.intern(typeParameterDiscriminator)]
+            let typeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+                fqName: typeParameterFQName
+            ) {
+                existing
+            } else {
+                symbols.define(
+                    kind: .typeParameter,
+                    name: typeParameterName,
+                    fqName: typeParameterFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic, .reifiedTypeParameter]
+                )
+            }
+            symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: typeParameterSymbol)
+            symbols.setTypeParameterUpperBounds([cVariableType], for: typeParameterSymbol)
+            let typeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: typeParameterSymbol,
+                nullability: .nonNull
+            )))
+            let returnType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(typeParameterType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "allocArray",
+                packageFQName: cinteropPkg,
+                receiverType: nativePlacementType,
+                parameters: [(name: "length", type: lengthType)],
+                returnType: returnType,
+                typeParameterSymbols: [typeParameterSymbol],
+                typeParameterUpperBoundsList: [[cVariableType]],
+                reifiedTypeParameterIndices: [0],
+                flags: [.synthetic, .inlineFunction],
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        registerNativePlacementAllocArrayLengthOverload(
+            lengthType: types.intType,
+            typeParameterDiscriminator: "T$lengthInt"
+        )
+        registerNativePlacementAllocArrayLengthOverload(
+            lengthType: types.longType,
+            typeParameterDiscriminator: "T$lengthLong"
+        )
 
         let nativeFreeablePlacementType = types.make(.classType(ClassType(
             classSymbol: nativeFreeablePlacementSymbol,
