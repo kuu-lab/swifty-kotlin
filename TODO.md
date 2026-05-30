@@ -370,7 +370,7 @@
 - [x] STDLIB-TEXT-PROP-012: `isLetterOrDigit` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-013: `isLowerCase` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-014: `isLowSurrogate` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
