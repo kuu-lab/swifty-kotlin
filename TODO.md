@@ -43,6 +43,9 @@
 - [x] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
 - [ ] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
 - [x] STDLIB-005: `kotlin.text` の文字列変換・分割・置換の端ケースを揃える
+- [ ] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
+- [x] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
+- [ ] STDLIB-005: `kotlin.text` の文字列変換・分割・置換の端ケースを揃える
 
 ### Phase 2: コレクション・Sequence・Range
 - [x] STDLIB-GAP-PH2: `kotlin.collections` / `kotlin.sequences` / `kotlin.ranges` の未対応を潰す
