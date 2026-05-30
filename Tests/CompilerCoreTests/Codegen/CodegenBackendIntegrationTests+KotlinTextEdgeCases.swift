@@ -1057,6 +1057,62 @@ extension CodegenBackendIntegrationTests {
         throw XCTSkip("indexOf/lastIndexOf with ignoreCase not yet implemented")
     }
 
+    // MARK: - indexOfFirst / indexOfLast (predicate) — STDLIB-TEXT-FN-022 / STDLIB-TEXT-FN-023
+
+    func testKotlinTextIndexOfFirstPredicateEdgeCases() throws {
+        let source = """
+        fun findInParam(s: String): Int {
+            return s.indexOfFirst { it == 'l' }
+        }
+
+        fun main() {
+            // first matching char found
+            println("hello".indexOfFirst { it == 'l' })
+
+            // no match returns -1
+            println("hello".indexOfFirst { it == 'z' })
+
+            // first char matches: returns 0
+            println("abc".indexOfFirst { it == 'a' })
+
+            // last char matches: returns length - 1
+            println("abc".indexOfFirst { it == 'c' })
+
+            // empty string: returns -1
+            println("".indexOfFirst { it == 'x' })
+
+            // via function parameter (CharSequence receiver)
+            println(findInParam("hello world"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextIndexOfFirstPredicateEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                2
+                -1
+                0
+                2
+                -1
+                2
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - chunked / windowed
 
     func testKotlinTextChunkedEdgeCases() throws {
