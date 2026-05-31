@@ -257,8 +257,6 @@
 - [x] STDLIB-SEQ-FN-010: `associateWithTo` 関数の実装
 - [x] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
 - [x] STDLIB-SEQ-FN-010: `associateWithTo` 関数の実装
-- [x] STDLIB-SEQ-FN-011: `averageOf` 関数の実装
-- [x] STDLIB-SEQ-FN-011: `averageOf` 関数の実装
 - [x] STDLIB-SEQ-FN-012: `chunked` 関数の実装
 - [x] STDLIB-SEQ-FN-013: `constrainOnce` 関数の実装
 - [x] STDLIB-SEQ-FN-014: `contains` 関数の実装
@@ -416,6 +414,9 @@
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [x] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
+- [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
+- [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
+- [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-011: `concat` 関数の実装
 - [x] STDLIB-TEXT-FN-012: `contains` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
