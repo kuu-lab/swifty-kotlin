@@ -3457,7 +3457,6 @@ public enum RuntimeABISpec {
         runtimeOnlyBridgeFunctions,
         sequenceFunctions,
         serializationFunctions,
-        streamFunctions,
         stringBridgeFunctions,
         stringBuilderFunctions,
         stringFunctions,
