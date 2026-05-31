@@ -2605,7 +2605,6 @@ extension CallLowerer {
                 let sortedByName = interner.intern("sortedBy")
                 let sortedWithName = interner.intern("sortedWith")
                 let sortedByDescendingName = interner.intern("sortedByDescending")
-                let averageOfName = interner.intern("averageOf")
                 let sumOfName = interner.intern("sumOf")
                 let sumByName = interner.intern("sumBy")
                 let sumByDoubleName = interner.intern("sumByDouble")
@@ -2675,8 +2674,6 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_sortedByDescending"
                 } else if calleeName == distinctByName {
                     runtimeCallee = "kk_sequence_distinctBy"
-                } else if calleeName == averageOfName {
-                    runtimeCallee = "kk_sequence_averageOf"
                 } else if calleeName == sumOfName {
                     runtimeCallee = "kk_sequence_sumOf"
                 } else if calleeName == sumByName {
@@ -2862,7 +2859,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_sortedByDescending"
                         || runtimeCallee == "kk_sequence_distinctBy"
-                        || runtimeCallee == "kk_sequence_averageOf"
                         || runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
                         || runtimeCallee == "kk_sequence_sumByDouble"
@@ -2931,8 +2927,7 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                    if (runtimeCallee == "kk_sequence_averageOf"
-                        || runtimeCallee == "kk_sequence_sumOf"
+                    if (runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
                         || runtimeCallee == "kk_sequence_sumByDouble"),
                        normalizedArgIDs.count == 1
