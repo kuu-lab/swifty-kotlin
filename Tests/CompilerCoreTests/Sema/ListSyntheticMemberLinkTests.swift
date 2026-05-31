@@ -2286,7 +2286,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
     func testListToTypeArrayUsesTypedArrayRuntimeExternalLink() throws {
         let source = """
         fun convert(values: List<String>) {
-            val converted: Array<String> = values.toTypeArray()
+            val converted: Array<String> = values.toTypedArray()
             converted.size
         }
         """
@@ -2299,7 +2299,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
             let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "toTypeArray"
+                return ctx.interner.resolve(callee) == "toTypedArray"
             })
             let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_list_toTypedArray")
@@ -2307,7 +2307,7 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
             guard case let .classType(classType) = sema.types.kind(of: signature.returnType),
                   let symbol = sema.symbols.symbol(classType.classSymbol)
             else {
-                return XCTFail("Expected toTypeArray to return Array")
+                return XCTFail("Expected toTypedArray to return Array")
             }
             XCTAssertEqual(ctx.interner.resolve(symbol.name), "Array")
         }
