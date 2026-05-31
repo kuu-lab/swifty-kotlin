@@ -91,27 +91,30 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 // [DONE] runSuspendEntryLoopWithContinuation: internal suspend points use
 //        installResumeContinuation; only completionGate blocks (outermost).
 //
-// [DONE] runtimeFlowDeliverValue (line ~1151): suspend-collector path now
-//        uses installResumeContinuation instead of waitForResumeSignal().
+// [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): the suspend
+//        collector path still blocks via waitForResumeSignal().  Full
+//        migration requires making runtimeFlowDeliverValue itself async
+//        (return via continuation instead of Bool) and restructuring the
+//        flow collect loop as a suspend-entry loop.
 //
-// [TODO] RuntimeAsyncTask.awaitResult() (line ~277):
+// [TODO] RuntimeAsyncTask.awaitResult() / awaitResultThrowing():
 //        Blocks the calling coroutine's GCD thread on `ready.wait()`.
 //        Migration: Convert to a suspend point in the caller's entry loop
 //        so the caller installs a continuation that the task's `complete()`
 //        method dispatches.  Requires codegen changes to emit a suspend
 //        label at the `await` call site.
 //
-// [TODO] RuntimeJobHandle.join() (line ~343):
+// [TODO] RuntimeJobHandle.join():
 //        Same pattern as awaitResult().  Requires a suspend-aware join.
 //
-// [TODO] kk_with_context (line ~1746):
+// [TODO] kk_with_context (RuntimeCoroutineContext.swift):
 //        Blocks the caller while the block runs on the target queue.
 //        Migration: Make withContext itself a suspend point.  The target
 //        queue dispatches the block and, upon completion, resumes the
 //        caller via signalResume().  The caller's entry-loop continuation
 //        picks up the result without blocking.
 //
-// [TODO] Channel send/receive (lines ~1887, ~1959):
+// [TODO] Channel send/receive (RuntimeCoroutineChannel.swift):
 //        Rendezvous and backpressure blocking.  Migration: Replace the
 //        per-waiter DispatchSemaphore with a continuation closure stored
 //        in SuspendedSender/SuspendedReceiver.  When the counterpart
@@ -120,7 +123,8 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        involve two independent parties (sender/receiver), each of which
 //        may be a coroutine or a raw thread.
 //
-// [TODO] RuntimeTypes.swift — sequence/iterator builder coroutines:
+// [TODO] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
+//        sequence/iterator builder coroutines:
 //        producerSemaphore/consumerSemaphore and producerGate/consumerGate
 //        implement a cooperative ping-pong protocol.  Migration: model
 //        yield() as a suspend point in the producer coroutine and
