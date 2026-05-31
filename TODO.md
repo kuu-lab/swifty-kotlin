@@ -631,7 +631,7 @@
  - [x] STDLIB-ANNO-001: `kotlin.annotation` の対象一覧を固定
  - [x] STDLIB-ANNO-002: annotation sema / diagnostics を整える
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
-- [ ] STDLIB-CORO-003: `kotlin.coroutines` の一部ランタイム経路をセマフォ待機から脱却する。対象: `RuntimeAsyncTask.awaitResult`, `RuntimeJobHandle.join`, `kk_with_context`, Channel send/receive, Sequence builder( `sequence`, `iterator` ) の待機部。
+- [~] STDLIB-CORO-003: `kotlin.coroutines` の一部ランタイム経路をセマフォ待機から脱却する。`RuntimeAsyncTask.awaitResult` / `RuntimeJobHandle.join` は continuation モデルへ移行済み（CORO-004 Phase 2: `kk_kxmini_async_await` / `kk_job_join` / `kk_job_await_completion` が caller continuation を受け取り、完了時に awaiting コルーチンを resume。lowering が suspend point 化）。残タスク: `kk_with_context`（外側 caller のブロック。block 内 suspend は移行済み）, Channel send/receive（機能は動作するが per-waiter semaphore 待機）, Sequence/iterator builder（producer/consumer ping-pong）, Flow collect の待機部。
 - [ ] STDLIB-NATIVE-PLATFORM-001: `kotlin.native` の platform info 残差を詰める
 - [ ] STDLIB-NATIVE-PLATFORM-002: common から見える Native bridge を整理
 

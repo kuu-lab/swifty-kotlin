@@ -91,37 +91,40 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 // [DONE] runSuspendEntryLoopWithContinuation: internal suspend points use
 //        installResumeContinuation; only completionGate blocks (outermost).
 //
+// [DONE] RuntimeAsyncTask.awaitResult() and RuntimeJobHandle.join() (CORO-004,
+//        Phase 2): suspend-aware via kk_kxmini_async_await / kk_job_join /
+//        kk_job_await_completion.  When a caller continuation is supplied, they
+//        register a completion resumer (addCompletionResumer / addJoinResumer)
+//        and return the coroutine-suspended sentinel instead of blocking; the
+//        awaiting coroutine is resumed when the task/job completes (normally,
+//        exceptionally, or via cancel).  The lowering treats these callees as
+//        suspend points and injects the caller continuation.  The blocking
+//        awaitResult()/join() paths remain only as the continuation==0 fallback
+//        used by non-suspend contexts (e.g. structured-concurrency child joins).
+//
 // [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): the suspend
 //        collector path still blocks via waitForResumeSignal().  Full
 //        migration requires making runtimeFlowDeliverValue itself async
 //        (return via continuation instead of Bool) and restructuring the
 //        flow collect loop as a suspend-entry loop.
 //
-// [TODO] RuntimeAsyncTask.awaitResult() / awaitResultThrowing():
-//        Blocks the calling coroutine's GCD thread on `ready.wait()`.
-//        Migration: Convert to a suspend point in the caller's entry loop
-//        so the caller installs a continuation that the task's `complete()`
-//        method dispatches.  Requires codegen changes to emit a suspend
-//        label at the `await` call site.
+// [TODO] kk_with_context (RuntimeCoroutineContext.swift): block-internal
+//        suspension is already continuation-based, but the outer caller still
+//        blocks on a semaphore for the IO/Default dispatcher path.  Making
+//        withContext a full suspend point requires threading the *caller*
+//        continuation alongside the block continuation produced by
+//        rewriteWithContextCall, so the runtime can resume the caller when the
+//        dispatched block finishes.
 //
-// [TODO] RuntimeJobHandle.join():
-//        Same pattern as awaitResult().  Requires a suspend-aware join.
-//
-// [TODO] kk_with_context (RuntimeCoroutineContext.swift):
-//        Blocks the caller while the block runs on the target queue.
-//        Migration: Make withContext itself a suspend point.  The target
-//        queue dispatches the block and, upon completion, resumes the
-//        caller via signalResume().  The caller's entry-loop continuation
-//        picks up the result without blocking.
-//
-// [TODO] Channel send/receive (RuntimeCoroutineChannel.swift):
-//        Rendezvous and backpressure blocking.  Migration: Replace the
-//        per-waiter DispatchSemaphore with a continuation closure stored
-//        in SuspendedSender/SuspendedReceiver.  When the counterpart
-//        arrives, dispatch the continuation instead of signaling a
-//        semaphore.  This is the most complex migration because channels
-//        involve two independent parties (sender/receiver), each of which
-//        may be a coroutine or a raw thread.
+// [TODO] Channel send/receive (RuntimeCoroutineChannel.swift): functionally
+//        correct but still blocks on the per-waiter DispatchSemaphore.  The
+//        resumeClosure scaffolding exists in SuspendedSender/SuspendedReceiver
+//        but is not wired, and the lowering passes continuation=0.  Migration:
+//        wire resumeClosure and replace the continuation=0 placeholder with the
+//        real caller continuation.  This is the most complex migration because
+//        channels involve two independent parties (sender/receiver), each of
+//        which may be a coroutine or a raw thread, plus post-wakeup state
+//        inspection (delivered / result / cancelledWakeup).
 //
 // [TODO] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
 //        sequence/iterator builder coroutines:
@@ -131,8 +134,8 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        next()/hasNext() as suspend points in the consumer, using the
 //        continuation model to avoid blocking either side.
 //
-// Priority order: Channel > withContext > awaitResult/join > sequence builders
-// (Channels are most likely to exhaust GCD thread pools under load.)
+// Priority order (remaining): Channel > withContext > sequence builders > flow
+// (await/join were completed in Phase 2.)
 
 final class RuntimeContinuationState: @unchecked Sendable {
     var functionID: Int64
