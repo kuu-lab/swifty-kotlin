@@ -239,6 +239,7 @@ public struct ContractConditionEffect: Equatable, Sendable {
         self.returnsValue = returnsValue
     }
 }
+
 public struct NominalLayout: Equatable, Sendable {
     public let objectHeaderWords: Int
     public let instanceFieldCount: Int
@@ -1054,6 +1055,7 @@ public final class SymbolTable {
     public func setContractConditionEffect(_ effect: ContractConditionEffect, for function: SymbolID) {
         contractConditionEffects[function] = effect
     }
+
     // MARK: - Indexed queries
 
     /// Returns all symbol IDs of a given kind.
@@ -1424,6 +1426,7 @@ public final class BindingTable {
         builderDSLExprIDs.insert(expr)
         builderDSLKinds[expr] = kind
     }
+
     /// Retrieve the builder DSL kind for a builder call expression.
     public func builderDSLKind(for expr: ExprID) -> BuilderDSLKind? {
         builderDSLKinds[expr]
@@ -1434,6 +1437,7 @@ public final class BindingTable {
         scopeFunctionExprIDs.insert(expr)
         scopeFunctionKinds[expr] = kind
     }
+
     /// Retrieve the scope function kind for a scope function call expression.
     public func scopeFunctionKind(for expr: ExprID) -> ScopeFunctionKind? {
         scopeFunctionKinds[expr]
@@ -1444,6 +1448,7 @@ public final class BindingTable {
         takeIfTakeUnlessExprIDs.insert(expr)
         takeIfTakeUnlessKinds[expr] = kind
     }
+
     /// Retrieve the takeIf/takeUnless kind for a marked call expression.
     public func takeIfTakeUnlessKind(for expr: ExprID) -> TakeIfTakeUnlessKind? {
         takeIfTakeUnlessKinds[expr]
@@ -1464,6 +1469,7 @@ public final class BindingTable {
         stdlibSpecialCallExprIDs.insert(expr)
         stdlibSpecialCallKinds[expr] = kind
     }
+
     /// Retrieve the stdlib special call kind for a marked call expression.
     public func stdlibSpecialCallKind(for expr: ExprID) -> StdlibSpecialCallKind? {
         stdlibSpecialCallKinds[expr]
