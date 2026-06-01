@@ -473,9 +473,9 @@
 - [ ] STDLIB-TEXT-FN-042: `padStart` 関数の実装
 - [x] STDLIB-TEXT-FN-043: `plus` 関数の実装
 - [ ] STDLIB-TEXT-FN-044: `random` 関数の実装
-- [ ] STDLIB-TEXT-FN-045: `randomOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-045: `randomOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
-- [ ] STDLIB-TEXT-FN-047: `reduceIndexed` 関数の実装
+- [x] STDLIB-TEXT-FN-047: `reduceIndexed` 関数の実装
 - [ ] STDLIB-TEXT-FN-048: `reduceIndexedOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-049: `reduceOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-050: `removePrefix` 関数の実装
@@ -846,6 +846,9 @@
 - [x] STDLIB-CINTEROP-FN-027: `UShortArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
+- [ ] STDLIB-CINTEROP-FN-026: `ULongArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-027: `UShortArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-030: `CPointer<ByteVar>.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-031: `CPointer<ShortVar>.toKString()` を追加する
