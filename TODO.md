@@ -471,6 +471,7 @@
 - [x] STDLIB-TEXT-FN-032: `isNullOrBlank` 関数の実装
 - [x] STDLIB-TEXT-FN-033: `iterator` 関数の実装
 - [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
+- [x] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
 - [x] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-033: `iterator` 関数の実装
 - [x] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
