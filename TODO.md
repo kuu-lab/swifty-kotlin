@@ -150,6 +150,7 @@
 - [x] STDLIB-IO-FN-020: `inputStream` 関数の実装（ByteArray版）
 - [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
 - [ ] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
 - [x] STDLIB-IO-FN-022: `iterator` 関数の実装
 - [x] STDLIB-IO-FN-024: `normalize` 関数の実装
 - [x] STDLIB-IO-FN-027: `printWriter` 関数の実装
@@ -185,7 +186,7 @@
 #### kotlin.io.encoding 型の実装
 
 #### kotlin.io.path プロパティの実装
-- [ ] STDLIB-IO-PATH-PROP-001: `extension` 拡張プロパティの実装
+- [x] STDLIB-IO-PATH-PROP-001: `extension` 拡張プロパティの実装
 
 #### kotlin.io.path 関数の実装
 - [x] STDLIB-IO-PATH-FN-007: `bufferedReader` 関数の実装
