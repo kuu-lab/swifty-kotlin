@@ -197,6 +197,11 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isTitleCase",
         returnKind: .boolean
     ),
+    SyntheticCharMemberSpec(
+        name: "isIdentifierIgnorable",
+        externalLinkName: "kk_char_isIdentifierIgnorable",
+        returnKind: .boolean
+    ),
     // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
     SyntheticCharMemberSpec(
         name: "isJavaIdentifierStart",
