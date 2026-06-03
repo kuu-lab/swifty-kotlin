@@ -21,11 +21,10 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
     func testInputStreamReadBytesResolves() throws {
         let ctx = makeContextFromSource("""
         import java.io.File
-        import java.io.InputStream
 
-        fun loadAll(file: File): ByteArray {
-            val stream: InputStream = file.inputStream()
-            return stream.readBytes()
+        fun loadAll(file: File) {
+            val stream = file.inputStream()
+            val result = stream.readBytes()
         }
         """)
         try runSema(ctx)
@@ -45,9 +44,9 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         import java.io.BufferedInputStream
         import java.io.File
 
-        fun loadAll(file: File): ByteArray {
+        fun loadAll(file: File) {
             val buffered: BufferedInputStream = file.inputStream().buffered()
-            return buffered.readBytes()
+            val result = buffered.readBytes()
         }
         """)
         try runSema(ctx)
@@ -66,8 +65,8 @@ final class InputStreamReadBytesFunctionTests: XCTestCase {
         let ctx = makeContextFromSource("""
         import java.io.File
 
-        fun loadAll(file: File): ByteArray {
-            return file.inputStream().use { stream ->
+        fun loadAll(file: File) {
+            val result = file.inputStream().use { stream ->
                 stream.readBytes()
             }
         }
