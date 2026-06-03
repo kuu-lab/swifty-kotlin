@@ -1630,6 +1630,50 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // MARK: - Reader.copyTo(out: Writer, bufferSize: Int) -> Long  (STDLIB-IO-FN-014)
+        //
+        // Kotlin signature:
+        //   public fun Reader.copyTo(out: Writer, bufferSize: Int = DEFAULT_BUFFER_SIZE): Long
+        // declared in the `kotlin.io` package.  Copies the receiver's remaining
+        // characters into `out` using an internal buffer of `bufferSize` chars
+        // (Kotlin's default is 16 * 1024 = 16384) and returns the total number
+        // of characters transferred.  Neither the receiver nor `out` is closed.
+        //
+        // We register both the two-arg form (with `bufferSize`'s default-value
+        // marker) and a zero-arg overload that routes to a `_default` runtime
+        // variant — matching how Path extensions handle defaulted parameters
+        // because codegen does not currently synthesise default-value calls.
+        // Two-arg overload (explicit bufferSize required): reader.copyTo(writer, 1024)
+        registerKotlinIOExtensionFunction(
+            named: "copyTo",
+            packageFQName: kotlinIOPkg,
+            receiverType: readerType,
+            parameters: [
+                ("out", writerType),
+                ("bufferSize", intType),
+            ],
+            returnType: types.longType,
+            externalLinkName: "kk_reader_copyTo",
+            valueParameterHasDefaultValues: [false, false],
+            valueParameterIsVararg: [false, false],
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Single-arg overload (default bufferSize): reader.copyTo(writer)
+        // Registers as a separate overload to avoid ambiguity between this
+        // and the two-arg form.
+        registerKotlinIOExtensionFunction(
+            named: "copyTo",
+            packageFQName: kotlinIOPkg,
+            receiverType: readerType,
+            parameters: [("out", writerType)],
+            returnType: types.longType,
+            externalLinkName: "kk_reader_copyTo_default",
+            symbols: symbols,
+            interner: interner
+        )
+
         // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
         //
         // Kotlin stdlib declares two overloads in kotlin.io:

@@ -600,6 +600,18 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        // STDLIB-IO-FN-014: Reader.copyTo(out: Writer, bufferSize: Int) -> Long
+        RuntimeABIFunctionSpec(
+            name: "kk_reader_copyTo",
+            parameters: [
+                RuntimeABIParameter(name: "readerRaw", type: .intptr),
+                RuntimeABIParameter(name: "writerRaw", type: .intptr),
+                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_print_writer_print",
             parameters: [
@@ -623,6 +635,16 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_print_writer_println_no_arg",
             parameters: [
+                RuntimeABIParameter(name: "writerRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_reader_copyTo_default",
+            parameters: [
+                RuntimeABIParameter(name: "readerRaw", type: .intptr),
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
