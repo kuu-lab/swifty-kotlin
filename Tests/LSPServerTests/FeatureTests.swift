@@ -3,7 +3,9 @@
 import XCTest
 
 final class FeatureTests: XCTestCase {
-    private static let uri = "file:///tmp/LSPFeatures.kt"
+    // Computed property so the class has no stored Sendable properties,
+    // preventing implicit Sendable inference which causes XCTest crashes on Linux.
+    private var uri: String { "file:///tmp/LSPFeatures.kt" }
 
     func testDocumentSymbolsOutlineClassAndMembers() {
         let source = """
