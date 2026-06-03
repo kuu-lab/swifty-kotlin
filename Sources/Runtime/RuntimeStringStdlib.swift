@@ -2316,7 +2316,7 @@ public func kk_string_trimEnd_predicate(
 @_cdecl("kk_string_toByteArray")
 public func kk_string_toByteArray(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-581: Charset tag constants (mirrors Charsets.* singleton properties)
@@ -2365,7 +2365,7 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
         // Unknown charset — fall back to UTF-8
-        return runtimeMakeListRaw(source.utf8.map(Int.init))
+        return runtimeMakeArrayRaw(source.utf8.map(Int.init))
     }
     let bytes: [Int]
     switch tag {
@@ -2437,7 +2437,7 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
         }
         bytes = result
     }
-    return runtimeMakeListRaw(bytes)
+    return runtimeMakeArrayRaw(bytes)
 }
 
 // STDLIB-573: String.encodeToByteArray()
@@ -2453,7 +2453,7 @@ public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
 public func kk_string_encodeToByteArray_range(_ strRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let slice = runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
-    return runtimeMakeListRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
