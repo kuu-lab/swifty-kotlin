@@ -3,52 +3,51 @@ symbol s1 kind=function fq=kotlin.arrayOf vis=public flags=synthetic sig=recv=_ 
 symbol s2 kind=typeParameter fq=kotlin.arrayOf.T vis=private flags=synthetic
 symbol s3 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
 symbol s4 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#3 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s5 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#3 params=[String?] ret=Class#3 suspend=0 defaults=[0] vararg=[1]
-symbol s6 kind=function fq=golden.sema.useAppendVarargStrings vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s7 kind=function fq=golden.sema.useAppendVarargAny vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s8 kind=function fq=golden.sema.useAppendVarargSpread vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s9 kind=local fq=__local_0.sb vis=private flags=_ type=Class#3
-symbol s10 kind=local fq=__local_1.sb vis=private flags=_ type=Class#3
-symbol s11 kind=local fq=__local_2.sb vis=private flags=_ type=Class#3
-symbol s12 kind=local fq=__local_3.parts vis=private flags=_ type=Class#0<String>
+symbol s5 kind=function fq=golden.sema.useAppendVarargStrings vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s6 kind=function fq=golden.sema.useAppendVarargAny vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s7 kind=function fq=golden.sema.useAppendVarargSpread vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s8 kind=local fq=__local_0.sb vis=private flags=_ type=Class#3
+symbol s9 kind=local fq=__local_1.sb vis=private flags=_ type=Class#3
+symbol s10 kind=local fq=__local_2.sb vis=private flags=_ type=Class#3
+symbol s11 kind=local fq=__local_3.parts vis=private flags=_ type=Class#0<String>
 file f0 package=golden.sema
-  decl d0 fun useAppendVarargStrings suspend=0 inline=0 sym=s6
-  decl d1 fun useAppendVarargAny suspend=0 inline=0 sym=s7
-  decl d2 fun useAppendVarargSpread suspend=0 inline=0 sym=s8
+  decl d0 fun useAppendVarargStrings suspend=0 inline=0 sym=s5
+  decl d1 fun useAppendVarargAny suspend=0 inline=0 sym=s6
+  decl d2 fun useAppendVarargSpread suspend=0 inline=0 sym=s7
 expr e0 name(StringBuilder) type=Any ref=s3
 expr e1 call callee=e0 args=[] type=Class#3
-expr e2 localDecl sb mutable=0 type=_ init=e1 type=Unit ref=s9
-expr e3 name(sb) type=Class#3 ref=s9
+expr e2 localDecl sb mutable=0 type=_ init=e1 type=Unit ref=s8
+expr e3 name(sb) type=Class#3 ref=s8
 expr e4 string(a) type=String
 expr e5 string(b) type=String
 expr e6 string(c) type=String
-expr e7 memberCall recv=e3 callee=append args=[_:e4,_:e5,_:e6] type=Class#3 call=s5 map=[0->0,1->0,2->0] targs=[]
-expr e8 name(sb) type=Class#3 ref=s9
+expr e7 memberCall recv=e3 callee=append args=[_:e4,_:e5,_:e6] type=<error>
+expr e8 name(sb) type=Class#3 ref=s8
 expr e9 memberCall recv=e8 callee=toString args=[] type=String call=s4 map=[] targs=[]
 expr e10 return value=e9 type=Nothing
 expr e11 name(StringBuilder) type=Any ref=s3
 expr e12 call callee=e11 args=[] type=Class#3
-expr e13 localDecl sb mutable=0 type=_ init=e12 type=Unit ref=s10
-expr e14 name(sb) type=Class#3 ref=s10
+expr e13 localDecl sb mutable=0 type=_ init=e12 type=Unit ref=s9
+expr e14 name(sb) type=Class#3 ref=s9
 expr e15 string(hello) type=String
 expr e16 int(42) type=Int
 expr e17 bool(true) type=Boolean
 expr e18 memberCall recv=e14 callee=append args=[_:e15,_:e16,_:e17] type=<error>
-expr e19 name(sb) type=Class#3 ref=s10
+expr e19 name(sb) type=Class#3 ref=s9
 expr e20 memberCall recv=e19 callee=toString args=[] type=String call=s4 map=[] targs=[]
 expr e21 return value=e20 type=Nothing
 expr e22 name(StringBuilder) type=Any ref=s3
 expr e23 call callee=e22 args=[] type=Class#3
-expr e24 localDecl sb mutable=0 type=_ init=e23 type=Unit ref=s11
+expr e24 localDecl sb mutable=0 type=_ init=e23 type=Unit ref=s10
 expr e25 name(arrayOf) type=_
 expr e26 string(x) type=String
 expr e27 string(y) type=String
 expr e28 string(z) type=String
 expr e29 call callee=e25 args=[_:e26,_:e27,_:e28] type=Class#0<String> call=s1 map=[0->0,1->0,2->0] targs=[String]
-expr e30 localDecl parts mutable=0 type=_ init=e29 type=Unit ref=s12
-expr e31 name(sb) type=Class#3 ref=s11
-expr e32 name(parts) type=Class#0<String> ref=s12
-expr e33 memberCall recv=e31 callee=append args=[_:e32] type=Class#3 call=s5 map=[0->0] targs=[]
-expr e34 name(sb) type=Class#3 ref=s11
+expr e30 localDecl parts mutable=0 type=_ init=e29 type=Unit ref=s11
+expr e31 name(sb) type=Class#3 ref=s10
+expr e32 name(parts) type=Class#0<String> ref=s11
+expr e33 memberCall recv=e31 callee=append args=[_:e32] type=<error>
+expr e34 name(sb) type=Class#3 ref=s10
 expr e35 memberCall recv=e34 callee=toString args=[] type=String call=s4 map=[] targs=[]
 expr e36 return value=e35 type=Nothing
