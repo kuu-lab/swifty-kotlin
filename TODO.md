@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-05-28
+最終更新: 2026-05-31
 
 ---
 
@@ -937,3 +937,16 @@
 - [ ] TEST-MATH-023: `kotlin.math` の 2引数 `log(x, base)` と `log2`/`log10` のドメイン端の実行テストを追加する。`log(x, base)` の `base≤0`/`base==1`→NaN、`x<0`→NaN、`x=0`→-Inf、`x`/`base` が `+Inf` の組合せ。`log2`/`log10` の `0`→-Inf・`負`→NaN・`+Inf`→+Inf（既存は `1→0` と NaN のみ）
 - [ ] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある
 - [ ] TEST-MATH-025: `roundToInt`/`roundToLong` の NaN 挙動を Kotlin 仕様と照合・是正する【監査/潜在バグ】。現状 `kk_double_roundToInt`/`kk_double_roundToLong`/`kk_float_*` は NaN で `0` を返し `RuntimeMathTests.swift:93` がそれを是認しているが、Kotlin の `Double.roundToInt()` 仕様は NaN で `IllegalArgumentException` を投げる。`Scripts/diff_kotlinc.sh` で実挙動を確認し、乖離なら runtime を例外送出へ修正（+テスト更新）、意図的逸脱なら理由を明記。±Inf→`Int.MAX/MIN` 飽和は現状維持
+
+## 公式ドキュメント整合性チェック（Kotlin docs parity）
+
+Kotlin 公式 stdlib ドキュメントと実行時挙動を突き合わせて確認した結果を順次記録する。`[x]` は本リポジトリで修正済み、`[ ]` は未対応の残課題。検証は Swift Foundation の `CharacterSet` / `Unicode.Scalar.Properties` の実挙動を実機で確認した上で判断している。
+
+### kotlin.text Char（2026-05-31 検証）
+- [x] DOCPARITY-CHAR-001: `Int.digitToChar(radix)` が digit>=10 で **小文字** を返していたのを **大文字** `'A'..'Z'`（`'A'.code + this - 10`）へ修正。公式サンプル `10.digitToChar(16)=='A'` / `20.digitToChar(36)=='K'`。実体は `kk_char_digitToChar_radix`（`Sources/Runtime/RuntimeChar.swift`）。既存テスト（`testDigitToCharRadix_hexLetter` / `_base36`）が誤った小文字期待で固定化していたため併せて修正。
+- [x] DOCPARITY-CHAR-002: `Char.digitToInt(radix)` が ASCII（`0-9`/`A-Z`/`a-z`）のみ対応だったのを、`kotlin.text.digitOf` 準拠に修正し、Unicode 10 進数字（カテゴリ Nd、例: アラビア数字 `'٥'`・全角数字 `'５'`）と全角ラテン文字（U+FF21..U+FF3A / U+FF41..U+FF5A）も受理。非ラテン文字（例: `'β'`）と radix 超過は従来どおり拒否。
+- [x] DOCPARITY-CHAR-003: `Char.isLetter()` が `CharacterSet.letters`（L* に加えて **M*（結合文字）も含む**）を使っていたため、結合文字（U+0301 等の Mn/Mc/Me）を letter 扱いしていたのを、L* カテゴリ（Lu/Ll/Lt/Lm/Lo）のみに修正。`isLetterOrDigit()` も追従。
+- [x] DOCPARITY-CHAR-004: `Char.isUpperCase()` / `isLowerCase()` が `CharacterSet.uppercaseLetters`(Lu+Lt) / `lowercaseLetters` ベースだったのを Unicode "Uppercase"/"Lowercase" プロパティ（= `Lu/Ll + Other_Uppercase/Other_Lowercase`、`Unicode.Scalar.Properties.isUppercase/isLowercase`）へ修正。これによりタイトルケース（U+01C5）・ローマ数字（U+2160/U+2170）・丸囲み文字（U+24B6/U+24D0）・修飾文字（U+02B0）の判定が公式準拠に。
+- [ ] DOCPARITY-CHAR-005: `Int.digitToChar()` / `Int.digitToChar(radix)` が言語レベルに未配線。ランタイム `kk_char_digitToChar_radix` は存在するが Sema synthetic stub が無く、Kotlin ソースから `digit.digitToChar(radix)` を呼べない。`Char.digitToInt(radix)` 同様に `Int` 拡張の synthetic stub を `HeaderHelpers+SyntheticCharStubs.swift` 系へ追加する（無 radix 版 `digitToChar()` も含む）。
+- [ ] DOCPARITY-CHAR-006: `Char.digitToIntOrNull(radix)` のランタイム/配線が無い（無 radix 版 `kk_char_digitToIntOrNull` のみ）。公式には `fun Char.digitToIntOrNull(radix: Int): Int?` が存在するため、`kk_char_digitToInt_radix` の非例外版を追加し synthetic stub を配線する。
+- [ ] DOCPARITY-CHAR-007: `Char.isLetter()` 以外の `CharacterSet` 依存述語（`isDigit` は Nd で一致確認済み・問題なし）について、`isJavaIdentifierStart/Part` 等の未実装述語を含めて公式カテゴリ規則との突き合わせを継続する。
