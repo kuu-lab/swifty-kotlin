@@ -208,6 +208,12 @@ private let syntheticCharMemberSpecs: [SyntheticCharMemberSpec] = [
         externalLinkName: "kk_char_isIdentifierIgnorable",
         returnKind: .boolean
     ),
+    // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
+    SyntheticCharMemberSpec(
+        name: "isUnicodeIdentifierPart",
+        externalLinkName: "kk_char_isUnicodeIdentifierPart",
+        returnKind: .boolean
+    ),
     // STDLIB-TEXT-PROP-010: Char.isJavaIdentifierStart
     SyntheticCharMemberSpec(
         name: "isJavaIdentifierStart",
