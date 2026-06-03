@@ -1,7 +1,7 @@
 @testable import LSPServer
 import XCTest
 
-final class ServerFlowTests: XCTestCase {
+class ServerFlowTests: XCTestCase {
     func testInitializeShutdownAndDiagnosticsLifecycle() {
         let uri = "file:///tmp/LSPServerFlow.kt"
         let source = "fun main() {\n    val x: Int = 1\n}\n"

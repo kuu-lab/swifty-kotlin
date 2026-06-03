@@ -2,7 +2,7 @@
 @testable import LSPServer
 import XCTest
 
-final class FeatureTests: XCTestCase {
+class FeatureTests: XCTestCase {
     private let uri = "file:///tmp/LSPFeatures.kt"
 
     func testDocumentSymbolsOutlineClassAndMembers() {

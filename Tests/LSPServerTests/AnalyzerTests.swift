@@ -2,7 +2,7 @@
 @testable import LSPServer
 import XCTest
 
-final class AnalyzerTests: XCTestCase {
+class AnalyzerTests: XCTestCase {
     private let uri = "file:///tmp/LSPAnalyzer.kt"
 
     func testAnalyzeValidProgramProducesAST() {
