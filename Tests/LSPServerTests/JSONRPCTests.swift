@@ -2,7 +2,7 @@ import Foundation
 @testable import LSPServer
 import XCTest
 
-class JSONRPCTests: XCTestCase {
+final class JSONRPCTests: XCTestCase {
     func testRoundTripSingleMessage() {
         let message: [String: Any] = [
             "jsonrpc": "2.0",

@@ -2,8 +2,8 @@
 @testable import LSPServer
 import XCTest
 
-class AnalyzerTests: XCTestCase {
-    private let uri = "file:///tmp/LSPAnalyzer.kt"
+final class AnalyzerTests: XCTestCase {
+    private static let uri = "file:///tmp/LSPAnalyzer.kt"
 
     func testAnalyzeValidProgramProducesAST() {
         let source = """
