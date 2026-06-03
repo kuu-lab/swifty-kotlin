@@ -1762,6 +1762,20 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .operatorFunction]
         )
 
+        // operator fun plus(element: T): Sequence<T> — Kotlin's `seq + element` form
+        registerSequenceMemberStub(
+            named: "plus",
+            externalLinkName: "kk_sequence_plus_element",
+            receiverType: receiverType,
+            parameters: [("element", typeParamType)],
+            returnType: receiverType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic, .operatorFunction]
+        )
         // plusElement(element: T): Sequence<T> (STDLIB-SEQ-013)
         registerSequenceMemberStub(
             named: "plusElement",
