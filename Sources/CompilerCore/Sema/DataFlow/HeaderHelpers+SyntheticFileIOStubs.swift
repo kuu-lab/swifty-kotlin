@@ -1744,11 +1744,7 @@ extension DataFlowSemaPhase {
         // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
         // Top-level extension function on java.io.InputStream returning BufferedReader.
         // Signature: fun InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader
-        let charsetFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("text"),
-            interner.intern("Charset"),
-        ]
+        // charsetFQName is already defined above (line 1042) as kotlinTextPkg + ["Charset"]
         let resolvedCharsetType: TypeID = {
             if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
                 return types.make(.classType(ClassType(
