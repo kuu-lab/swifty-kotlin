@@ -1588,6 +1588,7 @@ extension DataFlowSemaPhase {
         // marker) and a zero-arg overload that routes to a `_default` runtime
         // variant — matching how Path extensions handle defaulted parameters
         // because codegen does not currently synthesise default-value calls.
+        // Two-arg overload (explicit bufferSize required): reader.copyTo(writer, 1024)
         registerKotlinIOExtensionFunction(
             named: "copyTo",
             packageFQName: kotlinIOPkg,
@@ -1598,15 +1599,25 @@ extension DataFlowSemaPhase {
             ],
             returnType: types.longType,
             externalLinkName: "kk_reader_copyTo",
-            valueParameterHasDefaultValues: [false, true],
+            valueParameterHasDefaultValues: [false, false],
             valueParameterIsVararg: [false, false],
             symbols: symbols,
             interner: interner
         )
 
-        // Note: the single-arg overload is omitted intentionally — the two-arg
-        // form above already marks bufferSize as having a default value, so
-        // `reader.copyTo(writer)` resolves to that entry without ambiguity.
+        // Single-arg overload (default bufferSize): reader.copyTo(writer)
+        // Registers as a separate overload to avoid ambiguity between this
+        // and the two-arg form.
+        registerKotlinIOExtensionFunction(
+            named: "copyTo",
+            packageFQName: kotlinIOPkg,
+            receiverType: readerType,
+            parameters: [("out", writerType)],
+            returnType: types.longType,
+            externalLinkName: "kk_reader_copyTo_default",
+            symbols: symbols,
+            interner: interner
+        )
 
         // MARK: - ByteArray.inputStream() and ByteArray.inputStream(offset, length) (STDLIB-IO-FN-020 / STDLIB-IO-FN-021)
         //

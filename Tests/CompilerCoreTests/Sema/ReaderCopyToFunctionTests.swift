@@ -189,7 +189,7 @@ final class ReaderCopyToFunctionTests: XCTestCase {
             XCTAssertEqual(symbols.externalLinkName(for: twoArg), "kk_reader_copyTo")
 
             let twoArgSignature = try XCTUnwrap(symbols.functionSignature(for: twoArg))
-            XCTAssertEqual(twoArgSignature.valueParameterHasDefaultValues, [false, true])
+            XCTAssertEqual(twoArgSignature.valueParameterHasDefaultValues, [false, false])
             XCTAssertEqual(twoArgSignature.valueParameterIsVararg, [false, false])
 
             let oneArg = try XCTUnwrap(copyToCandidates.first { symbolID in
