@@ -109,11 +109,17 @@ extension ExprTypeChecker {
         } else {
             []
         }
-        // STDLIB-345: List plus/minus operators
-        if !lhsIsPrimitive, operatorCandidates.isEmpty, (op == .add || op == .subtract) {
-            if driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
-                || sema.bindings.isCollectionExpr(lhsID)
-            {
+        // STDLIB-345: List/Sequence plus/minus operators
+        if !lhsIsPrimitive, (op == .add || op == .subtract) {
+            let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
+            let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
+            let isCollExpr = sema.bindings.isCollectionExpr(lhsID)
+            // For lists and plain collection exprs: fall back only when no operator candidates exist.
+            // For sequences: also fall back when candidates exist but none accepts the RHS type
+            // (e.g. `seq + element` where only `plus(Sequence<Any>)` is registered).
+            let shouldFallBack = (isListLhs || isCollExpr) && operatorCandidates.isEmpty
+                || isSeqLhs
+            if shouldFallBack {
                 sema.bindings.bindExprType(id, type: lhs)
                 sema.bindings.markCollectionExpr(id)
                 return lhs
