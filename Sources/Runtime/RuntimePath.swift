@@ -1303,20 +1303,6 @@ public func kk_path_forEachLine(
     _ pathRaw: Int,
     _ charsetRaw: Int,
     _ actionRaw: Int,
-// MARK: - STDLIB-IO-PATH-FN-038: Path.useLines { block }
-
-/// Reads all lines from `path` (using the given charset) and calls `block` once
-/// with a `Sequence<String>` containing them.  Mirrors the Kotlin stdlib contract:
-///   fun <T> Path.useLines(charset: Charset = Charsets.UTF_8, block: (Sequence<String>) -> T): T
-///
-/// The sequence is materialised as a RuntimeListBox so it can be passed through
-/// the collection HOF closure ABI (fnPtr + closureRaw).
-@_cdecl("kk_path_useLines")
-public func kk_path_useLines(
-    _ pathRaw: Int,
-    _ charsetRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
@@ -1339,6 +1325,26 @@ public func kk_path_useLines(
         }
     }
     return 0
+}
+
+// MARK: - STDLIB-IO-PATH-FN-038: Path.useLines { block }
+
+/// Reads all lines from `path` (using the given charset) and calls `block` once
+/// with a `Sequence<String>` containing them.  Mirrors the Kotlin stdlib contract:
+///   fun <T> Path.useLines(charset: Charset = Charsets.UTF_8, block: (Sequence<String>) -> T): T
+///
+/// The sequence is materialised as a RuntimeListBox so it can be passed through
+/// the collection HOF closure ABI (fnPtr + closureRaw).
+@_cdecl("kk_path_useLines")
+public func kk_path_useLines(
+    _ pathRaw: Int,
+    _ charsetRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let path = runtimePathBox(from: pathRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_useLines received invalid Path handle")
     }
     let encoding = pathStringEncoding(for: charsetRaw)
