@@ -2,12 +2,12 @@
 import XCTest
 
 final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
-    func testCPointerPlusOperatorSurfaceMatchesNativeShape() throws {
+    func testCPointerPlusFunctionSurfaceMatchesNativeShape() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
         XCTAssertFalse(
             ctx.diagnostics.hasError,
-            "Expected CPointer<T>?.plus(index: Long) surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
+            "Expected CPointer.plus surface to compile cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
         let sema = try XCTUnwrap(ctx.sema)
         let interner = ctx.interner
@@ -22,70 +22,105 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         func cinteropSymbol(_ path: String...) throws -> SymbolID {
             try cinteropSymbol(path)
         }
-        func cinteropType(_ path: String...) throws -> TypeID {
-            sema.types.make(.classType(ClassType(
-                classSymbol: try cinteropSymbol(path),
-                args: [],
-                nullability: .nonNull
-            )))
-        }
 
-        let cPointedType = try cinteropType("CPointed")
         let cPointerSymbol = try cinteropSymbol("CPointer")
         let plusFQName = cinteropPkg + [interner.intern("plus")]
         let plusCandidates = sema.symbols.lookupAll(fqName: plusFQName)
-
-        let plus = try XCTUnwrap(plusCandidates.first { symbolID in
-            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            guard let receiverType = signature.receiverType,
-                  case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
-                  receiverClassType.classSymbol == cPointerSymbol,
-                  receiverClassType.nullability == .nullable
-            else {
-                return false
-            }
-            return signature.parameterTypes == [sema.types.longType]
-                && signature.typeParameterSymbols.count == 1
-        })
-        let signature = try XCTUnwrap(sema.symbols.functionSignature(for: plus))
-        let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first)
-        let typeParameterType = sema.types.make(.typeParam(TypeParamType(
-            symbol: typeParameter,
+        let byteVarOfUpperBound = sema.types.make(.classType(ClassType(
+            classSymbol: try cinteropSymbol("ByteVarOf"),
+            args: [.star],
             nullability: .nonNull
         )))
-        let expectedReceiverType = sema.types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.invariant(typeParameterType)],
-            nullability: .nullable
+        let cPointerVarOfUpperBound = sema.types.make(.classType(ClassType(
+            classSymbol: try cinteropSymbol("CPointerVarOf"),
+            args: [.star],
+            nullability: .nonNull
         )))
-        let flags = try XCTUnwrap(sema.symbols.symbol(plus)?.flags)
 
-        XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction, .operatorFunction]))
-        XCTAssertEqual(sema.symbols.parentSymbol(for: plus), sema.symbols.lookup(fqName: cinteropPkg))
-        XCTAssertEqual(signature.receiverType, expectedReceiverType)
-        XCTAssertEqual(signature.returnType, expectedReceiverType)
-        XCTAssertEqual(signature.typeParameterUpperBoundsList, [[cPointedType]])
-        XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [cPointedType])
-        XCTAssertEqual(sema.symbols.parentSymbol(for: typeParameter), plus)
+        func assertPlusOverload(
+            indexType: TypeID,
+            upperBound: TypeID,
+            file: StaticString = #filePath,
+            line: UInt = #line
+        ) throws {
+            let plusSymbol = try XCTUnwrap(plusCandidates.first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return signature.parameterTypes == [indexType]
+                    && signature.typeParameterUpperBoundsList == [[upperBound]]
+            }, file: file, line: line)
+            let signature = try XCTUnwrap(sema.symbols.functionSignature(for: plusSymbol), file: file, line: line)
+            let typeParameter = try XCTUnwrap(signature.typeParameterSymbols.first, file: file, line: line)
+            let typeParameterType = sema.types.make(.typeParam(TypeParamType(
+                symbol: typeParameter,
+                nullability: .nonNull
+            )))
+            let expectedPointerType = sema.types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(typeParameterType)],
+                nullability: .nonNull
+            )))
+            let parameterSymbol = try XCTUnwrap(signature.valueParameterSymbols.first, file: file, line: line)
+            let flags = try XCTUnwrap(sema.symbols.symbol(plusSymbol)?.flags, file: file, line: line)
+
+            XCTAssertTrue(flags.isSuperset(of: [.synthetic, .inlineFunction, .operatorFunction]), file: file, line: line)
+            XCTAssertEqual(signature.receiverType, expectedPointerType, file: file, line: line)
+            XCTAssertEqual(signature.returnType, expectedPointerType, file: file, line: line)
+            XCTAssertTrue(signature.reifiedTypeParameterIndices.isEmpty, file: file, line: line)
+            XCTAssertEqual(sema.symbols.typeParameterUpperBounds(for: typeParameter), [upperBound], file: file, line: line)
+            XCTAssertEqual(sema.symbols.symbol(parameterSymbol)?.name, interner.intern("index"), file: file, line: line)
+            XCTAssertEqual(sema.symbols.propertyType(for: parameterSymbol), indexType, file: file, line: line)
+        }
+
+        try assertPlusOverload(indexType: sema.types.intType, upperBound: byteVarOfUpperBound)
+        try assertPlusOverload(indexType: sema.types.longType, upperBound: byteVarOfUpperBound)
+        try assertPlusOverload(indexType: sema.types.intType, upperBound: cPointerVarOfUpperBound)
+        try assertPlusOverload(indexType: sema.types.longType, upperBound: cPointerVarOfUpperBound)
     }
 
-    func testCPointerPlusOperatorResolvesInSource() throws {
+    func testCPointerPlusFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
         import kotlinx.cinterop.CPointer
         import kotlinx.cinterop.plus
 
-        fun shiftPointer(p: CPointer<ByteVar>?): CPointer<ByteVar>? {
-            return p + 4L
+        fun plusInt(value: CPointer<ByteVar>): CPointer<ByteVar> {
+            return value + 1
+        }
+
+        fun plusLong(value: CPointer<ByteVar>): CPointer<ByteVar> {
+            return value + 1L
         }
         """)
         try runSema(ctx)
 
         XCTAssertFalse(
             ctx.diagnostics.hasError,
-            "Expected CPointer<ByteVar>? + Long to resolve, got: \(ctx.diagnostics.diagnostics)"
+            "Expected CPointer.plus to resolve, got: \(ctx.diagnostics.diagnostics)"
         )
+        let ast = try XCTUnwrap(ctx.ast)
+        let sema = try XCTUnwrap(ctx.sema)
+        let interner = ctx.interner
+        let plusFQName = ["kotlinx", "cinterop", "plus"].map { interner.intern($0) }
+        let plusCandidates = Set(sema.symbols.lookupAll(fqName: plusFQName))
+        let plusExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case .binary(.add, _, _, _) = expr
+            else {
+                return nil
+            }
+            return exprID
+        }
+
+        XCTAssertEqual(plusExprs.count, 2)
+        for exprID in plusExprs {
+            let chosen = try XCTUnwrap(
+                sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                "Expected CPointer.plus binary expression to bind a callee"
+            )
+            XCTAssertTrue(plusCandidates.contains(chosen))
+        }
     }
 }
