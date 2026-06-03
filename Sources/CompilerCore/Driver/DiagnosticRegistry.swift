@@ -61,6 +61,7 @@ enum DiagnosticRegistry {
     static func lookup(_ code: String) -> DiagnosticDescriptor? {
         descriptors[code]
     }
+
     /// Expands a user-facing suppression key (e.g. `UNCHECKED_CAST`) into one
     /// or more internal diagnostic codes.
     static func suppressionCodes(for requestedCode: String) -> [String] {
