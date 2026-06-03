@@ -348,6 +348,7 @@ public func kk_string_toCharArray(_ strRaw: Int) -> Int {
 public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
     return runtimeMakeArrayRaw(charRaws)
+}
 
 // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
 
