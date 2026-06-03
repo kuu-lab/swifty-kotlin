@@ -3,7 +3,7 @@ symbol s1 kind=interface fq=kotlin.collections.MutableList vis=public flags=synt
 symbol s2 kind=typeParameter fq=kotlin.collections.MutableList.E vis=private flags=_
 symbol s3 kind=function fq=kotlin.collections.MutableList.add vis=public flags=synthetic|operatorFunction sig=recv=Class#1<T#2> params=[T#2] ret=Boolean suspend=0 defaults=[] vararg=[]
 symbol s4 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
-symbol s5 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#4 params=[String?] ret=Class#4 suspend=0 defaults=[0] vararg=[1]
+symbol s5 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#4 params=[String?] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
 symbol s6 kind=function fq=golden.sema.useBuildStringReceiverThis vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
 symbol s7 kind=function fq=golden.sema.useBuildListReceiverThis vis=public flags=_ sig=recv=_ params=[] ret=Any suspend=0 defaults=[] vararg=[]
 file f0 package=golden.sema
