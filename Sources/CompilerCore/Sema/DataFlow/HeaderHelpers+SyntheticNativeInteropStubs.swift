@@ -2724,23 +2724,12 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // fun ByteArray.toKString(): String
-        let toKStringByteArrayReceiverType = syntheticClassType(
-            packagePath: ["kotlin"],
-            name: "ByteArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticNativeTopLevelFunction(
-            named: "toKString",
-            packageFQName: cinteropPkg,
-            receiverType: toKStringByteArrayReceiverType,
-            parameters: [],
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
+        // NOTE: ByteArray.toKString() with no explicit args is covered by the
+        // ByteArray.toKString(startIndex, endIndex, throwOnInvalidSequence) overload
+        // registered above (all three parameters have default values).
+        // Registering a separate zero-parameter overload here would cause ambiguity
+        // when calling bytes.toKString() with no arguments.
+        //
         // fun ByteArray.toCValues(): CValues<ByteVar>
         let byteArrayReceiverType = syntheticClassType(
             packagePath: ["kotlin"],
