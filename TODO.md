@@ -410,13 +410,19 @@
 - [x] STDLIB-TEXT-FN-002: `any` 関数の実装
 - [ ] STDLIB-TEXT-FN-003: `append` 関数の実装
 - [x] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
-- [ ] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
+- [x] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [x] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
+- [x] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
+- [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
+- [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
+- [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
+- [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
+- [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [x] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-011: `concat` 関数の実装
 - [x] STDLIB-TEXT-FN-012: `contains` 関数の実装
@@ -542,6 +548,7 @@
 - [x] STDLIB-TEXT-FN-099: `toInt` 関数の実装
 - [x] STDLIB-TEXT-FN-100: `toIntOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [x] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [x] STDLIB-TEXT-FN-103: `toLongOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
