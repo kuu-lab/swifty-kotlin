@@ -18,6 +18,8 @@ public extension TypeSystem {
             return "Nothing\(nullabilitySuffix(nullability))"
         case let .any(nullability):
             return "Any\(nullabilitySuffix(nullability))"
+        case let .stringStruct(nullability):
+            return "String\(nullabilitySuffix(nullability))"
         case let .primitive(primitive, nullability):
             let base = primitive.kotlinName
             return "\(base)\(nullabilitySuffix(nullability))"

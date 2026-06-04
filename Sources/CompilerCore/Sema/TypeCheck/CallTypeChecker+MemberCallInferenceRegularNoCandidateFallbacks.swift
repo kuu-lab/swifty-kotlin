@@ -899,7 +899,7 @@ extension CallTypeChecker {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
-            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             if sema.types.isSubtype(receiverTypeForCheck, sema.types.stringType) {
                 if args.count == 1,
                    sema.types.isSubtype(argTypes[0], nullableStringType)

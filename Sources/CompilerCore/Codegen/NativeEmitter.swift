@@ -33,6 +33,7 @@ struct NativeEmitter {
     let debugInfo: Bool
     let bindings: LLVMCAPIBindings
     let module: KIRModule
+    let typeSystem: TypeSystem?
     let interner: StringInterner
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
@@ -47,6 +48,7 @@ struct NativeEmitter {
         debugInfo: Bool,
         bindings: LLVMCAPIBindings,
         module: KIRModule,
+        typeSystem: TypeSystem? = nil,
         interner: StringInterner,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
@@ -59,6 +61,7 @@ struct NativeEmitter {
         self.debugInfo = debugInfo
         self.bindings = bindings
         self.module = module
+        self.typeSystem = typeSystem
         self.interner = interner
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
@@ -144,6 +147,7 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
+        let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
 
         do {
             try defineWeakFrameRuntimeStubs(
@@ -164,9 +168,15 @@ struct NativeEmitter {
                 continue
             }
             let slotName = "kk_global_root_slot_\(max(0, Int(global.symbol.rawValue)))"
-            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
+            let globalType = loweredLLVMType(for: global.type, lowering: typeLowering, defaultType: int64Type)
+            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: globalType, name: slotName) {
                 bindings.setInternalLinkage(llvmGlobal)
-                if let zero = bindings.constInt(int64Type, value: 0) {
+                if let zero = zeroLLVMValue(
+                    for: global.type,
+                    lowering: typeLowering,
+                    int64Type: int64Type,
+                    context: context
+                ) {
                     bindings.setInitializer(llvmGlobal, value: zero)
                 }
                 llvmGlobalVariables[global.symbol] = llvmGlobal
@@ -186,10 +196,13 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = Array(repeating: int64Type, count: function.params.count)
+            var parameterTypes = function.params.map {
+                loweredLLVMType(for: $0.type, lowering: typeLowering, defaultType: int64Type)
+            }
             parameterTypes.append(outThrownPointerType)
+            let returnType = loweredLLVMType(for: function.returnType, lowering: typeLowering, defaultType: int64Type)
 
-            guard let functionType = bindings.functionType(returnType: int64Type, parameters: parameterTypes, isVarArg: false),
+            guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
                 bindings.disposeModule(llvmModule)
@@ -223,6 +236,7 @@ struct NativeEmitter {
                     llvmModule: llvmModule,
                     context: context,
                     int64Type: int64Type,
+                    typeLowering: typeLowering,
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,

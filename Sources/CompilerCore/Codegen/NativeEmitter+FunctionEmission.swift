@@ -8,6 +8,7 @@ extension NativeEmitter {
         llvmModule: LLVMCAPIBindings.LLVMModuleRef,
         context: LLVMCAPIBindings.LLVMContextRef,
         int64Type: LLVMCAPIBindings.LLVMTypeRef,
+        typeLowering: LLVMTypeLowering?,
         outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
@@ -113,7 +114,12 @@ extension NativeEmitter {
                     continue
                 }
                 // Create an alloca for the parameter so dbg.declare can reference it.
-                let paramAlloca = bindings.buildAlloca(builder, type: int64Type, name: "dbg_\(paramName)")
+                let parameterType = loweredLLVMType(
+                    for: parameter.type,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+                let paramAlloca = bindings.buildAlloca(builder, type: parameterType, name: "dbg_\(paramName)")
                 if let paramAlloca {
                     _ = bindings.buildStore(builder, value: paramValue, pointer: paramAlloca)
                     if let debugLoc = bindings.createDebugLocation(
@@ -153,7 +159,14 @@ extension NativeEmitter {
             interner: interner
         )
         var generatedStringLiteralCount: Int32 = 0
-        let builderState = EmissionBuilderState(builder: builder, int64Type: int64Type, zeroValue: zeroValue, context: context, module: llvmModule)
+        let builderState = EmissionBuilderState(
+            builder: builder,
+            int64Type: int64Type,
+            zeroValue: zeroValue,
+            context: context,
+            module: llvmModule,
+            typeLowering: typeLowering
+        )
 
         func assignmentTargets(for instruction: KIRInstruction) -> [KIRExprID] {
             switch instruction {
@@ -198,9 +211,23 @@ extension NativeEmitter {
         for instruction in function.body {
             for target in assignmentTargets(for: instruction) where shouldSpillID.contains(target.rawValue) {
                 if copyTargetAllocas[target.rawValue] == nil,
-                   let alloca = bindings.buildAlloca(builder, type: int64Type, name: "copy_slot_\(target.rawValue)")
+                   let alloca = bindings.buildAlloca(
+                       builder,
+                       type: loweredLLVMType(
+                           for: module.arena.exprType(target),
+                           lowering: typeLowering,
+                           defaultType: int64Type
+                       ),
+                       name: "copy_slot_\(target.rawValue)"
+                   )
                 {
-                    _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
+                    let initialValue = zeroLLVMValue(
+                        for: module.arena.exprType(target),
+                        lowering: typeLowering,
+                        int64Type: int64Type,
+                        context: context
+                    ) ?? zeroValue
+                    _ = bindings.buildStore(builder, value: initialValue, pointer: alloca)
                     copyTargetAllocas[target.rawValue] = alloca
                 }
             }
@@ -245,6 +272,424 @@ extension NativeEmitter {
             return declared
         }
 
+        func declareExternalFunction(
+            named calleeName: String,
+            parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?],
+            returnType: LLVMCAPIBindings.LLVMTypeRef?
+        ) -> LLVMFunction? {
+            let key = "\(calleeName)#typed#\(parameterTypes.count)"
+            if let existing = externalFunctions[key] {
+                return existing
+            }
+            guard let externalType = bindings.functionType(
+                returnType: returnType,
+                parameters: parameterTypes,
+                isVarArg: false
+            ) else {
+                return nil
+            }
+            let externalValue = bindings.getNamedFunction(module: llvmModule, name: calleeName)
+                ?? bindings.addFunction(module: llvmModule, name: calleeName, functionType: externalType)
+            guard let externalValue else {
+                return nil
+            }
+            let declared = LLVMFunction(value: externalValue, type: externalType)
+            externalFunctions[key] = declared
+            return declared
+        }
+
+        func stringAggregateFields(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
+            guard let data = bindings.buildExtractValue(builder, aggregate: value, index: 0, name: "str_data_\(suffix)"),
+                  let length = bindings.buildExtractValue(builder, aggregate: value, index: 1, name: "str_length_\(suffix)"),
+                  let byteCount = bindings.buildExtractValue(builder, aggregate: value, index: 2, name: "str_bytes_\(suffix)"),
+                  let hash = bindings.buildExtractValue(builder, aggregate: value, index: 3, name: "str_hash_\(suffix)")
+            else {
+                return nil
+            }
+            return [data, length, byteCount, hash]
+        }
+
+        func bridgeStringAggregateToRuntimeRaw(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering,
+                  let fields = stringAggregateFields(value, suffix: "\(suffix)_to_raw"),
+                  let bridgeFunction = declareExternalFunction(
+                      named: "kk_string_from_flat",
+                      parameterTypes: [
+                          typeLowering.dataPointerType,
+                          int64Type,
+                          int64Type,
+                          int64Type,
+                      ],
+                      returnType: int64Type
+                  )
+            else {
+                return nil
+            }
+            return bindings.buildCall(
+                builder,
+                functionType: bridgeFunction.type,
+                callee: bridgeFunction.value,
+                arguments: fields,
+                name: "string_raw_\(suffix)"
+            )
+        }
+
+        func bridgeRuntimeRawToStringAggregate(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering,
+                  let lengthSlot = allocateI64Slot(name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = allocateI64Slot(name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = allocateI64Slot(name: "string_bridge_hash_\(suffix)"),
+                  let bridgeFunction = declareExternalFunction(
+                      named: "kk_string_to_flat",
+                      parameterTypes: [
+                          int64Type,
+                          outThrownPointerType,
+                          outThrownPointerType,
+                          outThrownPointerType,
+                      ],
+                      returnType: typeLowering.dataPointerType
+                  ),
+                  let data = bindings.buildCall(
+                      builder,
+                      functionType: bridgeFunction.type,
+                      callee: bridgeFunction.value,
+                      arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                      name: "string_bridge_data_\(suffix)"
+                  ),
+                  let length = bindings.buildLoad(
+                      builder,
+                      type: int64Type,
+                      pointer: lengthSlot,
+                      name: "string_bridge_length_val_\(suffix)"
+                  ),
+                  let byteCount = bindings.buildLoad(
+                      builder,
+                      type: int64Type,
+                      pointer: byteCountSlot,
+                      name: "string_bridge_bytes_val_\(suffix)"
+                  ),
+                  let hash = bindings.buildLoad(
+                      builder,
+                      type: int64Type,
+                      pointer: hashSlot,
+                      name: "string_bridge_hash_val_\(suffix)"
+                  )
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
+            )
+        }
+
+        func isStringAggregateType(_ type: TypeID?) -> Bool {
+            guard let type,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: type)
+            else {
+                return false
+            }
+            return typeLowering != nil
+        }
+
+        func isStringAggregateExpr(_ id: KIRExprID) -> Bool {
+            isStringAggregateType(module.arena.exprType(id))
+        }
+
+        func coerceStringValueForType(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            from fromType: TypeID?,
+            to toType: TypeID?,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef {
+            if isStringAggregateType(fromType), !isStringAggregateType(toType) {
+                return bridgeStringAggregateToRuntimeRaw(value, suffix: suffix) ?? value
+            }
+            if !isStringAggregateType(fromType), isStringAggregateType(toType) {
+                return bridgeRuntimeRawToStringAggregate(value, suffix: suffix) ?? value
+            }
+            return value
+        }
+
+        func flattenedStringParameterTypes(argumentCount: Int) -> [LLVMCAPIBindings.LLVMTypeRef?]? {
+            guard let typeLowering else {
+                return nil
+            }
+            var parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = []
+            for _ in 0..<argumentCount {
+                parameterTypes.append(contentsOf: [
+                    typeLowering.dataPointerType,
+                    int64Type,
+                    int64Type,
+                    int64Type,
+                ])
+            }
+            return parameterTypes
+        }
+
+        func flattenedStringArguments(
+            values argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+            types argumentTypes: [TypeID?],
+            stringArgumentCount: Int,
+            suffix: String
+        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
+            guard argumentValues.count >= stringArgumentCount,
+                  argumentTypes.count >= stringArgumentCount
+            else {
+                return nil
+            }
+            var flattened: [LLVMCAPIBindings.LLVMValueRef] = []
+            for index in 0..<stringArgumentCount {
+                guard isStringAggregateType(argumentTypes[index]),
+                      let fields = stringAggregateFields(argumentValues[index], suffix: "\(suffix)_arg\(index)")
+                else {
+                    return nil
+                }
+                flattened.append(contentsOf: fields)
+            }
+            return flattened
+        }
+
+        func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let slot = bindings.buildAlloca(builder, type: int64Type, name: name) else {
+                return nil
+            }
+            _ = bindings.buildStore(builder, value: zeroValue, pointer: slot)
+            return slot
+        }
+
+        func storeThrownResultZero(_ thrownResult: KIRExprID?) {
+            guard let thrownResult else {
+                return
+            }
+            if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
+            } else {
+                storeResult(thrownResult, zeroValue)
+            }
+        }
+
+        func handleThrownSlot(
+            _ thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?,
+            thrownResult: KIRExprID?,
+            instructionIndex: Int
+        ) {
+            guard let thrownSlotPointer,
+                  let thrownValue = bindings.buildLoad(
+                      builder,
+                      type: int64Type,
+                      pointer: thrownSlotPointer,
+                      name: "thrown_val_\(instructionIndex)"
+                  )
+            else {
+                return
+            }
+            if let thrownResult {
+                if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                    _ = bindings.buildStore(builder, value: thrownValue, pointer: alloca)
+                } else {
+                    storeResult(thrownResult, thrownValue)
+                }
+            } else if let hasThrown = buildThrownSlotCondition(
+                from: thrownValue,
+                name: "has_thrown_\(instructionIndex)"
+            ),
+                let thrownBlock = bindings.appendBasicBlock(
+                    context: context,
+                    function: llvmFunction.value,
+                    name: "thrown_\(instructionIndex)"
+                ),
+                let continueBlock = bindings.appendBasicBlock(
+                    context: context,
+                    function: llvmFunction.value,
+                    name: "call_cont_\(instructionIndex)"
+                )
+            {
+                _ = bindings.buildCondBr(
+                    builder,
+                    condition: hasThrown,
+                    thenBlock: thrownBlock,
+                    elseBlock: continueBlock
+                )
+
+                bindings.positionBuilder(builder, at: thrownBlock)
+                storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
+                emitFramePop("throw_\(instructionIndex)")
+                _ = bindings.buildRet(builder, value: zeroValue)
+
+                currentBlock = continueBlock
+                bindings.positionBuilder(builder, at: continueBlock)
+            }
+        }
+
+        func emitFlatStringRuntimeCall(
+            calleeName: String,
+            arguments: [KIRExprID],
+            argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+            result: KIRExprID?,
+            usesThrownChannel: Bool,
+            thrownResult: KIRExprID?,
+            instructionIndex: Int
+        ) -> Bool {
+            guard let typeLowering else {
+                return false
+            }
+            let argumentTypes = arguments.map(module.arena.exprType)
+            switch calleeName {
+            case "kk_string_concat":
+                guard let result,
+                      isStringAggregateType(module.arena.exprType(result)),
+                      let flattenedArgs = flattenedStringArguments(
+                          values: argumentValues,
+                          types: argumentTypes,
+                          stringArgumentCount: 2,
+                          suffix: "concat_\(instructionIndex)"
+                      ),
+                      var parameterTypes = flattenedStringParameterTypes(argumentCount: 2),
+                      let lengthSlot = allocateI64Slot(name: "string_concat_length_\(instructionIndex)"),
+                      let byteCountSlot = allocateI64Slot(name: "string_concat_bytes_\(instructionIndex)"),
+                      let hashSlot = allocateI64Slot(name: "string_concat_hash_\(instructionIndex)")
+                else {
+                    return false
+                }
+                parameterTypes.append(contentsOf: [
+                    outThrownPointerType,
+                    outThrownPointerType,
+                    outThrownPointerType,
+                ])
+                guard let concatFunction = declareExternalFunction(
+                    named: "kk_string_concat_flat",
+                    parameterTypes: parameterTypes,
+                    returnType: typeLowering.dataPointerType
+                ),
+                    let data = bindings.buildCall(
+                        builder,
+                        functionType: concatFunction.type,
+                        callee: concatFunction.value,
+                        arguments: flattenedArgs + [lengthSlot, byteCountSlot, hashSlot],
+                        name: "string_concat_data_\(instructionIndex)"
+                    ),
+                    let length = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: lengthSlot,
+                        name: "string_concat_length_val_\(instructionIndex)"
+                    ),
+                    let byteCount = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: byteCountSlot,
+                        name: "string_concat_bytes_val_\(instructionIndex)"
+                    ),
+                    let hash = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: hashSlot,
+                        name: "string_concat_hash_val_\(instructionIndex)"
+                    )
+                else {
+                    return false
+                }
+                let aggregate = buildStringAggregate(
+                    builder: builder,
+                    lowering: typeLowering,
+                    data: data,
+                    length: length,
+                    byteCount: byteCount,
+                    hash: hash,
+                    name: "string_concat_\(instructionIndex)"
+                )
+                storeResult(result, aggregate)
+                if usesThrownChannel {
+                    storeThrownResultZero(thrownResult)
+                }
+                return true
+
+            case "kk_string_compareTo", "kk_string_compareTo_member":
+                guard let flattenedArgs = flattenedStringArguments(
+                    values: argumentValues,
+                    types: argumentTypes,
+                    stringArgumentCount: 2,
+                    suffix: "compare_\(instructionIndex)"
+                ),
+                    let parameterTypes = flattenedStringParameterTypes(argumentCount: 2),
+                    let compareFunction = declareExternalFunction(
+                        named: "kk_string_compareTo_flat",
+                        parameterTypes: parameterTypes,
+                        returnType: int64Type
+                    )
+                else {
+                    return false
+                }
+                let compared = bindings.buildCall(
+                    builder,
+                    functionType: compareFunction.type,
+                    callee: compareFunction.value,
+                    arguments: flattenedArgs,
+                    name: "string_compare_\(instructionIndex)"
+                )
+                storeResult(result, compared)
+                if usesThrownChannel {
+                    storeThrownResultZero(thrownResult)
+                }
+                return true
+
+            case "kk_string_get":
+                guard argumentValues.count >= 2,
+                      let flattenedArgs = flattenedStringArguments(
+                          values: argumentValues,
+                          types: argumentTypes,
+                          stringArgumentCount: 1,
+                          suffix: "get_\(instructionIndex)"
+                      ),
+                      var parameterTypes = flattenedStringParameterTypes(argumentCount: 1)
+                else {
+                    return false
+                }
+                parameterTypes.append(contentsOf: [int64Type, outThrownPointerType])
+                let thrownSlot = usesThrownChannel ? allocateI64Slot(name: "string_get_thrown_\(instructionIndex)") : nil
+                let thrownPointer = thrownSlot ?? nullThrownPointer
+                guard let getFunction = declareExternalFunction(
+                    named: "kk_string_get_flat",
+                    parameterTypes: parameterTypes,
+                    returnType: int64Type
+                )
+                else {
+                    return false
+                }
+                let charValue = bindings.buildCall(
+                    builder,
+                    functionType: getFunction.type,
+                    callee: getFunction.value,
+                    arguments: flattenedArgs + [argumentValues[1], thrownPointer],
+                    name: "string_get_\(instructionIndex)"
+                )
+                storeResult(result, charValue)
+                if usesThrownChannel {
+                    handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
+                }
+                return true
+
+            default:
+                return false
+            }
+        }
+
         func resolveUnnamedInternalFunction(
             named calleeName: String,
             argumentCount: Int,
@@ -255,10 +700,18 @@ extension NativeEmitter {
             let expectedParameterCount = argumentCount
             for declaration in module.arena.declarations {
                 guard case let .function(candidate) = declaration,
-                      interner.resolve(candidate.name) == calleeName,
                       candidate.params.count == expectedParameterCount,
                       let llvmFunction = internalFunctions[candidate.symbol]
                 else {
+                    continue
+                }
+                let kirName = interner.resolve(candidate.name)
+                let cName = CodegenSymbolSupport.cFunctionSymbol(
+                    for: candidate,
+                    interner: interner,
+                    fileFacadeNamesByFileID: fileFacadeNamesByFileID
+                )
+                guard kirName == calleeName || cName == calleeName else {
                     continue
                 }
                 if match != nil {
@@ -269,10 +722,39 @@ extension NativeEmitter {
             return match
         }
 
+        func internalSignature(for symbol: SymbolID?) -> (parameters: [TypeID], returnType: TypeID)? {
+            guard let symbol else {
+                return nil
+            }
+            for declaration in module.arena.declarations {
+                guard case let .function(candidate) = declaration,
+                      candidate.symbol == symbol
+                else {
+                    continue
+                }
+                return (candidate.params.map(\.type), candidate.returnType)
+            }
+            return nil
+        }
+
+        func isZeroConstant(_ id: KIRExprID) -> Bool {
+            guard let expression = module.arena.expr(id) else {
+                return false
+            }
+            switch expression {
+            case .intLiteral(0), .longLiteral(0), .uintLiteral(0), .ulongLiteral(0), .null:
+                return true
+            default:
+                return false
+            }
+        }
+
         func valueForConstant(_ expression: KIRExprKind, expressionRawID: Int32?) -> LLVMCAPIBindings.LLVMValueRef {
-            emitConstantValue(
+            let expectedType = expressionRawID.map { KIRExprID(rawValue: $0) }.flatMap(module.arena.exprType)
+            return emitConstantValue(
                 expression,
                 expressionRawID: expressionRawID,
+                expectedType: expectedType,
                 state: builderState,
                 parameterValues: parameterValues,
                 internalFunctions: internalFunctions,
@@ -287,7 +769,18 @@ extension NativeEmitter {
 
         func resolveValue(_ id: KIRExprID) -> LLVMCAPIBindings.LLVMValueRef {
             if let alloca = copyTargetAllocas[id.rawValue] {
-                return bindings.buildLoad(builder, type: int64Type, pointer: alloca, name: "load_\(id.rawValue)") ?? zeroValue
+                let loadType = loweredLLVMType(
+                    for: module.arena.exprType(id),
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+                return bindings.buildLoad(builder, type: loadType, pointer: alloca, name: "load_\(id.rawValue)")
+                    ?? (zeroLLVMValue(
+                        for: module.arena.exprType(id),
+                        lowering: typeLowering,
+                        int64Type: int64Type,
+                        context: context
+                    ) ?? zeroValue)
             }
             if let value = values[id.rawValue] {
                 return value
@@ -304,7 +797,12 @@ extension NativeEmitter {
             guard let result else {
                 return
             }
-            let storedValue = value ?? zeroValue
+            let storedValue = value ?? zeroLLVMValue(
+                for: module.arena.exprType(result),
+                lowering: typeLowering,
+                int64Type: int64Type,
+                context: context
+            ) ?? zeroValue
             if let resultExpr = module.arena.expr(result),
                case let .symbolRef(targetSymbol) = resultExpr,
                let globalPointer = globalVariables[targetSymbol]
@@ -468,12 +966,14 @@ extension NativeEmitter {
         func emitBuiltinCall(
             calleeName: String,
             argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+            argumentTypes: [TypeID?],
             result: KIRExprID?,
             instructionIndex: Int
         ) -> Bool {
             let builtinResult = lowerBuiltinCall(
                 calleeName: calleeName,
                 argumentValues: argumentValues,
+                argumentTypes: argumentTypes,
                 state: builderState,
                 instructionIndex: instructionIndex
             )
@@ -615,8 +1115,13 @@ extension NativeEmitter {
                         // Use the copy-target alloca if one exists (the copy instruction
                         // will store the real value there), otherwise fall back to a
                         // dedicated debug alloca with the current (possibly zero) value.
+                        let debugStorageType = loweredLLVMType(
+                            for: module.arena.exprType(result),
+                            lowering: typeLowering,
+                            defaultType: int64Type
+                        )
                         let localAlloca = copyTargetAllocas[result.rawValue]
-                            ?? bindings.buildAlloca(builder, type: int64Type, name: "dbg_\(varName)")
+                            ?? bindings.buildAlloca(builder, type: debugStorageType, name: "dbg_\(varName)")
                         if let localAlloca {
                             if copyTargetAllocas[result.rawValue] == nil {
                                 _ = bindings.buildStore(builder, value: constLLVMValue, pointer: localAlloca)
@@ -753,6 +1258,18 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = arguments.map(resolveValue)
 
+                if emitFlatStringRuntimeCall(
+                    calleeName: calleeName,
+                    arguments: arguments,
+                    argumentValues: argumentValues,
+                    result: result,
+                    usesThrownChannel: usesThrownChannel,
+                    thrownResult: thrownResult,
+                    instructionIndex: instructionIndex
+                ) {
+                    continue
+                }
+
                 // Consolidated path for known void, zero-argument runtime calls.
                 if Self.knownVoidNoArgCallees.contains(calleeName) {
                     if let runtimeFunction = declareExternalFunction(
@@ -833,6 +1350,43 @@ extension NativeEmitter {
                     continue
                 }
 
+                if (calleeName == "println" || calleeName == "kk_println_any"),
+                   arguments.count == 1,
+                   isStringAggregateExpr(arguments[0]),
+                   let typeLowering,
+                   let stringFields = stringAggregateFields(
+                       argumentValues[0],
+                       suffix: "println_\(instructionIndex)"
+                   ),
+                   let printFunction = declareExternalFunction(
+                       named: "kk_println_string_flat",
+                       parameterTypes: [
+                           typeLowering.dataPointerType,
+                           int64Type,
+                           int64Type,
+                           int64Type,
+                       ],
+                       returnType: int64Type
+                   )
+                {
+                    _ = bindings.buildCall(
+                        builder,
+                        functionType: printFunction.type,
+                        callee: printFunction.value,
+                        arguments: stringFields,
+                        name: "println_string_\(instructionIndex)"
+                    )
+                    if usesThrownChannel, let thrownResult {
+                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
+                        } else {
+                            storeResult(thrownResult, zeroValue)
+                        }
+                    }
+                    storeResult(result, zeroValue)
+                    continue
+                }
+
                 if calleeName == "println" || calleeName == "kk_println_any" {
                     let printValue = argumentValues.first ?? zeroValue
                     if let printFunction = declareExternalFunction(
@@ -862,6 +1416,7 @@ extension NativeEmitter {
                 if emitBuiltinCall(
                     calleeName: calleeName,
                     argumentValues: argumentValues,
+                    argumentTypes: arguments.map(module.arena.exprType),
                     result: result,
                     instructionIndex: instructionIndex
                 ) {
@@ -956,7 +1511,52 @@ extension NativeEmitter {
                     continue
                 }
 
+                let argumentTypes = arguments.map(module.arena.exprType)
                 var callArguments = argumentValues
+                let internalSignature = internalSignature(for: effectiveSymbol)
+                if isInternalCall, let parameterTypes = internalSignature?.parameters {
+                    callArguments = zip(argumentValues, parameterTypes).enumerated().map { index, pair in
+                        let (argumentValue, parameterType) = pair
+                        let argumentType = argumentTypes.indices.contains(index) ? argumentTypes[index] : nil
+                        if isStringAggregateType(argumentType), !isStringAggregateType(parameterType) {
+                            return bridgeStringAggregateToRuntimeRaw(
+                                argumentValue,
+                                suffix: "\(instructionIndex)_internal_arg\(index)"
+                            ) ?? argumentValue
+                        }
+                        if !isStringAggregateType(argumentType), isStringAggregateType(parameterType) {
+                            if arguments.indices.contains(index),
+                               isZeroConstant(arguments[index]),
+                               let typeLowering,
+                               let nullString = buildNullStringAggregate(
+                                   builder: builder,
+                                   lowering: typeLowering,
+                                   name: "string_null_internal_arg\(instructionIndex)_\(index)"
+                               )
+                            {
+                                return nullString
+                            }
+                            return bridgeRuntimeRawToStringAggregate(
+                                argumentValue,
+                                suffix: "\(instructionIndex)_internal_arg\(index)"
+                            ) ?? argumentValue
+                        }
+                        return argumentValue
+                    }
+                }
+                let shouldBridgeExternalStringABI = !isInternalCall && typeLowering != nil
+                if shouldBridgeExternalStringABI {
+                    callArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
+                        let (argumentValue, argumentType) = pair
+                        guard isStringAggregateType(argumentType) else {
+                            return argumentValue
+                        }
+                        return bridgeStringAggregateToRuntimeRaw(
+                            argumentValue,
+                            suffix: "\(instructionIndex)_arg\(index)"
+                        ) ?? argumentValue
+                    }
+                }
                 var thrownSlotPointer: LLVMCAPIBindings.LLVMValueRef?
                 if shouldAppendThrownChannel {
                     if usesThrownChannel {
@@ -984,7 +1584,42 @@ extension NativeEmitter {
                     arguments: callArguments,
                     name: "call_\(instructionIndex)"
                 )
-                storeResult(result, callValue)
+                let storedCallValue: LLVMCAPIBindings.LLVMValueRef?
+                if isInternalCall,
+                   let result,
+                   let returnType = internalSignature?.returnType,
+                   isStringAggregateType(returnType),
+                   !isStringAggregateExpr(result),
+                   let callValue
+                {
+                    storedCallValue = bridgeStringAggregateToRuntimeRaw(
+                        callValue,
+                        suffix: "\(instructionIndex)_internal_result"
+                    ) ?? callValue
+                } else if isInternalCall,
+                          let result,
+                          let returnType = internalSignature?.returnType,
+                          !isStringAggregateType(returnType),
+                          isStringAggregateExpr(result),
+                          let callValue
+                {
+                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                        callValue,
+                        suffix: "\(instructionIndex)_internal_result"
+                    ) ?? callValue
+                } else if shouldBridgeExternalStringABI,
+                   let result,
+                   isStringAggregateExpr(result),
+                   let callValue
+                {
+                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                        callValue,
+                        suffix: "\(instructionIndex)_result"
+                    ) ?? callValue
+                } else {
+                    storedCallValue = callValue
+                }
+                storeResult(result, storedCallValue)
                 if calleeName == "kk_coroutine_continuation_new",
                    let coroutineRegisterRootFunction
                 {
@@ -1274,6 +1909,35 @@ extension NativeEmitter {
                     continue
                 }
                 let resolved = resolveValue(value)
+                if let valueType = module.arena.exprType(value),
+                   let typeLowering,
+                   let typeSystem,
+                   case .stringStruct = typeSystem.kind(of: valueType),
+                   let dataPointer = bindings.buildExtractValue(
+                       builder,
+                       aggregate: resolved,
+                       index: 0,
+                       name: "jnn_string_data_\(instructionIndex)"
+                   ),
+                   let nullPointer = bindings.constPointerNull(typeLowering.dataPointerType),
+                   let condition = bindings.buildICmpNotEqual(
+                       builder,
+                       lhs: dataPointer,
+                       rhs: nullPointer,
+                       name: "jnn_string_nonnull_\(instructionIndex)"
+                   ),
+                   let targetBlock = blockForLabel(target),
+                   let fallthroughBlock = bindings.appendBasicBlock(
+                       context: context,
+                       function: llvmFunction.value,
+                       name: "jnn_cont_\(instructionIndex)"
+                   )
+                {
+                    _ = bindings.buildCondBr(builder, condition: condition, thenBlock: targetBlock, elseBlock: fallthroughBlock)
+                    currentBlock = fallthroughBlock
+                    bindings.positionBuilder(builder, at: fallthroughBlock)
+                    continue
+                }
                 let nullSentinel = bindings.constInt(
                     int64Type,
                     value: UInt64(bitPattern: Int64.min),
@@ -1315,7 +1979,20 @@ extension NativeEmitter {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
-                let copySource = resolveValue(from)
+                var copySource = resolveValue(from)
+                let fromType = module.arena.exprType(from)
+                let toType = module.arena.exprType(to)
+                if isStringAggregateType(fromType), !isStringAggregateType(toType) {
+                    copySource = bridgeStringAggregateToRuntimeRaw(
+                        copySource,
+                        suffix: "copy_\(instructionIndex)"
+                    ) ?? copySource
+                } else if !isStringAggregateType(fromType), isStringAggregateType(toType) {
+                    copySource = bridgeRuntimeRawToStringAggregate(
+                        copySource,
+                        suffix: "copy_\(instructionIndex)"
+                    ) ?? copySource
+                }
                 // If the copy target is a global symbolRef, store to the
                 // LLVM global variable so the write persists across reads.
                 if let targetExpr = module.arena.expr(to),
@@ -1343,8 +2020,13 @@ extension NativeEmitter {
                     continue
                 }
                 if let globalPtr = globalVariables[symbol] {
+                    let loadType = loweredLLVMType(
+                        for: module.arena.exprType(result),
+                        lowering: typeLowering,
+                        defaultType: int64Type
+                    )
                     if let loaded = bindings.buildLoad(
-                        builder, type: int64Type, pointer: globalPtr,
+                        builder, type: loadType, pointer: globalPtr,
                         name: "load_global_\(symbol.rawValue)"
                     ) {
                         storeResult(result, loaded)
@@ -1401,8 +2083,14 @@ extension NativeEmitter {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
+                let returnValue = coerceStringValueForType(
+                    resolveValue(value),
+                    from: module.arena.exprType(value),
+                    to: function.returnType,
+                    suffix: "return_\(instructionIndex)"
+                )
                 emitFramePop("ret_val_\(instructionIndex)")
-                _ = bindings.buildRet(builder, value: resolveValue(value))
+                _ = bindings.buildRet(builder, value: returnValue)
 
             case let .nonLocalReturn(value):
                 // Non-local returns should have been lowered by InlineLoweringPass.
@@ -1415,7 +2103,13 @@ extension NativeEmitter {
                 }
                 emitFramePop("ret_nonlocal_\(instructionIndex)")
                 if let value {
-                    _ = bindings.buildRet(builder, value: resolveValue(value))
+                    let returnValue = coerceStringValueForType(
+                        resolveValue(value),
+                        from: module.arena.exprType(value),
+                        to: function.returnType,
+                        suffix: "nonlocal_return_\(instructionIndex)"
+                    )
+                    _ = bindings.buildRet(builder, value: returnValue)
                 } else {
                     _ = bindings.buildRet(builder, value: zeroValue)
                 }

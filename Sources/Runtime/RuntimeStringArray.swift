@@ -240,6 +240,115 @@ func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
     return "KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(message)"
 }
 
+private final class RuntimeFlatStringStorage: @unchecked Sendable {
+    let data: UnsafeMutablePointer<UInt8>
+    let length: Int
+    let byteCount: Int
+    let hash: Int
+
+    init(_ value: String) {
+        let bytes = Array(value.utf8)
+        self.length = bytes.count
+        self.byteCount = bytes.count
+        self.hash = 0
+        self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
+        if bytes.isEmpty {
+            data.initialize(to: 0)
+        } else {
+            data.initialize(from: bytes, count: bytes.count)
+        }
+    }
+
+    deinit {
+        data.deallocate()
+    }
+}
+
+private final class RuntimeFlatStringStorageRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [RuntimeFlatStringStorage] = []
+
+    func append(_ entry: RuntimeFlatStringStorage) {
+        lock.lock()
+        storage.append(entry)
+        lock.unlock()
+    }
+}
+
+private let runtimeFlatStringStorageRegistry = RuntimeFlatStringStorageRegistry()
+
+func runtimeStringFromFlatFields(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    _ = (length, hash)
+    guard let data, byteCount >= 0 else {
+        return ""
+    }
+    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+    return String(decoding: buffer, as: UTF8.self)
+}
+
+private func runtimeRegisterFlatString(
+    _ value: String,
+    outLength: UnsafeMutablePointer<Int>?,
+    outByteCount: UnsafeMutablePointer<Int>?,
+    outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let storage = RuntimeFlatStringStorage(value)
+    outLength?.pointee = storage.length
+    outByteCount?.pointee = storage.byteCount
+    outHash?.pointee = storage.hash
+    let data = storage.data
+    runtimeFlatStringStorageRegistry.append(storage)
+    return data
+}
+
+@_cdecl("kk_string_from_flat")
+public func kk_string_from_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard data != nil else {
+        return 0
+    }
+    let string = runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+    return registerRuntimeObject(RuntimeStringBox(string))
+}
+
+@_cdecl("kk_string_to_flat")
+public func kk_string_to_flat(
+    _ raw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    guard raw != runtimeNullSentinelInt,
+          raw != 0,
+          let string = extractString(from: UnsafeMutableRawPointer(bitPattern: raw))
+    else {
+        outLength?.pointee = 0
+        outByteCount?.pointee = 0
+        outHash?.pointee = 0
+        return nil
+    }
+    return runtimeRegisterFlatString(
+        string,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_from_utf8")
 public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> UnsafeMutableRawPointer {
     let count = max(0, Int(len))
@@ -279,6 +388,68 @@ public func kk_string_concat(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRa
 public func kk_string_compareTo(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRawPointer?) -> Int {
     let lhs = extractString(from: normalizeNullableRuntimePointer(a)) ?? ""
     let rhs = extractString(from: normalizeNullableRuntimePointer(b)) ?? ""
+    if lhs < rhs { return -1 }
+    if lhs > rhs { return 1 }
+    return 0
+}
+
+@_cdecl("kk_string_concat_flat")
+public func kk_string_concat_flat(
+    _ lhsData: UnsafePointer<UInt8>?,
+    _ lhsLength: Int,
+    _ lhsByteCount: Int,
+    _ lhsHash: Int,
+    _ rhsData: UnsafePointer<UInt8>?,
+    _ rhsLength: Int,
+    _ rhsByteCount: Int,
+    _ rhsHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let lhs = runtimeStringFromFlatFields(
+        data: lhsData,
+        length: lhsLength,
+        byteCount: lhsByteCount,
+        hash: lhsHash
+    )
+    let rhs = runtimeStringFromFlatFields(
+        data: rhsData,
+        length: rhsLength,
+        byteCount: rhsByteCount,
+        hash: rhsHash
+    )
+    return runtimeRegisterFlatString(
+        lhs + rhs,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_compareTo_flat")
+public func kk_string_compareTo_flat(
+    _ lhsData: UnsafePointer<UInt8>?,
+    _ lhsLength: Int,
+    _ lhsByteCount: Int,
+    _ lhsHash: Int,
+    _ rhsData: UnsafePointer<UInt8>?,
+    _ rhsLength: Int,
+    _ rhsByteCount: Int,
+    _ rhsHash: Int
+) -> Int {
+    let lhs = runtimeStringFromFlatFields(
+        data: lhsData,
+        length: lhsLength,
+        byteCount: lhsByteCount,
+        hash: lhsHash
+    )
+    let rhs = runtimeStringFromFlatFields(
+        data: rhsData,
+        length: rhsLength,
+        byteCount: rhsByteCount,
+        hash: rhsHash
+    )
     if lhs < rhs { return -1 }
     if lhs > rhs { return 1 }
     return 0
@@ -1537,6 +1708,23 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     Swift.print("<object \(raw)>")
+}
+
+@_cdecl("kk_println_string_flat")
+public func kk_println_string_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    _ = (length, hash)
+    guard let data, byteCount >= 0 else {
+        Swift.print("null")
+        return 0
+    }
+    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+    Swift.print(String(decoding: buffer, as: UTF8.self))
+    return 0
 }
 
 /// Runtime support for kotlin.io.print(message) (no newline).

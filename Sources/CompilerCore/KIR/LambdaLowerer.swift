@@ -1191,7 +1191,7 @@ final class LambdaLowerer {
         // Emit the name string literal.
         let nameExpr = arena.appendExpr(
             .stringLiteral(memberName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
 

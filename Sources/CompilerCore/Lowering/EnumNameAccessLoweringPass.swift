@@ -33,7 +33,7 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         let nameCallee = ctx.interner.intern("name")
         let printlnCallee = ctx.interner.intern("println")
         let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
 
         module.arena.transformFunctions { function in
             var newBody: [KIRInstruction] = []

@@ -553,7 +553,7 @@ extension DataFlowSemaPhase {
         }
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,

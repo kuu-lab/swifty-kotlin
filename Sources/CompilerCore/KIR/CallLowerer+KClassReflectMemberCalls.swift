@@ -18,7 +18,7 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let nullableStringType = sema.types.makeNullable(stringType)
 
         // 1. Emit the type token.

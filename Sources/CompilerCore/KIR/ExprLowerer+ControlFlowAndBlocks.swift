@@ -19,7 +19,7 @@ extension ExprLowerer {
             instructions.append(.constValue(result: temp, value: .unit))
             return temp
         }
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
 
         switch expr {
         case let .intLiteral(value, _):
@@ -98,7 +98,7 @@ extension ExprLowerer {
                         let tag: Int64 = switch sema.types.kind(of: nonNullType) {
                         case .primitive(.boolean, _):
                             2
-                        case .primitive(.string, _):
+                        case .stringStruct:
                             3
                         case .primitive(.char, _):
                             4
@@ -1274,7 +1274,7 @@ extension ExprLowerer {
             case .modAssign: .modulo
             }
             let stringType = sema.types.stringType
-            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
 
             func appendBuiltinCompoundResult(
                 lhs: KIRExprID,

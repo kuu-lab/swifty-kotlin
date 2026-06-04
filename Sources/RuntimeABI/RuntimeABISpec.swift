@@ -8,6 +8,8 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case opaquePointer = "void *"
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
+    case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
+    case nullableUInt8Pointer = "uint8_t * _Nullable"
     case constCCharPointer = "const char *"
     case fieldAddrPointer = "void **"
     case constTypeInfoPointer = "const KTypeInfo *"

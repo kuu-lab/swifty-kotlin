@@ -752,7 +752,7 @@ extension LoweringPassRegressionTests {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
         symbols.setFunctionSignature(
@@ -1108,7 +1108,7 @@ extension LoweringPassRegressionTests {
         )
 
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let nameParamName = interner.intern("name")
         let nameParamSymbol = symbols.define(
             kind: .valueParameter,

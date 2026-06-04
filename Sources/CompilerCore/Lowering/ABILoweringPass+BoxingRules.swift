@@ -196,7 +196,7 @@ extension ABILoweringPass {
             case .boolLiteral:
                 return types.make(.primitive(.boolean, .nonNull))
             case .stringLiteral:
-                return types.make(.primitive(.string, .nonNull))
+                return types.stringType
             default:
                 break
             }

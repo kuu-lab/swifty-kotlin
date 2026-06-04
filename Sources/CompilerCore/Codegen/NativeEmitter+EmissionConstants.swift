@@ -11,19 +11,22 @@ extension NativeEmitter {
         let zeroValue: LLVMCAPIBindings.LLVMValueRef
         let context: LLVMCAPIBindings.LLVMContextRef?
         let module: LLVMCAPIBindings.LLVMModuleRef?
+        let typeLowering: LLVMTypeLowering?
 
         init(
             builder: LLVMCAPIBindings.LLVMBuilderRef,
             int64Type: LLVMCAPIBindings.LLVMTypeRef,
             zeroValue: LLVMCAPIBindings.LLVMValueRef,
             context: LLVMCAPIBindings.LLVMContextRef? = nil,
-            module: LLVMCAPIBindings.LLVMModuleRef? = nil
+            module: LLVMCAPIBindings.LLVMModuleRef? = nil,
+            typeLowering: LLVMTypeLowering? = nil
         ) {
             self.builder = builder
             self.int64Type = int64Type
             self.zeroValue = zeroValue
             self.context = context
             self.module = module
+            self.typeLowering = typeLowering
         }
     }
 
@@ -31,6 +34,7 @@ extension NativeEmitter {
     func lowerBuiltinCall(
         calleeName: String,
         argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+        argumentTypes: [TypeID?] = [],
         state: EmissionBuilderState,
         instructionIndex: Int
     ) -> (handled: Bool, value: LLVMCAPIBindings.LLVMValueRef?) {
@@ -82,6 +86,21 @@ extension NativeEmitter {
 
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
+        case "kk_string_struct_get_length", "kk_string_length", "length":
+            guard argumentValues.count == 1,
+                  let firstType = argumentTypes.first.flatMap({ $0 }),
+                  state.typeLowering != nil,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: firstType)
+            else {
+                return (false, nil)
+            }
+            lowered = bindings.buildExtractValue(
+                state.builder,
+                aggregate: lhs,
+                index: 1,
+                name: "string_length_\(instructionIndex)"
+            )
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
         case "kk_op_sub":
@@ -302,6 +321,7 @@ extension NativeEmitter {
     func emitConstantValue(
         _ expression: KIRExprKind,
         expressionRawID: Int32?,
+        expectedType: TypeID? = nil,
         state: EmissionBuilderState,
         parameterValues: [SymbolID: LLVMCAPIBindings.LLVMValueRef],
         internalFunctions: [SymbolID: LLVMFunction],
@@ -310,8 +330,28 @@ extension NativeEmitter {
         declareExternalFunction: (String, Int, Bool) -> LLVMFunction?,
         interner: StringInterner
     ) -> LLVMCAPIBindings.LLVMValueRef {
+        func nullStringAggregateIfExpected() -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let expectedType,
+                  let typeLowering = state.typeLowering,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: expectedType)
+            else {
+                return nil
+            }
+            return buildNullStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                name: "null_string_\(expressionRawID ?? 0)"
+            )
+        }
+
         switch expression {
         case let .intLiteral(number):
+            if number == 0,
+               let nullString = nullStringAggregateIfExpected()
+            {
+                return nullString
+            }
             return bindings.constInt(state.int64Type, value: UInt64(bitPattern: number), signExtend: true) ?? state.zeroValue
         case let .longLiteral(number):
             return bindings.constInt(state.int64Type, value: UInt64(bitPattern: number), signExtend: true) ?? state.zeroValue
@@ -350,6 +390,24 @@ extension NativeEmitter {
                 name: "str_lit_\(literalID)"
             ) else {
                 return state.zeroValue
+            }
+            if let expectedType,
+               let typeLowering = state.typeLowering,
+               let typeSystem,
+               case .stringStruct = typeSystem.kind(of: expectedType)
+            {
+                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
+                let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
+                let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
+                return buildStringAggregate(
+                    builder: state.builder,
+                    lowering: typeLowering,
+                    data: globalStringPointer,
+                    length: lengthValue,
+                    byteCount: byteCountValue,
+                    hash: hashValue,
+                    name: "str_agg_\(literalID)"
+                ) ?? state.zeroValue
             }
             guard let pointerAsInt = bindings.buildPtrToInt(
                 state.builder,
@@ -401,9 +459,14 @@ extension NativeEmitter {
             }
             // Load from LLVM global variable if this symbol refers to a global.
             if let globalPtr = globalVariables[symbol] {
+                let loadType = loweredLLVMType(
+                    for: expectedType,
+                    lowering: state.typeLowering,
+                    defaultType: state.int64Type
+                )
                 return bindings.buildLoad(
                     state.builder,
-                    type: state.int64Type,
+                    type: loadType,
                     pointer: globalPtr,
                     name: "global_load_\(symbol.rawValue)"
                 ) ?? state.zeroValue
@@ -416,6 +479,9 @@ extension NativeEmitter {
                 signExtend: true
             ) ?? state.zeroValue
         case .null:
+            if let nullString = nullStringAggregateIfExpected() {
+                return nullString
+            }
             return bindings.constInt(
                 state.int64Type,
                 value: UInt64(bitPattern: Int64.min),

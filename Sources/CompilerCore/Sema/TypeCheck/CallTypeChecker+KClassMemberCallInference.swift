@@ -80,7 +80,7 @@ extension CallTypeChecker {
         if calleeName == knownNames.simpleName || calleeName == knownNames.qualifiedName {
             _ = args.map { driver.inferExpr($0.expr, ctx: ctx, locals: &locals) }
             let nullableStringType = sema.types.makeNullable(
-                sema.types.make(.primitive(.string, .nonNull))
+                sema.types.stringType
             )
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
@@ -122,7 +122,7 @@ extension CallTypeChecker {
         // STDLIB-REFLECT-060: KClass.visibility -> String?
         if calleeName == knownNames.visibilityName, args.isEmpty {
             let nullableStringType = sema.types.makeNullable(
-                sema.types.make(.primitive(.string, .nonNull))
+                sema.types.stringType
             )
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
@@ -252,7 +252,7 @@ extension CallTypeChecker {
         // STDLIB-REFLECT-060: KClass.visibility via variable receiver -> String?
         if calleeName == knownNames.visibilityName, args.isEmpty {
             let nullableStringType = sema.types.makeNullable(
-                sema.types.make(.primitive(.string, .nonNull))
+                sema.types.stringType
             )
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType

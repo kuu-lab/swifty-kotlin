@@ -64,7 +64,7 @@ extension KIRLowererPart2CoverageTests {
             ("Double", TypeKind.primitive(.double, .nonNull)),
             ("Boolean", TypeKind.primitive(.boolean, .nonNull)),
             ("Char", TypeKind.primitive(.char, .nonNull)),
-            ("String", TypeKind.primitive(.string, .nonNull)),
+            ("String", TypeKind.stringStruct(.nonNull)),
         ]
 
         for (name, expectedKind) in builtinNames {

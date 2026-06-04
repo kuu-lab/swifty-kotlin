@@ -2023,7 +2023,7 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-192: equals(other, ignoreCase) ---
 
-        let nullableStringType = types.make(.primitive(.string, .nullable))
+        let nullableStringType = types.makeNullable(types.stringType)
 
         registerSyntheticStringExtensionFunction(
             named: "equals",

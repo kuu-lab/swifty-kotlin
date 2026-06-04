@@ -48,7 +48,7 @@ extension CallLowerer {
         )
 
         let resultType = sema.bindings.exprTypes[exprID]
-            ?? sema.types.make(.primitive(.string, .nonNull))
+            ?? sema.types.stringType
         let result = arena.appendExpr(
             .temporary(Int32(arena.expressions.count)),
             type: resultType

@@ -525,7 +525,7 @@ extension CallLowerer {
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
-        case .primitive(.string, _):
+        case .stringStruct:
             false
         case .primitive:
             true

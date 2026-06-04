@@ -24,7 +24,7 @@ extension CallLowerer {
             sema.bindings.exprTypes[exprID]
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let lhsID = driver.lowerExpr(
             lhs,
             ast: ast,
@@ -298,7 +298,7 @@ extension CallLowerer {
             // coercion so that kk_string_concat always receives two string
             // pointers.
             let rhsExprType = sema.bindings.exprTypes[rhs]
-            let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+            let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             let effectiveRHS: KIRExprID
             if rhsExprType == stringType || rhsExprType == nullableStringType {
                 effectiveRHS = rhsID
@@ -358,7 +358,7 @@ extension CallLowerer {
         // kk_op_lt/le/gt/ge path which compares raw pointer addresses.
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
-        let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let isStringOperand = (lhsType == stringType || lhsType == nullableStringType)
             && (rhsType == stringType || rhsType == nullableStringType)
         if isStringOperand {
@@ -910,7 +910,7 @@ extension CallLowerer {
         // otherwise use the appropriate numeric op stub.
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         // Derive element type from the receiver's array type.
         // Mirrors TypeCheckHelpers.arrayElementType logic but also checks
         // the value expression type as a heuristic for non-IntArray receivers.

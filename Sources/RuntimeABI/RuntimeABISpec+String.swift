@@ -34,6 +34,72 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_println_string_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_from_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_to_flat",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+            ],
+            returnType: .nullableUInt8Pointer,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_concat_flat",
+            parameters: [
+                RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "lhsLength", type: .intptr),
+                RuntimeABIParameter(name: "lhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "lhsHash", type: .intptr),
+                RuntimeABIParameter(name: "rhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "rhsLength", type: .intptr),
+                RuntimeABIParameter(name: "rhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "rhsHash", type: .intptr),
+                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+            ],
+            returnType: .nullableUInt8Pointer,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_compareTo_flat",
+            parameters: [
+                RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "lhsLength", type: .intptr),
+                RuntimeABIParameter(name: "lhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "lhsHash", type: .intptr),
+                RuntimeABIParameter(name: "rhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "rhsLength", type: .intptr),
+                RuntimeABIParameter(name: "rhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "rhsHash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_compare_any",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
@@ -917,6 +983,19 @@ public extension RuntimeABISpec {
             name: "kk_string_get",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "indexRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_get_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "indexRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],

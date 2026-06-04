@@ -42,23 +42,23 @@ extension CodegenBackendIntegrationTests {
         let left = interner.intern("left")
         let right = interner.intern("right")
 
-        let leftExpr = arena.appendExpr(.stringLiteral(left))
-        let rightExpr = arena.appendExpr(.stringLiteral(right))
-        let concatResult = arena.appendExpr(.temporary(0))
-        let suspendedResult = arena.appendExpr(.temporary(1))
-        let labelValue = arena.appendExpr(.intLiteral(7))
-        let labelResult = arena.appendExpr(.temporary(2))
-        let spillSlotValue = arena.appendExpr(.intLiteral(0))
-        let spillStored = arena.appendExpr(.temporary(3))
-        let spillLoaded = arena.appendExpr(.temporary(4))
-        let completionStored = arena.appendExpr(.temporary(5))
-        let completionLoaded = arena.appendExpr(.temporary(6))
-        let throwingResult = arena.appendExpr(.temporary(7))
-        let whenCondition = arena.appendExpr(.boolLiteral(true))
-        let whenResult = arena.appendExpr(.temporary(8))
-        let falseConst = arena.appendExpr(.boolLiteral(false))
-        let continuationResult = arena.appendExpr(.temporary(10))
-        let stateExitResult = arena.appendExpr(.temporary(11))
+        let leftExpr = arena.appendExpr(.stringLiteral(left), type: types.stringType)
+        let rightExpr = arena.appendExpr(.stringLiteral(right), type: types.stringType)
+        let concatResult = arena.appendExpr(.temporary(0), type: types.stringType)
+        let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
+        let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
+        let labelResult = arena.appendExpr(.temporary(2), type: types.intType)
+        let spillSlotValue = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let spillStored = arena.appendExpr(.temporary(3), type: types.intType)
+        let spillLoaded = arena.appendExpr(.temporary(4), type: types.intType)
+        let completionStored = arena.appendExpr(.temporary(5), type: types.intType)
+        let completionLoaded = arena.appendExpr(.temporary(6), type: types.intType)
+        let throwingResult = arena.appendExpr(.temporary(7), type: types.intType)
+        let whenCondition = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
+        let whenResult = arena.appendExpr(.temporary(8), type: types.intType)
+        let falseConst = arena.appendExpr(.boolLiteral(false), type: types.booleanType)
+        let continuationResult = arena.appendExpr(.temporary(10), type: types.anyType)
+        let stateExitResult = arena.appendExpr(.temporary(11), type: types.intType)
 
         let main = KIRFunction(
             symbol: SymbolID(rawValue: 1200),
@@ -69,6 +69,7 @@ extension CodegenBackendIntegrationTests {
                 .constValue(result: leftExpr, value: .stringLiteral(left)),
                 .constValue(result: rightExpr, value: .stringLiteral(right)),
                 .call(symbol: nil, callee: interner.intern("kk_string_concat"), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
                 .call(
@@ -83,7 +84,7 @@ extension CodegenBackendIntegrationTests {
                 .call(
                     symbol: nil,
                     callee: interner.intern("kk_coroutine_state_set_spill"),
-                    arguments: [suspendedResult, spillSlotValue, concatResult],
+                    arguments: [suspendedResult, spillSlotValue, labelValue],
                     result: spillStored,
                     canThrow: false,
                     thrownResult: nil
@@ -115,7 +116,7 @@ extension CodegenBackendIntegrationTests {
                 // Control flow for if/when: branch on condition == false
                 .constValue(result: falseConst, value: .boolLiteral(false)),
                 .jumpIfEqual(lhs: whenCondition, rhs: falseConst, target: 900),
-                .copy(from: concatResult, to: whenResult),
+                .copy(from: labelValue, to: whenResult),
                 .jump(901),
                 .label(900),
                 .copy(from: completionLoaded, to: whenResult),
@@ -158,11 +159,14 @@ extension CodegenBackendIntegrationTests {
         )
         let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
 
-        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner)
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        XCTAssertTrue(ir.contains("@kk_string_from_utf8"))
-        XCTAssertTrue(ir.contains("@kk_string_concat"))
+        XCTAssertFalse(ir.contains("@kk_string_from_utf8"))
+        XCTAssertFalse(ir.contains("@kk_string_concat("))
+        XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
+        XCTAssertTrue(ir.contains("@kk_println_string_flat"))
+        XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_label"))
         XCTAssertTrue(ir.contains("@kk_coroutine_state_set_spill"))

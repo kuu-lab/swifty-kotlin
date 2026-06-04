@@ -271,7 +271,7 @@ extension DataFlowSemaPhase {
             }
         case let .kClassType(kc):
             collectSyntheticTypeParamsRecursive(kc.argument, types: types, base: base, into: &collected)
-        case .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
             break
         }
     }

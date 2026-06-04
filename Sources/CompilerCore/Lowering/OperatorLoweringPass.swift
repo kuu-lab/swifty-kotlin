@@ -334,12 +334,11 @@ final class OperatorLoweringPass: LoweringPass {
 
     /// Returns true when the expression is a reference type that requires structural
     /// equality (e.g. List, Set, Map, String, Any, class instances).
-    /// String is classified as a primitive in the type system but is represented as a
-    /// heap-allocated RuntimeStringBox at runtime, so pointer comparison is insufficient.
+    /// String is a compiler aggregate, so pointer comparison is insufficient.
     private func isReferenceType(_ exprID: KIRExprID, arena: KIRArena, types: TypeSystem?) -> Bool {
         guard let types, let typeID = arena.exprType(exprID) else { return false }
         switch types.kind(of: typeID) {
-        case .primitive(.string, _):
+        case .stringStruct:
             return true
         case .primitive:
             return false
@@ -513,7 +512,7 @@ final class OperatorLoweringPass: LoweringPass {
             let tag: Int64 = switch sema.types.kind(of: type) {
             case .primitive(.boolean, _):
                 2
-            case .primitive(.string, _):
+            case .stringStruct:
                 3
             default:
                 1

@@ -19,7 +19,7 @@ extension TypeSystemTests {
         XCTAssertEqual(ts.renderType(ts.make(.primitive(.long, .nonNull))), "Long")
         XCTAssertEqual(ts.renderType(ts.make(.primitive(.float, .nonNull))), "Float")
         XCTAssertEqual(ts.renderType(ts.make(.primitive(.double, .nonNull))), "Double")
-        XCTAssertEqual(ts.renderType(ts.make(.primitive(.string, .nonNull))), "String")
+        XCTAssertEqual(ts.renderType(ts.stringType), "String")
     }
 
     func testRenderTypeNullablePrimitive() {
@@ -78,7 +78,7 @@ extension TypeSystemTests {
     func testRenderTypeFunctionTypeWithReceiver() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let ft = ts.make(.functionType(FunctionType(receiver: stringType, params: [], returnType: intType)))
         let rendered = ts.renderType(ft)
         XCTAssertTrue(rendered.contains("String."))
@@ -87,7 +87,7 @@ extension TypeSystemTests {
     func testRenderTypeFunctionTypeWithContextReceivers() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let ft = ts.make(.functionType(FunctionType(
             contextReceivers: [stringType, intType],
             receiver: stringType,
@@ -100,7 +100,7 @@ extension TypeSystemTests {
     func testRenderTypeIntersection() {
         let ts = TypeSystem()
         let intType = ts.make(.primitive(.int, .nonNull))
-        let stringType = ts.make(.primitive(.string, .nonNull))
+        let stringType = ts.stringType
         let inter = ts.make(.intersection([intType, stringType]))
         let rendered = ts.renderType(inter)
         XCTAssertTrue(rendered.contains(" & "))

@@ -156,7 +156,7 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: intType
@@ -203,7 +203,7 @@ extension DataEnumSealedSynthesisPass {
         interner: StringInterner
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let name = interner.intern("$enumOrdinalToName")
         let fqName = owner.fqName + [name]
         let paramName = interner.intern("$ordinal")
@@ -307,7 +307,7 @@ extension DataEnumSealedSynthesisPass {
         existingFunctionSymbols: Set<SymbolID>,
         interner: StringInterner
     ) {
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
 
         let fqName = owner.fqName + [name]
         let parameterName = interner.intern("$name")

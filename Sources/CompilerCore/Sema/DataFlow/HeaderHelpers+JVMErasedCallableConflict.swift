@@ -61,10 +61,9 @@ extension DataFlowSemaPhase {
 
     func jvmErasedCallableType(_ type: TypeID, types: TypeSystem) -> TypeID {
         switch types.kind(of: type) {
-        case let .primitive(primitive, _):
-            if primitive == .string {
-                return types.makeNonNullable(type)
-            }
+        case .stringStruct:
+            return types.makeNonNullable(type)
+        case .primitive:
             return type
         default:
             return types.makeNonNullable(type)

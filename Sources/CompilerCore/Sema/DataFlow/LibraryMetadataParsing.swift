@@ -400,7 +400,7 @@ extension DataFlowSemaPhase {
                 return nil
             }
             if name == "kotlin_String" {
-                return types.make(.primitive(.string, .nonNull))
+                return types.stringType
             }
 
             let fqName = name.split(separator: ".").map { interner.intern(String($0)) }

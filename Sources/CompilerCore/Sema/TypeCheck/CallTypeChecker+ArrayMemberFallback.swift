@@ -522,7 +522,7 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: finalType)
             return finalType
         case "name":
-            let resultType = sema.types.make(.primitive(.string, .nonNull))
+            let resultType = sema.types.stringType
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType

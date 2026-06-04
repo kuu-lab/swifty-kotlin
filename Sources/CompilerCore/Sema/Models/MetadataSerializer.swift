@@ -322,7 +322,7 @@ final class MetadataEncoder {
                 nullability: kClassType.nullability
             )))
 
-        case .typeParam, .primitive, .any, .unit, .nothing, .error:
+        case .typeParam, .stringStruct, .primitive, .any, .unit, .nothing, .error:
             return type
         }
     }

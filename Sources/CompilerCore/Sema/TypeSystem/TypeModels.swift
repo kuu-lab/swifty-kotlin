@@ -15,7 +15,6 @@ public enum PrimitiveType: String, Hashable, Sendable {
     case long
     case float
     case double
-    case string
     case uint
     case ulong
     case ubyte
@@ -32,7 +31,6 @@ public extension PrimitiveType {
         case .long: "Long"
         case .float: "Float"
         case .double: "Double"
-        case .string: "String"
         case .uint: "UInt"
         case .ulong: "ULong"
         case .ubyte: "UByte"
@@ -139,6 +137,7 @@ public enum TypeKind: Hashable {
     case nothing(Nullability)
     case any(Nullability)
 
+    case stringStruct(Nullability)
     case primitive(PrimitiveType, Nullability)
     case classType(ClassType)
     case typeParam(TypeParamType)

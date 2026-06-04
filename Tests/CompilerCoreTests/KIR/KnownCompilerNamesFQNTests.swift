@@ -128,7 +128,7 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let regexCallee = interner.intern("Regex")
         let result = fixture.driver.callSupportLowerer.loweredRuntimeBuiltinCallee(
@@ -172,7 +172,7 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let regexCallee = interner.intern("Regex")
         let result = fixture.driver.callSupportLowerer.loweredRuntimeBuiltinCallee(

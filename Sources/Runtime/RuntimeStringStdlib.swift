@@ -2087,6 +2087,33 @@ public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMut
     return Int(scalars[indexRaw].value)
 }
 
+@_cdecl("kk_string_get_flat")
+public func kk_string_get_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ indexRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+    let scalars = Array(source.unicodeScalars)
+    guard indexRaw >= 0, indexRaw < scalars.count else {
+        runtimeSetThrown(
+            outThrown,
+            message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
+        )
+        return 0
+    }
+    return Int(scalars[indexRaw].value)
+}
+
 @_cdecl("kk_string_compareTo_member")
 public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)

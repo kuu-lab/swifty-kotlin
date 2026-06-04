@@ -91,7 +91,7 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         for (index, entry) in entries.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
             // Call the synthesized `<EntryName>$enumName()` helper so that

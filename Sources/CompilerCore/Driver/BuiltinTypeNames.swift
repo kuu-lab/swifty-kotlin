@@ -48,7 +48,6 @@ struct BuiltinTypeNames {
         if name == double { return .double }
         if name == boolean { return .boolean }
         if name == char { return .char }
-        if name == string { return .string }
         if name == uint { return .uint }
         if name == ulong { return .ulong }
         if name == ubyte { return .ubyte }
@@ -62,6 +61,9 @@ struct BuiltinTypeNames {
         nullability: Nullability = .nonNull,
         types: TypeSystem
     ) -> TypeID? {
+        if name == string {
+            return types.withNullability(nullability, for: types.stringType)
+        }
         if let prim = primitiveType(for: name) {
             return types.withNullability(nullability, for: types.make(.primitive(prim, .nonNull)))
         }
