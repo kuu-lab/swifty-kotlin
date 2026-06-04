@@ -322,6 +322,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- ByteArray.getUuid(offset: Int) extension in kotlin.uuid ---
+        registerUuidTopLevelExtension(
+            named: "getUuid",
+            receiverType: byteArrayType,
+            parameters: [(name: "offset", type: types.intType)],
+            returnType: uuidType,
+            externalLinkName: "kk_uuid_getUuid",
+            packageFQName: kotlinUuidPkg,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Uuid Helpers
@@ -626,5 +638,73 @@ extension DataFlowSemaPhase {
             annotations.append(record)
             symbols.setAnnotations(annotations, for: symbol)
         }
+    }
+
+    private func registerUuidTopLevelExtension(
+        named name: String,
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        externalLinkName: String,
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let fnName = interner.intern(name)
+        let fnFQName = packageFQName + [fnName]
+        let paramTypes = parameters.map(\.type)
+
+        if let existing = symbols.lookupAll(fqName: fnFQName).first(where: { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == receiverType
+                && sig.parameterTypes == paramTypes
+                && sig.returnType == returnType
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            attachExperimentalUuidApiAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let fnSymbol = symbols.define(
+            kind: .function,
+            name: fnName,
+            fqName: fnFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .throwingFunction]
+        )
+        if let pkgSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(pkgSymbol, for: fnSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: fnSymbol)
+        attachExperimentalUuidApiAnnotation(to: fnSymbol, symbols: symbols)
+
+        var valueParameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let paramName = interner.intern(parameter.name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: paramName,
+                fqName: fnFQName + [paramName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(fnSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: paramTypes,
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
+            ),
+            for: fnSymbol
+        )
     }
 }
