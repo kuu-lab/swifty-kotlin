@@ -1,7 +1,5 @@
 package kotlin.math
 
-import kswiftk.internal.*
-
 fun Double.pow(x: Double): Double {
     if (this == 1.0 || x == 0.0) return 1.0
     if (this == 0.0) {

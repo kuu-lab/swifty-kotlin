@@ -1,7 +1,5 @@
 package kotlin.math
 
-import kswiftk.internal.*
-
 fun abs(x: Int): Int = if (x < 0) -x else x
 
 fun abs(n: Long): Long = if (n < 0L) -n else n
