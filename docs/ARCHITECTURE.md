@@ -26,13 +26,12 @@ Package.swift
  +-- CompilerCore  (library)   コンパイラ本体ロジック全般
  +-- KSwiftKCLI   (executable) CLI エントリポイント -> kswiftc
  +-- Runtime       (library)   GC / coroutine / boxing ヘルパー
- +-- CLLVM         (system)    LLVM C API ブリッジ (modulemap)
 ```
 
 ### 依存グラフ
 
 ```text
-KSwiftKCLI --> CompilerCore --> CLLVM
+KSwiftKCLI --> CompilerCore
 RuntimeTests --> RuntimeABI
 Runtime (独立 — リンク時に結合)
 ```
@@ -101,13 +100,6 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `RuntimeABISpec.swift` | Runtime ABI 仕様定数と C ヘッダ生成 |
 | `RuntimeABIExterns.swift` | `RuntimeABISpec` から導出される extern 宣言 view |
-
-### `Sources/CLLVM/`
-
-| ファイル | 責務 |
-|---|---|
-| `include/llvm_shim.h` | LLVM C API ヘッダブリッジ |
-| `module.modulemap` | SwiftPM 用モジュールマップ |
 
 ---
 

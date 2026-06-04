@@ -59,7 +59,7 @@ CI で diff が落ちたとき: GitHub 上はジョブ **Summary** と **Artifac
 LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lowering → Codegen → Link
 ```
 
-モジュール構成: `CompilerCore`（コンパイラ本体）/ `KSwiftKCLI`（CLIエントリ）/ `Runtime`（GC・coroutine）/ `CLLVM`（LLVM C API ブリッジ）
+モジュール構成: `CompilerCore`（コンパイラ本体）/ `KSwiftKCLI`（CLIエントリ）/ `Runtime`（GC・coroutine）
 
 詳細なディレクトリマップ・フェーズ仕様・タスク別ナビゲーションは → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
