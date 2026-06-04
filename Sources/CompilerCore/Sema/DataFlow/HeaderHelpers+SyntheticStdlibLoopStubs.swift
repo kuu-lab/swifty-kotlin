@@ -19,17 +19,7 @@ extension DataFlowSemaPhase {
         let repeatName = interner.intern("repeat")
         let repeatFQName = kotlinPkg + [repeatName]
         if symbols.lookupAll(fqName: repeatFQName).contains(where: { symbolID in
-            guard let signature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            guard signature.parameterTypes.count == 2,
-                  case let .functionType(functionType) = types.kind(of: signature.parameterTypes[1])
-            else {
-                return false
-            }
-            return signature.parameterTypes[0] == types.intType
-                && functionType.params == [types.intType]
-                && functionType.returnType == types.unitType
+            symbols.symbol(symbolID)?.kind == .function
         }) {
             return
         }

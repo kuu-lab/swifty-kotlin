@@ -142,7 +142,8 @@ final class CodegenPhase: CompilerPhase {
             sourceManager: ctx.sourceManager,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
             reflectionMetadataRecords: reflectionMetadataRecords,
-            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix
+            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+            omitInlineFunctions: true
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
@@ -353,6 +354,9 @@ final class CodegenPhase: CompilerPhase {
                 guard case let .function(function) = decl else {
                     return
                 }
+                guard !function.isInline else {
+                    return
+                }
                 partial[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: ctx.interner,
@@ -364,6 +368,15 @@ final class CodegenPhase: CompilerPhase {
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
             .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
             .map(\.rawValue))
+        let inlineFunctionSymbols: Set<SymbolID> = {
+            guard let kir = ctx.kir else { return [] }
+            return Set(kir.arena.declarations.compactMap { decl -> SymbolID? in
+                guard case let .function(function) = decl, function.isInline else {
+                    return nil
+                }
+                return function.symbol
+            })
+        }()
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
@@ -371,6 +384,8 @@ final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
             functionLinkNames: functionLinkNamesBySymbol,
+            inlineFunctionSymbols: inlineFunctionSymbols,
+            includeSynthetic: false,
             excludedFileIDs: bundledFileIDs
         )
         return encoder.serialize(records)

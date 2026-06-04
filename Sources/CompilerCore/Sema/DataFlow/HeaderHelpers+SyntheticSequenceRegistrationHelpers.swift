@@ -302,7 +302,9 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) != true {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             symbols.setPropertyType(returnType, for: existing)
             if let constValue {
                 symbols.insertFlags(.constValue, for: existing)
@@ -348,7 +350,13 @@ extension DataFlowSemaPhase {
             return existingSignature.parameterTypes == parameters.map(\.type)
                 && existingSignature.returnType == returnType
         }) {
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 
@@ -740,10 +748,16 @@ extension DataFlowSemaPhase {
             return existingSignature.parameterTypes == parameters.map(\.type)
                 && existingSignature.returnType == returnType
         }) {
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
             if !annotations.isEmpty {
                 symbols.setAnnotations(annotations, for: existing)
             }
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 

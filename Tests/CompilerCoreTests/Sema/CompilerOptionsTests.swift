@@ -70,6 +70,9 @@ final class CompilerOptionsTests: XCTestCase {
         XCTAssertEqual(opts.outputPath, "/out")
         XCTAssertEqual(opts.emit, .executable)
         XCTAssertTrue(opts.searchPaths.isEmpty)
+        XCTAssertTrue(opts.stdlibSearchPaths.isEmpty)
+        XCTAssertTrue(opts.includeStdlib)
+        XCTAssertTrue(opts.effectiveSearchPaths.isEmpty)
         XCTAssertTrue(opts.libraryPaths.isEmpty)
         XCTAssertTrue(opts.linkLibraries.isEmpty)
         XCTAssertEqual(opts.optLevel, .O0)
@@ -87,6 +90,7 @@ final class CompilerOptionsTests: XCTestCase {
             outputPath: "/out/bin",
             emit: .object,
             searchPaths: ["/lib"],
+            stdlibSearchPaths: ["/stdlib"],
             libraryPaths: ["/ext"],
             linkLibraries: ["runtime"],
             target: TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux-gnu", osVersion: nil),
@@ -101,6 +105,8 @@ final class CompilerOptionsTests: XCTestCase {
         XCTAssertEqual(opts.inputs.count, 2)
         XCTAssertEqual(opts.emit, .object)
         XCTAssertEqual(opts.searchPaths, ["/lib"])
+        XCTAssertEqual(opts.stdlibSearchPaths, ["/stdlib"])
+        XCTAssertEqual(opts.effectiveSearchPaths, ["/stdlib", "/lib"])
         XCTAssertEqual(opts.libraryPaths, ["/ext"])
         XCTAssertEqual(opts.linkLibraries, ["runtime"])
         XCTAssertEqual(opts.optLevel, .O2)

@@ -17,7 +17,7 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         cache: LibraryMetadataCache? = nil
     ) {
-        let libraryDirs = discoverLibraryDirectories(searchPaths: options.searchPaths)
+        let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveSearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
 
@@ -58,7 +58,7 @@ extension DataFlowSemaPhase {
                     continue
                 }
                 let name = record.fqName.last ?? interner.intern("_")
-                var flags: SymbolFlags = [.synthetic]
+                var flags: SymbolFlags = [.synthetic, .importedLibrary]
                 if record.isSuspend, record.kind == .function {
                     flags.insert(.suspendFunction)
                 }

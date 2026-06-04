@@ -60,6 +60,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// The ABI lowering pass must NOT add this symbol to nonThrowingCallees.
     public static let throwingFunction = SymbolFlags(rawValue: 1 << 20)
     public static let readOnlyProperty = SymbolFlags(rawValue: 1 << 21)
+    public static let importedLibrary = SymbolFlags(rawValue: 1 << 22)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -595,12 +596,17 @@ public final class SymbolTable {
         flags: SymbolFlags,
         existingSymbols: [SemanticSymbol]
     ) -> Bool {
-        guard kind == .property, flags.contains(.synthetic) else {
+        guard kind == .property else {
             return false
         }
         let existingNonPackageSymbols = existingSymbols.filter { $0.kind != .package }
         guard !existingNonPackageSymbols.isEmpty else {
             return false
+        }
+        if !flags.contains(.synthetic) {
+            return existingNonPackageSymbols.allSatisfy {
+                $0.kind == .property && $0.flags.contains(.synthetic)
+            }
         }
         return existingNonPackageSymbols.allSatisfy { symbol in
             switch symbol.kind {

@@ -134,7 +134,9 @@ extension DataFlowSemaPhase {
             return existingSignature.parameterTypes == parameters.map(\.type)
                 && existingSignature.returnType == returnType
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) != true {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             if let contractNonNullParameterIndex,
                let signature = symbols.functionSignature(for: existing),
                contractNonNullParameterIndex < signature.valueParameterSymbols.count
@@ -148,6 +150,9 @@ extension DataFlowSemaPhase {
                     for: existing
                 )
             }
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 

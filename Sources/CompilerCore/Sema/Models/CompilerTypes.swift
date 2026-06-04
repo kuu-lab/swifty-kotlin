@@ -79,6 +79,8 @@ public struct CompilerOptions: Equatable {
     public var outputPath: String
     public var emit: EmitMode
     public var searchPaths: [String]
+    public var stdlibSearchPaths: [String]
+    public var includeStdlib: Bool
     public var libraryPaths: [String]
     public var linkLibraries: [String]
     public var target: TargetTriple
@@ -106,6 +108,8 @@ public struct CompilerOptions: Equatable {
         outputPath: String,
         emit: EmitMode,
         searchPaths: [String] = [],
+        stdlibSearchPaths: [String] = [],
+        includeStdlib: Bool = true,
         libraryPaths: [String] = [],
         linkLibraries: [String] = [],
         target: TargetTriple,
@@ -124,6 +128,8 @@ public struct CompilerOptions: Equatable {
         self.outputPath = outputPath
         self.emit = emit
         self.searchPaths = searchPaths
+        self.stdlibSearchPaths = stdlibSearchPaths
+        self.includeStdlib = includeStdlib
         self.libraryPaths = libraryPaths
         self.linkLibraries = linkLibraries
         self.target = target
@@ -138,34 +144,41 @@ public struct CompilerOptions: Equatable {
         self.diagnosticsFormat = diagnosticsFormat
     }
 
-    /// Default search paths for locating Kotlin stdlib sources.
-    ///
-    /// Checks candidates in order and returns only paths that exist on disk:
-    /// 1. `KSWIFTK_STDLIB_PATH` environment variable (if set).
-    /// 2. `<prefix>/lib/kswiftk/stdlib` relative to the compiler binary (macOS).
-    public static func defaultStdlibSearchPaths() -> [String] {
-        let fileManager = FileManager.default
-        var paths: [String] = []
+    /// Library lookup roots used by Sema import and link-time autolinking.
+    public var effectiveSearchPaths: [String] {
+        includeStdlib ? stdlibSearchPaths + searchPaths : searchPaths
+    }
 
-        if let envPath = ProcessInfo.processInfo.environment["KSWIFTK_STDLIB_PATH"],
-           !envPath.isEmpty,
-           fileManager.fileExists(atPath: envPath)
-        {
-            paths.append(envPath)
+    /// Built-in Kotlin stdlib library locations discovered for CLI use.
+    public static func defaultStdlibSearchPaths(
+        executablePath: String? = CommandLine.arguments.first,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> [String] {
+        var candidates: [String] = []
+
+        if let override = environment["KSWIFTK_STDLIB_PATH"], !override.isEmpty {
+            candidates.append(contentsOf: override.split(separator: ":").map(String.init))
         }
 
-        #if os(macOS)
-            if let execPath = CommandLine.arguments.first, !execPath.isEmpty {
-                let execURL = URL(fileURLWithPath: execPath).resolvingSymlinksInPath()
-                let prefixDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
-                let stdlibDir = prefixDir.appendingPathComponent("lib/kswiftk/stdlib").path
-                if fileManager.fileExists(atPath: stdlibDir) {
-                    paths.append(stdlibDir)
-                }
-            }
-        #endif
+        if let executablePath, !executablePath.isEmpty {
+            let executableURL = URL(fileURLWithPath: executablePath).standardizedFileURL
+            let binDir = executableURL.deletingLastPathComponent()
+            candidates.append(contentsOf: [
+                binDir.appendingPathComponent("kotlin-stdlib.kklib").path,
+                binDir.appendingPathComponent("../lib/kswiftk/kotlin-stdlib.kklib").standardizedFileURL.path,
+                binDir.appendingPathComponent("../share/kswiftk/kotlin-stdlib.kklib").standardizedFileURL.path,
+            ])
+        }
 
-        return paths
+        let fm = FileManager.default
+        var seen: Set<String> = []
+        return candidates.compactMap { rawPath in
+            let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
+            guard fm.fileExists(atPath: path), seen.insert(path).inserted else {
+                return nil
+            }
+            return path
+        }
     }
 
     /// Marker annotations accepted by compiler-wide `-opt-in=<fqName>` flags.

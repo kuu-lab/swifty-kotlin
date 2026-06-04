@@ -1369,6 +1369,9 @@ extension DataFlowSemaPhase {
         }) {
             return
         }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
+            return
+        }
         let functionSymbol = symbols.define(
             kind: .function,
             name: functionName,
@@ -1434,6 +1437,9 @@ extension DataFlowSemaPhase {
             if !deprecatedAnnotations.isEmpty {
                 symbols.setAnnotations(deprecatedAnnotations, for: existing)
             }
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 

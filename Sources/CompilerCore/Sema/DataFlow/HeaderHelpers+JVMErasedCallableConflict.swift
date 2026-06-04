@@ -20,6 +20,7 @@ extension DataFlowSemaPhase {
                   let existingSymbol = symbols.symbol(existingID),
                   existingSymbol.kind == newSymbol.kind,
                   !canCoexistAsExpectActualPair(newSymbol, existingSymbol),
+                  !canCoexistAsSyntheticFallback(newSymbol, existingSymbol),
                   let existingSignature = symbols.functionSignature(for: existingID)
             else {
                 return false
@@ -87,5 +88,9 @@ extension DataFlowSemaPhase {
         }
 
         return (lhsIsExpect && rhsIsActual) || (lhsIsActual && rhsIsExpect)
+    }
+
+    func canCoexistAsSyntheticFallback(_ lhs: SemanticSymbol, _ rhs: SemanticSymbol) -> Bool {
+        lhs.flags.contains(.synthetic) != rhs.flags.contains(.synthetic)
     }
 }

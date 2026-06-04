@@ -716,7 +716,13 @@ extension DataFlowSemaPhase {
             return existingSignature.parameterTypes == parameters.map(\.type) &&
                 existingSignature.returnType == returnType
         }) {
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 
@@ -781,7 +787,13 @@ extension DataFlowSemaPhase {
                 existingSignature.parameterTypes == parameters.map(\.type) &&
                 existingSignature.returnType == returnType
         }) {
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) == true {
+                return
+            }
             symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
             return
         }
 
@@ -862,8 +874,13 @@ extension DataFlowSemaPhase {
         if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
             symbols.symbol(symbolID)?.kind == .property
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if symbols.symbol(existing)?.flags.contains(.importedLibrary) != true {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             symbols.setPropertyType(returnType, for: existing)
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: propertyFQName, kind: .property, symbols: symbols) {
             return
         }
 
@@ -897,7 +914,10 @@ extension DataFlowSemaPhase {
             symbols.symbol(symbolID)?.kind == .property
                 && symbols.extensionPropertyReceiverType(for: symbolID) == receiverType
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            let isImportedLibrarySymbol = symbols.symbol(existing)?.flags.contains(.importedLibrary) == true
+            if !isImportedLibrarySymbol {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             symbols.setPropertyType(returnType, for: existing)
             if let getterSymbol = symbols.extensionPropertyGetterAccessor(for: existing) {
                 symbols.setFunctionSignature(
@@ -908,8 +928,13 @@ extension DataFlowSemaPhase {
                     ),
                     for: getterSymbol
                 )
-                symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
+                if !isImportedLibrarySymbol {
+                    symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
+                }
             }
+            return
+        }
+        if hasImportedLibrarySymbol(fqName: propertyFQName, kind: .property, symbols: symbols) {
             return
         }
 

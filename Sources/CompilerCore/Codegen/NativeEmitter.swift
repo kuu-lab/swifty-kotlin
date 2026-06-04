@@ -39,6 +39,7 @@ struct NativeEmitter {
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
     let reflectionMetadataRecords: [MetadataRecord]
     let reflectionMetadataSymbolPrefix: String?
+    let omitInlineFunctions: Bool
 
     init(
         target: TargetTriple,
@@ -50,7 +51,8 @@ struct NativeEmitter {
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
-        reflectionMetadataSymbolPrefix: String? = nil
+        reflectionMetadataSymbolPrefix: String? = nil,
+        omitInlineFunctions: Bool = false
     ) {
         self.target = target
         self.optLevel = optLevel
@@ -62,6 +64,7 @@ struct NativeEmitter {
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
+        self.omitInlineFunctions = omitInlineFunctions
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -173,8 +176,8 @@ struct NativeEmitter {
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
 
         for declaration in module.arena.declarations {
-guard case let .function(function) = declaration,
-                  !function.isInlineOnly
+            guard case let .function(function) = declaration,
+                  shouldEmit(function)
             else {
                 continue
             }
@@ -208,7 +211,7 @@ guard case let .function(function) = declaration,
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  !function.isInlineOnly,
+                  shouldEmit(function),
                   let llvmFunction = internalFunctions[function.symbol]
             else {
                 continue
@@ -254,6 +257,16 @@ guard case let .function(function) = declaration,
         }
 
         return (context: context, module: llvmModule)
+    }
+
+    private func shouldEmit(_ function: KIRFunction) -> Bool {
+        if function.isInlineOnly {
+            return false
+        }
+        if omitInlineFunctions && function.isInline {
+            return false
+        }
+        return true
     }
 
     /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)

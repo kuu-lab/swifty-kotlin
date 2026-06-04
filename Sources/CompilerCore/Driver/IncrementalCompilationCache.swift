@@ -355,6 +355,8 @@ public final class IncrementalCompilationCache {
             inputPaths: options.inputs,
             emit: options.emit.rawValue,
             searchPaths: options.searchPaths,
+            stdlibSearchPaths: options.stdlibSearchPaths,
+            includeStdlib: options.includeStdlib,
             libraryPaths: options.libraryPaths,
             linkLibraries: options.linkLibraries,
             target: IncrementalTargetTriple(
@@ -426,6 +428,8 @@ private struct IncrementalBuildConfiguration: Encodable {
     let inputPaths: [String]
     let emit: String
     let searchPaths: [String]
+    let stdlibSearchPaths: [String]
+    let includeStdlib: Bool
     let libraryPaths: [String]
     let linkLibraries: [String]
     let target: IncrementalTargetTriple

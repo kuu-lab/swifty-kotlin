@@ -15,10 +15,12 @@ enum CLIParser {
     static let usageText = """
     Usage: kswiftc [options] <input files>
       -o <path>              Output path
-      --emit <mode>          executable|object|llvm|kir
+      --emit <mode>          executable|object|llvm|kir|library
       -O0|-O1|-O2|-O3        Optimization level
       -m <name>              Module name
       -I <path>              Search path
+      --stdlib <path>        Kotlin stdlib .kklib search path
+      --no-stdlib            Do not auto-load the bundled Kotlin stdlib
       -L <path>              Library path
       -l <name>              Link library
       --target <triple>      Target triple (arch-vendor-os[-version])
@@ -43,6 +45,8 @@ enum CLIParser {
         var moduleName = "Main"
         var emitMode: EmitMode = .executable
         var searchPaths: [String] = []
+        var stdlibSearchPaths = CompilerOptions.defaultStdlibSearchPaths()
+        var includeStdlib = true
         var libraryPaths: [String] = []
         var linkLibraries: [String] = []
         var optLevel: OptimizationLevel = .O0
@@ -117,6 +121,10 @@ enum CLIParser {
                 diagnosticsFormat = fmt
             case "-I":
                 try searchPaths.append(requireValue(option: arg, args: args, index: &index))
+            case "--stdlib":
+                try stdlibSearchPaths.append(requireValue(option: arg, args: args, index: &index))
+            case "--no-stdlib":
+                includeStdlib = false
             case "-L":
                 try libraryPaths.append(requireValue(option: arg, args: args, index: &index))
             case "-l":
@@ -147,6 +155,8 @@ enum CLIParser {
             outputPath: outputPath,
             emit: emitMode,
             searchPaths: searchPaths,
+            stdlibSearchPaths: stdlibSearchPaths,
+            includeStdlib: includeStdlib,
             libraryPaths: libraryPaths,
             linkLibraries: linkLibraries,
             target: target,

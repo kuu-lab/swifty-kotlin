@@ -6,6 +6,21 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    func hasImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        // Imported stdlib declarations own the public Kotlin surface; synthetic
+        // fallback stubs should not reintroduce direct runtime links there.
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else {
+                return false
+            }
+            return symbol.kind == kind && symbol.flags.contains(.importedLibrary)
+        }
+    }
+
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -75,6 +90,13 @@ extension DataFlowSemaPhase {
             )
         }
         symbols.setAnnotations(records, for: symbol)
+        applyKSwiftKRuntimeNameAnnotation(
+            astAnnotations,
+            symbol: symbol,
+            declRange: declRange,
+            symbols: symbols,
+            diagnostics: diagnostics
+        )
 
         // Register @Suppress ranges so matching diagnostics are filtered.
         guard let declRange else {
@@ -88,6 +110,52 @@ extension DataFlowSemaPhase {
                 }
             }
         }
+    }
+
+    private func applyKSwiftKRuntimeNameAnnotation(
+        _ astAnnotations: [AnnotationNode],
+        symbol: SymbolID,
+        declRange: SourceRange?,
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine
+    ) {
+        guard let runtimeNameAnnotation = astAnnotations.first(where: {
+            KnownCompilerAnnotation.kSwiftKRuntimeName.matches($0.name)
+        }) else {
+            return
+        }
+        guard symbols.symbol(symbol)?.kind == .function else {
+            diagnostics.error(
+                "KSWIFTK-SEMA-RUNTIME-NAME",
+                "@KSwiftKRuntimeName can only be used on functions.",
+                range: declRange
+            )
+            return
+        }
+        guard let linkName = runtimeNameArgument(from: runtimeNameAnnotation), !linkName.isEmpty else {
+            diagnostics.error(
+                "KSWIFTK-SEMA-RUNTIME-NAME",
+                "@KSwiftKRuntimeName requires a non-empty runtime symbol name.",
+                range: declRange
+            )
+            return
+        }
+        symbols.setExternalLinkName(linkName, for: symbol)
+    }
+
+    private func runtimeNameArgument(from annotation: AnnotationNode) -> String? {
+        guard let raw = annotation.arguments.first else {
+            return nil
+        }
+        let assignmentPrefixes = ["name =", "value ="]
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = assignmentPrefixes.reduce(trimmed) { partial, prefix in
+            if partial.hasPrefix(prefix) {
+                return String(partial.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            return partial
+        }
+        return value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
     }
 
     private func suppressionRange(for decl: Decl, declRange: SourceRange?) -> SourceRange? {
@@ -424,6 +492,16 @@ extension DataFlowSemaPhase {
                 return
             }
             if existingNonPackage.isEmpty {
+                return
+            }
+        }
+        if newKind == .property,
+           !newFlags.contains(.synthetic)
+        {
+            let existingNonPackage = existing.filter { $0.kind != .package }
+            if !existingNonPackage.isEmpty,
+               existingNonPackage.allSatisfy({ $0.kind == .property && $0.flags.contains(.synthetic) })
+            {
                 return
             }
         }
