@@ -237,6 +237,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
         XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
         XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+    }
 
     // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
 
