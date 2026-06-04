@@ -2667,7 +2667,6 @@ extension CallLowerer {
                 let minByOrNullName = interner.intern("minByOrNull")
                 let maxByOrNullName = interner.intern("maxByOrNull")
                 let minOfName = interner.intern("minOf")
-                let minWithOrNullName = interner.intern("minWithOrNull")
                 let minWithName = interner.intern("minWith")
                 let minOfOrNullName = interner.intern("minOfOrNull")
                 let maxOfName = interner.intern("maxOf")

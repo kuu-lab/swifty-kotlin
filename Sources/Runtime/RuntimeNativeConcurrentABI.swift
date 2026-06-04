@@ -225,7 +225,7 @@ public func kk_transfer_object(_ objectRaw: Int, _ modeRaw: Int) -> Int {
     }
     if modeRaw == 0 {
         // SAFE: freeze before handing off.
-        kk_freeze_object(objectRaw)
+        _ = kk_freeze_object(objectRaw)
     }
     // UNSAFE: pass through — caller is responsible for safety.
     return objectRaw
@@ -373,7 +373,7 @@ public func kk_shared_immutable_init(_ objectRaw: Int) -> Int {
     guard objectRaw != 0 else {
         return 0
     }
-    kk_freeze_object(objectRaw)
+    _ = kk_freeze_object(objectRaw)
     return objectRaw
 }
 
