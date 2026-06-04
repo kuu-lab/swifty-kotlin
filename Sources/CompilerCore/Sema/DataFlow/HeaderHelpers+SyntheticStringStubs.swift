@@ -1077,6 +1077,10 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: arrayCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-FN-094: CharSequence.toCollection(destination) ---
         // Appends all characters to the given mutable collection and returns it.
