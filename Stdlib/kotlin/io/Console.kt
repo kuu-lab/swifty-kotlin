@@ -73,9 +73,6 @@ fun readln(): String {
 }
 
 fun readlnOrNull(): String? {
-    // Note: Reading from stdin using system calls requires ByteArray to String conversion
-    // which depends on runtime functions (kk_string_from_utf8). For now, we keep using
-    // the runtime function for readln to avoid complex pointer manipulation in Kotlin.
-    // The println/print functions now use system calls directly with buffering.
-    return __readlnOrNull()
+    val outThrown = 0
+    return __readln_from_syscall(outThrown)
 }

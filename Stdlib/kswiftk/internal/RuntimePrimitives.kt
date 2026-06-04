@@ -108,6 +108,9 @@ external fun __string_toByteArray(strRaw: Int): Int
 @KSwiftKRuntimeName("kk_string_from_utf8")
 external fun __string_from_utf8(ptr: Int, len: Int): Int
 
+@KSwiftKRuntimeName("kk_readln_from_syscall")
+external fun __readln_from_syscall(outThrown: Int): String?
+
 @KSwiftKRuntimeName("kk_synchronized")
 external fun __synchronized(lock: Any, block: () -> Any?): Any
 

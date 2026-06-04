@@ -1897,3 +1897,36 @@ public func kk_sys_write(_ fd: Int32, _ buffer: UnsafeRawPointer, _ count: Int) 
 public func kk_sys_read(_ fd: Int32, _ buffer: UnsafeMutableRawPointer, _ count: Int) -> Int {
     return read(fd, buffer, count)
 }
+
+// MARK: - Read from stdin using system calls
+
+@_cdecl("kk_readln_from_syscall")
+public func kk_readln_from_syscall(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    var buffer = [UInt8](repeating: 0, count: 4096)
+    var pos = 0
+
+    while pos < buffer.count {
+        let result = read(STDIN_FILENO, &buffer[pos], 1)
+        if result < 0 {
+            // Error
+            outThrown?.pointee = runtimeAllocateThrowable(message: "Read error")
+            return 0
+        }
+        if result == 0 {
+            // EOF
+            if pos == 0 {
+                return runtimeNullSentinelInt
+            }
+            break
+        }
+        if buffer[pos] == UInt8(ascii: "\n") {
+            break
+        }
+        pos += 1
+    }
+
+    return buffer.withUnsafeBufferPointer { buf in
+        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(pos)))
+    }
+}
