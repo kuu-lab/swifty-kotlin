@@ -1,4 +1,4 @@
-// SKIP-DIFF
+// SKIP-DIFF: kotlinc JVM startup exceeds 10s run timeout for script-style files
 val x = 1 + 2
 println(x)
 

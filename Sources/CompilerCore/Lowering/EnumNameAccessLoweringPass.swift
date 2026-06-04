@@ -199,6 +199,20 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         arena: KIRArena,
         instructions: [KIRInstruction]
     ) -> SymbolID? {
+        // If the value was produced by an anonymous runtime call (symbol == nil),
+        // such as kk_array_get, it may already contain a name string rather than a
+        // raw ordinal — skip the $enumOrdinalToName transform to avoid double-conversion.
+        for instruction in instructions.reversed() {
+            switch instruction {
+            case let .call(symbol, _, _, result, _, _, _, _) where result == exprID:
+                if symbol == nil { return nil }
+            case let .copy(_, to) where to == exprID:
+                break
+            default:
+                continue
+            }
+            break
+        }
         if let argType = arena.exprType(exprID),
            case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
            let sym = sema.symbols.symbol(classType.classSymbol),

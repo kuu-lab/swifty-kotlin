@@ -156,16 +156,28 @@ extension DataEnumSealedSynthesisPass {
             thrownResult: nil
         ))
 
-        for (ordinal, _) in entries.enumerated() {
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        for (ordinal, entry) in entries.enumerated() {
             let indexExpr = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: intType
             )
             body.append(.constValue(result: indexExpr, value: .intLiteral(Int64(ordinal))))
 
+            // Call the synthesized `<EntryName>$enumName()` helper (already emitted above)
+            // so println(entries) shows "NORTH" not "0".
+            let entryNameStr = interner.resolve(entry.name)
+            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
             let entryRef = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)), type: entryType
+                .temporary(Int32(module.arena.expressions.count)), type: stringType
             )
-            body.append(.constValue(result: entryRef, value: .intLiteral(Int64(ordinal))))
+            body.append(.call(
+                symbol: nil,
+                callee: enumNameCallee,
+                arguments: [],
+                result: entryRef,
+                canThrow: false,
+                thrownResult: nil
+            ))
 
             body.append(.call(
                 symbol: nil,
