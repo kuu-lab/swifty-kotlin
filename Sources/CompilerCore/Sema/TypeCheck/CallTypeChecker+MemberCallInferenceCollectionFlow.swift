@@ -2633,7 +2633,7 @@ extension CallTypeChecker {
                 }
             }
 
-            if (calleeStr == "scan" || calleeStr == "runningFold"), !isSequenceReceiver {
+            if calleeStr == "scan" || calleeStr == "runningFold", !isSequenceReceiver {
                 let knownNames = KnownCompilerNames(interner: interner)
                 let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
                 if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in

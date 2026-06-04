@@ -848,7 +848,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     /// Registers a constructor on the Random symbol (STDLIB-516).
     private func registerSyntheticRandomConstructor(
         ownerSymbol: SymbolID,

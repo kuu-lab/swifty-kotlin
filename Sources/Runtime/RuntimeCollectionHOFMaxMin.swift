@@ -565,7 +565,6 @@ public func kk_list_shuffled(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: shuffled))
 }
 
-
 /// Collection<T : Comparable>.max(): T (throws NoSuchElementException if empty)
 @_cdecl("kk_list_max")
 public func kk_list_max(_ listRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

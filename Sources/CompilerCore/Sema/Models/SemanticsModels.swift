@@ -413,7 +413,7 @@ public final class SymbolTable {
     /// CLASS-008: Interfaces delegated by a class via `: Interface by expr`.
     /// Key = class symbol, Value = set of interface symbols that class delegates to.
     private var delegatedInterfacesByClass: [SymbolID: Set<SymbolID>] = [:]
-    
+
     /// Thread safety lock for concurrent access
     private let lock = NSLock()
 
@@ -471,7 +471,7 @@ public final class SymbolTable {
     ) -> SymbolID {
         lock.lock()
         defer { lock.unlock() }
-        
+
         if let existing = byFQName[fqName], !existing.isEmpty {
             let existingSymbols = existing.compactMap { symbol($0) }
             let existingKinds = existingSymbols.map(\.kind)
@@ -954,33 +954,33 @@ public final class SymbolTable {
         defer { lock.unlock() }
         return expectActualLinks[expect]
     }
-    
+
     /// Validate the consistency of expect/actual links for debugging purposes
     public func validateExpectActualLinks() -> [String] {
         lock.lock()
         defer { lock.unlock() }
-        
+
         var issues: [String] = []
-        
+
         for (expectId, actualId) in expectActualLinks {
             guard let expectSymbol = symbol(expectId) else {
                 issues.append("Expect symbol \(expectId) not found in symbol table")
                 continue
             }
-            
+
             guard let actualSymbol = symbol(actualId) else {
                 issues.append("Actual symbol \(actualId) not found in symbol table")
                 continue
             }
-            
+
             if !expectSymbol.flags.contains(.expectDeclaration) {
                 issues.append("Symbol \(expectId) lacks expect declaration flag")
             }
-            
+
             if !actualSymbol.flags.contains(.actualDeclaration) {
                 issues.append("Symbol \(actualId) lacks actual declaration flag")
             }
-            
+
             // Check if FQ names match (for same-package expect/actual)
             if expectSymbol.fqName == actualSymbol.fqName {
                 // Same package expect/actual should have compatible kinds
@@ -989,10 +989,10 @@ public final class SymbolTable {
                 }
             }
         }
-        
+
         return issues
     }
-    
+
     /// Check if two symbol kinds are compatible for expect/actual relationship
     private func areKindsCompatibleForExpectActual(expect: SymbolKind, actual: SymbolKind) -> Bool {
         switch (expect, actual) {

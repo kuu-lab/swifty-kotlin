@@ -1679,7 +1679,6 @@ public func kk_range_step(_ rangeRaw: Int) -> Int {
     return range.step
 }
 
-
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil

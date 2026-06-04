@@ -100,8 +100,6 @@ public func kk_sequence_sumByDouble(
     return kk_double_to_bits(total)
 }
 
-
-
 @_cdecl("kk_sequence_associate")
 public func kk_sequence_associate(
     _ seqRaw: Int,
@@ -614,7 +612,6 @@ public func kk_sequence_maxByOrNull(
         caller: #function, comparisonSign: 1, returnElement: true, throwOnEmpty: false
     )
 }
-
 
 @_cdecl("kk_sequence_minWithOrNull")
 public func kk_sequence_minWithOrNull(

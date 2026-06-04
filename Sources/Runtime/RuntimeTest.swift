@@ -142,5 +142,3 @@ public func kk_test_assertNull_message(
     }
     return 0
 }
-
-

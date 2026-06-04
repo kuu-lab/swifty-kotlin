@@ -88,7 +88,7 @@ extension LocalDeclTypeChecker {
         sema.bindings.bindCall(id, binding: CallBinding(
             chosenCallee: chosen,
             substitutedTypeArguments: resolved.substitutedTypeArguments
-                .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { (key: TypeVarID, value: TypeID) in value },
+                .sorted(by: { $0.key.rawValue < $1.key.rawValue }).map { (_: TypeVarID, value: TypeID) in value },
             parameterMapping: resolved.parameterMapping
         ))
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))

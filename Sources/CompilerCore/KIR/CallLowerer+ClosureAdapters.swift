@@ -159,7 +159,7 @@ extension CallLowerer {
         var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
         if let originalCallableInfo = callableInfo,
            !originalCallableInfo.hasClosureParam,
-           (!adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty),
+           !adaptOnlyWhenCapturing || !originalCallableInfo.captureArguments.isEmpty,
            let adapted = makeCollectionHOFCallableAdapter(
                 callableInfo: originalCallableInfo,
                 loweredArgID: loweredArgID,
@@ -501,8 +501,8 @@ extension CallLowerer {
             )
         }
 
-        if (externalLinkName == "kk_comparator_from_selector_primitive"
-            || externalLinkName == "kk_comparator_from_selector_primitive_descending"),
+        if externalLinkName == "kk_comparator_from_selector_primitive"
+            || externalLinkName == "kk_comparator_from_selector_primitive_descending",
            loweredArguments.count == 1
         {
             var finalArgs = makeClosureThunkExpandedArguments(
@@ -545,8 +545,8 @@ extension CallLowerer {
             return finalArgs
         }
 
-        if (externalLinkName == "kk_comparator_from_comparator_selector" ||
-            externalLinkName == "kk_comparator_from_comparator_selector_descending"),
+        if externalLinkName == "kk_comparator_from_comparator_selector" ||
+            externalLinkName == "kk_comparator_from_comparator_selector_descending",
            loweredArguments.count == 2
         {
             return makeClosureThunkExpandedArguments(

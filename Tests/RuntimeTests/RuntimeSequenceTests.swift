@@ -687,8 +687,6 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(sequenceElements(sorted), [3, 2, 1, 1])
     }
 
-
-
     func testJoinToStringUsesSeparatorPrefixAndPostfix() {
         let seq = makeSequence([1, 2, 3])
         let renderedRaw = kk_sequence_joinToString(
@@ -1850,7 +1848,6 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(multipleResult, 0)
     }
 
-
     func testSequenceSingleOrNullReturnsOnlyElement() {
         let seq = makeSequence([42])
         var thrown = 0
@@ -2443,7 +2440,6 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         }
         return keys
     }
-
 
     func testMinWithReturnsComparatorMinimumAndThrowsOnEmpty() {
         var thrown = 0

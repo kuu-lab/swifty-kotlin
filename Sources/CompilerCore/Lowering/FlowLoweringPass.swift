@@ -124,7 +124,7 @@ final class FlowLoweringPass: LoweringPass {
             for instruction in function.body {
                 switch instruction {
                 case let .call(_, callee, arguments, _, _, _, _, _):
-                    guard (callee == flowName || callee == channelFlowName || callee == callbackFlowName),
+                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
                           arguments.count == 1
                     else {
                         continue
@@ -140,7 +140,7 @@ final class FlowLoweringPass: LoweringPass {
                     let fallbackLambdaName = interner.intern("kk_lambda_\(lambdaArg.rawValue)")
                     flowBuilderFunctionNames.insert(fallbackLambdaName)
                 case let .virtualCall(_, callee, _, arguments, _, _, _, _):
-                    guard (callee == flowName || callee == channelFlowName || callee == callbackFlowName),
+                    guard callee == flowName || callee == channelFlowName || callee == callbackFlowName,
                           arguments.count == 1
                     else {
                         continue
@@ -254,7 +254,7 @@ final class FlowLoweringPass: LoweringPass {
                         continue
                     }
 
-                    if (callee == flowName || callee == channelFlowName || callee == callbackFlowName),
+                    if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
                        arguments.count == 1
                     {
                         let continuation = appendIntConstant(0)
@@ -273,8 +273,8 @@ final class FlowLoweringPass: LoweringPass {
                         continue
                     }
 
-                    if (callee == catchName || callee == retryName || callee == retryWhenName ||
-                        callee == onErrorReturnName || callee == onErrorResumeName),
+                    if callee == catchName || callee == retryName || callee == retryWhenName ||
+                        callee == onErrorReturnName || callee == onErrorResumeName,
                        arguments.count == 1,
                        let flowExpr = activeFlowExpr,
                        flowExprIDs.contains(flowExpr.rawValue)

@@ -205,7 +205,7 @@ extension CoroutineLoweringPass {
                 for instruction in function.body {
                     switch instruction {
                     case let .call(symbol, callee, arguments, result, _, _, _, _):
-                        if (callee == flowName || callee == channelFlowName || callee == callbackFlowName),
+                        if callee == flowName || callee == channelFlowName || callee == callbackFlowName,
                            arguments.count == 1,
                            symbol == nil
                         {
@@ -429,8 +429,8 @@ extension CoroutineLoweringPass {
                         markConsume(arguments[0])
                         continue
                     }
-                    if (callee == toListName || callee == firstName || callee == singleName ||
-                        callee == kkFlowToListName || callee == kkFlowFirstName || callee == kkFlowSingleName),
+                    if callee == toListName || callee == firstName || callee == singleName ||
+                        callee == kkFlowToListName || callee == kkFlowFirstName || callee == kkFlowSingleName,
                        !arguments.isEmpty {
                         markConsume(arguments[0])
                         continue
@@ -449,7 +449,7 @@ extension CoroutineLoweringPass {
                     if callee == asFlowName, arguments.isEmpty {
                         markConsume(receiver)
                     }
-                    if (callee == toListName || callee == firstName || callee == singleName), arguments.isEmpty {
+                    if callee == toListName || callee == firstName || callee == singleName, arguments.isEmpty {
                         markConsume(receiver)
                     }
                 default:

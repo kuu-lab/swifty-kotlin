@@ -346,7 +346,7 @@ extension CallTypeChecker {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
             }
         }
-        if (memberName == "replace" || memberName == "replaceFirst"), args.indices.contains(1) {
+        if memberName == "replace" || memberName == "replaceFirst", args.indices.contains(1) {
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.stringType)
         }
         if memberName == "replaceFirstChar", args.indices.contains(0) {
@@ -378,7 +378,7 @@ extension CallTypeChecker {
                 sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             }
         }
-        if (memberName == "ifBlank" || memberName == "ifEmpty"), args.indices.contains(0) {
+        if memberName == "ifBlank" || memberName == "ifEmpty", args.indices.contains(0) {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [],
                 returnType: sema.types.stringType,
@@ -696,6 +696,5 @@ extension CallTypeChecker {
         sema.bindings.bindExprType(id, type: finalType)
         return finalType
     }
-
 
 }

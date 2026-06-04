@@ -819,7 +819,6 @@ extension DataFlowSemaPhase {
         )))
     }
 
-
     private func registerSyntheticClosedRangeStub(
         rangesPackageSymbol: SymbolID,
         rangesFQName: [InternedString],

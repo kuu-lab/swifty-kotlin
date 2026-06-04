@@ -78,7 +78,7 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(arraySymbol, for: toListSym)
             symbols.setExternalLinkName("kk_array_toList", for: toListSym)
-            
+
             // Get List<T> type for return type
             let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
             if let listSymbol = symbols.lookup(fqName: listFQName) {
@@ -91,13 +91,13 @@ extension DataFlowSemaPhase {
                     args: [.invariant(listElementType)],
                     nullability: .nonNull
                 )))
-                
+
                 let arrayReceiverType = types.make(.classType(ClassType(
                     classSymbol: arraySymbol,
                     args: [.invariant(listElementType)],
                     nullability: .nonNull
                 )))
-                
+
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: arrayReceiverType,
@@ -939,7 +939,7 @@ extension DataFlowSemaPhase {
                 )
                 symbols.setParentSymbol(sym, for: primSizeSym)
                 symbols.setPropertyType(sizeReturnType, for: primSizeSym)
-                
+
                 // Set external link name for size property
                 let sizeLinkName: String = switch name {
                 case "IntArray": "kk_intArray_size"
@@ -963,14 +963,14 @@ extension DataFlowSemaPhase {
         // Register toList() methods for primitive arrays
         let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
         let listInterfaceSym = symbols.lookup(fqName: listFQName)
-        
+
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
             guard let arraySymbol = symbols.lookup(fqName: fqName) else {
                 continue
             }
-            
+
             let toListName = interner.intern("toList")
             let toListFQName = fqName + [toListName]
             if symbols.lookup(fqName: toListFQName) == nil, let listInterfaceSym = listInterfaceSym {
@@ -983,7 +983,7 @@ extension DataFlowSemaPhase {
                     flags: [.synthetic]
                 )
                 symbols.setParentSymbol(arraySymbol, for: toListSym)
-                
+
                 let externalLinkName: String = switch name {
                 case "IntArray": "kk_intArray_toList"
                 case "LongArray": "kk_longArray_toList"
@@ -1000,7 +1000,7 @@ extension DataFlowSemaPhase {
                 default: "kk_array_toList"
                 }
                 symbols.setExternalLinkName(externalLinkName, for: toListSym)
-                
+
                 let elementType: TypeID = switch name {
                 case "IntArray": types.intType
                 case "LongArray": types.longType
@@ -1016,19 +1016,19 @@ extension DataFlowSemaPhase {
                 case "UShortArray": types.ushortType
                 default: types.intType
                 }
-                
+
                 let listReturnType = types.make(.classType(ClassType(
                     classSymbol: listInterfaceSym,
                     args: [.invariant(elementType)],
                     nullability: .nonNull
                 )))
-                
+
                 let arrayReceiverType = types.make(.classType(ClassType(
                     classSymbol: arraySymbol,
                     args: [],
                     nullability: .nonNull
                 )))
-                
+
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: arrayReceiverType,

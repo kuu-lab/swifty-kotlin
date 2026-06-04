@@ -602,7 +602,7 @@ final class CoercionRuntimeTests: XCTestCase {
         let asUInt = kk_ubyte_to_uint(asUByte)
         let asULong = kk_ubyte_to_ulong(asUByte)
         let asChar = kk_ubyte_to_char(asUByte)
-        
+
         XCTAssertEqual(backToInt, original, "UByte round-trip conversion should preserve value")
         XCTAssertEqual(asLong, original, "UByte to Long should preserve value")
         XCTAssertEqual(asUInt, original, "UByte to UInt should preserve value")
@@ -618,7 +618,7 @@ final class CoercionRuntimeTests: XCTestCase {
         let asUInt = kk_ushort_to_uint(asUShort)
         let asULong = kk_ushort_to_ulong(asUShort)
         let asChar = kk_ushort_to_char(asUShort)
-        
+
         XCTAssertEqual(backToInt, original, "UShort round-trip conversion should preserve value")
         XCTAssertEqual(asLong, original, "UShort to Long should preserve value")
         XCTAssertEqual(asUInt, original, "UShort to UInt should preserve value")

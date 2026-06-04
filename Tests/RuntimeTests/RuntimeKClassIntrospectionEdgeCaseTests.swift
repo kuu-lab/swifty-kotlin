@@ -56,7 +56,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         let qRaw = makeStr(qualifiedName)
         let sRaw = makeStr(simpleName)
         let supRaw = supertype.map { makeStr($0) } ?? 0
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qRaw, sRaw, supRaw, flags,
             fieldCount, memberCount, constructorCount
         )
@@ -219,7 +219,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
 
     func testQualifiedNameWithMetadataOverridesHint() {
         let typeToken = 2003
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken,
             makeStr("org.example.pkg.Widget"),
             makeStr("Widget"),
@@ -531,7 +531,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
 
     func testVisibilityPublic() {
         let token = 10004
-        let _ = kk_kclass_register_metadata_v2(
+        _ = kk_kclass_register_metadata_v2(
             token,
             makeStr("test.PubClass"),
             makeStr("PubClass"),
@@ -546,7 +546,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
 
     func testVisibilityInternal() {
         let token = 10005
-        let _ = kk_kclass_register_metadata_v2(
+        _ = kk_kclass_register_metadata_v2(
             token,
             makeStr("test.InternalClass"),
             makeStr("InternalClass"),
@@ -585,7 +585,7 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
 
     func testTypeParametersCountReturnsCorrectList() {
         let token = 12001
-        let _ = kk_kclass_register_metadata_v2(
+        _ = kk_kclass_register_metadata_v2(
             token,
             makeStr("test.Container"),
             makeStr("Container"),

@@ -260,7 +260,6 @@ public func kk_file_writeText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: Unsaf
 
 // MARK: - STDLIB-664: File.appendText()
 
-
 @_cdecl("kk_file_appendText")
 public func kk_file_appendText(_ fileRaw: Int, _ textRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -848,7 +847,7 @@ public func kk_file_forEachLine(_ fileRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 private let fileForEachBlockDefaultSize = 4096
 
 private func fileForEachBlockImpl(
-    fileRaw: Int, blockSize: Int, fnPtr: Int, closureRaw: Int,    outThrown: UnsafeMutablePointer<Int>?
+    fileRaw: Int, blockSize: Int, fnPtr: Int, closureRaw: Int, outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     guard let file = runtimeFileBox(from: fileRaw) else {
@@ -1423,7 +1422,6 @@ public func kk_reader_readText(_ readerRaw: Int) -> Int {
     return fileMakeStringRaw(reader.readText())
 }
 
-
 // MARK: - STDLIB-IO-FN-007: InputStream.bufferedReader(charset)
 //
 // Kotlin's `InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader`
@@ -1748,7 +1746,6 @@ public func kk_string_byteInputStream_charset(_ strRaw: Int, _ charsetTag: Int) 
     let unsignedBytes = bytes.map { UInt8(truncatingIfNeeded: $0) }
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(unsignedBytes)))
 }
-
 
 @_cdecl("kk_file_outputStream")
 public func kk_file_outputStream(_ fileRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

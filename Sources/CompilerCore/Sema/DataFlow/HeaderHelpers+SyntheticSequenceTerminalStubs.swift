@@ -759,7 +759,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
         // elementAtOrNull(index: Int): T?
         registerSequenceMemberStub(
             named: "elementAtOrNull",

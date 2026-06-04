@@ -331,14 +331,12 @@ public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
     var skipped = 0
     if range.step > 0 {
         while current <= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     } else if range.step < 0 {
         while current >= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     }

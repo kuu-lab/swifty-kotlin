@@ -659,7 +659,6 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
-
     func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Codegen/

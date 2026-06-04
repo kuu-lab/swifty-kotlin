@@ -1939,7 +1939,7 @@ extension CallLowerer {
             let firstArgType = sema.types.makeNonNullable(
                 sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType
             )
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "chunkedSequence",
                normalizedArgIDs.count >= 3
             {
@@ -1968,7 +1968,7 @@ extension CallLowerer {
                 return result
             }
             // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex) — 2-arg overload routes to kk_string_indexOf_char.
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "indexOf",
                sema.types.isSubtype(firstArgType, sema.types.charType)
             {
@@ -1997,7 +1997,7 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "chunkedSequence"
             {
                 let lambdaArgIndex = args.indices.first { index in
@@ -2177,7 +2177,7 @@ extension CallLowerer {
                 }
                 return classType.classSymbol == charSequenceSymbol
             }()
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "windowedSequence"
             {
                 instructions.append(.call(
@@ -2204,7 +2204,7 @@ extension CallLowerer {
                 }
                 return classType.classSymbol == charSequenceSymbol
             }()
-            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "windowedSequence"
             {
                 let lambdaArgIndex = args.indices.first { index in
@@ -2284,7 +2284,6 @@ extension CallLowerer {
             }
         }
 
- 
         // String stdlib: replaceFirst(oldValue, newValue) (STDLIB-188)
         // Skip when first arg is a Regex — handled by the STDLIB-REGEX-094 block below.
         if args.count == 2, interner.resolve(calleeName) == "replaceFirst" {
@@ -2958,9 +2957,9 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_ifEmpty"
                         || runtimeCallee == "kk_sequence_zipWithNextTransform"
                     var runtimeArguments = [loweredReceiverID] + normalizedArgIDs
-                    if (runtimeCallee == "kk_sequence_sumOf"
+                    if runtimeCallee == "kk_sequence_sumOf"
                         || runtimeCallee == "kk_sequence_sumBy"
-                        || runtimeCallee == "kk_sequence_sumByDouble"),
+                        || runtimeCallee == "kk_sequence_sumByDouble",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -2972,15 +2971,15 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if (runtimeCallee == "kk_sequence_maxWith"
-                        || runtimeCallee == "kk_sequence_maxWithOrNull"),
+                    if runtimeCallee == "kk_sequence_maxWith"
+                        || runtimeCallee == "kk_sequence_maxWithOrNull",
                        normalizedArgIDs.count == 2
                     {
                         runtimeArguments = [loweredReceiverID] + normalizedArgIDs
                     }
-                    if (runtimeCallee == "kk_sequence_firstNotNullOf"
+                    if runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_takeLastWhile"),
+                        || runtimeCallee == "kk_sequence_takeLastWhile",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -2992,10 +2991,10 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if (runtimeCallee == "kk_sequence_reduceOrNull"
+                    if runtimeCallee == "kk_sequence_reduceOrNull"
                         || runtimeCallee == "kk_sequence_associate"
                         || runtimeCallee == "kk_sequence_associateBy"
-                        || runtimeCallee == "kk_sequence_associateWith"),
+                        || runtimeCallee == "kk_sequence_associateWith",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -3007,11 +3006,11 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if (runtimeCallee == "kk_sequence_indexOfFirst"
+                    if runtimeCallee == "kk_sequence_indexOfFirst"
                         || runtimeCallee == "kk_sequence_reduceRightIndexed"
                         || runtimeCallee == "kk_list_reduceRightIndexed"
                         || runtimeCallee == "kk_sequence_reduceRightOrNull"
-                        || runtimeCallee == "kk_list_reduceRightOrNull"),
+                        || runtimeCallee == "kk_list_reduceRightOrNull",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -3035,7 +3034,7 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if (runtimeCallee == "kk_sequence_reduceRight" || runtimeCallee == "kk_list_reduceRight"),
+                    if runtimeCallee == "kk_sequence_reduceRight" || runtimeCallee == "kk_list_reduceRight",
                        normalizedArgIDs.count == 1
                     {
                         let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -3081,11 +3080,11 @@ extension CallLowerer {
                         )
                         runtimeArguments = [loweredReceiverID, fnPtrExpr, envPtrExpr]
                     }
-                    if (runtimeCallee == "kk_sequence_associateTo"
+                    if runtimeCallee == "kk_sequence_associateTo"
                         || runtimeCallee == "kk_sequence_associateByTo"
                         || runtimeCallee == "kk_sequence_associateWithTo"
                         || runtimeCallee == "kk_sequence_groupByTo"
-                        || runtimeCallee == "kk_sequence_flatMapIndexedTo"),
+                        || runtimeCallee == "kk_sequence_flatMapIndexedTo",
                        normalizedArgIDs.count == 2
                     {
                         let firstArg = normalizedArgIDs[0]
@@ -3854,7 +3853,7 @@ extension CallLowerer {
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
 
         // Extract qualified super type information for super<Interface> calls
-        var qualifiedSuperType: SymbolID? = nil
+        var qualifiedSuperType: SymbolID?
         if isSuperCall, case let .superRef(interfaceQualifier, _) = ast.arena.expr(receiverExpr) {
             if let qualifier = interfaceQualifier {
                 // Find the interface symbol that matches the qualifier

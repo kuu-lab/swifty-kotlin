@@ -157,7 +157,6 @@ private func runtimeFlowHandle(from rawValue: Int) -> RuntimeFlowHandle? {
     }
 }
 
-
 private func runtimeFlowCollectStackBox() -> RuntimeFlowCollectStackBox {
     if let existing: RuntimeFlowCollectStackBox = pthreadGetValue(runtimeFlowCollectStackPthreadKey) {
         return existing
@@ -280,22 +279,22 @@ private func runtimeFlowApplyStreamOps(
             let intervalNs = UInt64(intervalMs) * 1_000_000
             var delayed: [RuntimeFlowEvent] = []
             delayed.reserveCapacity(currentEvents.count)
-            
+
             // 遅延がある場合は実際に待機する
             if intervalMs > 0 {
                 let group = DispatchGroup()
-                
+
                 // ThreadSafeなコンテナを使用
                 class DelayedEventsContainer: @unchecked Sendable {
                     private var events: [RuntimeFlowEvent] = []
                     private let lock = NSLock()
-                    
+
                     func append(_ event: RuntimeFlowEvent) {
                         lock.lock()
                         events.append(event)
                         lock.unlock()
                     }
-                    
+
                     func getAll() -> [RuntimeFlowEvent] {
                         lock.lock()
                         let result = events
@@ -303,15 +302,15 @@ private func runtimeFlowApplyStreamOps(
                         return result
                     }
                 }
-                
+
                 let container = DelayedEventsContainer()
-                
+
                 // 並列実行で各イベントの遅延を計算
                 for (index, event) in currentEvents.enumerated() {
                     group.enter()
                     DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(intervalMs * index)) {
                         let delayedEvent = RuntimeFlowEvent(
-                            value: event.value, 
+                            value: event.value,
                             timestamp: event.timestamp + intervalNs * UInt64(index + 1)
                         )
                         container.append(delayedEvent)
@@ -319,7 +318,7 @@ private func runtimeFlowApplyStreamOps(
                     }
                 }
                 group.wait()
-                
+
                 // 並列実行が完了したら、結果をメインのdelayedにコピー
                 delayed = container.getAll()
             } else {  // 遅延がない場合はタイムスタンプのみ操作
@@ -696,7 +695,7 @@ private func runtimeFlowHasErrorHandlers(_ ops: [RuntimeFlowOp]) -> Bool {
 /// Returns the first exception thrown by a handler, or nil if all handlers completed normally.
 @discardableResult
 private func runtimeFlowFireCompletionHandlers(_ ops: [RuntimeFlowOp], failure: Int?) -> Int? {
-    var firstThrown: Int? = nil
+    var firstThrown: Int?
     for op in ops where op.kind == .onCompletion {
         guard op.argument != 0 else { continue }
         let handler = unsafeBitCast(
@@ -1131,9 +1130,8 @@ private func runtimeFlowCollectStreaming(
                     }
                 case .filtered:
                     continue
-                case .thrown, .done:
+                    case .thrown, .done:
                     stop = true
-                    break
                 }
             }
             return stop ? runtimeFlowStopSentinel : rawValue
@@ -1469,7 +1467,7 @@ public func kk_flow_reduce(_ flowHandle: Int, _ operationFnPtr: Int, _: Int) -> 
     }
 
     var accumulator = first
-    var thrownOnReduce: Int? = nil
+    var thrownOnReduce: Int?
     for value in values.dropFirst() {
         var thrown = 0
         accumulator = runtimeFlowMaybeUnbox(operation(0, accumulator, value, &thrown))

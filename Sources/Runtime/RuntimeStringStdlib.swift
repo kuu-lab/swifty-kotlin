@@ -187,7 +187,6 @@ public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
-
 @_cdecl("kk_string_split")
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

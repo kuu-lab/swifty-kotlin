@@ -65,12 +65,12 @@ public func kk_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_map")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency
     let count = kk_range_count(rangeRaw)
     var mapped: [Int] = []
     mapped.reserveCapacity(count)
-    
+
     var current = range.first
     if range.step > 0 {
         while current <= range.last {
@@ -100,12 +100,12 @@ public func kk_range_mapIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_mapIndexed")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency
     let count = kk_range_count(rangeRaw)
     var mapped: [Int] = []
     mapped.reserveCapacity(count)
-    
+
     var current = range.first
     var index = 0
     if range.step > 0 {
@@ -172,12 +172,12 @@ public func kk_range_filter(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_filter")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency (worst case all elements match)
     let count = kk_range_count(rangeRaw)
     var filtered: [Int] = []
     filtered.reserveCapacity(count)
-    
+
     var current = range.first
     if range.step > 0 {
         while current <= range.last {

@@ -170,9 +170,9 @@ extension CollectionLiteralLoweringPass {
     }
 
     // --- STDLIB-SEQ-022: sequence destination-collection mapping variants ---
-    if (callee == lookup.mapToName || callee == lookup.mapNotNullToName
-        || callee == lookup.mapIndexedToName || callee == lookup.mapIndexedNotNullToName),
-       (arguments.count == 3 || arguments.count == 4),
+    if callee == lookup.mapToName || callee == lookup.mapNotNullToName
+        || callee == lookup.mapIndexedToName || callee == lookup.mapIndexedNotNullToName,
+       arguments.count == 3 || arguments.count == 4,
        state.sequenceExprIDs.contains(arguments[0].rawValue)
     {
         let receiverID = arguments[0]
@@ -226,11 +226,11 @@ extension CollectionLiteralLoweringPass {
         || callee == lookup.mapIndexedNotNullToName
         || callee == lookup.flatMapIndexedToName || callee == lookup.associateToName
     {
-        if (arguments.count == 3 || arguments.count == 4),
-           (state.listExprIDs.contains(arguments[0].rawValue)
+        if arguments.count == 3 || arguments.count == 4,
+           state.listExprIDs.contains(arguments[0].rawValue)
             || state.setExprIDs.contains(arguments[0].rawValue)
             || state.sequenceExprIDs.contains(arguments[0].rawValue)
-            || state.arrayExprIDs.contains(arguments[0].rawValue))
+            || state.arrayExprIDs.contains(arguments[0].rawValue)
         {
             let receiverID = arguments[0]
             let destID = arguments[1]
@@ -329,9 +329,9 @@ extension CollectionLiteralLoweringPass {
     if callee == lookup.associateByToName || callee == lookup.associateWithToName
         || callee == lookup.groupByToName
     {
-        if (arguments.count == 3 || arguments.count == 4),
-           (state.listExprIDs.contains(arguments[0].rawValue)
-            || state.sequenceExprIDs.contains(arguments[0].rawValue))
+        if arguments.count == 3 || arguments.count == 4,
+           state.listExprIDs.contains(arguments[0].rawValue)
+            || state.sequenceExprIDs.contains(arguments[0].rawValue)
         {
             let receiverID = arguments[0]
             let destID = arguments[1]

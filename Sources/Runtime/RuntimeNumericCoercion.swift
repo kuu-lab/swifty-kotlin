@@ -417,4 +417,3 @@ func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {
 func runtimeNormalizedShift(_ value: Int) -> Int {
     Int(UInt(bitPattern: value) & UInt(Int.bitWidth - 1))
 }
-

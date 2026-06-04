@@ -73,7 +73,7 @@ extension CallTypeChecker {
 
         var isSuperCall = false
         var supertypeSymbols: Set<SymbolID> = []
-        var qualifiedSuperType: SymbolID? = nil
+        var qualifiedSuperType: SymbolID?
         if !safeCall {
             if let superExpr = ast.arena.expr(receiverID), case let .superRef(interfaceQualifier, _) = superExpr {
                 isSuperCall = true

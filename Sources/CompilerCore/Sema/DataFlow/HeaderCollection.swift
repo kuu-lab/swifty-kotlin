@@ -67,7 +67,7 @@ extension DataFlowSemaPhase {
             if isValueClassDeclaration(classDecl) {
                 classFlags.insert(.valueType)
             }
-            
+
             // STDLIB-CLASS-010: Check for conflicting modifiers
             if classDecl.modifiers.contains(.abstract) && classDecl.modifiers.contains(.final) {
                 diagnostics.error(
@@ -83,7 +83,7 @@ extension DataFlowSemaPhase {
                     range: classDecl.range
                 )
             }
-            
+
             // STDLIB-CLASS-010: Abstract classes are implicitly open
             if classDecl.modifiers.contains(.abstract) {
                 classFlags.insert(.openType)

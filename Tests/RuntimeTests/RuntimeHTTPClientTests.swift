@@ -5,7 +5,7 @@ import FoundationNetworking
 @testable import Runtime
 import XCTest
 
-fileprivate struct MockURLProtocolResult {
+private struct MockURLProtocolResult {
     let response: HTTPURLResponse?
     let data: Data?
     let delay: TimeInterval

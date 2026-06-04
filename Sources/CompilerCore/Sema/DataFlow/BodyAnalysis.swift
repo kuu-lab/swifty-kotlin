@@ -185,7 +185,7 @@ extension DataFlowSemaPhase {
                 }
                 contextReceiverTypes.append(contextReceiverType)
             }
-            var receiverType: TypeID? = nil
+            var receiverType: TypeID?
             if let receiverRefID {
                 receiverType = resolveTypeRef(
                     receiverRefID,

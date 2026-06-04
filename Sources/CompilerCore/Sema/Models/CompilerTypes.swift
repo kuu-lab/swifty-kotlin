@@ -5,13 +5,6 @@ struct CompilerVersion: Equatable {
     let minor: Int
     let patch: Int
     let gitHash: String?
-
-    init(major: Int, minor: Int, patch: Int, gitHash: String?) {
-        self.major = major
-        self.minor = minor
-        self.patch = patch
-        self.gitHash = gitHash
-    }
 }
 
 enum KotlinLanguageVersion: Equatable {

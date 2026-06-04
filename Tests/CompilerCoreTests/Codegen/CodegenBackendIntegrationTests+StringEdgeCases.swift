@@ -50,7 +50,7 @@ extension CodegenBackendIntegrationTests {
                 nodelem
                 Hello
                 Beta
-                
+
                 lines-empty:
                 lines-ascii:a|b|
                 lines-unicode:こんにちは|世界

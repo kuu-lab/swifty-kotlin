@@ -177,7 +177,6 @@ private let maxOfWithOrNullSquareValue: @convention(c) (Int, Int, UnsafeMutableP
     value * value
 }
 
-
 private let sumByDoubleWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     kk_double_to_bits(value == 2 ? 1.5 : 0.25)
 }

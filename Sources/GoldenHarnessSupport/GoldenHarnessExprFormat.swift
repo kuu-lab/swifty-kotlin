@@ -25,10 +25,10 @@ enum GoldenHarnessExprFormat {
             return "string(\(interner.resolve(text)))"
         case let .nameRef(name, _):
             return "name(\(interner.resolve(name)))"
-            
+
         // Control flow
         case let .forExpr(loopVariable, iterable, body, label, _):
-            return renderLoopExpr("for", loopVariable, iterable, body, label, interner, 
+            return renderLoopExpr("for", loopVariable, iterable, body, label, interner,
                 variableKey: "var", iterableKey: "iterable", bodyKey: "body")
         case let .whileExpr(condition, body, label, _):
             return renderWhileLoop(condition, body, label, interner)
@@ -38,7 +38,7 @@ enum GoldenHarnessExprFormat {
             return renderJumpExpr("break", label, interner)
         case let .continueExpr(label, _):
             return renderJumpExpr("continue", label, interner)
-            
+
         // Declarations and assignments
         case let .localDecl(name, isMutable, typeAnnotation, initializer, isDelegated, _):
             return renderLocalDecl(name, isMutable, typeAnnotation.map { TypeID(rawValue: $0.rawValue) }, initializer, isDelegated, interner)
@@ -47,7 +47,7 @@ enum GoldenHarnessExprFormat {
         case let .indexedAssign(receiver, indices, value, _):
             let idxStr = indices.map { "e\($0.rawValue)" }.joined(separator: ",")
             return "indexedAssign receiver=e\(receiver.rawValue) indices=[\(idxStr)] value=e\(value.rawValue)"
-            
+
         // Calls and member access
         case let .call(callee, _, args, _):
             return renderCall("call", callee: callee, args: args, interner: interner)
@@ -58,13 +58,13 @@ enum GoldenHarnessExprFormat {
         case let .indexedAccess(receiver, indices, _):
             let idxStr = indices.map { "e\($0.rawValue)" }.joined(separator: ",")
             return "indexedAccess receiver=e\(receiver.rawValue) indices=[\(idxStr)]"
-            
+
         // Binary and unary operations
         case let .binary(oper, lhs, rhs, _):
             return "binary(\(oper)) lhs=e\(lhs.rawValue) rhs=e\(rhs.rawValue)"
         case let .unaryExpr(oper, operand, _):
             return "unary(\(oper)) operand=e\(operand.rawValue)"
-            
+
         // Type operations
         case let .isCheck(expr, type, negated, _):
             return "isCheck\(negated ? "!" : "") expr=e\(expr.rawValue) type=t\(type.rawValue)"
@@ -72,7 +72,7 @@ enum GoldenHarnessExprFormat {
             return "asCast\(isSafe ? "?" : "") expr=e\(expr.rawValue) type=t\(type.rawValue)"
         case let .nullAssert(expr, _):
             return "nullAssert expr=e\(expr.rawValue)"
-            
+
         // Control expressions
         case let .whenExpr(subject, branches, elseExpr, _):
             return renderWhenExpr(subject: subject, branches: branches, elseExpr: elseExpr, interner: interner)
@@ -158,13 +158,13 @@ enum GoldenHarnessExprFormat {
             return "memberAssign recv=e\(receiver.rawValue) callee=\(interner.resolve(callee)) value=e\(value.rawValue)"
         }
     }
-    
+
     // MARK: - Helper methods
-    
+
     private static func renderLiteral<T>(_ type: String, _ value: T) -> String {
         return "\(type)(\(value))"
     }
-    
+
     private static func renderLoopExpr(
         _ loopType: String,
         _ loopVariable: InternedString?,
@@ -180,22 +180,22 @@ enum GoldenHarnessExprFormat {
         let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
         return "\(loopType) \(variableKey)=\(variable) \(iterableKey)=e\(iterable.rawValue) \(bodyKey)=e\(body.rawValue)\(labelStr)"
     }
-    
+
     private static func renderWhileLoop(_ condition: ExprID, _ body: ExprID, _ label: InternedString?, _ interner: StringInterner) -> String {
         let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
         return "while cond=e\(condition.rawValue) body=e\(body.rawValue)\(labelStr)"
     }
-    
+
     private static func renderDoWhileLoop(_ body: ExprID, _ condition: ExprID, _ label: InternedString?, _ interner: StringInterner) -> String {
         let labelStr = label.map { " label=\(interner.resolve($0))" } ?? ""
         return "doWhile body=e\(body.rawValue) cond=e\(condition.rawValue)\(labelStr)"
     }
-    
+
     private static func renderJumpExpr(_ jumpType: String, _ label: InternedString?, _ interner: StringInterner) -> String {
         let labelStr = label.map { "@\(interner.resolve($0))" } ?? ""
         return "\(jumpType)\(labelStr)"
     }
-    
+
     private static func renderLocalDecl(
         _ name: InternedString,
         _ isMutable: Bool,
@@ -209,7 +209,7 @@ enum GoldenHarnessExprFormat {
         let delegatedStr = isDelegated ? " delegated=1" : ""
         return "localDecl \(interner.resolve(name)) mutable=\(isMutable ? 1 : 0) type=\(typeStr) init=\(initStr)\(delegatedStr)"
     }
-    
+
     private static func renderCall(_ callType: String, callee: ExprID, args: [CallArgument], interner: StringInterner) -> String {
         let renderedArgs = args.map { arg in
             let label = arg.label.map { interner.resolve($0) } ?? "_"
@@ -217,7 +217,7 @@ enum GoldenHarnessExprFormat {
         }.joined(separator: ",")
         return "\(callType) callee=e\(callee.rawValue) args=[\(renderedArgs)]"
     }
-    
+
     private static func renderMemberCall(
         _ callType: String,
         receiver: ExprID,

@@ -448,7 +448,7 @@ extension CollectionLiteralLoweringPass {
     // Only rewrite when the argument is a single element (not a
     // collection).  Collection-removal is not yet supported at the
     // ABI level and falls through to the generic member-call path.
-    if (callee == lookup.minusMemberName || callee == lookup.minusElementName), arguments.count == 2 {
+    if callee == lookup.minusMemberName || callee == lookup.minusElementName, arguments.count == 2 {
         let receiverID = arguments[0]
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             let argID = arguments[1]

@@ -132,7 +132,7 @@ extension CallLowerer {
         // they must NOT go through the general unresolvedCollectionMemberNames
         // path because MutableList also has these methods and would get
         // incorrect callee mapping.
-        if (calleeText == "removeFirst" || calleeText == "removeLast"),
+        if calleeText == "removeFirst" || calleeText == "removeLast",
            isArrayDequeLikeType(receiverType, sema: sema, interner: interner)
         {
             arguments.insert(loweredReceiverID, at: 0)
@@ -238,12 +238,12 @@ extension CallLowerer {
         }
         if loweredCallee == interner.intern("kk_random_nextInt_until"),
            sourceArgExprs.count == 1,
-           (sema.bindings.isRangeExpr(sourceArgExprs[0])
+           sema.bindings.isRangeExpr(sourceArgExprs[0])
             || nominalRangeElementType(
                 for: sema.bindings.exprTypes[sourceArgExprs[0]] ?? sema.types.anyType,
                 sema: sema,
                 interner: interner
-            ) == sema.types.intType)
+            ) == sema.types.intType
         {
             loweredCallee = interner.intern("kk_random_nextInt_rangeObject")
         }
@@ -318,8 +318,8 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
-        if (loweredCallee == interner.intern("kk_comparator_then_by_comparator_selector")
-            || loweredCallee == interner.intern("kk_comparator_then_by_descending_comparator_selector")),
+        if loweredCallee == interner.intern("kk_comparator_then_by_comparator_selector")
+            || loweredCallee == interner.intern("kk_comparator_then_by_descending_comparator_selector"),
            finalArguments.count == 3,
            sourceArgExprs.count == 2,
            let primaryComparatorArgs = makeComparatorTrampolineArgument(
@@ -442,11 +442,11 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if (loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
+        if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
             || loweredCallee == interner.intern("kk_sequence_takeLastWhile")
-            || loweredCallee == interner.intern("kk_sequence_indexOfLast")),
+            || loweredCallee == interner.intern("kk_sequence_indexOfLast"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -519,10 +519,10 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
-        if (loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
+        if loweredCallee == interner.intern("kk_iterable_firstNotNullOf")
             || loweredCallee == interner.intern("kk_iterable_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_iterable_any")
-            || loweredCallee == interner.intern("kk_iterable_all")),
+            || loweredCallee == interner.intern("kk_iterable_all"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -534,12 +534,12 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if (loweredCallee == interner.intern("kk_list_sumOf")
+        if loweredCallee == interner.intern("kk_list_sumOf")
             || loweredCallee == interner.intern("kk_sequence_sumOf")
             || loweredCallee == interner.intern("kk_list_sumBy")
             || loweredCallee == interner.intern("kk_list_sumByDouble")
             || loweredCallee == interner.intern("kk_sequence_sumBy")
-            || loweredCallee == interner.intern("kk_sequence_sumByDouble")),
+            || loweredCallee == interner.intern("kk_sequence_sumByDouble"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -551,9 +551,9 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if (loweredCallee == interner.intern("kk_sequence_associate")
+        if loweredCallee == interner.intern("kk_sequence_associate")
             || loweredCallee == interner.intern("kk_sequence_associateBy")
-            || loweredCallee == interner.intern("kk_sequence_associateWith")),
+            || loweredCallee == interner.intern("kk_sequence_associateWith"),
            finalArguments.count == 2
         {
             let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
@@ -565,11 +565,11 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if (loweredCallee == interner.intern("kk_sequence_associateTo")
+        if loweredCallee == interner.intern("kk_sequence_associateTo")
             || loweredCallee == interner.intern("kk_sequence_associateByTo")
             || loweredCallee == interner.intern("kk_sequence_associateWithTo")
             || loweredCallee == interner.intern("kk_sequence_groupByTo")
-            || loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo")),
+            || loweredCallee == interner.intern("kk_sequence_flatMapIndexedTo"),
            finalArguments.count == 3
         {
             let firstArg = finalArguments[1]

@@ -119,7 +119,7 @@ public enum GoldenHarness {
                 }
             }
             let stderrText = String(data: stderrAccumulator.snapshot(), encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let errorMessage = process.isRunning 
+            let errorMessage = process.isRunning
                 ? "Worker timed out and survived SIGKILL. \(stderrText)"
                 : stderrText
             throw GoldenHarnessAPIError.workerTimedOut(errorMessage)
@@ -222,10 +222,10 @@ public enum GoldenHarness {
         }
 
         let cwd = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-        
+
         // Check common build directories with platform-specific paths
         var candidates: [URL] = []
-        
+
         #if os(Linux)
         candidates.append(contentsOf: [
             cwd.appendingPathComponent(".build/debug/\(workerName)"),
@@ -239,7 +239,7 @@ public enum GoldenHarness {
             cwd.appendingPathComponent(".build/x86_64-apple-macosx/debug/\(workerName)")
         ])
         #endif
-        
+
         // Add the directory of the current executable as fallback
         if let currentExecutable = Bundle.main.executablePath {
             candidates.append(URL(fileURLWithPath: currentExecutable).deletingLastPathComponent().appendingPathComponent(workerName))
@@ -291,9 +291,13 @@ public enum GoldenHarness {
 }
 
 private enum GoldenHarnessSemaComparisonNormalizer {
+    // swiftlint:disable:next force_try
     private static let positiveSymbolReferenceRegex = try! NSRegularExpression(pattern: "(Class#|T#|s)(\\d+)")
+    // swiftlint:disable:next force_try
     private static let negativeSymbolReferenceRegex = try! NSRegularExpression(pattern: "(s-)(\\d+)")
+    // swiftlint:disable:next force_try
     private static let syntheticScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$)(\\d+)(?=\\.)")
+    // swiftlint:disable:next force_try
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
 
     static func normalize(_ output: String) -> String {

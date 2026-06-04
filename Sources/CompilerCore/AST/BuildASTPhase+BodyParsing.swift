@@ -398,7 +398,6 @@ extension BuildASTPhase {
         return annotations
     }
 
-
     /// Checks if a token represents a declaration start keyword.
     private func isDeclarationStart(_ kind: TokenKind) -> Bool {
         switch kind {

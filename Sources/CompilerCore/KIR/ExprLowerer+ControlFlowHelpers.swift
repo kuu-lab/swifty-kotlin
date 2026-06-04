@@ -206,8 +206,8 @@ extension ExprLowerer {
             // and exception-slot overhead.
             let hasThrowableCall = finallyInstructions.contains { (instr: KIRInstruction) -> Bool in
                 switch instr {
-                case .call(_, _, _, _, _, _, _, _),
-                     .virtualCall(_, _, _, _, _, _, _, _),
+                case .call,
+                     .virtualCall,
                      .rethrow:
                     return true
                 default:

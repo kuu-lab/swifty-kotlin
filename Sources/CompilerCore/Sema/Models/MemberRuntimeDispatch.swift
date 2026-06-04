@@ -322,7 +322,7 @@ enum MemberRuntimeDispatch {
         charMember: String? = nil,
         charProgressionUsesChar: Bool = false
     ) -> String {
-        if (kind == .charRange || (kind == .charProgression && charProgressionUsesChar)), let charMember {
+        if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
             return "kk_char_range_\(charMember)"
         }
         if kind.isULongRangeLike {

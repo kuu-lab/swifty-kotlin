@@ -16,19 +16,19 @@ extension DataFlowSemaPhase {
     ) {
         // Set up primitive types to implement Comparable<Self>
         let kotlinPkg = [interner.intern("kotlin")]
-        
+
         let primitiveTypeNames = ["Int", "Long", "Double", "Float", "Char", "Boolean", "UInt", "ULong", "UByte", "UShort"]
-        
+
         for typeName in primitiveTypeNames {
             let primitiveSymbol = ensureClassSymbol(named: typeName, in: kotlinPkg, symbols: symbols, interner: interner)
-            
+
             // Set up Comparable<Self> as a supertype
             let primitiveType = types.make(.classType(ClassType(
                 classSymbol: primitiveSymbol,
                 args: [],
                 nullability: .nonNull
             )))
-            
+
             // Set direct supertypes for member resolution
             symbols.setDirectSupertypes([comparableSymbol], for: primitiveSymbol)
             types.setNominalDirectSupertypes([comparableSymbol], for: primitiveSymbol)

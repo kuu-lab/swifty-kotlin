@@ -45,7 +45,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousReturnsFalseAtStart() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // At start, hasPrevious should return false
         let result = kk_list_iterator_hasPrevious(iterHandle)
         // Check that result represents false (0) - the actual implementation may return different values
@@ -61,10 +61,10 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousReturnsFirstElement() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Call next() first to advance to first element
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
-        
+
         // Now hasPrevious should return true
         let hasPrevResult = kk_list_iterator_hasPrevious(iterHandle)
         // Check that result represents true (non-zero) - actual implementation may return different values
@@ -76,11 +76,11 @@ final class RuntimeListIteratorTests: XCTestCase {
             // If result is zero, it should be considered "false"
             XCTFail("Expected hasPrevious to return true, but got false")
         }
-        
+
         // previous() should return the first element (go back to position before first)
         let prevResult = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult, 10)
-        
+
         // After previous(), iterator should be positioned before first element
         let finalResult = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(finalResult, 0) // kk_box_bool(0) == 0
@@ -88,17 +88,17 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousReturnsTrueAfterNext() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Advance to second element
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
-        
+
         // hasPrevious should now return true
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result1, 1) // kk_box_bool(1) == 1
-        
+
         // Advance to third element
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
-        
+
         // hasPrevious should still return true
         let result2 = kk_list_iterator_hasPrevious(iterHandle)
         // Check that result represents true (non-zero)
@@ -111,18 +111,18 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousReturnsCorrectElementAfterNext() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Advance to second element (position after first element)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
-        
+
         // previous() should return first element (go back to position before first)
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult1, 10)
-        
+
         // Advance to third element (position after second element)
         let secondNext = kk_list_iterator_next(iterHandle)
         XCTAssertEqual(secondNext, 10) // After previous(), we're back at position 1, so next() returns 10 again
-        
+
         // previous() should return second element (go back to position after first)
         let prevResult2 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult2, 10)
@@ -132,7 +132,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousReturnsFalseOnEmptyList() {
         let iterHandle = makeListIterator([])
-        
+
         // Empty list should have no previous elements
         let result = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result, 0) // kk_box_bool(0) == 0
@@ -140,7 +140,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousReturnsZeroOnEmptyList() {
         let iterHandle = makeListIterator([])
-        
+
         // previous() on empty list should return 0 (null)
         let prevResult = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult, 0)
@@ -148,7 +148,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousReturnsFalseOnSingleElement() {
         let iterHandle = makeListIterator([42])
-        
+
         // After consuming the single element, hasPrevious should return true
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 42)
         let result = kk_list_iterator_hasPrevious(iterHandle)
@@ -157,7 +157,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousReturnsZeroOnSingleElement() {
         let iterHandle = makeListIterator([42])
-        
+
         // After consuming the single element, previous() should return 42
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 42)
         let prevResult = kk_list_iterator_previous(iterHandle)
@@ -166,11 +166,11 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousReturnsFalseAtVeryBeginning() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Before any next() calls, hasPrevious should be false
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result1, 0) // kk_box_bool(0) == 0
-        
+
         // Even after calling previous() at start, should still be false
         let prevResult = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult, 0)
@@ -182,14 +182,14 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testForwardThenBackwardIteration() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Forward iteration
         var forwardElements: [Int] = []
         while kk_list_iterator_hasNext(iterHandle) == 1 {
             forwardElements.append(kk_list_iterator_next(iterHandle))
         }
         XCTAssertEqual(forwardElements, [10, 20, 30])
-        
+
         // Backward iteration
         var backwardElements: [Int] = []
         while kk_list_iterator_hasPrevious(iterHandle) == 1 {
@@ -200,13 +200,13 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testMultiplePreviousCalls() {
         let iterHandle = makeListIterator([10, 20, 30, 40])
-        
+
         // Advance to end
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 30)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 40)
-        
+
         // Multiple previous() calls should work correctly
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertNotEqual(result1, 0)
@@ -224,7 +224,7 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testMixedForwardBackwardIteration() {
         let iterHandle = makeListIterator([10, 20, 30, 40])
-        
+
         // Mixed pattern: forward, backward, forward, backward
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)        // pos 1
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)        // pos 2
@@ -245,12 +245,12 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testExhaustPreviousThenContinueForward() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Exhaust all previous elements
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 30)
-        
+
         // Should have previous elements
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         // Check that result represents true (non-zero)
@@ -259,7 +259,7 @@ final class RuntimeListIteratorTests: XCTestCase {
         } else {
             XCTFail("Expected hasPrevious to return true, but got false")
         }
-        
+
         // Exhaust all previous
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult1, 30)
@@ -267,13 +267,13 @@ final class RuntimeListIteratorTests: XCTestCase {
         XCTAssertEqual(prevResult2, 20)
         let prevResult3 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult3, 10)
-        
+
         // No more previous elements
         let result2 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result2, 0) // Should be false after exhausting all previous elements
         let prevResult4 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult4, 0)
-        
+
         // But we should still be able to go forward if there are more elements
         // At beginning, hasNext should be true
         XCTAssertEqual(kk_list_iterator_hasNext(iterHandle), 1)
@@ -283,22 +283,22 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousAtBeginningBoundary() {
         let iterHandle = makeListIterator([10, 20])
-        
+
         // At beginning, no previous
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result1, 0)
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult1, 0)
-        
+
         // Advance to first element
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
-        
+
         // Now should have previous
         let result2 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertNotEqual(result2, 0)
         let prevResult2 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult2, 10)
-        
+
         // After going back to beginning, no more previous
         let result3 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result3, 0) // kk_box_bool(0) == 0
@@ -308,12 +308,12 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testPreviousAfterFullForwardIteration() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Iterate to the end
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 30)
-        
+
         // At end, should have previous elements
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         // Check that result represents true (non-zero)
@@ -322,7 +322,7 @@ final class RuntimeListIteratorTests: XCTestCase {
         } else {
             XCTFail("Expected hasPrevious to return true, but got false")
         }
-        
+
         // Should be able to go backwards from end
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult1, 30)
@@ -330,7 +330,7 @@ final class RuntimeListIteratorTests: XCTestCase {
         XCTAssertEqual(prevResult2, 20)
         let prevResult3 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult3, 10)
-        
+
         // At beginning, no more previous
         let result2 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result2, 0)
@@ -340,27 +340,27 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testHasPreviousConsistency() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Consistency check: hasPrevious should be consistent with iterator position
         let result1 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result1, 0) // kk_box_bool(0) == 0
-        
+
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
         let result2 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result2, 1) // kk_box_bool(1) == 1
-        
+
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
         let result3 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result3, 1) // kk_box_bool(1) == 1
-        
+
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 30)
         let result4 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result4, 1) // kk_box_bool(1) == 1
-        
+
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 0) // Should be at end, returns 0
         let result5 = kk_list_iterator_hasPrevious(iterHandle)
         XCTAssertEqual(result5, 1) // Should still have previous at end
-        
+
         // Go back all the way
         let prevResult1 = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(prevResult1, 30) // Should return 30 at end
@@ -385,7 +385,7 @@ final class RuntimeListIteratorTests: XCTestCase {
     func testListIteratorCreation() {
         let listHandle = makeList([10, 20, 30])
         let iterHandle = kk_list_iterator(listHandle)
-        
+
         // Iterator should be created successfully
         // Test that we can iterate forward
         var elements: [Int] = []
@@ -397,15 +397,15 @@ final class RuntimeListIteratorTests: XCTestCase {
 
     func testListIteratorTypeSafety() {
         let iterHandle = makeListIterator([10, 20, 30])
-        
+
         // Advance to middle
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 10)
         XCTAssertEqual(kk_list_iterator_next(iterHandle), 20)
-        
+
         // previous() should return the element we just passed (20)
         let result = kk_list_iterator_previous(iterHandle)
         XCTAssertEqual(result, 20)
-        
+
         // Verify it's actually an Int (not corrupted memory)
         XCTAssertGreaterThan(result, 0) // Should be valid element
         XCTAssertLessThanOrEqual(result, 30) // Should be within bounds

@@ -186,7 +186,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let qualifiedName = makeRuntimeString("Simple")
         let simpleName = makeRuntimeString("Simple")
 
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             99, qualifiedName, simpleName,
             0, // null supertype
             0, // no flags
@@ -261,7 +261,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let typeToken = 208
         let qualifiedName = makeRuntimeString("MemberTest")
         let simpleName = makeRuntimeString("MemberTest")
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             0, 0, 3, 10, 1 // 3 fields, 10 members, 1 constructor
         )
@@ -279,7 +279,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let qualifiedName = makeRuntimeString("Child")
         let simpleName = makeRuntimeString("Child")
         let superName = makeRuntimeString("Parent")
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             superName, 0, 0, 0, 0
         )
@@ -293,7 +293,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let typeToken = 210
         let qualifiedName = makeRuntimeString("Root")
         let simpleName = makeRuntimeString("Root")
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             0, 0, 0, 0, 0
         )
@@ -308,7 +308,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
         let typeToken = 211
         let qualifiedName = makeRuntimeString("com.example.pkg.MyClass")
         let simpleName = makeRuntimeString("MyClass")
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             0, 0, 0, 0, 0
         )
@@ -361,7 +361,7 @@ final class RuntimeKClassMetadataTests: XCTestCase {
     private func registerTestMetadata(typeToken: Int, flags: Int) {
         let qualifiedName = makeRuntimeString("TestClass")
         let simpleName = makeRuntimeString("TestClass")
-        let _ = kk_kclass_register_metadata(
+        _ = kk_kclass_register_metadata(
             typeToken, qualifiedName, simpleName,
             0, flags, 0, 0, 0
         )

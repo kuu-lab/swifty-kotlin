@@ -42,7 +42,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         // first / last / start / endInclusive / endExclusive / count — simple property access (STDLIB-092 / STDLIB-RANGE-034)
-        if (callee == lookup.firstName || callee == lookup.startName), arguments.isEmpty {
+        if callee == lookup.firstName || callee == lookup.startName, arguments.isEmpty {
             let firstName = isULongRange ? lookup.kkULongRangeFirstName : (isUIntRange ? interner.intern("kk_uint_range_first") : lookup.kkRangeFirstName)
             loweredBody.append(.call(
                 symbol: nil, callee: firstName,
@@ -51,7 +51,7 @@ extension CollectionLiteralLoweringPass {
             ))
             return true
         }
-        if (callee == lookup.lastName || callee == lookup.endInclusiveName), arguments.isEmpty {
+        if callee == lookup.lastName || callee == lookup.endInclusiveName, arguments.isEmpty {
             let lastName = isULongRange ? lookup.kkULongRangeLastName : (isUIntRange ? interner.intern("kk_uint_range_last") : lookup.kkRangeLastName)
             loweredBody.append(.call(
                 symbol: nil, callee: lastName,
@@ -501,7 +501,7 @@ extension CollectionLiteralLoweringPass {
             ))
             return true
         }
-        if (callee == lookup.anyName || callee == lookup.allName || callee == lookup.noneName), arguments.count == 1 {
+        if callee == lookup.anyName || callee == lookup.allName || callee == lookup.noneName, arguments.count == 1 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let kkName: InternedString =

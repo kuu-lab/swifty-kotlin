@@ -744,7 +744,7 @@ extension CallTypeChecker {
             if case let .nameRef(name, _) = ast.arena.expr(callee),
                isMatchingBuilderDSLFunctionName(interner.resolve(name), kind: kind)
             {
-                if (kind == .buildList || kind == .buildSet), let first = args.first {
+                if kind == .buildList || kind == .buildSet, let first = args.first {
                     unary.append(first.expr)
                 } else if kind == .buildMap, args.count >= 2 {
                     keyed.append((args[0].expr, args[1].expr))
@@ -758,7 +758,7 @@ extension CallTypeChecker {
             if isMatchingBuilderDSLFunctionName(interner.resolve(callee), kind: kind),
                case .thisRef = ast.arena.expr(receiver)
             {
-                if (kind == .buildList || kind == .buildSet), let first = args.first {
+                if kind == .buildList || kind == .buildSet, let first = args.first {
                     unary.append(first.expr)
                 } else if kind == .buildMap, args.count >= 2 {
                     keyed.append((args[0].expr, args[1].expr))

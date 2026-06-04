@@ -711,7 +711,6 @@ private func makeMatchResultWithOffset(
 
 // MARK: - STDLIB-REGEX-094: Regex.fromLiteral / Regex.matches / String.replaceFirst(Regex)
 
-
 /// Regex.Companion.fromLiteral(literal: String) -> Regex
 /// Creates a Regex that matches the literal string (all special chars are escaped).
 /// The first argument is the Companion object receiver (ignored; companion singleton).

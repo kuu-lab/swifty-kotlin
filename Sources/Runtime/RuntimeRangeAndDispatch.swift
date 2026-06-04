@@ -612,23 +612,23 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
     }
     if range.step > 0 {
         guard range.first <= value && value <= range.last else { return 0 }
-        
+
         // Enhanced overflow protection: check if value is within reasonable bounds first
         // For extremely large ranges, use a more conservative approach
         if range.first == Int.min && range.last == Int.max {
             // Full range - all values are contained
             return 1
         }
-        
+
         // Use Int128-style calculation through careful checking to prevent overflow
         let diff = value - range.first
         let step = range.step
-        
+
         // Additional safety check for potential overflow cases
         if diff == 0 {
             return 1  // First element is always contained
         }
-        
+
         // Check if diff and step have same sign (both positive or both negative)
         // This helps avoid overflow in modulo operation
         if (diff >= 0 && step > 0) || (diff <= 0 && step < 0) {
@@ -641,21 +641,21 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
         }
     } else {
         guard range.first >= value && value >= range.last else { return 0 }
-        
+
         // Enhanced overflow protection for negative step ranges
         if range.first == Int.max && range.last == Int.min {
             // Full reverse range - all values are contained
             return 1
         }
-        
+
         let diff = range.first - value
         let step = 0 &- range.step  // Make step positive
-        
+
         // Additional safety check for potential overflow cases
         if diff == 0 {
             return 1  // First element is always contained
         }
-        
+
         // Use Int64 for large differences but with additional bounds checking
         if diff > Int64.max || diff < Int64.min {
             // For extremely large differences, fall back to safer calculation
@@ -663,7 +663,7 @@ public func kk_range_contains(_ rangeRaw: Int, _ value: Int) -> Int {
             let absStep = step < 0 ? -step : step
             return absDiff % absStep == 0 ? 1 : 0
         }
-        
+
         let diff64 = Int64(diff)
         let step64 = Int64(step)
         return diff64 % step64 == 0 ? 1 : 0
@@ -731,14 +731,12 @@ public func kk_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
     var skipped = 0
     if range.step > 0 {
         while current <= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     } else if range.step < 0 {
         while current >= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     }
@@ -930,15 +928,13 @@ public func kk_char_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
     if range.step > 0 {
         var current = first
         while current <= last {
-            if skipped >= n { elements.append(kk_box_char(current)) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
             current &+= range.step
         }
     } else if range.step < 0 {
         var current = first
         while current >= last {
-            if skipped >= n { elements.append(kk_box_char(current)) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(kk_box_char(current)) } else { skipped += 1 }
             current &+= range.step
         }
     }
@@ -1200,7 +1196,6 @@ public func kk_ulong_range_toULongArray(_ rangeRaw: Int) -> Int {
     }
     return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
-
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
