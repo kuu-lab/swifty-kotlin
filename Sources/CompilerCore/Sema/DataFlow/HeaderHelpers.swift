@@ -1097,20 +1097,10 @@ extension DataFlowSemaPhase {
         registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticStdlibLoopStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticTestFrameworkStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinPkg: kotlinPkg
-        )
-        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
+                        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
+                registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)

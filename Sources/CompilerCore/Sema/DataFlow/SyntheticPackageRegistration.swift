@@ -4,8 +4,7 @@
 /// definitions.
 ///
 /// Previously copy-pasted as a `private` method in
-/// `HeaderHelpers+SyntheticFunctionTypeStubs.swift`,
-/// `HeaderHelpers+SyntheticTestStubs.swift`, and
+/// `HeaderHelpers+SyntheticFunctionTypeStubs.swift`, and
 /// `HeaderHelpers+SyntheticTODOAndIOStubs.swift`. Centralized here so future
 /// edits land in a single place.
 func ensureSyntheticPackageHierarchy(

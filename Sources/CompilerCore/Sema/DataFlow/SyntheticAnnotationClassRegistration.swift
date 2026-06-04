@@ -5,8 +5,7 @@
 /// (this matters when a stub registration runs after a partial load).
 ///
 /// Previously copy-pasted as a `private` method in
-/// `HeaderHelpers+SyntheticMetaprogStubs.swift` and
-/// `HeaderHelpers+SyntheticTestStubs.swift`. Centralized here so future edits
+/// `HeaderHelpers+SyntheticMetaprogStubs.swift`. Centralized here so future edits
 /// land in a single place.
 func registerSyntheticAnnotationClass(
     named name: String,

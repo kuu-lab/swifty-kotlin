@@ -31,8 +31,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerSyntheticExperimentalBitwiseStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
+                registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticSerializationStubs(symbols: symbols, types: types, interner: interner)
