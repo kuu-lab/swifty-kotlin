@@ -123,3 +123,17 @@ external fun __char_digitToIntOrNull(c: Char): Int?
 
 @KSwiftKRuntimeName("kk_char_digitToInt_radix")
 external fun __char_digitToInt_radix(c: Char, radix: Int): Int
+
+// MARK: - String functions (essential runtime functions only)
+
+@KSwiftKRuntimeName("kk_string_length")
+external fun __string_length(s: String): Int
+
+@KSwiftKRuntimeName("kk_string_compareTo")
+external fun __string_compareTo(s1: String, s2: String): Int
+
+@KSwiftKRuntimeName("kk_string_concat")
+external fun __string_concat(s1: String, s2: String): String
+
+@KSwiftKRuntimeName("kk_string_get")
+external fun __string_get(s: String, index: Int): Char
