@@ -322,6 +322,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- java.util.UUID.toKotlinUuid() extension ---
+        // java.util.UUID is represented at native runtime as the same two-Long box as
+        // kotlin.uuid.Uuid, so toKotlinUuid() is a simple identity-conversion call.
+        let javaUuidType = registerJavaUuidType(symbols: symbols, types: types, interner: interner)
+        registerToKotlinUuidExtension(
+            javaUuidType: javaUuidType,
+            uuidType: uuidType,
+            kotlinUuidPkg: kotlinUuidPkg,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Uuid Helpers
@@ -614,6 +626,75 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(intType, for: propertySymbol)
         symbols.setConstValueExprKind(.intLiteral(value), for: propertySymbol)
         attachExperimentalUuidApiAnnotation(to: propertySymbol, symbols: symbols)
+    }
+
+    private func registerJavaUuidType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        let javaUtilPkg = ensurePackage(path: ["java", "util"], symbols: symbols, interner: interner)
+        let javaUuidSymbol = ensureClassSymbol(
+            named: "UUID",
+            in: javaUtilPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let pkgSymbol = symbols.lookup(fqName: javaUtilPkg) {
+            symbols.setParentSymbol(pkgSymbol, for: javaUuidSymbol)
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: javaUuidSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+    }
+
+    private func registerToKotlinUuidExtension(
+        javaUuidType: TypeID,
+        uuidType: TypeID,
+        kotlinUuidPkg: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("toKotlinUuid")
+        let functionFQName = kotlinUuidPkg + [functionName]
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == javaUuidType && sig.returnType == uuidType
+        }) {
+            attachExperimentalUuidApiAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let pkgSymbol = symbols.lookup(fqName: kotlinUuidPkg)
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName("kk_uuid_toKotlinUuid", for: functionSymbol)
+        attachExperimentalUuidApiAnnotation(to: functionSymbol, symbols: symbols)
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: javaUuidType,
+                parameterTypes: [],
+                returnType: uuidType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: functionSymbol
+        )
     }
 
     private func attachExperimentalUuidApiAnnotation(
