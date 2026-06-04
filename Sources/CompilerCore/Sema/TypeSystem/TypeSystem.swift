@@ -107,7 +107,7 @@ public final class TypeSystem {
             .primitive(.long, .nonNull): longType,
             .primitive(.float, .nonNull): floatType,
             .primitive(.double, .nonNull): doubleType,
-            .primitive(.string, .nonNull): stringType,
+            // String is now a struct type, handled separately
             .primitive(.uint, .nonNull): uintType,
             .primitive(.ulong, .nonNull): ulongType,
             .primitive(.ubyte, .nonNull): ubyteType,

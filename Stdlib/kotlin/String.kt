@@ -2,16 +2,10 @@ package kotlin
 
 import kswiftk.internal.*
 
-// MARK: - Essential runtime functions (required for string internals)
+// MARK: - String struct-based implementation
 
 val String.length: Int
-    get() = __string_length(this)
-
-operator fun String.compareTo(other: String): Int = __string_compareTo(this, other)
-
-operator fun String.plus(other: Any?): String = __string_concat(this, other.toString())
-
-// MARK: - Derived properties (pure Kotlin)
+    get() = __string_struct_get_length(this)
 
 val String.indices: IntRange
     get() = 0 until this.length
@@ -34,7 +28,6 @@ fun String.isEmpty(): Boolean = this.length == 0
 fun String.isNotEmpty(): Boolean = this.length > 0
 
 fun String.isBlank(): Boolean {
-    // Check if all characters are whitespace
     for (i in 0 until this.length) {
         val char = __string_get(this, i)
         if (!char.isWhitespace()) {
@@ -46,7 +39,15 @@ fun String.isBlank(): Boolean {
 
 fun String.isNotBlank(): Boolean = !this.isBlank()
 
-// MARK: - Character access (require runtime for internal access)
+// MARK: - Comparison (use legacy for now)
+
+operator fun String.compareTo(other: String): Int = __string_compareTo(this, other)
+
+// MARK: - String concatenation (use legacy for now)
+
+operator fun String.plus(other: Any?): String = __string_concat(this, other.toString())
+
+// MARK: - Character access (use legacy for now)
 
 operator fun String.get(index: Int): Char {
     if (index < 0 || index >= this.length) {

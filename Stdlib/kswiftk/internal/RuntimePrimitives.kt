@@ -124,7 +124,24 @@ external fun __char_digitToIntOrNull(c: Char): Int?
 @KSwiftKRuntimeName("kk_char_digitToInt_radix")
 external fun __char_digitToInt_radix(c: Char, radix: Int): Int
 
-// MARK: - String functions (essential runtime functions only)
+// MARK: - String struct field access functions (new struct-based representation)
+
+@KSwiftKRuntimeName("kk_string_struct_get_length")
+external fun __string_struct_get_length(s: String): Int
+
+@KSwiftKRuntimeName("kk_string_struct_get_byte_count")
+external fun __string_struct_get_byte_count(s: String): Int
+
+@KSwiftKRuntimeName("kk_string_struct_get_hash")
+external fun __string_struct_get_hash(s: String): Int
+
+@KSwiftKRuntimeName("kk_string_struct_set_hash")
+external fun __string_struct_set_hash(s: String, hash: Int): Unit
+
+@KSwiftKRuntimeName("kk_string_struct_get_data_pointer")
+external fun __string_struct_get_data_pointer(s: String): Int?
+
+// MARK: - Legacy String functions (kept for compatibility during transition)
 
 @KSwiftKRuntimeName("kk_string_length")
 external fun __string_length(s: String): Int
