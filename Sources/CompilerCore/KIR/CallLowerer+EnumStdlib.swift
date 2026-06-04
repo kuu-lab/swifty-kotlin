@@ -92,11 +92,24 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        for (index, _) in entries.enumerated() {
+        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        for (index, entry) in entries.enumerated() {
             let indexExpr = arena.appendExpr(.intLiteral(Int64(index)), type: intType)
-            let entryExpr = arena.appendExpr(.intLiteral(Int64(index)), type: entryType)
+            // Call the synthesized `<EntryName>$enumName()` helper so that
+            // enumValues<T>()[i] returns the entry name string ("RED" etc.) rather
+            // than the raw ordinal integer.
+            let entryNameStr = interner.resolve(entry.name)
+            let enumNameCallee = interner.intern("\(entryNameStr)$enumName")
+            let entryExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
             instructions.append(.constValue(result: indexExpr, value: .intLiteral(Int64(index))))
-            instructions.append(.constValue(result: entryExpr, value: .intLiteral(Int64(index))))
+            instructions.append(.call(
+                symbol: nil,
+                callee: enumNameCallee,
+                arguments: [],
+                result: entryExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_array_set"),

@@ -39,6 +39,18 @@ final class EnumEntriesLoweringPass: LoweringPass {
                     newBody.append(rewritten)
                     continue
                 }
+                // Rewrite loadGlobal(result, entriesPropSym) patterns emitted
+                // when the enum companion's `entries` property is read as a
+                // top-level/object-level global instead of a getter call.
+                if let rewritten = self.rewriteEntriesLoadGlobal(
+                    instruction: instruction,
+                    sema: sema,
+                    entriesName: entriesName,
+                    entriesGetName: entriesGetName
+                ) {
+                    newBody.append(rewritten)
+                    continue
+                }
                 newBody.append(instruction)
             }
             var updated = function
@@ -152,6 +164,55 @@ final class EnumEntriesLoweringPass: LoweringPass {
             callee: entriesGetName,
             arguments: [],
             result: cvResult,
+            canThrow: false,
+            thrownResult: nil
+        )
+    }
+
+    /// Rewrites `loadGlobal(result, entriesPropSym)` to an `entries$get()` call.
+    /// BuildKIR emits this pattern when the companion's `entries` property is
+    /// accessed as a global variable load instead of a getter call.
+    private func rewriteEntriesLoadGlobal(
+        instruction: KIRInstruction,
+        sema: SemaModule,
+        entriesName: InternedString,
+        entriesGetName: InternedString
+    ) -> KIRInstruction? {
+        guard case let .loadGlobal(result, symbol) = instruction,
+              let symInfo = sema.symbols.symbol(symbol),
+              symInfo.kind == .property,
+              symInfo.name == entriesName
+        else {
+            return nil
+        }
+        guard let enumClassSymbol = findOwnerEnumClass(for: symbol, sema: sema) else {
+            return nil
+        }
+        guard let classSym = sema.symbols.symbol(enumClassSymbol) else {
+            return nil
+        }
+        let ownerFQName = classSym.fqName
+        let getterFQName = ownerFQName + [entriesGetName]
+        let companionOwner = sema.symbols.companionObjectSymbol(for: enumClassSymbol)
+        let companionFQName: [InternedString]? = companionOwner.flatMap { companion in
+            sema.symbols.symbol(companion)?.fqName
+        }
+        let getterSymbol: SymbolID? =
+            sema.symbols.lookupAll(fqName: getterFQName).first(where: { id in
+                sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+            }) ?? companionFQName.flatMap { fq in
+                sema.symbols.lookupAll(fqName: fq + [entriesGetName]).first(where: { id in
+                    sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+                })
+            }
+        guard let getter = getterSymbol else {
+            return nil
+        }
+        return .call(
+            symbol: getter,
+            callee: entriesGetName,
+            arguments: [],
+            result: result,
             canThrow: false,
             thrownResult: nil
         )

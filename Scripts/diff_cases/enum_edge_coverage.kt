@@ -1,4 +1,3 @@
-// SKIP-DIFF
 enum class Direction {
     NORTH,
     SOUTH,
