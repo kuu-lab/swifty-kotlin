@@ -535,6 +535,23 @@ public func kk_uuid_nameUUIDFromBytes(_ nameArrayRaw: Int) -> Int {
     return registerRuntimeObject(box)
 }
 
+// MARK: - java.util.UUID.toKotlinUuid()
+
+// java.util.UUID and kotlin.uuid.Uuid share the same native runtime representation
+// (RuntimeUuidBox with mostSignificantBits / leastSignificantBits), so this is an
+// identity-style conversion: copy the bits into a fresh Uuid box.
+@_cdecl("kk_uuid_toKotlinUuid")
+public func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
+    guard let box = runtimeUuidBox(from: receiver) else {
+        return kk_uuid_nil()
+    }
+    let newBox = RuntimeUuidBox(
+        mostSignificantBits: box.mostSignificantBits,
+        leastSignificantBits: box.leastSignificantBits
+    )
+    return registerRuntimeObject(newBox)
+}
+
 /// Compute MD5 digest of input bytes, returning 16 bytes.
 private func kk_uuid_md5Digest(_ input: [UInt8]) -> [UInt8] {
     let s: [UInt32] = [

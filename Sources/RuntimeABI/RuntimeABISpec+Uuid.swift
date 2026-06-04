@@ -161,5 +161,13 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Uuid"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uuid_toKotlinUuid",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
     ]
 }
