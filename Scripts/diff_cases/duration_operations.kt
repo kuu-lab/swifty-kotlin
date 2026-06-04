@@ -1,4 +1,4 @@
-// SKIP-DIFF: kotlinc 2.3.10 treats Duration.isNegative/isPositive/isFinite/isInfinite as functions, not properties
+// SKIP-DIFF: Duration.toString() formats differ — kotlinc uses "1m 30s" but KSwiftK uses "90s"
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -20,12 +20,12 @@ fun main() {
 
     // STDLIB-TIME-082: advanced properties
     val neg = (-30).seconds
-    println(neg.isNegative)
+    println(neg.isNegative())
     println(neg.absoluteValue.inWholeSeconds)
     val pos = 10.seconds
-    println(pos.isPositive)
-    println(pos.isFinite)
-    println(pos.isInfinite)
+    println(pos.isPositive())
+    println(pos.isFinite())
+    println(pos.isInfinite())
 
     // STDLIB-TIME-082: math operations
     val a = 30.seconds
@@ -39,7 +39,7 @@ fun main() {
     val divided = a.div(2)
     println(divided.inWholeSeconds)
     val negated = a.unaryMinus()
-    println(negated.isNegative)
+    println(negated.isNegative())
     val cmp = a.compareTo(b)
     println(cmp > 0)
 }
