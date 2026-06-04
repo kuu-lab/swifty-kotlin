@@ -68,7 +68,7 @@ extension ABILoweringPass {
             interner.intern("kk_string_concat"),
             interner.intern("kk_compare_any"),
             interner.intern("kk_primitive_compareTo"),
-            interner.intern("kk_string_length"),
+            interner.intern("kk_string_struct_get_length"),
             interner.intern("kk_string_trim"),
             interner.intern("kk_string_lowercase"),
             interner.intern("kk_string_uppercase"),

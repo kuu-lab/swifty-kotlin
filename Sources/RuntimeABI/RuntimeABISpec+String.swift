@@ -109,6 +109,17 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_struct_get_length",
+            parameters: [
+                RuntimeABIParameter(name: "structRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        // Legacy pointer/string-box export retained until the runtime stdlib is
+        // fully flattened. Compiler-generated String.length uses aggregate field
+        // extraction through kk_string_struct_get_length instead.
+        RuntimeABIFunctionSpec(
             name: "kk_string_length",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),

@@ -107,7 +107,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 224)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 225)
     }
 
     func testRegexFunctionCount() {
@@ -473,7 +473,7 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKStringLengthSignature() throws {
-        let spec = try requireSpec("kk_string_length")
+        let spec = try requireSpec("kk_string_struct_get_length")
         XCTAssertEqual(spec.returnType, .intptr)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].type, .intptr)

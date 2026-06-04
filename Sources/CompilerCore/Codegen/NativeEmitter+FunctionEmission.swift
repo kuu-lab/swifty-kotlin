@@ -238,11 +238,12 @@ extension NativeEmitter {
             argumentCount: Int,
             appendThrownChannel: Bool
         ) -> LLVMFunction? {
-            // String.length extension: redirect "length" (1 arg = receiver) to kk_string_length.
+            // String.length extension: redirect "length" (1 arg = receiver) to the
+            // aggregate field accessor sentinel. Codegen lowers it to extractvalue.
             // Lambda bodies may reach codegen with callee "length" when receiver type is not
             // available during KIR lowering (e.g. mapIndexed { _, v -> v.length }).
             let effectiveName: String = if calleeName == "length", argumentCount == 1, !appendThrownChannel {
-                "kk_string_length"
+                "kk_string_struct_get_length"
             } else {
                 calleeName
             }
@@ -1494,7 +1495,7 @@ extension NativeEmitter {
                     calleeFunction = nil
                 } else if calleeName == "length", argumentValues.count == 1 {
                     calleeFunction = declareExternalFunction(
-                        named: "kk_string_length",
+                        named: "kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -1725,7 +1726,7 @@ extension NativeEmitter {
                     nil
                 } else if calleeName == "length", argumentValues.count == 1 {
                     declareExternalFunction(
-                        named: "kk_string_length",
+                        named: "kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -2152,7 +2153,7 @@ extension NativeEmitter {
 
     private static func effectiveExternalCalleeNameForArity(_ calleeName: String, argumentCount: Int) -> String {
         if calleeName == "length", argumentCount == 1 {
-            "kk_string_length"
+            "kk_string_struct_get_length"
         } else {
             calleeName
         }

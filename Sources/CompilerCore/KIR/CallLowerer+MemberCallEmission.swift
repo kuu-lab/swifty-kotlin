@@ -99,8 +99,8 @@ extension CallLowerer {
         }
         // String.length: extension needs receiver even when chosenCallee is nil
         // (e.g. mapIndexed { _, v -> v.length } where type inference may not bind).
-        // Always prepend receiver for "length" — codegen maps to kk_string_length when
-        // receiver is String; other types would be a type error at use site.
+        // Always prepend receiver for "length"; codegen extracts the aggregate length
+        // field when the receiver is String. Other types would be a type error at use site.
         if calleeText == "length" {
             arguments.insert(loweredReceiverID, at: 0)
             return
