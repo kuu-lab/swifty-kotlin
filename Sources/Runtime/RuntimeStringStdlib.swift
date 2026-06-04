@@ -14,6 +14,34 @@ private func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -
     String(String.UnicodeScalarView(scalars))
 }
 
+private func runtimeStringFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+}
+
+private func runtimeReturnFlatString(
+    _ value: String,
+    outLength: UnsafeMutablePointer<Int>?,
+    outByteCount: UnsafeMutablePointer<Int>?,
+    outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    runtimeRegisterFlatString(
+        value,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 private func runtimeStringTrimWithPredicate(
     _ strRaw: Int,
     _ fnPtr: Int,
@@ -76,6 +104,25 @@ public func kk_string_trim(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(trimmed)
 }
 
+@_cdecl("kk_string_trim_flat")
+public func kk_string_trim_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeReturnFlatString(
+        source.trimmingCharacters(in: .whitespacesAndNewlines),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_trim_predicate")
 public func kk_string_trim_predicate(
     _ strRaw: Int,
@@ -100,6 +147,25 @@ public func kk_string_lowercase(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.lowercased())
 }
 
+@_cdecl("kk_string_lowercase_flat")
+public func kk_string_lowercase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeReturnFlatString(
+        source.lowercased(),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_uppercase")
 public func kk_string_uppercase(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -111,6 +177,25 @@ public func kk_string_capitalize(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard !source.isEmpty else { return strRaw }
     return runtimeMakeStringRaw(source.prefix(1).uppercased() + source.dropFirst())
+}
+
+@_cdecl("kk_string_uppercase_flat")
+public func kk_string_uppercase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeReturnFlatString(
+        source.uppercased(),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_lowercase_locale")
@@ -259,6 +344,35 @@ public func kk_string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, 
     return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr, options: options))
 }
 
+@_cdecl("kk_string_replace_flat")
+public func kk_string_replace_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ oldData: UnsafePointer<UInt8>?,
+    _ oldLength: Int,
+    _ oldByteCount: Int,
+    _ oldHash: Int,
+    _ newData: UnsafePointer<UInt8>?,
+    _ newLength: Int,
+    _ newByteCount: Int,
+    _ newHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let oldValue = runtimeStringFromFlat(data: oldData, length: oldLength, byteCount: oldByteCount, hash: oldHash)
+    let newValue = runtimeStringFromFlat(data: newData, length: newLength, byteCount: newByteCount, hash: newHash)
+    return runtimeReturnFlatString(
+        source.replacingOccurrences(of: oldValue, with: newValue),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_substring")
 public func kk_string_substring(
     _ strRaw: Int,
@@ -287,6 +401,45 @@ public func kk_string_substring(
     return runtimeMakeStringRaw(result)
 }
 
+@_cdecl("kk_string_substring_flat")
+public func kk_string_substring_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startRaw: Int,
+    _ endRaw: Int,
+    _ hasEndRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let scalars = Array(source.unicodeScalars)
+    let stringLength = scalars.count
+    let start = startRaw
+    let hasEnd = hasEndRaw != 0
+    let end = hasEnd ? endRaw : stringLength
+
+    if start < 0 || start > stringLength || end < 0 || end > stringLength || start > end {
+        runtimeSetThrown(
+            outThrown,
+            message:
+            "StringIndexOutOfBoundsException: start=\(start), end=\(hasEnd ? end : stringLength), length=\(stringLength)"
+        )
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+
+    return runtimeReturnFlatString(
+        runtimeStringFromScalars(scalars[start ..< end]),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_subSequence")
 public func kk_string_subSequence(
     _ strRaw: Int,
@@ -296,6 +449,92 @@ public func kk_string_subSequence(
 ) -> Int {
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
 }
+
+/// Unicode code point for space (U+0020), the default pad character in Kotlin.
+private let kDefaultPadCharRaw: Int = 0x20
+
+@_cdecl("kk_string_padStart_default")
+public func kk_string_padStart_default(_ strRaw: Int, _ lengthRaw: Int) -> Int {
+    return kk_string_padStart(strRaw, lengthRaw, kDefaultPadCharRaw)
+}
+
+@_cdecl("kk_string_padEnd_default")
+public func kk_string_padEnd_default(_ strRaw: Int, _ lengthRaw: Int) -> Int {
+    return kk_string_padEnd(strRaw, lengthRaw, kDefaultPadCharRaw)
+}
+
+@_cdecl("kk_string_padStart")
+public func kk_string_padStart(_ strRaw: Int, _ lengthRaw: Int, _ padCharRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let sourceLength = source.unicodeScalars.count
+    guard lengthRaw > sourceLength else {
+        return runtimeMakeStringRaw(source)
+    }
+    let padCharacter = runtimeCharacterFromRaw(padCharRaw)
+    let padCount = lengthRaw - sourceLength
+    if padCount <= 0 {
+        return runtimeMakeStringRaw(source)
+    }
+    let padding = String(repeating: padCharacter, count: padCount)
+    return runtimeMakeStringRaw(padding + source)
+}
+
+@_cdecl("kk_string_padEnd")
+public func kk_string_padEnd(_ strRaw: Int, _ lengthRaw: Int, _ padCharRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let sourceLength = source.unicodeScalars.count
+    guard lengthRaw > sourceLength else {
+        return runtimeMakeStringRaw(source)
+    }
+    let padCharacter = runtimeCharacterFromRaw(padCharRaw)
+    let padCount = lengthRaw - sourceLength
+    if padCount <= 0 {
+        return runtimeMakeStringRaw(source)
+    }
+    let padding = String(repeating: padCharacter, count: padCount)
+    return runtimeMakeStringRaw(source + padding)
+}
+
+@_cdecl("kk_string_repeat")
+public func kk_string_repeat(_ strRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    outThrown?.pointee = 0
+    if countRaw < 0 {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Count 'n' must be non-negative, but was \(countRaw).")
+        return 0
+    }
+    guard countRaw > 0 else {
+        return runtimeMakeStringRaw("")
+    }
+    return runtimeMakeStringRaw(String(repeating: source, count: countRaw))
+}
+
+@_cdecl("kk_string_reversed")
+public func kk_string_reversed(_ strRaw: Int) -> Int {
+    let reversed = runtimeStringFromScalars(runtimeStringScalars(strRaw).reversed())
+    return runtimeMakeStringRaw(reversed)
+}
+
+@_cdecl("kk_string_reversed_flat")
+public func kk_string_reversed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let reversed = runtimeStringFromScalars(source.unicodeScalars.reversed())
+    return runtimeReturnFlatString(
+        reversed,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 
 @_cdecl("kk_string_toList")
 public func kk_string_toList(_ strRaw: Int) -> Int {
@@ -634,6 +873,39 @@ public func kk_string_take(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutabl
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< nRaw]))
 }
 
+@_cdecl("kk_string_take_flat")
+public func kk_string_take_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ nRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    if nRaw < 0 {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let scalars = Array(source.unicodeScalars)
+    guard nRaw > 0 else {
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    guard nRaw < scalars.count else {
+        return runtimeReturnFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    return runtimeReturnFlatString(
+        runtimeStringFromScalars(scalars[0 ..< nRaw]),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 // MARK: - STDLIB-185: removePrefix / removeSuffix / removeSurrounding
 
 @_cdecl("kk_string_removePrefix")
@@ -707,6 +979,37 @@ public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMu
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[start ..< scalars.count]))
 }
 
+@_cdecl("kk_string_takeLast_flat")
+public func kk_string_takeLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ nRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    outThrown?.pointee = 0
+    if nRaw < 0 {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let scalars = Array(source.unicodeScalars)
+    guard nRaw > 0 else {
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let start = max(0, scalars.count - nRaw)
+    return runtimeReturnFlatString(
+        runtimeStringFromScalars(scalars[start ..< scalars.count]),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_drop")
 public func kk_string_drop(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -725,6 +1028,39 @@ public func kk_string_drop(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutabl
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[nRaw ..< scalars.count]))
 }
 
+@_cdecl("kk_string_drop_flat")
+public func kk_string_drop_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ nRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    outThrown?.pointee = 0
+    if nRaw < 0 {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let scalars = Array(source.unicodeScalars)
+    guard nRaw > 0 else {
+        return runtimeReturnFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    if nRaw >= scalars.count {
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    return runtimeReturnFlatString(
+        runtimeStringFromScalars(scalars[nRaw ..< scalars.count]),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 @_cdecl("kk_string_dropLast")
 public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -739,6 +1075,37 @@ public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMu
     }
     let end = max(0, scalars.count - nRaw)
     return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< end]))
+}
+
+@_cdecl("kk_string_dropLast_flat")
+public func kk_string_dropLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ nRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    outThrown?.pointee = 0
+    if nRaw < 0 {
+        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let scalars = Array(source.unicodeScalars)
+    guard nRaw > 0 else {
+        return runtimeReturnFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    let end = max(0, scalars.count - nRaw)
+    return runtimeReturnFlatString(
+        runtimeStringFromScalars(scalars[0 ..< end]),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_startsWith")

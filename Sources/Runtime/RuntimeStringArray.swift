@@ -291,7 +291,7 @@ func runtimeStringFromFlatFields(
     return String(decoding: buffer, as: UTF8.self)
 }
 
-private func runtimeRegisterFlatString(
+func runtimeRegisterFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
     outByteCount: UnsafeMutablePointer<Int>?,

@@ -60,6 +60,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        let constData = data.map { UnsafePointer($0) }
+        return body(constData, length, byteCount, hash)
+    }
+
+    private func flatStringValue(
+        data: UnsafePointer<UInt8>?,
+        length: Int,
+        byteCount: Int,
+        hash: Int
+    ) -> String {
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    }
+
     // MARK: - kk_string_from_utf8
 
     func testStringFromUTF8CreatesBoxedString() {
@@ -185,6 +211,56 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringTrimRemovesLeadingAndTrailingWhitespace() {
         let raw = kk_string_trim(rawFromRuntimeString("  hello  "))
         XCTAssertEqual(runtimeStringValue(raw), "hello")
+    }
+
+    func testFlatStringTrimReturnsFlattenedStringFields() {
+        withFlatString("  hello  ") { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = kk_string_trim_flat(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
+            XCTAssertEqual(
+                flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                ),
+                "hello"
+            )
+        }
+    }
+
+    func testFlatStringSubstringReportsThrownSlot() {
+        withFlatString("abc") { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            var thrown = 0
+            let outData = kk_string_substring_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                4,
+                1,
+                1,
+                &outLength,
+                &outByteCount,
+                &outHash,
+                &thrown
+            )
+            XCTAssertNotEqual(thrown, 0)
+            XCTAssertEqual(
+                flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                ),
+                ""
+            )
+        }
     }
 
     func testStringSplitProducesListOfStrings() {

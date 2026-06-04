@@ -551,6 +551,184 @@ extension NativeEmitter {
                 return false
             }
             let argumentTypes = arguments.map(module.arena.exprType)
+
+            struct FlatStringReturnCallSpec {
+                let flatName: String
+                let stringArgumentCount: Int
+                let extraArgumentCount: Int
+                let canThrow: Bool
+            }
+
+            let flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
+                "kk_string_trim": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trim_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_lowercase": FlatStringReturnCallSpec(
+                    flatName: "kk_string_lowercase_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_uppercase": FlatStringReturnCallSpec(
+                    flatName: "kk_string_uppercase_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_reversed": FlatStringReturnCallSpec(
+                    flatName: "kk_string_reversed_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_replace": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replace_flat",
+                    stringArgumentCount: 3,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_substring": FlatStringReturnCallSpec(
+                    flatName: "kk_string_substring_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    canThrow: true
+                ),
+                "kk_string_take": FlatStringReturnCallSpec(
+                    flatName: "kk_string_take_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_takeLast": FlatStringReturnCallSpec(
+                    flatName: "kk_string_takeLast_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_drop": FlatStringReturnCallSpec(
+                    flatName: "kk_string_drop_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_dropLast": FlatStringReturnCallSpec(
+                    flatName: "kk_string_dropLast_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+            ]
+
+            func emitFlatStringReturnCall(_ spec: FlatStringReturnCallSpec) -> Bool {
+                let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount
+                guard let result,
+                      argumentValues.count >= requiredArgumentCount,
+                      isStringAggregateType(module.arena.exprType(result)),
+                      let flattenedArgs = flattenedStringArguments(
+                          values: argumentValues,
+                          types: argumentTypes,
+                          stringArgumentCount: spec.stringArgumentCount,
+                          suffix: "\(spec.flatName)_\(instructionIndex)"
+                      ),
+                      var parameterTypes = flattenedStringParameterTypes(
+                          argumentCount: spec.stringArgumentCount
+                      ),
+                      let lengthSlot = allocateI64Slot(name: "\(spec.flatName)_length_\(instructionIndex)"),
+                      let byteCountSlot = allocateI64Slot(name: "\(spec.flatName)_bytes_\(instructionIndex)"),
+                      let hashSlot = allocateI64Slot(name: "\(spec.flatName)_hash_\(instructionIndex)")
+                else {
+                    return false
+                }
+
+                let extraArguments = Array(
+                    argumentValues[
+                        spec.stringArgumentCount ..< (spec.stringArgumentCount + spec.extraArgumentCount)
+                    ]
+                )
+                parameterTypes.append(contentsOf: Array(repeating: int64Type, count: spec.extraArgumentCount))
+                parameterTypes.append(contentsOf: [
+                    outThrownPointerType,
+                    outThrownPointerType,
+                    outThrownPointerType,
+                ])
+
+                let thrownSlot = spec.canThrow && usesThrownChannel
+                    ? allocateI64Slot(name: "\(spec.flatName)_thrown_\(instructionIndex)")
+                    : nil
+                if spec.canThrow {
+                    parameterTypes.append(outThrownPointerType)
+                }
+                guard let runtimeFunction = declareExternalFunction(
+                    named: spec.flatName,
+                    parameterTypes: parameterTypes,
+                    returnType: typeLowering.dataPointerType
+                )
+                else {
+                    return false
+                }
+
+                let thrownPointer = thrownSlot ?? nullThrownPointer
+                let callArguments = flattenedArgs
+                    + extraArguments
+                    + [lengthSlot, byteCountSlot, hashSlot]
+                    + (spec.canThrow ? [thrownPointer] : [])
+                guard let data = bindings.buildCall(
+                    builder,
+                    functionType: runtimeFunction.type,
+                    callee: runtimeFunction.value,
+                    arguments: callArguments,
+                    name: "\(spec.flatName)_data_\(instructionIndex)"
+                ),
+                    let length = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: lengthSlot,
+                        name: "\(spec.flatName)_length_val_\(instructionIndex)"
+                    ),
+                    let byteCount = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: byteCountSlot,
+                        name: "\(spec.flatName)_bytes_val_\(instructionIndex)"
+                    ),
+                    let hash = bindings.buildLoad(
+                        builder,
+                        type: int64Type,
+                        pointer: hashSlot,
+                        name: "\(spec.flatName)_hash_val_\(instructionIndex)"
+                    )
+                else {
+                    return false
+                }
+                let aggregate = buildStringAggregate(
+                    builder: builder,
+                    lowering: typeLowering,
+                    data: data,
+                    length: length,
+                    byteCount: byteCount,
+                    hash: hash,
+                    name: "\(spec.flatName)_result_\(instructionIndex)"
+                )
+                storeResult(result, aggregate)
+                if spec.canThrow {
+                    if usesThrownChannel {
+                        handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
+                    }
+                } else if usesThrownChannel {
+                    storeThrownResultZero(thrownResult)
+                }
+                return true
+            }
+
+            if let spec = flatStringReturnCallSpecs[calleeName],
+               emitFlatStringReturnCall(spec)
+            {
+                return true
+            }
+
             switch calleeName {
             case "kk_string_concat":
                 guard let result,
