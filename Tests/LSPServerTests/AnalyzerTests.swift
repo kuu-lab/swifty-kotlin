@@ -3,9 +3,7 @@
 import XCTest
 
 final class AnalyzerTests: XCTestCase {
-    // Computed property so the class has no stored Sendable properties,
-    // preventing implicit Sendable inference which causes XCTest crashes on Linux.
-    private var uri: String { "file:///tmp/LSPAnalyzer.kt" }
+    private let uri = "file:///tmp/LSPAnalyzer.kt"
 
     func testAnalyzeValidProgramProducesAST() {
         let source = """
