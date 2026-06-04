@@ -1,4 +1,3 @@
-import Foundation
 
 public struct IncrementalFrontendState: Codable {
     public static let supportedVersion = 1

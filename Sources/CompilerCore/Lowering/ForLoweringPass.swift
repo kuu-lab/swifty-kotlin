@@ -1,4 +1,3 @@
-import Foundation
 
 final class ForLoweringPass: LoweringPass {
     static let name = "ForLowering"

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Helpers split from `CallTypeChecker+MemberCallInference.swift`:
 /// Receiver-type predicates and synthetic-builtin dispatchers (Flow, Continuation, KClass, Channel, File, Coroutine handle).

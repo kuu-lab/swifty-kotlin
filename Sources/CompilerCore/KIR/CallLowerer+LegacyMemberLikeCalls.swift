@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 /// Legacy stdlib/member special-case lowering path.
 ///

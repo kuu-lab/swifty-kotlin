@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS array interop surface.
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 import RuntimeABI
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:

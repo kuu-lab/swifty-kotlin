@@ -1,4 +1,3 @@
-import Foundation
 
 final class DataEnumSealedSynthesisPass: LoweringPass {
     static let name = "DataEnumSealedSynthesis"

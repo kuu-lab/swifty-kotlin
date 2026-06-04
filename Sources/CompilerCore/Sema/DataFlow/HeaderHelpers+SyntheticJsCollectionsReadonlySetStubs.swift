@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS collections `JsReadonlySet<out E>` surfaces.
 extension DataFlowSemaPhase {

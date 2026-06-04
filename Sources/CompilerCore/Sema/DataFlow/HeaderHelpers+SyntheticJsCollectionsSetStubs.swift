@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS collections `JsSet<E>` external class surface.
 extension DataFlowSemaPhase {

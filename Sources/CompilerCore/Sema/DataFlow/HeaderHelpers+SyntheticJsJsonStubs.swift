@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `Json` interface and `json` factory function surface.
 extension DataFlowSemaPhase {

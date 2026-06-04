@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `String.toJsString` conversion surface.
 extension DataFlowSemaPhase {

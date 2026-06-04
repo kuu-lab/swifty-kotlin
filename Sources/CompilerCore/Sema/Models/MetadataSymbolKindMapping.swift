@@ -1,4 +1,3 @@
-import Foundation
 
 func symbolKindFromMetadataToken(_ token: String) -> SymbolKind? {
     switch token {

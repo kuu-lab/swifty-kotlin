@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - StringBuilder Runtime Type (STDLIB-255/256/257)
 

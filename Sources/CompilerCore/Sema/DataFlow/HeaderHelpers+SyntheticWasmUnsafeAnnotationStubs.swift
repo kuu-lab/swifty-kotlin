@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for `kotlin.wasm.unsafe` marker annotations.
 extension DataFlowSemaPhase {

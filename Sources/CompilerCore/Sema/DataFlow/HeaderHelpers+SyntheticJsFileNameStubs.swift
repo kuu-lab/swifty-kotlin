@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsFileName` annotation surface.
 extension DataFlowSemaPhase {

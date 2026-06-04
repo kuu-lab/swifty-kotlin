@@ -1,4 +1,3 @@
-import Foundation
 
 // Runtime support for the basic kotlin.test assertion helpers used by STDLIB-TEST-157.
 

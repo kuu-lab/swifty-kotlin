@@ -1,4 +1,3 @@
-import Foundation
 
 extension CallLowerer {
     // swiftlint:disable:next cyclomatic_complexity

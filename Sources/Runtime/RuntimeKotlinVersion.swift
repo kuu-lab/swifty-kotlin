@@ -1,4 +1,3 @@
-import Foundation
 
 private let currentKotlinVersion = (major: 2, minor: 3, patch: 20)
 

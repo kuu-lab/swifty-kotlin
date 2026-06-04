@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 // swiftlint:disable type_body_length
 final class CallTypeChecker {

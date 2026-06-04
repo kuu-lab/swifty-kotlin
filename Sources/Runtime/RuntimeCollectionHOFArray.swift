@@ -1,4 +1,3 @@
-import Foundation
 
 /// Array higher-order functions (STDLIB-088) and Array `binarySearch`
 /// with comparator (STDLIB-COL-BSEARCH-004).

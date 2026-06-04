@@ -1,4 +1,3 @@
-import Foundation
 
 final class SemaPhase: CompilerPhase {
     static let name = "Sema"

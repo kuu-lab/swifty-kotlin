@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: AtomicInt / AtomicLong / AtomicNativePtr legacy scalar classes.
 ///

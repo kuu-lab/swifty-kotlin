@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic JVM annotation bridge properties from `kotlin.jvm`.
 extension DataFlowSemaPhase {

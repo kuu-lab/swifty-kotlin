@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for kotlin.text.HexFormat class, companion, and extension functions.
 extension DataFlowSemaPhase {

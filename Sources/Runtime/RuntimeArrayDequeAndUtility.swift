@@ -1,4 +1,3 @@
-import Foundation
 
 /// ArrayDeque runtime (STDLIB-240) plus generic Array utility functions
 /// (STDLIB-089).

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsBoolean` external class surface.
 extension DataFlowSemaPhase {

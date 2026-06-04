@@ -1,4 +1,3 @@
-import Foundation
 
 @discardableResult
 func emitMutableCaptureCellInitialization(

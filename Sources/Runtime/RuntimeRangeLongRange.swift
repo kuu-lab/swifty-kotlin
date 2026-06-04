@@ -1,4 +1,3 @@
-import Foundation
 
 /// LongRange runtime entry points (STDLIB-RANGE-035) plus IntRange
 /// `toIntArray` (STDLIB-RANGE-034) and ULongRange iterator/forEach/map.

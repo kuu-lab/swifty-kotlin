@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Typed Exception Box Classes (STDLIB-LOG-149)
 //

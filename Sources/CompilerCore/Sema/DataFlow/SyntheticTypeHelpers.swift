@@ -1,4 +1,3 @@
-import Foundation
 
 /// Build a non-nullable class type for a synthetic symbol that has no
 /// generic arguments. Equivalent to writing

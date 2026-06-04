@@ -1,4 +1,3 @@
-import Foundation
 
 /// Bit-manipulation runtime functions (STDLIB-BIT-007).
 ///

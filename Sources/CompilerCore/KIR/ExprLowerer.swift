@@ -1,4 +1,3 @@
-import Foundation
 
 final class ExprLowerer {
     unowned let driver: KIRLoweringDriver

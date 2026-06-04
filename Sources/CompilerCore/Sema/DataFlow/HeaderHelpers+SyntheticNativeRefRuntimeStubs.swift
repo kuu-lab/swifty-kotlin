@@ -1,4 +1,3 @@
-import Foundation
 
 /// STDLIB-NATIVE-REF-002: Synthetic sema stubs for `kotlin.native.ref` and
 /// `kotlin.native.runtime`.

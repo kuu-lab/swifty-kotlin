@@ -1,4 +1,3 @@
-import Foundation
 
 extension CallTypeChecker {
     // MARK: - IntRange member fallback (STDLIB-090/091/092/093)

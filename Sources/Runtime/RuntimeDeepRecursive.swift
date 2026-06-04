@@ -1,4 +1,3 @@
-import Foundation
 
 final class RuntimeDeepRecursiveFunctionBox {
     let fnPtr: Int

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `parseFloat` external function surface.
 extension DataFlowSemaPhase {

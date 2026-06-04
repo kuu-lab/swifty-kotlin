@@ -1,4 +1,3 @@
-import Foundation
 
 /// Classifies a type for runtime type checking token encoding.
 /// Each case maps to one of the base-type constants in `RuntimeTypeCheckToken`.

@@ -1,4 +1,3 @@
-import Foundation
 
 // STDLIB-CORO-ABI-001: Synthetic stubs for AbstractCoroutineContextElement,
 // AbstractCoroutineContextKey, and supplementary CoroutineContext ABI members.

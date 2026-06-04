@@ -1,4 +1,3 @@
-import Foundation
 
 final class LocalDeclTypeChecker {
     unowned let driver: TypeCheckDriver

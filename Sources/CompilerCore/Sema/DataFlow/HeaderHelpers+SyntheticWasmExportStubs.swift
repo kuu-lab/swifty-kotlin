@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/Wasm `WasmExport` annotation surface.
 extension DataFlowSemaPhase {

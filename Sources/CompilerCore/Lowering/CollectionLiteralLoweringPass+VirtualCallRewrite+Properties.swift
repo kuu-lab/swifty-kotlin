@@ -1,4 +1,3 @@
-import Foundation
 
 extension CollectionLiteralLoweringPass {
     // MARK: - Collection property operations (size, contains, isEmpty)

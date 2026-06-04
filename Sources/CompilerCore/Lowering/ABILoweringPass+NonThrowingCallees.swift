@@ -1,4 +1,3 @@
-import Foundation
 
 extension ABILoweringPass {
     func nonThrowingCallees(interner: StringInterner) -> Set<InternedString> {

@@ -1,4 +1,3 @@
-import Foundation
 
 protocol CompilerPhase {
     static var name: String { get }

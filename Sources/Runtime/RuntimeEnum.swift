@@ -1,4 +1,3 @@
-import Foundation
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 // kk_string_equals and kk_enum_valueOf_throw are used by synthesized valueOf(String).
