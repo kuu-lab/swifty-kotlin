@@ -614,10 +614,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         }
     }
 
-    /// Blocking wait for the task result. Suspend-aware awaiting (which avoids
-    /// blocking a GCD thread) is handled by `kk_kxmini_async_await` via
-    /// `addCompletionResumer` (CORO-004); this method is the synchronous fallback
-    /// used by non-suspend contexts (e.g. structured-concurrency child joins).
+    // CORO-004 [TODO]: blocks on a semaphore; convert to a suspend point so the
+    // caller installs a continuation that complete() dispatches. See the
+    // migration plan at the top of this file.
     func awaitResult() -> Int {
         lock.lock()
         if isCompleted {
