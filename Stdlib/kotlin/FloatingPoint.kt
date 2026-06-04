@@ -2,15 +2,15 @@ package kotlin
 
 import kswiftk.internal.*
 
-fun Double.isNaN(): Boolean = __doubleIsNaN(this)
+fun Double.isNaN(): Boolean = this != this
 
-fun Double.isInfinite(): Boolean = __doubleIsInfinite(this)
+fun Double.isInfinite(): Boolean = this == Double.POSITIVE_INFINITY || this == Double.NEGATIVE_INFINITY
 
 fun Double.isFinite(): Boolean = !isNaN() && !isInfinite()
 
-fun Float.isNaN(): Boolean = __floatIsNaN(this)
+fun Float.isNaN(): Boolean = this != this
 
-fun Float.isInfinite(): Boolean = __floatIsInfinite(this)
+fun Float.isInfinite(): Boolean = this == Float.POSITIVE_INFINITY || this == Float.NEGATIVE_INFINITY
 
 fun Float.isFinite(): Boolean = !isNaN() && !isInfinite()
 
