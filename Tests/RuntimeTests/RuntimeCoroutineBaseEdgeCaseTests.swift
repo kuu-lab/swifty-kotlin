@@ -378,8 +378,8 @@ final class RuntimeCoroutineBaseEdgeCaseTests: XCTestCase {
         kk_exception_handler_invoke(handlerHandle, 0, exc)
     }
 
-    /// kk_exception_handler_invoke with zero handler is a no-op.
-    func testExceptionHandlerInvokeZeroHandlerIsNoOp() {
+    /// kk_exception_handler_invoke with zero handler must not crash.
+    func testExceptionHandlerInvokeZeroHandlerDoesNotCrash() {
         let exc = runtimeAllocateThrowable(message: "noop test")
         kk_exception_handler_invoke(0, 0, exc)
     }
