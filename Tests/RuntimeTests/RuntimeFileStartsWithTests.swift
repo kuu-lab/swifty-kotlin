@@ -6,6 +6,7 @@ import XCTest
 /// `kk_file_startsWith_string`, mirroring kotlin.io.File.startsWith semantics
 /// (component-by-component prefix match, sensitive to absoluteness).
 final class RuntimeFileStartsWithTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testStartsWithFileMatchesParentDirectory() {

@@ -44,6 +44,7 @@ private func runtimeNativeUnhandledExceptionThrowingHook(
 }
 
 final class RuntimeNativeUnhandledExceptionHookTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         runtimeNativeUnhandledExceptionHookTestState.reset()

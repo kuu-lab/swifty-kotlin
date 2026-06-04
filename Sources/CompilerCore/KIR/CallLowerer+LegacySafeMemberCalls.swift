@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 
 /// Compatibility entry point for legacy safe member-call lowering.

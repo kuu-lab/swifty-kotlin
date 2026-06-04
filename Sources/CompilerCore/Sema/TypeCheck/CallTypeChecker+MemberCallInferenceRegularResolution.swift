@@ -45,7 +45,7 @@ extension CallTypeChecker {
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.
-        let argTypes = args.enumerated().map { _, arg -> TypeID in
+        let argTypes = args.map { arg -> TypeID in
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
                 case .lambdaLiteral, .callableRef:
@@ -1273,3 +1273,4 @@ extension CallTypeChecker {
         return finalType
     }
 }
+// swiftlint:enable cyclomatic_complexity file_length function_body_length

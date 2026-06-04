@@ -583,6 +583,7 @@ final class LambdaClosureConversionPass: LoweringPass {
                 exprIDs = []
             }
             for case let id? in exprIDs {
+                // swiftlint:disable:next for_where
                 if id.rawValue > maxID {
                     maxID = id.rawValue
                 }

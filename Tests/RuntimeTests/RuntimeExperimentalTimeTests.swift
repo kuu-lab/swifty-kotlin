@@ -4,6 +4,7 @@ import Foundation
 import XCTest
 
 final class RuntimeExperimentalTimeTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testMonotonicMarkElapsedNowIsNonNegative() {
         let mark = kk_time_source_monotonic_mark_now(0)

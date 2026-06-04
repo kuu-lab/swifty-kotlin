@@ -347,6 +347,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsList.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for i in lhsElems.indices {
+            // swiftlint:disable:next for_where
             if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
                 return false
             }
@@ -360,6 +361,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsSet.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for elem in lhsElems {
+            // swiftlint:disable:next for_where
             if !rhsElems.contains(where: { runtimeValuesEqual($0, elem) }) {
                 return false
             }
@@ -396,6 +398,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsObj.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for i in lhsElems.indices {
+            // swiftlint:disable:next for_where
             if !runtimeValuesEqual(lhsElems[i], rhsElems[i]) {
                 return false
             }

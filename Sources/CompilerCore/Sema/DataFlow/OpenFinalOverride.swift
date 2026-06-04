@@ -1225,6 +1225,7 @@ extension DataFlowSemaPhase {
 
         // Check parameter types (covariant for return, contravariant for parameters)
         for (childParam, parentParam) in zip(child.parameterTypes, parent.parameterTypes) {
+            // swiftlint:disable:next for_where
             if !ctx.types.isSubtype(parentParam, childParam) {
                 return false
             }

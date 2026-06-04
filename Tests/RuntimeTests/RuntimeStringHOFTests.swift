@@ -26,35 +26,29 @@ private let firstNotNullOfAlwaysZeroNull: @convention(c) (Int, Int, UnsafeMutabl
     0
 }
 
-private let reduceRightIndexedPickIndexOne: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, index, charRaw, acc, _ in
+private let reduceRightIndexedPickIndexOne: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
     index == 1 ? charRaw : acc
 }
 
-private let reduceRightIndexedIndexChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, index, charRaw, acc, _ in
+private let reduceRightIndexedIndexChecksum: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, charRaw, acc, _ in
     acc + charRaw + index
 }
 
-private let reduceRightPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, charRaw, acc, _ in
+private let reduceRightPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
     charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
 }
 
-private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, charRaw, acc, _ in
+private let reduceRightChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, acc, _ in
     acc + charRaw
 }
 
 // MARK: - STDLIB-TEXT-FN-049: reduceOrNull helpers (acc first, char second)
 
-private let reduceOrNullPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, acc, charRaw, _ in
+private let reduceOrNullPickB: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
     charRaw == Int(Unicode.Scalar("b").value) ? charRaw : acc
 }
 
-private let reduceOrNullChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, acc, charRaw, _ in
+private let reduceOrNullChecksum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, charRaw, _ in
     acc + charRaw
 }
 
@@ -63,8 +57,7 @@ private let sumByWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
 }
 
 // STDLIB-TEXT-FN-116: zip transform — combines two chars into their sum codepoint
-private let zipTransformSumCodepoints: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, aRaw, bRaw, _ in
+private let zipTransformSumCodepoints: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, aRaw, bRaw, _ in
     kk_box_char(kk_unbox_char(aRaw) + kk_unbox_char(bRaw))
 }
 
@@ -72,8 +65,7 @@ private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
 
-private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, charRaw, _ in
+private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
     (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
 }
 

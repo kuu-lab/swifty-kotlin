@@ -2,6 +2,7 @@
 import XCTest
 
 final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndMetadata }
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cString in

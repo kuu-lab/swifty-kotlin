@@ -1,8 +1,8 @@
 import Foundation
 
-/// Bit-manipulation runtime functions (STDLIB-BIT-007).
-///
-/// Split out from `RuntimeNumericCompat.swift`.
+// Bit-manipulation runtime functions (STDLIB-BIT-007).
+//
+// Split out from `RuntimeNumericCompat.swift`.
 
 // MARK: - STDLIB-BIT-007: Additional bit manipulation functions
 

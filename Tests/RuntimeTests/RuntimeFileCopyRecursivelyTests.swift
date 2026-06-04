@@ -11,6 +11,7 @@ import XCTest
 ///       onError: (File, IOException) -> OnErrorAction = { _, exception -> throw exception }
 ///   ): Boolean
 final class RuntimeFileCopyRecursivelyTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Happy paths

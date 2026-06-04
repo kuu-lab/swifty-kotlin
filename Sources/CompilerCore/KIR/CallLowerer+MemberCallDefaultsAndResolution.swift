@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 
 /// Default-argument materialization and runtime callee resolution helpers.

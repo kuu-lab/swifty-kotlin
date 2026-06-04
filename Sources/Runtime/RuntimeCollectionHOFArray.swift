@@ -1,9 +1,9 @@
 import Foundation
 
-/// Array higher-order functions (STDLIB-088) and Array `binarySearch`
-/// with comparator (STDLIB-COL-BSEARCH-004).
-///
-/// Split out from `RuntimeCollectionHOF.swift`.
+// Array higher-order functions (STDLIB-088) and Array `binarySearch`
+// with comparator (STDLIB-COL-BSEARCH-004).
+//
+// Split out from `RuntimeCollectionHOF.swift`.
 
 // MARK: - Array higher-order functions (STDLIB-088)
 

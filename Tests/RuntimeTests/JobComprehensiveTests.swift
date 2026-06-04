@@ -3,6 +3,7 @@ import Dispatch
 import XCTest
 
 final class JobComprehensiveTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Job State Transitions Tests

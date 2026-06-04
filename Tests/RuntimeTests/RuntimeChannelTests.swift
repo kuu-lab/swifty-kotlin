@@ -22,6 +22,7 @@ class ThreadSafeInt: @unchecked Sendable {
 }
 
 final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Rendezvous Channel (capacity == 0)

@@ -1,10 +1,10 @@
 import Foundation
 
-/// `Sequence.joinTo` / `joinToString` / `sumOf` / `associate` /
-/// `associateBy` / `associateWith` plus their `*To` destination-map
-/// variants (STDLIB-275, STDLIB-SEQ-023).
-///
-/// Split out from `RuntimeSequence.swift`.
+// `Sequence.joinTo` / `joinToString` / `sumOf` / `associate` /
+// `associateBy` / `associateWith` plus their `*To` destination-map
+// variants (STDLIB-275, STDLIB-SEQ-023).
+//
+// Split out from `RuntimeSequence.swift`.
 
 // MARK: - Sequence Terminal Operations: joinToString/sumOf/associate/associateBy (STDLIB-275)
 
@@ -391,6 +391,7 @@ public func kk_sequence_groupByTo(
         runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }

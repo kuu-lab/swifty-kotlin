@@ -246,6 +246,7 @@ public enum GoldenHarness {
         }
 
         for candidate in candidates {
+            // swiftlint:disable:next for_where
             if fileManager.isExecutableFile(atPath: candidate.path) {
                 return candidate
             }

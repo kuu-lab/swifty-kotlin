@@ -98,6 +98,7 @@ private let vetoableEdgeAcceptIfGreater: KKDelegateObserverEntryPoint = { _, old
 }
 
 final class RuntimeDelegateEdgeCaseTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndDelegate }
     override func resetIsolatedRuntimeTestState() {
         gEdgeState.reset()

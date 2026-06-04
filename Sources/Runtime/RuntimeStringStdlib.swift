@@ -1185,6 +1185,7 @@ public func kk_string_indexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _ sta
         }
     }
     for offset in start..<source.count {
+        // swiftlint:disable:next for_where
         if needles.contains(where: { matches($0, at: offset) }) {
             return offset
         }
@@ -1253,6 +1254,7 @@ public func kk_string_lastIndexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _
         }
     }
     for offset in stride(from: start, through: 0, by: -1) {
+        // swiftlint:disable:next for_where
         if needles.contains(where: { matches($0, at: offset) }) {
             return offset
         }

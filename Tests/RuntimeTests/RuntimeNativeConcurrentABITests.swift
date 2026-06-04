@@ -466,6 +466,7 @@ final class RuntimePinnedTests: XCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeCNameRegistryTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testRegisterAndLookupRoundTrip() {

@@ -1,11 +1,11 @@
 import Foundation
 
-/// `Sequence.scan` / `runningFold` / `runningReduce` / `foldIndexed` /
-/// `runningFoldIndexed` / `scanIndexed` / `reduceIndexed` /
-/// `reduceIndexedOrNull` runtime entry points (STDLIB-558..560,
-/// STDLIB-556/557, STDLIB-SEQ-015..017).
-///
-/// Split out from `RuntimeSequence.swift`.
+// `Sequence.scan` / `runningFold` / `runningReduce` / `foldIndexed` /
+// `runningFoldIndexed` / `scanIndexed` / `reduceIndexed` /
+// `reduceIndexedOrNull` runtime entry points (STDLIB-558..560,
+// STDLIB-556/557, STDLIB-SEQ-015..017).
+//
+// Split out from `RuntimeSequence.swift`.
 
 // MARK: - Sequence scan / runningFold / runningReduce (STDLIB-558, STDLIB-559, STDLIB-560)
 

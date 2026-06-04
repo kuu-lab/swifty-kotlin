@@ -209,6 +209,7 @@ struct TypeInferenceContext {
         if let annotationSymbol = sema.symbols.lookup(fqName: internedParts) {
             let metaAnnotations = sema.symbols.annotations(for: annotationSymbol)
             for meta in metaAnnotations {
+                // swiftlint:disable:next for_where
                 if KnownCompilerAnnotation.dslMarker.matches(meta.annotationFQName) {
                     return true
                 }
@@ -225,6 +226,7 @@ struct TypeInferenceContext {
                 }
                 let metaAnnotations = sema.symbols.annotations(for: candidateID)
                 for meta in metaAnnotations {
+                    // swiftlint:disable:next for_where
                     if KnownCompilerAnnotation.dslMarker.matches(meta.annotationFQName) {
                         return true
                     }

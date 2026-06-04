@@ -8,6 +8,7 @@ import XCTest
 #endif
 
 final class RuntimeLateinitExceptionTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     private func makeRuntimeString(_ value: String) -> Int {
         value.withCString { cstr in

@@ -1,5 +1,3 @@
-// swiftlint:disable file_length
-
 /// Closure-argument synthesis and callable-adapter helpers for
 /// CallLowerer: `appendClosureArgumentsIfNeeded`,
 /// `makeCollectionHOFCallableAdapter`, `makeClosureThunkCallableAdapter`.

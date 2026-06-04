@@ -1,4 +1,4 @@
-// swiftlint:disable file_length function_body_length cyclomatic_complexity
+// swiftlint:disable cyclomatic_complexity
 import Foundation
 
 extension CallTypeChecker {
@@ -401,3 +401,4 @@ extension CallTypeChecker {
         return nil
     }
 }
+// swiftlint:enable cyclomatic_complexity

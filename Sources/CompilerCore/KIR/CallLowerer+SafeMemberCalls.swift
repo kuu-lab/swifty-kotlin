@@ -409,13 +409,17 @@ extension CallLowerer {
                 case "times":
                     interner.intern("kk_op_mul")
                 case "div":
+                    // swiftlint:disable:next void_function_in_ternary
                     isUnsignedReceiver ? interner.intern("kk_op_udiv") : interner.intern("kk_op_div")
                 case "floorDiv":
+                    // swiftlint:disable:next void_function_in_ternary
                     isUnsignedReceiver ? interner.intern("kk_op_udiv") : interner.intern("kk_op_floor_div")
                 case "rem":
+                    // swiftlint:disable:next void_function_in_ternary
                     isUnsignedReceiver ? interner.intern("kk_op_urem") : interner.intern("kk_op_mod")
                 case "mod":
                     isUnsignedReceiver
+                        // swiftlint:disable:next void_function_in_ternary
                         ? interner.intern("kk_op_urem")
                         : interner.intern(nonNullReceiverType == longType || nonNullRhsType == longType ? "kk_op_lfloor_mod" : "kk_op_floor_mod")
                 case "and":
@@ -956,6 +960,7 @@ extension CallLowerer {
                     interner.intern("kk_job_await_completion")
                 case "cancel":
                     args.isEmpty
+                        // swiftlint:disable:next void_function_in_ternary
                         ? interner.intern("kk_job_cancel")
                         : interner.intern("kk_job_cancel_with_cause")
                 case "complete":

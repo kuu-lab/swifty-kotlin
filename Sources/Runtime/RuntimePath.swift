@@ -1031,6 +1031,7 @@ public func kk_path_startsWith_path(_ pathRaw: Int, _ otherRaw: Int) -> Int {
         return kk_box_bool(0)
     }
     for i in 0..<otherParts.count {
+        // swiftlint:disable:next for_where
         if pathParts[i] != otherParts[i] { return kk_box_bool(0) }
     }
     return kk_box_bool(1)
@@ -1062,6 +1063,7 @@ public func kk_path_endsWith_path(_ pathRaw: Int, _ otherRaw: Int) -> Int {
             return kk_box_bool(0)
         }
         for i in 0..<otherParts.count {
+            // swiftlint:disable:next for_where
             if pathParts[i] != otherParts[i] { return kk_box_bool(0) }
         }
         return kk_box_bool(1)
@@ -1071,6 +1073,7 @@ public func kk_path_endsWith_path(_ pathRaw: Int, _ otherRaw: Int) -> Int {
     }
     let offset = pathParts.count - otherParts.count
     for i in 0..<otherParts.count {
+        // swiftlint:disable:next for_where
         if pathParts[offset + i] != otherParts[i] { return kk_box_bool(0) }
     }
     return kk_box_bool(1)

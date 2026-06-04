@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 
 /// Centralized FQ-name suffixes used to discriminate the binarySearch

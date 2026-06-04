@@ -1,8 +1,8 @@
 import Foundation
 
-/// Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
-///
-/// Split out from `RuntimeCollections.swift`.
+// Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
+//
+// Split out from `RuntimeCollections.swift`.
 
 // MARK: - Set Functions (STDLIB-001)
 
@@ -71,6 +71,7 @@ public func kk_set_containsAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
         return kk_box_bool(0)
     }
     for element in otherElements {
+        // swiftlint:disable:next for_where
         if !set.elements.contains(where: { runtimeValuesEqual($0, element) }) {
             return kk_box_bool(0)
         }
@@ -654,6 +655,7 @@ public func kk_map_minus(_ mapRaw: Int, _ key: Int) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
     for (idx, mapKey) in normalizedKeys.enumerated() {
+        // swiftlint:disable:next for_where
         if !runtimeValuesEqual(mapKey, key) {
             keys.append(mapKey)
             if idx < normalizedValues.count {

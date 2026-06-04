@@ -483,7 +483,7 @@ final class ControlFlowLowerer {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            guard let _ = sema.symbols.symbol(candidate),
+            guard sema.symbols.symbol(candidate) != nil,
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
@@ -499,7 +499,7 @@ final class ControlFlowLowerer {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            guard let _ = sema.symbols.symbol(candidate),
+            guard sema.symbols.symbol(candidate) != nil,
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {

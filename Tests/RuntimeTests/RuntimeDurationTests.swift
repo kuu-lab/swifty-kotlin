@@ -50,33 +50,29 @@ private let throwingThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> I
     return 0
 }
 
-private let durationComponentsSecondsThunk: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, seconds, nanoseconds, _ in
+private let durationComponentsSecondsThunk: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, seconds, nanoseconds, _ in
     seconds * 1_000_000_000 + nanoseconds
 }
 
-private let durationComponentsMinutesThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, minutes, seconds, nanoseconds, _ in
+private let durationComponentsMinutesThunk: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, minutes, seconds, nanoseconds, _ in
     (minutes * 100 + seconds) * 1_000 + nanoseconds
 }
 
-private let durationComponentsHoursThunk: @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, hours, minutes, seconds, nanoseconds, _ in
+private let durationComponentsHoursThunk: @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, hours, minutes, seconds, nanoseconds, _ in
     (((hours * 100) + minutes) * 100 + seconds) * 1_000 + nanoseconds
 }
 
-private let durationComponentsDaysThunk: @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, days, hours, minutes, seconds, nanoseconds, _ in
+private let durationComponentsDaysThunk: @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, days, hours, minutes, seconds, nanoseconds, _ in
     ((((days * 100) + hours) * 100 + minutes) * 100 + seconds) * 1_000 + nanoseconds
 }
 
 private let durationComponentsDaysTopOnlyThunk:
-    @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-        _, days, hours, minutes, seconds, nanoseconds, _ in
+    @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, days, hours, minutes, seconds, nanoseconds, _ in
         days + hours + minutes + seconds + nanoseconds
     }
 
 final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         capturedClosureRaw = 0

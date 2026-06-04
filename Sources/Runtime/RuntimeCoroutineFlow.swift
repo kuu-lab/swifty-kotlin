@@ -3,12 +3,12 @@ import Foundation
 
 // swiftlint:disable file_length
 
-/// Flow runtime (STDLIB-088 cold/lazy stream semantics) plus Flow
-/// terminal operators, Flow builders, and SharedFlow / StateFlow
-/// runtime entry points.
-///
-/// Split out from `RuntimeCoroutine.swift` to keep each runtime source
-/// scoped to a single coroutine concern.
+// Flow runtime (STDLIB-088 cold/lazy stream semantics) plus Flow
+// terminal operators, Flow builders, and SharedFlow / StateFlow
+// runtime entry points.
+//
+// Split out from `RuntimeCoroutine.swift` to keep each runtime source
+// scoped to a single coroutine concern.
 
 // MARK: - Flow Runtime (STDLIB-088: Cold/Lazy Stream Semantics)
 
@@ -657,6 +657,7 @@ private func runtimeFlowRunSourceStage(
 
     if let fixedValues = flow.fixedValues {
         for value in fixedValues {
+            // swiftlint:disable:next for_where
             if processValue(value) == runtimeFlowStopSentinel {
                 break
             }
@@ -1130,7 +1131,7 @@ private func runtimeFlowCollectStreaming(
                     }
                 case .filtered:
                     continue
-                    case .thrown, .done:
+                case .thrown, .done:
                     stop = true
                 }
             }

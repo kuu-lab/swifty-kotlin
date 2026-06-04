@@ -2151,3 +2151,4 @@ extension CallTypeChecker {
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
     }
 }
+// swiftlint:enable cyclomatic_complexity file_length function_body_length

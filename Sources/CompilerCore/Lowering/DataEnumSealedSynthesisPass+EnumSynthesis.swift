@@ -512,6 +512,7 @@ extension DataEnumSealedSynthesisPass {
         // nominalType-only module (e.g. library metadata) the globals may be
         // absent. Adding them here is idempotent thanks to the guard.
         for entry in entries {
+            // swiftlint:disable:next for_where
             if !existingGlobalSymbols.contains(entry.id) {
                 _ = module.arena.appendDecl(.global(KIRGlobal(symbol: entry.id, type: intType)))
                 existingGlobalSymbols.insert(entry.id)

@@ -1,10 +1,10 @@
 import Dispatch
 import Foundation
 
-/// Channel runtime (CORO-001), Channel iterator (CORO-075),
-/// BroadcastChannel runtime (CORO-076), and the Channel pipeline runtime.
-///
-/// Split out from `RuntimeCoroutine.swift`.
+// Channel runtime (CORO-001), Channel iterator (CORO-075),
+// BroadcastChannel runtime (CORO-076), and the Channel pipeline runtime.
+//
+// Split out from `RuntimeCoroutine.swift`.
 
 // MARK: - Channel Runtime (CORO-001)
 

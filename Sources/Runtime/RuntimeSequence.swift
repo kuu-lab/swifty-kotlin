@@ -871,6 +871,7 @@ func runtimeTraverseSequenceSource(
         return state
     }
     for elem in runtimeSequenceSourceElementsOrPanic(from: rawValue, caller: caller) {
+        // swiftlint:disable:next for_where
         if !yield(elem) { break }
     }
     return nil
@@ -1795,6 +1796,7 @@ public func kk_sequence_firstNotNullOf(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -1835,6 +1837,7 @@ public func kk_sequence_firstNotNullOfOrNull(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -3132,6 +3135,7 @@ public func kk_sequence_reduce(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
