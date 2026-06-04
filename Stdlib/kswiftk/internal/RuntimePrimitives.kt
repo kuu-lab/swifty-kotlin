@@ -96,6 +96,18 @@ external fun __print(message: Any?)
 @KSwiftKRuntimeName("kk_readlnOrNull")
 external fun __readlnOrNull(): String?
 
+@KSwiftKRuntimeName("kk_sys_write")
+external fun __sys_write(fd: Int, buffer: ByteArray, count: Int): Int
+
+@KSwiftKRuntimeName("kk_sys_read")
+external fun __sys_read(fd: Int, buffer: ByteArray, count: Int): Int
+
+@KSwiftKRuntimeName("kk_string_toByteArray")
+external fun __string_toByteArray(strRaw: Int): Int
+
+@KSwiftKRuntimeName("kk_string_from_utf8")
+external fun __string_from_utf8(ptr: Int, len: Int): Int
+
 @KSwiftKRuntimeName("kk_synchronized")
 external fun __synchronized(lock: Any, block: () -> Any?): Any
 

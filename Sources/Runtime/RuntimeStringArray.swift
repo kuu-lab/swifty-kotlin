@@ -1885,3 +1885,15 @@ public func kk_string_orEmpty(_ strRaw: Int) -> Int {
     }
     return strRaw
 }
+
+// MARK: - System call wrappers for console I/O
+
+@_cdecl("kk_sys_write")
+public func kk_sys_write(_ fd: Int32, _ buffer: UnsafeRawPointer, _ count: Int) -> Int {
+    return write(fd, buffer, count)
+}
+
+@_cdecl("kk_sys_read")
+public func kk_sys_read(_ fd: Int32, _ buffer: UnsafeMutableRawPointer, _ count: Int) -> Int {
+    return read(fd, buffer, count)
+}
