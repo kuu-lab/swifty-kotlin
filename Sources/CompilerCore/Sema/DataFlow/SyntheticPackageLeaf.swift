@@ -1,4 +1,3 @@
-import Foundation
 
 /// Look up the package symbol for `fqName`, defining a synthetic leaf
 /// entry if it doesn't yet exist. Unlike `ensureSyntheticPackageHierarchy`,

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Resolve a raw integer handle to a registered runtime object of the given type.
 /// Returns nil if the handle is zero/null, not a registered object pointer, or

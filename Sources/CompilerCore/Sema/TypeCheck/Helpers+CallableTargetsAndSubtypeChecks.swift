@@ -1,4 +1,3 @@
-import Foundation
 
 // Callable target resolution and nominal subtype helpers.
 

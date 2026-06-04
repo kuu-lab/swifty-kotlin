@@ -1,4 +1,3 @@
-import Foundation
 
 /// Returns the element type for a nominal range class such as `UIntRange`.
 func nominalRangeElementType(

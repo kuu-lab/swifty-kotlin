@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for java.math.BigInteger (STDLIB-NUM-129).
 /// Registers the BigInteger class, companion factory method (valueOf),

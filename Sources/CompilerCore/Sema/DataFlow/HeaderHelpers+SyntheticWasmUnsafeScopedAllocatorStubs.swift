@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic `kotlin.wasm.unsafe.withScopedMemoryAllocator` surface.
 ///

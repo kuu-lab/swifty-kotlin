@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsBigInt` external class surface.
 extension DataFlowSemaPhase {

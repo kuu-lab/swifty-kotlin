@@ -1,5 +1,4 @@
 @testable import CompilerCore
-import Foundation
 
 enum GoldenHarnessSemaFormat {
     static func renderDecl(_ decl: Decl, interner: StringInterner) -> String {

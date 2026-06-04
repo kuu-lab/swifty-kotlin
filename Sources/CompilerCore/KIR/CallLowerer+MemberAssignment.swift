@@ -1,4 +1,3 @@
-import Foundation
 
 /// Lowering for member assignment expressions.
 extension CallLowerer {

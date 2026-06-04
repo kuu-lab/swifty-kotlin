@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for kotlin.random.Random
 /// (STDLIB-165, STDLIB-514, STDLIB-515, STDLIB-516, STDLIB-653, STDLIB-654, STDLIB-655).

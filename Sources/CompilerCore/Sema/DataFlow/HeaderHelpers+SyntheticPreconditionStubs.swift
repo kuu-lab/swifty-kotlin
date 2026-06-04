@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib top-level functions for kotlin.require, kotlin.check, and kotlin.error (STDLIB-062).
 /// These stubs enable name resolution and type checking; runtime behavior is implemented in Runtime.

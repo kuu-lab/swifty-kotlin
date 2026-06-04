@@ -1,4 +1,3 @@
-import Foundation
 
 /// `Sequence.scan` / `runningFold` / `runningReduce` / `foldIndexed` /
 /// `runningFoldIndexed` / `scanIndexed` / `reduceIndexed` /

@@ -1,4 +1,3 @@
-import Foundation
 
 protocol LoweringPass: KIRPass {
     /// Returns `false` when the module contains no instructions that this

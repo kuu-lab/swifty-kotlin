@@ -1,4 +1,3 @@
-import Foundation
 
 struct VisibilityChecker {
     let symbols: SymbolTable

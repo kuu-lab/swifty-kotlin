@@ -1,4 +1,3 @@
-import Foundation
 
 enum EnumStdlibSpecialCallResult {
     case enumValues(enumType: TypeID, arrayType: TypeID, stubSymbol: SymbolID)

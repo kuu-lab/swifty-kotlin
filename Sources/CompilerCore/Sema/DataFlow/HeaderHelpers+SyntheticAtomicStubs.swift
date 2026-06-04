@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for kotlin.concurrent atomic and lock types.
 /// Registers constructors, load/store/exchange/compareAndSet/compareAndExchange methods,

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Semantic analysis pass that performs type checking and type inference.
 ///

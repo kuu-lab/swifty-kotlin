@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for kotlin.uuid.Uuid.
 /// Registers the Uuid class, companion factories/properties (random, parse, parseOrNull, parseHex, parseHexOrNull, parseHexDash, parseHexDashOrNull, NIL, SIZE_BITS, SIZE_BYTES, LEXICAL_ORDER),

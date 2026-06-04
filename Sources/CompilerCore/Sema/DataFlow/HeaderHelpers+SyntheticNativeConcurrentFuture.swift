@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: Future<T> class with result, consume, getState members.
 ///

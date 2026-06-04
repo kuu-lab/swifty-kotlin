@@ -1,4 +1,3 @@
-import Foundation
 
 public extension TypeSystem {
     /// Produces a human-readable, Kotlin-style type string for display in IDE

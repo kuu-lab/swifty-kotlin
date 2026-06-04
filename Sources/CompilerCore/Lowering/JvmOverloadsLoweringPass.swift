@@ -1,4 +1,3 @@
-import Foundation
 
 /// ANNO-002: `@JvmOverloads` lowering pass.
 ///

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stub for kotlin.io.FileWalkDirection (STDLIB-IO-TYPE-005).
 ///

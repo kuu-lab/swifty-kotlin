@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsNumber` external class surface.
 extension DataFlowSemaPhase {

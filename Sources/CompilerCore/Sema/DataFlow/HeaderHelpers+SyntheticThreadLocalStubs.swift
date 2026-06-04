@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for java.lang.ThreadLocal and kotlin.concurrent.getOrSet.
 extension DataFlowSemaPhase {

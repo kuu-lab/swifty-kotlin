@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `Int.toJsNumber` conversion surface.
 extension DataFlowSemaPhase {

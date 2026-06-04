@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 /// Collection HOF argument adaptation and comparator trampoline helpers.
 extension CallLowerer {

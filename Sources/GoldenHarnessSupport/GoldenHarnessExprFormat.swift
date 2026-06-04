@@ -1,5 +1,4 @@
 @testable import CompilerCore
-import Foundation
 
 enum GoldenHarnessExprFormat {
     static func renderExpr(_ expr: Expr, interner: StringInterner) -> String {

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// Iterable, MutableIterable, Sequence, and Collection<T> interfaces plus member helpers (incl. primitive iterator stubs).

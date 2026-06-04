@@ -1,4 +1,3 @@
-import Foundation
 
 /// Trailing batch of synthetic stub registrations from `registerSyntheticDelegateStubs`.
 ///

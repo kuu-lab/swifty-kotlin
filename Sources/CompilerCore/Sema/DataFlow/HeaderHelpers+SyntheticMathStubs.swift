@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib top-level functions for kotlin.math (STDLIB-052).
 /// These stubs are intentionally minimal and only cover the math entry points

@@ -1,4 +1,3 @@
-import Foundation
 
 final class FlowLoweringPass: LoweringPass {
     static let name = "FlowLowering"

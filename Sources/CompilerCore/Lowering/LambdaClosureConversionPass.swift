@@ -1,4 +1,3 @@
-import Foundation
 
 /// CLSR-001: Closure object synthesis pass.
 ///

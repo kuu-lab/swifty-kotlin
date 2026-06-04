@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: Legacy AtomicReference<T> class under kotlin.native.concurrent.
 ///

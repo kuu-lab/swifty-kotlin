@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsException` class surface.
 extension DataFlowSemaPhase {

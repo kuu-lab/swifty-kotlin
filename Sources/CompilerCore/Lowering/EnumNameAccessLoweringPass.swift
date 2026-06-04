@@ -1,4 +1,3 @@
-import Foundation
 
 /// Rewrites (valueOf result).name to $enumOrdinalToName(ordinal). Runs after
 /// DataEnumSealedSynthesisPass which creates the $enumOrdinalToName helper.

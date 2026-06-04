@@ -1,4 +1,3 @@
-import Foundation
 
 /// Hashable wrapper around an opaque runtime value (`Int`) that uses
 /// `kk_any_hashCode` / `runtimeValuesEqual` so value-equal objects (e.g.

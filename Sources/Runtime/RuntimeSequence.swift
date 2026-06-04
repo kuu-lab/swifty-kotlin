@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Sequence Functions (STDLIB-003)
 

@@ -1,4 +1,3 @@
-import Foundation
 
 struct NormalizedCallResult {
     let arguments: [KIRExprID]

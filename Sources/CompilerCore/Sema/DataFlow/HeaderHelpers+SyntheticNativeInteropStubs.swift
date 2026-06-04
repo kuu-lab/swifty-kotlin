@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/Native metaprogramming and C interop stubs.
 extension DataFlowSemaPhase {

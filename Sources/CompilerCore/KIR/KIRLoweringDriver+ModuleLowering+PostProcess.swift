@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Pre-interned runtime names for delegate rewriting
 

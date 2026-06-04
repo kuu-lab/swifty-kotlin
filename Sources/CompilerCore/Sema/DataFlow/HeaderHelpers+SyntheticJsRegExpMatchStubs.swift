@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `RegExpMatch` external interface surface.
 extension DataFlowSemaPhase {

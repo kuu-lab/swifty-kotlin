@@ -1,4 +1,3 @@
-import Foundation
 
 final class OperatorLoweringPass: LoweringPass {
     static let name = "OperatorLowering"

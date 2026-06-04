@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `Promise<out T>` external class surface.
 extension DataFlowSemaPhase {

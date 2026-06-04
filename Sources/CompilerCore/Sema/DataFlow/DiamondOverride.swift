@@ -1,4 +1,3 @@
-import Foundation
 
 // CLASS-004: Diamond override validation — when a class implements multiple interfaces
 // that both provide a default method with the same name, the class must override it.

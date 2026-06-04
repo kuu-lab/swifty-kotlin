@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for kotlin.io filesystem exception types.
 ///

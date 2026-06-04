@@ -1,4 +1,3 @@
-import Foundation
 
 extension KIRLoweringDriver {
     /// Lower a top-level function declaration into KIR declarations.

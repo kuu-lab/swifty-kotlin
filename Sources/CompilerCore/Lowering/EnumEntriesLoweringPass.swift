@@ -1,4 +1,3 @@
-import Foundation
 
 /// Rewrites `Color.entries` property accesses to `entries$get()` getter calls.
 /// Runs after DataEnumSealedSynthesisPass which creates the `entries$get` helper.

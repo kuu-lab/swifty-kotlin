@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `Console` external interface surface.
 extension DataFlowSemaPhase {

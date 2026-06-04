@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for java.util.concurrent.locks.ReentrantReadWriteLock
 /// and kotlin.concurrent.read (STDLIB-CONC-001).

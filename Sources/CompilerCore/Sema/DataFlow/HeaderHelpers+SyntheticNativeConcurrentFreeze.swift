@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: `<T>.freeze()` and
 /// `Any?.isFrozen` legacy-memory-manager surfaces.

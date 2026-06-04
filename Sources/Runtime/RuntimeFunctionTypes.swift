@@ -1,4 +1,3 @@
-import Foundation
 
 /// 関数型のランタイム実装 (STDLIB-HOF-029)
 /// Function0-22 のインターフェースと拡張関数を提供

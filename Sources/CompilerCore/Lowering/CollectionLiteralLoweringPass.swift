@@ -1,4 +1,3 @@
-import Foundation
 
 final class CollectionLiteralLoweringPass: LoweringPass {
     static let name = "CollectionLiteralLowering"

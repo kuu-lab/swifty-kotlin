@@ -1,4 +1,3 @@
-import Foundation
 
 struct MemberCallReceiver {
     let expr: ExprID

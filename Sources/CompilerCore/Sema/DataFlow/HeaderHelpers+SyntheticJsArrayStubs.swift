@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsArray<T : JsAny?>` external class surface.
 extension DataFlowSemaPhase {

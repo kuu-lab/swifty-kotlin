@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - provideDelegate operator support (PROP-007)
 

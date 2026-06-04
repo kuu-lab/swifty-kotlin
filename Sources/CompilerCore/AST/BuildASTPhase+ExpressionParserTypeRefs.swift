@@ -1,4 +1,3 @@
-import Foundation
 
 extension BuildASTPhase.ExpressionParser {
     func parseTypeReference(_ fallbackRange: SourceRange) -> TypeRefID? {

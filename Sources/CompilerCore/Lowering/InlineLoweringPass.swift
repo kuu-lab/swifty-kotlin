@@ -1,4 +1,3 @@
-import Foundation
 
 struct InlineExpansion {
     let instructions: [KIRInstruction]

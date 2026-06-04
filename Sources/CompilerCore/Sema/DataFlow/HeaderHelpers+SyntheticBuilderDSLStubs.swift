@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for buildList (STDLIB-070), buildSet (STDLIB-310), buildMap (STDLIB-071), and related builder DSL functions.
 /// buildList<E>(builderAction: MutableList<E>.() -> Unit): List<E>

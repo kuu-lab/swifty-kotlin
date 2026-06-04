@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Result Runtime Types (STDLIB-280/281/282/283)
 

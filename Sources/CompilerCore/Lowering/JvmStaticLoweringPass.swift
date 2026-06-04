@@ -1,4 +1,3 @@
-import Foundation
 
 /// ANNO-001: @JvmStatic lowering pass.
 ///

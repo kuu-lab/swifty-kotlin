@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Seeded Random (STDLIB-516)
 

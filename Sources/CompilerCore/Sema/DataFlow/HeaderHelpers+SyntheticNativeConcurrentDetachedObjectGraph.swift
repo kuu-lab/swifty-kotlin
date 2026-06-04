@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: DetachedObjectGraph<T> class and attach extension function.
 ///

@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - kotlin.js JsReference (STDLIB-JS-FN-004)
 
