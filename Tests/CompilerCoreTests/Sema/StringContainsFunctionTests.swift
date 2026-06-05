@@ -4,9 +4,9 @@ import XCTest
 /// STDLIB-TEXT-FN-012: Validates that `CharSequence.contains` resolves through
 /// Sema for `String` receivers across all of its stdlib overloads. The synthetic
 /// stubs register:
-/// - `contains(other: String)` → `kk_string_contains_str` (also acts as the
+/// - `contains(other: String)` → `kk_string_contains_str_flat` (also acts as the
 ///   `in` operator on strings).
-/// - `contains(other: String, ignoreCase: Boolean)` → `kk_string_contains_ignoreCase`
+/// - `contains(other: String, ignoreCase: Boolean)` → `kk_string_contains_ignoreCase_flat`
 /// - `contains(regex: Regex)` → `kk_string_contains_regex`
 final class StringContainsFunctionTests: XCTestCase {
     func testContainsWithStringResolvesInSource() throws {
@@ -70,7 +70,7 @@ final class StringContainsFunctionTests: XCTestCase {
     /// Verifies the chosen callee for the 2-arg overload is wired to the
     /// case-insensitive runtime entry point. This is the contract that keeps
     /// `s.contains(x, true)` from silently dropping `ignoreCase` and dispatching
-    /// to `kk_string_contains_str` instead.
+    /// to `kk_string_contains_str_flat` instead.
     func testContainsIgnoreCaseLinksToRuntime() throws {
         let ctx = makeContextFromSource("""
         fun hasSubstringIgnoreCase(s: String, needle: String): Boolean {
@@ -92,11 +92,11 @@ final class StringContainsFunctionTests: XCTestCase {
         let sema = try XCTUnwrap(ctx.sema)
         let resolvedSymbols = sema.symbols.lookupAll(fqName: containsFQName)
         let hasIgnoreCaseLink = resolvedSymbols.contains { symbolID in
-            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase"
+            sema.symbols.externalLinkName(for: symbolID) == "kk_string_contains_ignoreCase_flat"
         }
         XCTAssertTrue(
             hasIgnoreCaseLink,
-            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase"
+            "Expected a `kotlin.text/contains` symbol to expose externalLinkName=kk_string_contains_ignoreCase_flat"
         )
     }
 }

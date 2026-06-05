@@ -4,9 +4,9 @@ import XCTest
 /// STDLIB-TEXT-FN-020: Validates that `kotlin.text.CharSequence.indexOf` resolves
 /// through Sema for both the String-search overloads and the new Char overload.
 /// Runtime link names involved:
-/// - `kk_string_indexOf` (single String argument)
-/// - `kk_string_indexOf_from` (String + startIndex)
-/// - `kk_string_indexOf_ignoreCase` (String + startIndex + ignoreCase)
+/// - `kk_string_indexOf_flat` (single String argument)
+/// - `kk_string_indexOf_from_flat` (String + startIndex)
+/// - `kk_string_indexOf_ignoreCase_flat` (String + startIndex + ignoreCase)
 /// - `kk_string_indexOf_char` (Char + optional startIndex + optional ignoreCase)
 final class StringIndexOfFunctionTests: XCTestCase {
     func testIndexOfStringResolvesInSource() throws {

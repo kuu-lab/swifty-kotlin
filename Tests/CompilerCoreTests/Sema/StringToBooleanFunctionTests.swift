@@ -4,7 +4,7 @@ import XCTest
 
 /// Verifies `String?.toBoolean()` (STDLIB-TEXT-FN-087) resolves cleanly in Sema
 /// for both nullable and non-null receivers and lowers through to the runtime
-/// helper `kk_string_toBoolean`, which is classified as non-throwing per
+/// helper `kk_string_toBoolean_flat`, which is classified as non-throwing per
 /// Kotlin's specification (`null.toBoolean()` returns `false`, never throws).
 final class StringToBooleanFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
@@ -79,7 +79,7 @@ final class StringToBooleanFunctionTests: XCTestCase {
         }
     }
 
-    /// `toBoolean()` should lower to `kk_string_toBoolean` and be classified as
+    /// `toBoolean()` should lower to `kk_string_toBoolean_flat` and be classified as
     /// non-throwing — `null.toBoolean()` is defined to return `false`, so there
     /// is no NumberFormatException equivalent that propagates out.
     func testToBooleanLowersToRuntimeHelperNonThrowing() throws {
@@ -102,13 +102,13 @@ final class StringToBooleanFunctionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let toBooleanFlags = try XCTUnwrap(
-                throwFlags["kk_string_toBoolean"],
-                "Expected kk_string_toBoolean calls to appear in main()"
+                throwFlags["kk_string_toBoolean_flat"],
+                "Expected kk_string_toBoolean_flat calls to appear in main()"
             )
             XCTAssertEqual(toBooleanFlags.count, 3)
             XCTAssertTrue(
                 toBooleanFlags.allSatisfy { $0 == false },
-                "kk_string_toBoolean must be lowered as non-throwing"
+                "kk_string_toBoolean_flat must be lowered as non-throwing"
             )
         }
     }

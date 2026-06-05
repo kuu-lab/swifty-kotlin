@@ -48,10 +48,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "trim": "kk_string_trim",
             "split": "kk_string_split",
             "replace": "kk_string_replace",
-            "startsWith": "kk_string_startsWith",
-            "endsWith": "kk_string_endsWith",
-            "toInt": "kk_string_toInt",
-            "toDouble": "kk_string_toDouble",
+            "startsWith": "kk_string_startsWith_flat",
+            "endsWith": "kk_string_endsWith_flat",
+            "toInt": "kk_string_toInt_flat",
+            "toDouble": "kk_string_toDouble_flat",
             "hexToShort": "kk_string_hexToShort",
             "hexToUByte": "kk_string_hexToUByte",
             "hexToUByteArray": "kk_string_hexToUByteArray",
@@ -225,13 +225,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         XCTAssertEqual(
             externalLink(for: "toIntOrNull", sema: sema, interner: interner),
-            "kk_string_toIntOrNull",
-            "String.toIntOrNull should link to kk_string_toIntOrNull"
+            "kk_string_toIntOrNull_flat",
+            "String.toIntOrNull should link to kk_string_toIntOrNull_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "toIntOrNull", sema: sema, interner: interner)
-                .contains("kk_string_toIntOrNull_radix"),
-            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix"
+                .contains("kk_string_toIntOrNull_radix_flat"),
+            "String.toIntOrNull(radix) should link to kk_string_toIntOrNull_radix_flat"
         )
         XCTAssertEqual(
             externalLink(for: "toUByteOrNull", sema: sema, interner: interner),
@@ -275,8 +275,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
         XCTAssertEqual(
             externalLink(for: "toDoubleOrNull", sema: sema, interner: interner),
-            "kk_string_toDoubleOrNull",
-            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+            "kk_string_toDoubleOrNull_flat",
+            "String.toDoubleOrNull should link to kk_string_toDoubleOrNull_flat"
         )
         XCTAssertEqual(
             externalLink(for: "toBigDecimal", sema: sema, interner: interner),
@@ -294,8 +294,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "indexOf": "kk_string_indexOf",
-            "lastIndexOf": "kk_string_lastIndexOf",
+            "indexOf": "kk_string_indexOf_flat",
+            "lastIndexOf": "kk_string_lastIndexOf_flat",
         ]
         for (member, expectedLink) in expected {
             XCTAssertEqual(

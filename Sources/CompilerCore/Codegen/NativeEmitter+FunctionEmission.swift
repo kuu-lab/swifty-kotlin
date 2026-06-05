@@ -634,7 +634,7 @@ extension NativeEmitter {
                 }
             }
 
-            let flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
+            var flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
                 "kk_string_trim": FlatStringReturnCallSpec(
                     flatName: "kk_string_trim_flat",
                     stringArgumentCount: 1,
@@ -708,8 +708,12 @@ extension NativeEmitter {
                     canThrow: true
                 ),
             ]
+            for spec in Array(flatStringReturnCallSpecs.values)
+            where flatStringReturnCallSpecs[spec.flatName] == nil {
+                flatStringReturnCallSpecs[spec.flatName] = spec
+            }
 
-            let flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
+            var flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
                 "kk_string_toList": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toList_flat",
                     stringArgumentCount: 1,
@@ -1463,6 +1467,10 @@ extension NativeEmitter {
                     extraArgumentCount: 1
                 ),
             ]
+            for spec in Array(flatScalarReturnCallSpecs.values)
+            where flatScalarReturnCallSpecs[spec.flatName] == nil {
+                flatScalarReturnCallSpecs[spec.flatName] = spec
+            }
 
             func emitFlatStringReturnCall(_ spec: FlatStringReturnCallSpec) -> Bool {
                 let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount

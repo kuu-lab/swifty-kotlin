@@ -4,8 +4,8 @@ import XCTest
 /// STDLIB-TEXT-FN-034: Validates that `CharSequence.lastIndexOf` resolves through
 /// Sema for the (Char, startIndex, ignoreCase) overload and gets wired to the
 /// runtime entry point `kk_string_lastIndexOf_char`. The previously-existing
-/// String/String overloads remain wired to `kk_string_lastIndexOf` and
-/// `kk_string_lastIndexOf_ignoreCase` respectively.
+/// String/String overloads remain wired to `kk_string_lastIndexOf_flat` and
+/// `kk_string_lastIndexOf_ignoreCase_flat` respectively.
 final class StringLastIndexOfFunctionTests: XCTestCase {
     func testLastIndexOfCharResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -52,12 +52,12 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
         )
         // Existing overloads must continue to be registered.
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf"),
-            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf, got: \(links)"
+            links.contains("kk_string_lastIndexOf_flat"),
+            "Expected String.lastIndexOf(String) to remain linked to kk_string_lastIndexOf_flat, got: \(links)"
         )
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_ignoreCase"),
-            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase, got: \(links)"
+            links.contains("kk_string_lastIndexOf_ignoreCase_flat"),
+            "Expected String.lastIndexOf(String, Int, Boolean) to remain linked to kk_string_lastIndexOf_ignoreCase_flat, got: \(links)"
         )
     }
 
