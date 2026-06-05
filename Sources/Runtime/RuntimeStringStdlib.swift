@@ -560,6 +560,18 @@ public func kk_string_toList(_ strRaw: Int) -> Int {
     return runtimeMakeListRaw(charRaws)
 }
 
+@_cdecl("kk_string_toList_flat")
+public func kk_string_toList_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { kk_box_char(Int($0.value)) }
+    return runtimeMakeListRaw(charRaws)
+}
+
 // MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
 
 /// Converts a `String` to a fresh `MutableList<Char>` by iterating its Unicode
@@ -579,6 +591,18 @@ public func kk_string_toCharArray(_ strRaw: Int) -> Int {
     return runtimeMakeArrayRaw(charRaws)
 }
 
+@_cdecl("kk_string_toCharArray_flat")
+public func kk_string_toCharArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { kk_box_char(Int($0.value)) }
+    return runtimeMakeArrayRaw(charRaws)
+}
+
 // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
 
 /// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
@@ -587,6 +611,18 @@ public func kk_string_toCharArray(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_toTypedArray")
 public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    return runtimeMakeArrayRaw(charRaws)
+}
+
+@_cdecl("kk_string_toTypedArray_flat")
+public func kk_string_toTypedArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { kk_box_char(Int($0.value)) }
     return runtimeMakeArrayRaw(charRaws)
 }
 
@@ -617,6 +653,20 @@ public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
 @_cdecl("kk_string_toSortedSet")
 public func kk_string_toSortedSet(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { kk_box_char(Int($0)) }
+    let deduped = runtimeDeduplicatePreservingOrder(charRaws)
+    let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
+    return registerRuntimeObject(RuntimeSetBox(elements: sorted))
+}
+
+@_cdecl("kk_string_toSortedSet_flat")
+public func kk_string_toSortedSet_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let charRaws = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { kk_box_char(Int($0)) }
     let deduped = runtimeDeduplicatePreservingOrder(charRaws)
     let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
     return registerRuntimeObject(RuntimeSetBox(elements: sorted))
@@ -710,11 +760,45 @@ public func kk_string_withIndex(_ strRaw: Int) -> Int {
     return runtimeMakeListRaw(elements)
 }
 
+@_cdecl("kk_string_withIndex_flat")
+public func kk_string_withIndex_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    var elements: [Int] = []
+    elements.reserveCapacity(codeUnits.count)
+    for (idx, codeUnit) in codeUnits.enumerated() {
+        let charRaw = kk_box_char(Int(codeUnit))
+        elements.append(runtimeIndexedValueNew(index: idx, value: charRaw))
+    }
+    return runtimeMakeListRaw(elements)
+}
+
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
 
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    let box = RuntimeStringIteratorBox(charRaws: charRaws)
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return Int(bitPattern: opaque)
+}
+
+@_cdecl("kk_string_iterator_flat")
+public func kk_string_iterator_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { kk_box_char(Int($0.value)) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in

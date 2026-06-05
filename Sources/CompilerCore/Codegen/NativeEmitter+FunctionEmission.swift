@@ -642,6 +642,36 @@ extension NativeEmitter {
             ]
 
             let flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
+                "kk_string_toList": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toList_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toCharArray": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toCharArray_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toTypedArray": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toTypedArray_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toSortedSet": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toSortedSet_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_withIndex": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_withIndex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_iterator": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_iterator_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,

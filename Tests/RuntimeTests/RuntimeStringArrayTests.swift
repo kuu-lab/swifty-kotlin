@@ -842,6 +842,66 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
     }
 
+    func testFlatStringMaterializationRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("abc") { data, length, byteCount, hash in
+            let expected = [97, 98, 99]
+
+            let list = runtimeListBox(from: kk_string_toList_flat(data, length, byteCount, hash))
+            let charArray = runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))
+            let typedArray = runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))
+
+            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
+        }
+
+        withFlatString("a🐻a") { data, length, byteCount, hash in
+            let sortedSet = runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))
+            XCTAssertEqual(sortedSet?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
+        }
+
+        withFlatString("ab") { data, length, byteCount, hash in
+            let withIndex = runtimeListBox(from: kk_string_withIndex_flat(data, length, byteCount, hash))
+            let elements = withIndex?.elements ?? []
+            XCTAssertEqual(elements.count, 2)
+            XCTAssertEqual(kk_pair_first(elements[0]), 0)
+            XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[0])), 97)
+            XCTAssertEqual(kk_pair_first(elements[1]), 1)
+            XCTAssertEqual(kk_unbox_char(kk_pair_second(elements[1])), 98)
+
+            let iteratorRaw = kk_string_iterator_flat(data, length, byteCount, hash)
+            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 1)
+            XCTAssertEqual(kk_unbox_char(kk_string_iterator_next(iteratorRaw)), 97)
+            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 1)
+            XCTAssertEqual(kk_unbox_char(kk_string_iterator_next(iteratorRaw)), 98)
+            XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 0)
+        }
+
+        withFlatString("") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                runtimeListBox(from: kk_string_toList_flat(data, length, byteCount, hash))?.elements.count,
+                0
+            )
+            XCTAssertEqual(
+                runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))?.elements.count,
+                0
+            )
+            XCTAssertEqual(
+                runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))?.elements.count,
+                0
+            )
+            XCTAssertEqual(
+                runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))?.elements.count,
+                0
+            )
+            XCTAssertEqual(
+                runtimeListBox(from: kk_string_withIndex_flat(data, length, byteCount, hash))?.elements.count,
+                0
+            )
+            XCTAssertEqual(kk_string_iterator_hasNext(kk_string_iterator_flat(data, length, byteCount, hash)), 0)
+        }
+    }
+
     // MARK: - STDLIB-317: String.asIterable() tests
 
     func testStringAsIterableReturnsLazyBox() {
