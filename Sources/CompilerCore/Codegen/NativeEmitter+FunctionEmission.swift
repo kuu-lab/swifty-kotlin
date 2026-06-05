@@ -466,6 +466,59 @@ extension NativeEmitter {
             return flattened
         }
 
+        func flattenedRuntimeParameterTypes(
+            argumentCount: Int,
+            stringArgumentPositions: [Int]
+        ) -> [LLVMCAPIBindings.LLVMTypeRef?]? {
+            guard let typeLowering else {
+                return nil
+            }
+            let stringPositions = Set(stringArgumentPositions)
+            var parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = []
+            for index in 0..<argumentCount {
+                if stringPositions.contains(index) {
+                    parameterTypes.append(contentsOf: [
+                        typeLowering.dataPointerType,
+                        int64Type,
+                        int64Type,
+                        int64Type,
+                    ])
+                } else {
+                    parameterTypes.append(int64Type)
+                }
+            }
+            return parameterTypes
+        }
+
+        func flattenedRuntimeArguments(
+            values argumentValues: [LLVMCAPIBindings.LLVMValueRef],
+            types argumentTypes: [TypeID?],
+            argumentCount: Int,
+            stringArgumentPositions: [Int],
+            suffix: String
+        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
+            guard argumentValues.count >= argumentCount,
+                  argumentTypes.count >= argumentCount
+            else {
+                return nil
+            }
+            let stringPositions = Set(stringArgumentPositions)
+            var flattened: [LLVMCAPIBindings.LLVMValueRef] = []
+            for index in 0..<argumentCount {
+                if stringPositions.contains(index) {
+                    guard isStringAggregateType(argumentTypes[index]),
+                          let fields = stringAggregateFields(argumentValues[index], suffix: "\(suffix)_arg\(index)")
+                    else {
+                        return nil
+                    }
+                    flattened.append(contentsOf: fields)
+                } else {
+                    flattened.append(argumentValues[index])
+                }
+            }
+            return flattened
+        }
+
         func allocateI64Slot(name: String) -> LLVMCAPIBindings.LLVMValueRef? {
             guard let slot = bindings.buildAlloca(builder, type: int64Type, name: name) else {
                 return nil
@@ -563,17 +616,20 @@ extension NativeEmitter {
                 let flatName: String
                 let stringArgumentCount: Int
                 let extraArgumentCount: Int
+                let stringArgumentPositions: [Int]
                 let canThrow: Bool
 
                 init(
                     flatName: String,
                     stringArgumentCount: Int,
                     extraArgumentCount: Int,
+                    stringArgumentPositions: [Int]? = nil,
                     canThrow: Bool = false
                 ) {
                     self.flatName = flatName
                     self.stringArgumentCount = stringArgumentCount
                     self.extraArgumentCount = extraArgumentCount
+                    self.stringArgumentPositions = stringArgumentPositions ?? Array(0..<stringArgumentCount)
                     self.canThrow = canThrow
                 }
             }
@@ -812,6 +868,53 @@ extension NativeEmitter {
                     flatName: "kk_string_toRegex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
+                ),
+                "kk_regex_find": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_find_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_regex_findAll": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_findAll_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_string_split_regex": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_split_regex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_regex_matchEntire": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_matchEntire_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_regex_containsMatchIn": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_containsMatchIn_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_regex_from_literal": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_from_literal_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_match_group_collection_get": FlatScalarReturnCallSpec(
+                    flatName: "kk_match_group_collection_get_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_regex_matches": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_matches_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
                 ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
@@ -1341,25 +1444,22 @@ extension NativeEmitter {
             func emitFlatScalarReturnCall(_ spec: FlatScalarReturnCallSpec) -> Bool {
                 let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount
                 guard argumentValues.count >= requiredArgumentCount,
-                      let flattenedArgs = flattenedStringArguments(
+                      spec.stringArgumentPositions.count == spec.stringArgumentCount,
+                      let flattenedArgs = flattenedRuntimeArguments(
                           values: argumentValues,
                           types: argumentTypes,
-                          stringArgumentCount: spec.stringArgumentCount,
+                          argumentCount: requiredArgumentCount,
+                          stringArgumentPositions: spec.stringArgumentPositions,
                           suffix: "\(spec.flatName)_\(instructionIndex)"
                       ),
-                      var parameterTypes = flattenedStringParameterTypes(
-                          argumentCount: spec.stringArgumentCount
+                      var parameterTypes = flattenedRuntimeParameterTypes(
+                          argumentCount: requiredArgumentCount,
+                          stringArgumentPositions: spec.stringArgumentPositions
                       )
                 else {
                     return false
                 }
 
-                let extraArguments = Array(
-                    argumentValues[
-                        spec.stringArgumentCount ..< (spec.stringArgumentCount + spec.extraArgumentCount)
-                    ]
-                )
-                parameterTypes.append(contentsOf: Array(repeating: int64Type, count: spec.extraArgumentCount))
                 let thrownSlot = spec.canThrow && usesThrownChannel
                     ? allocateI64Slot(name: "\(spec.flatName)_thrown_\(instructionIndex)")
                     : nil
@@ -1380,7 +1480,6 @@ extension NativeEmitter {
                     functionType: runtimeFunction.type,
                     callee: runtimeFunction.value,
                     arguments: flattenedArgs
-                        + extraArguments
                         + (spec.canThrow ? [thrownSlot ?? nullThrownPointer] : []),
                     name: "\(spec.flatName)_value_\(instructionIndex)"
                 )

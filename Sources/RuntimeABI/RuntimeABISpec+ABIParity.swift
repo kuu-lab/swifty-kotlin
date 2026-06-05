@@ -867,6 +867,13 @@ public extension RuntimeABISpec {
             p("regexRaw", .intptr),
             p("inputRaw", .intptr),
         ]),
+        abiParitySpec("kk_regex_matches_flat", parameters: [
+            p("regexRaw", .intptr),
+            p("data", .nullableConstUInt8Pointer),
+            p("length", .intptr),
+            p("byteCount", .intptr),
+            p("hash", .intptr),
+        ]),
         abiParitySpec("kk_require_not_null", parameters: [
             p("value", .intptr),
             p("outThrown", .nullableIntptrPointer),

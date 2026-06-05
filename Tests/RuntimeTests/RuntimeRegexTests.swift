@@ -37,11 +37,15 @@ final class RuntimeRegexTests: XCTestCase {
     }
 
     private func runtimeListStrings(_ raw: Int) -> [String] {
+        runtimeListElements(raw).map(runtimeString)
+    }
+
+    private func runtimeListElements(_ raw: Int) -> [Int] {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let box = tryCast(ptr, to: RuntimeListBox.self) else {
             return []
         }
-        return box.elements.map(runtimeString)
+        return box.elements
     }
 
     func testMatchResultValueAndGroupValues() {
@@ -180,5 +184,73 @@ final class RuntimeRegexTests: XCTestCase {
         withFlatString("HELLO") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, ignoreCaseRegex)), 1)
         }
+    }
+
+    func testFlatRegexReceiverRuntimeAPIsUseFlattenedInputFields() {
+        let wordRegex = withFlatString("[a-z]+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+
+        let findRaw = withFlatString("123abc456") { data, length, byteCount, hash in
+            kk_regex_find_flat(wordRegex, data, length, byteCount, hash)
+        }
+        XCTAssertNotEqual(findRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_match_result_value(findRaw)), "abc")
+
+        let findAllRaw = withFlatString("ab12cd") { data, length, byteCount, hash in
+            kk_regex_findAll_flat(wordRegex, data, length, byteCount, hash)
+        }
+        let findAllValues = runtimeListElements(findAllRaw).map { runtimeString(kk_match_result_value($0)) }
+        XCTAssertEqual(findAllValues, ["ab", "cd"])
+
+        let commaRegex = withFlatString(",") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+        let splitRaw = withFlatString("a,b,c") { data, length, byteCount, hash in
+            kk_string_split_regex_flat(data, length, byteCount, hash, commaRegex)
+        }
+        XCTAssertEqual(runtimeListStrings(splitRaw), ["a", "b", "c"])
+
+        let entireRaw = withFlatString("abc") { data, length, byteCount, hash in
+            kk_regex_matchEntire_flat(wordRegex, data, length, byteCount, hash)
+        }
+        XCTAssertNotEqual(entireRaw, runtimeNullSentinelInt)
+        let partialRaw = withFlatString("abc123") { data, length, byteCount, hash in
+            kk_regex_matchEntire_flat(wordRegex, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(partialRaw, runtimeNullSentinelInt)
+
+        withFlatString("123abc") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_regex_containsMatchIn_flat(wordRegex, data, length, byteCount, hash)), 1)
+        }
+        withFlatString("abc") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)), 1)
+        }
+        withFlatString("abc123") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(wordRegex, data, length, byteCount, hash)), 0)
+        }
+
+        let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
+            kk_regex_from_literal_flat(0, data, length, byteCount, hash)
+        }
+        withFlatString("a.b") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)), 1)
+        }
+        withFlatString("axb") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_regex_matches_flat(literalRegex, data, length, byteCount, hash)), 0)
+        }
+
+        let namedRegex = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+        let namedMatch = withFlatString("zzabcdyy") { data, length, byteCount, hash in
+            kk_regex_find_flat(namedRegex, data, length, byteCount, hash)
+        }
+        let groupsRaw = kk_match_result_groups(namedMatch)
+        let lhsGroupRaw = withFlatString("lhs") { data, length, byteCount, hash in
+            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+        }
+        XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_match_group_value(lhsGroupRaw)), "ab")
     }
 }

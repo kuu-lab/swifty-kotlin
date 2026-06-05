@@ -1887,10 +1887,34 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_regex_find_flat",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_regex_findAll",
             parameters: [
                 RuntimeABIParameter(name: "regex", type: .intptr),
                 RuntimeABIParameter(name: "input", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_findAll_flat",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"
@@ -1910,6 +1934,18 @@ public enum RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_split_regex_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"
@@ -2007,6 +2043,18 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_matchEntire_flat",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
         // STDLIB-480: Regex(pattern, option) constructor
         RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_option",
@@ -2061,6 +2109,18 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_containsMatchIn_flat",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
         // MatchResult.groups / MatchGroupCollection / MatchGroup
         RuntimeABIFunctionSpec(
             name: "kk_match_result_groups",
@@ -2080,6 +2140,18 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_match_group_collection_get_flat",
+            parameters: [
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_get_at",
             parameters: [
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
@@ -2092,10 +2164,6 @@ public enum RuntimeABISpec {
             name: "kk_match_group_collection_size",
             parameters: [
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_value",
             parameters: [
@@ -2120,6 +2188,18 @@ public enum RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "companionRef", type: .intptr),
                 RuntimeABIParameter(name: "literalRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_from_literal_flat",
+            parameters: [
+                RuntimeABIParameter(name: "companionRef", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"

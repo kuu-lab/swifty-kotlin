@@ -435,6 +435,7 @@ extension CodegenBackendIntegrationTests {
         let regexExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
         let optionExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let optionsSetExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let matchGroupCollectionExpr = arena.appendExpr(.intLiteral(43), type: types.intType)
 
         var nextTemp: Int32 = 200
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -448,6 +449,7 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: regexExpr, value: .intLiteral(42)),
             .constValue(result: optionExpr, value: .intLiteral(0)),
             .constValue(result: optionsSetExpr, value: .intLiteral(0)),
+            .constValue(result: matchGroupCollectionExpr, value: .intLiteral(43)),
         ]
 
         func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
@@ -467,6 +469,14 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_string_matches_regex", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_contains_regex", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_toRegex", arguments: [patternExpr])
+        appendRegexCall("kk_regex_find", arguments: [regexExpr, inputExpr])
+        appendRegexCall("kk_regex_findAll", arguments: [regexExpr, inputExpr])
+        appendRegexCall("kk_string_split_regex", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_regex_matchEntire", arguments: [regexExpr, inputExpr])
+        appendRegexCall("kk_regex_containsMatchIn", arguments: [regexExpr, inputExpr])
+        appendRegexCall("kk_regex_from_literal", arguments: [optionExpr, patternExpr])
+        appendRegexCall("kk_match_group_collection_get", arguments: [matchGroupCollectionExpr, patternExpr])
+        appendRegexCall("kk_regex_matches", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -503,6 +513,14 @@ extension CodegenBackendIntegrationTests {
             "kk_string_matches_regex",
             "kk_string_contains_regex",
             "kk_string_toRegex",
+            "kk_regex_find",
+            "kk_regex_findAll",
+            "kk_string_split_regex",
+            "kk_regex_matchEntire",
+            "kk_regex_containsMatchIn",
+            "kk_regex_from_literal",
+            "kk_match_group_collection_get",
+            "kk_regex_matches",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
