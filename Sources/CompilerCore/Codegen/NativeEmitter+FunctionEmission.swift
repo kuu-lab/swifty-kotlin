@@ -563,6 +563,19 @@ extension NativeEmitter {
                 let flatName: String
                 let stringArgumentCount: Int
                 let extraArgumentCount: Int
+                let canThrow: Bool
+
+                init(
+                    flatName: String,
+                    stringArgumentCount: Int,
+                    extraArgumentCount: Int,
+                    canThrow: Bool = false
+                ) {
+                    self.flatName = flatName
+                    self.stringArgumentCount = stringArgumentCount
+                    self.extraArgumentCount = extraArgumentCount
+                    self.canThrow = canThrow
+                }
             }
 
             let flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
@@ -734,6 +747,130 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_toBoolean": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toBoolean_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toBooleanStrict": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toBooleanStrict_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toBooleanStrictOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toBooleanStrictOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toInt": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toInt_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toInt_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toInt_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toIntOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toIntOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toIntOrNull_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toIntOrNull_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toUByteOrNull_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toUByteOrNull_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toUShortOrNull_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toUShortOrNull_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toUIntOrNull_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toUIntOrNull_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toULongOrNull_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toULongOrNull_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toDouble": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toDouble_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toDoubleOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toDoubleOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toLong": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toLong_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toLongOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toLongOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toFloat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toFloat_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toFloatOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toFloatOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toShort": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toShort_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toShortOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toShortOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_toByte": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toByte_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toByte_radix": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toByte_radix_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_toByteOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toByteOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
             ]
 
             func emitFlatStringReturnCall(_ spec: FlatStringReturnCallSpec) -> Bool {
@@ -859,6 +996,12 @@ extension NativeEmitter {
                     ]
                 )
                 parameterTypes.append(contentsOf: Array(repeating: int64Type, count: spec.extraArgumentCount))
+                let thrownSlot = spec.canThrow && usesThrownChannel
+                    ? allocateI64Slot(name: "\(spec.flatName)_thrown_\(instructionIndex)")
+                    : nil
+                if spec.canThrow {
+                    parameterTypes.append(outThrownPointerType)
+                }
 
                 guard let runtimeFunction = declareExternalFunction(
                     named: spec.flatName,
@@ -872,11 +1015,17 @@ extension NativeEmitter {
                     builder,
                     functionType: runtimeFunction.type,
                     callee: runtimeFunction.value,
-                    arguments: flattenedArgs + extraArguments,
+                    arguments: flattenedArgs
+                        + extraArguments
+                        + (spec.canThrow ? [thrownSlot ?? nullThrownPointer] : []),
                     name: "\(spec.flatName)_value_\(instructionIndex)"
                 )
                 storeResult(result, scalarValue)
-                if usesThrownChannel {
+                if spec.canThrow {
+                    if usesThrownChannel {
+                        handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
+                    }
+                } else if usesThrownChannel {
                     storeThrownResultZero(thrownResult)
                 }
                 return true

@@ -264,6 +264,137 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@external_throwing"))
     }
 
+    func testLLVMBackendEmitsFlatStringParsingRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let nullableStringType = types.makeNullable(types.stringType)
+        let nullableBoolType = types.makeNullable(types.booleanType)
+        let nullableIntType = types.makeNullable(types.intType)
+        let nullableLongType = types.makeNullable(types.longType)
+        let nullableFloatType = types.makeNullable(types.floatType)
+        let nullableDoubleType = types.makeNullable(types.doubleType)
+        let nullableUByteType = types.makeNullable(types.ubyteType)
+        let nullableUShortType = types.makeNullable(types.ushortType)
+        let nullableUIntType = types.makeNullable(types.uintType)
+        let nullableULongType = types.makeNullable(types.ulongType)
+
+        let text = interner.intern("ff")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
+        let radixExpr = arena.appendExpr(.intLiteral(16), type: types.intType)
+
+        var nextTemp: Int32 = 100
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: nullStringExpr, value: .null),
+            .constValue(result: radixExpr, value: .intLiteral(16)),
+        ]
+
+        func appendParsingCall(
+            _ calleeName: String,
+            arguments: [KIRExprID],
+            resultType: TypeID,
+            canThrow: Bool = false
+        ) {
+            let result = temporary(resultType)
+            let thrownResult = canThrow ? temporary(types.intType) : nil
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult
+            ))
+        }
+
+        appendParsingCall("kk_string_toBoolean", arguments: [nullStringExpr], resultType: types.booleanType)
+        appendParsingCall("kk_string_toBooleanStrict", arguments: [textExpr], resultType: types.booleanType, canThrow: true)
+        appendParsingCall("kk_string_toBooleanStrictOrNull", arguments: [textExpr], resultType: nullableBoolType)
+        appendParsingCall("kk_string_toInt", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toInt_radix", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toIntOrNull", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("kk_string_toIntOrNull_radix", arguments: [textExpr, radixExpr], resultType: nullableIntType, canThrow: true)
+        appendParsingCall("kk_string_toUByteOrNull_radix", arguments: [textExpr, radixExpr], resultType: nullableUByteType, canThrow: true)
+        appendParsingCall("kk_string_toUShortOrNull_radix", arguments: [textExpr, radixExpr], resultType: nullableUShortType, canThrow: true)
+        appendParsingCall("kk_string_toUIntOrNull_radix", arguments: [textExpr, radixExpr], resultType: nullableUIntType, canThrow: true)
+        appendParsingCall("kk_string_toULongOrNull_radix", arguments: [textExpr, radixExpr], resultType: nullableULongType, canThrow: true)
+        appendParsingCall("kk_string_toDouble", arguments: [textExpr], resultType: types.doubleType, canThrow: true)
+        appendParsingCall("kk_string_toDoubleOrNull", arguments: [textExpr], resultType: nullableDoubleType)
+        appendParsingCall("kk_string_toLong", arguments: [textExpr], resultType: types.longType, canThrow: true)
+        appendParsingCall("kk_string_toLongOrNull", arguments: [textExpr], resultType: nullableLongType)
+        appendParsingCall("kk_string_toFloat", arguments: [textExpr], resultType: types.floatType, canThrow: true)
+        appendParsingCall("kk_string_toFloatOrNull", arguments: [textExpr], resultType: nullableFloatType)
+        appendParsingCall("kk_string_toShort", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toShortOrNull", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("kk_string_toByte", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toByte_radix", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toByteOrNull", arguments: [textExpr], resultType: nullableIntType)
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1201),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_toBoolean",
+            "kk_string_toBooleanStrict",
+            "kk_string_toBooleanStrictOrNull",
+            "kk_string_toInt",
+            "kk_string_toInt_radix",
+            "kk_string_toIntOrNull",
+            "kk_string_toIntOrNull_radix",
+            "kk_string_toUByteOrNull_radix",
+            "kk_string_toUShortOrNull_radix",
+            "kk_string_toUIntOrNull_radix",
+            "kk_string_toULongOrNull_radix",
+            "kk_string_toDouble",
+            "kk_string_toDoubleOrNull",
+            "kk_string_toLong",
+            "kk_string_toLongOrNull",
+            "kk_string_toFloat",
+            "kk_string_toFloatOrNull",
+            "kk_string_toShort",
+            "kk_string_toShortOrNull",
+            "kk_string_toByte",
+            "kk_string_toByte_radix",
+            "kk_string_toByteOrNull",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String parse call: \(rawName)_flat")
+        }
+    }
+
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory

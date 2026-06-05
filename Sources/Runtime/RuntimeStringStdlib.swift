@@ -1302,6 +1302,26 @@ public func kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int
     return Int(value)
 }
 
+@_cdecl("kk_string_toInt_flat")
+public func kk_string_toInt_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let value = Int32(source) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toInt_radix")
 public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -1322,9 +1342,51 @@ public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Unsa
     return Int(value)
 }
 
+@_cdecl("kk_string_toInt_radix_flat")
+public func kk_string_toInt_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return 0
+    }
+    guard let value = Int32(source, radix: radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toIntOrNull")
 public func kk_string_toIntOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = Int32(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toIntOrNull_flat")
+public func kk_string_toIntOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let value = Int32(source) else {
         return runtimeNullSentinelInt
     }
@@ -1339,6 +1401,30 @@ public func kk_string_toIntOrNull_radix(
 ) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = Int32(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toIntOrNull_radix_flat")
+public func kk_string_toIntOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
@@ -1390,6 +1476,7 @@ public func kk_string_toULongOrNull(_ strRaw: Int) -> Int {
     return Int(bitPattern: UInt(value))
 }
 
+
 @_cdecl("kk_string_toUByteOrNull_radix")
 public func kk_string_toUByteOrNull_radix(
     _ strRaw: Int,
@@ -1398,6 +1485,30 @@ public func kk_string_toUByteOrNull_radix(
 ) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt8(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toUByteOrNull_radix_flat")
+public func kk_string_toUByteOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
@@ -1432,6 +1543,30 @@ public func kk_string_toUShortOrNull_radix(
     return Int(value)
 }
 
+@_cdecl("kk_string_toUShortOrNull_radix_flat")
+public func kk_string_toUShortOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt16(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toUIntOrNull_radix")
 public func kk_string_toUIntOrNull_radix(
     _ strRaw: Int,
@@ -1453,6 +1588,30 @@ public func kk_string_toUIntOrNull_radix(
     return Int(value)
 }
 
+@_cdecl("kk_string_toUIntOrNull_radix_flat")
+public func kk_string_toUIntOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt32(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toULongOrNull_radix")
 public func kk_string_toULongOrNull_radix(
     _ strRaw: Int,
@@ -1461,6 +1620,30 @@ public func kk_string_toULongOrNull_radix(
 ) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    guard let value = UInt64(source, radix: radix) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: UInt(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_string_toULongOrNull_radix_flat")
+public func kk_string_toULongOrNull_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard (2 ... 36).contains(radix) else {
         runtimeSetThrown(
             outThrown,
@@ -1503,9 +1686,74 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
 }
 
+@_cdecl("kk_string_toDouble_flat")
+public func kk_string_toDouble_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+        runtimeSetThrown(outThrown, message: "NumberFormatException: empty String")
+        return 0
+    }
+
+    let value: Double? = switch trimmed {
+    case "NaN":
+        .nan
+    case "Infinity", "+Infinity":
+        .infinity
+    case "-Infinity":
+        -.infinity
+    default:
+        Double(trimmed)
+    }
+    guard let parsed = value else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(trimmed)\""
+        )
+        return 0
+    }
+    return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
+}
+
 @_cdecl("kk_string_toDoubleOrNull")
 public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+
+    let value: Double? = switch trimmed {
+    case "NaN":
+        .nan
+    case "Infinity", "+Infinity":
+        .infinity
+    case "-Infinity":
+        -.infinity
+    default:
+        Double(trimmed)
+    }
+    guard let parsed = value else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
+}
+
+@_cdecl("kk_string_toDoubleOrNull_flat")
+public func kk_string_toDoubleOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
         return runtimeNullSentinelInt
@@ -1565,9 +1813,43 @@ public func kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     return Int(truncatingIfNeeded: value)
 }
 
+@_cdecl("kk_string_toLong_flat")
+public func kk_string_toLong_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let value = Int64(source) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(truncatingIfNeeded: value)
+}
+
 @_cdecl("kk_string_toLongOrNull")
 public func kk_string_toLongOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = Int64(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(truncatingIfNeeded: value)
+}
+
+@_cdecl("kk_string_toLongOrNull_flat")
+public func kk_string_toLongOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let value = Int64(source) else {
         return runtimeNullSentinelInt
     }
@@ -1593,9 +1875,54 @@ public func kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     return runtimeFloatBitsToInt(parsed)
 }
 
+@_cdecl("kk_string_toFloat_flat")
+public func kk_string_toFloat_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty {
+        runtimeSetThrown(outThrown, message: "NumberFormatException: empty String")
+        return 0
+    }
+
+    guard let parsed = runtimeParseFloat(trimmed) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(trimmed)\""
+        )
+        return 0
+    }
+    return runtimeFloatBitsToInt(parsed)
+}
+
 @_cdecl("kk_string_toFloatOrNull")
 public func kk_string_toFloatOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        return runtimeNullSentinelInt
+    }
+
+    guard let parsed = runtimeParseFloat(trimmed) else {
+        return runtimeNullSentinelInt
+    }
+    return runtimeFloatBitsToInt(parsed)
+}
+
+@_cdecl("kk_string_toFloatOrNull_flat")
+public func kk_string_toFloatOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
         return runtimeNullSentinelInt
@@ -3105,10 +3432,48 @@ public func kk_string_toBoolean(_ strRaw: Int) -> Int {
     return kk_box_bool(source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0)
 }
 
+@_cdecl("kk_string_toBoolean_flat")
+public func kk_string_toBoolean_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard data != nil else {
+        return kk_box_bool(0)
+    }
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return kk_box_bool(source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0)
+}
+
 @_cdecl("kk_string_toBooleanStrict")
 public func kk_string_toBooleanStrict(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    switch source {
+    case "true":
+        return kk_box_bool(1)
+    case "false":
+        return kk_box_bool(0)
+    default:
+        runtimeSetThrown(
+            outThrown,
+            message: "The string doesn't represent a boolean value: \(source)"
+        )
+        return 0
+    }
+}
+
+@_cdecl("kk_string_toBooleanStrict_flat")
+public func kk_string_toBooleanStrict_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     switch source {
     case "true":
         return kk_box_bool(1)
@@ -3136,6 +3501,24 @@ public func kk_string_toBooleanStrictOrNull(_ strRaw: Int) -> Int {
     }
 }
 
+@_cdecl("kk_string_toBooleanStrictOrNull_flat")
+public func kk_string_toBooleanStrictOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    switch source {
+    case "true":
+        return 1
+    case "false":
+        return 0
+    default:
+        return runtimeNullSentinelInt
+    }
+}
+
 @_cdecl("kk_string_toShort")
 public func kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -3143,6 +3526,26 @@ public func kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     guard let value = Int16(source) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(
             message: "For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toShort_flat")
+public func kk_string_toShort_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let value = Int16(source) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
         )
         return 0
     }
@@ -3158,6 +3561,20 @@ public func kk_string_toShortOrNull(_ strRaw: Int) -> Int {
     return Int(value)
 }
 
+@_cdecl("kk_string_toShortOrNull_flat")
+public func kk_string_toShortOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let value = Int16(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toByte")
 public func kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -3165,6 +3582,26 @@ public func kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     guard let value = Int8(source) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(
             message: "For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toByte_flat")
+public func kk_string_toByte_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let value = Int8(source) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
         )
         return 0
     }
@@ -3195,9 +3632,51 @@ public func kk_string_toByte_radix(
     return Int(value)
 }
 
+@_cdecl("kk_string_toByte_radix_flat")
+public func kk_string_toByte_radix_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard (2 ... 36).contains(radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IllegalArgumentException: radix \(radix) was not in valid range 2..36"
+        )
+        return 0
+    }
+    guard let value = Int8(source, radix: radix) else {
+        runtimeSetThrown(
+            outThrown,
+            message: "NumberFormatException: For input string: \"\(source)\""
+        )
+        return 0
+    }
+    return Int(value)
+}
+
 @_cdecl("kk_string_toByteOrNull")
 public func kk_string_toByteOrNull(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = Int8(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toByteOrNull_flat")
+public func kk_string_toByteOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let value = Int8(source) else {
         return runtimeNullSentinelInt
     }

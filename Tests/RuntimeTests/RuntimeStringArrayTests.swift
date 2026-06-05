@@ -431,6 +431,98 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringParseScalarRuntimeAPIsUseFlattenedStringFields() {
+        XCTAssertEqual(kk_unbox_bool(kk_string_toBoolean_flat(nil, 0, 0, 0)), 0)
+
+        withFlatString("true") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_toBoolean_flat(data, length, byteCount, hash)), 1)
+            XCTAssertEqual(kk_unbox_bool(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil)), 1)
+            XCTAssertEqual(kk_string_toBooleanStrictOrNull_flat(data, length, byteCount, hash), 1)
+        }
+
+        withFlatString("42") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_toInt_flat(data, length, byteCount, hash, &thrown), 42)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toLong_flat(data, length, byteCount, hash, &thrown), 42)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toShort_flat(data, length, byteCount, hash, &thrown), 42)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toByte_flat(data, length, byteCount, hash, &thrown), 42)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toIntOrNull_flat(data, length, byteCount, hash), 42)
+            XCTAssertEqual(kk_string_toLongOrNull_flat(data, length, byteCount, hash), 42)
+            XCTAssertEqual(kk_string_toShortOrNull_flat(data, length, byteCount, hash), 42)
+            XCTAssertEqual(kk_string_toByteOrNull_flat(data, length, byteCount, hash), 42)
+        }
+
+        withFlatString("ff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_toInt_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_toByte_radix_flat(data, length, byteCount, hash, 16, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+        }
+
+        withFlatString("ffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(
+                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(UInt16.max)
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+
+        withFlatString("ffffffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(
+                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(UInt32.max)
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+
+        withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(
+                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+
+        withFlatString("  -Infinity ") { data, length, byteCount, hash in
+            var thrown = 0
+            let doubleRaw = kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(Double(bitPattern: UInt64(bitPattern: Int64(doubleRaw))), -.infinity)
+
+            let floatRaw = kk_string_toFloat_flat(data, length, byteCount, hash, &thrown)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(Float(bitPattern: UInt32(truncatingIfNeeded: UInt(bitPattern: floatRaw))), -.infinity)
+        }
+
+        withFlatString("3.5") { data, length, byteCount, hash in
+            XCTAssertNotEqual(kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertNotEqual(kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+        }
+
+        withFlatString("nope") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_toInt_flat(data, length, byteCount, hash, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+            XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+            XCTAssertEqual(kk_string_toIntOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_toDoubleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_toFloatOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+        }
+    }
+
     func testStringSplitProducesListOfStrings() {
         let splitRaw = kk_string_split(
             rawFromRuntimeString("1,2,3"),
