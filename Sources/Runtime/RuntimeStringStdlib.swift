@@ -2626,9 +2626,12 @@ public func kk_string_lastIndexOfAny_strings_flat(
     return -1
 }
 
-@_cdecl("kk_string_findAnyOf")
-public func kk_string_findAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
+private func runtimeStringFindAnyOf(
+    source: [UnicodeScalar],
+    stringsRaw: Int,
+    startIndex: Int,
+    ignoreCaseRaw: Int
+) -> Int {
     guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
           !elements.isEmpty
     else {
@@ -2664,9 +2667,40 @@ public func kk_string_findAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: 
     return runtimeNullSentinelInt
 }
 
-@_cdecl("kk_string_findLastAnyOf")
-public func kk_string_findLastAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
+@_cdecl("kk_string_findAnyOf")
+public func kk_string_findAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
+    runtimeStringFindAnyOf(
+        source: runtimeStringScalars(strRaw),
+        stringsRaw: stringsRaw,
+        startIndex: startIndex,
+        ignoreCaseRaw: ignoreCaseRaw
+    )
+}
+
+@_cdecl("kk_string_findAnyOf_flat")
+public func kk_string_findAnyOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ stringsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    runtimeStringFindAnyOf(
+        source: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        stringsRaw: stringsRaw,
+        startIndex: startIndex,
+        ignoreCaseRaw: ignoreCaseRaw
+    )
+}
+
+private func runtimeStringFindLastAnyOf(
+    source: [UnicodeScalar],
+    stringsRaw: Int,
+    startIndex: Int,
+    ignoreCaseRaw: Int
+) -> Int {
     guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
           !elements.isEmpty
     else {
@@ -2703,6 +2737,34 @@ public func kk_string_findLastAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startInd
         }
     }
     return runtimeNullSentinelInt
+}
+
+@_cdecl("kk_string_findLastAnyOf")
+public func kk_string_findLastAnyOf(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
+    runtimeStringFindLastAnyOf(
+        source: runtimeStringScalars(strRaw),
+        stringsRaw: stringsRaw,
+        startIndex: startIndex,
+        ignoreCaseRaw: ignoreCaseRaw
+    )
+}
+
+@_cdecl("kk_string_findLastAnyOf_flat")
+public func kk_string_findLastAnyOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ stringsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    runtimeStringFindLastAnyOf(
+        source: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        stringsRaw: stringsRaw,
+        startIndex: startIndex,
+        ignoreCaseRaw: ignoreCaseRaw
+    )
 }
 
 @_cdecl("kk_string_indexOfFirst")

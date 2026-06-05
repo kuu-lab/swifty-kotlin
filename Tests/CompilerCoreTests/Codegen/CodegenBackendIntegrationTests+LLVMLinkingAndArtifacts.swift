@@ -622,6 +622,8 @@ extension CodegenBackendIntegrationTests {
         appendSearchCall("kk_string_indexOfAny_strings", targetRaw: stringsRawExpr)
         appendSearchCall("kk_string_lastIndexOfAny_chars", targetRaw: charsRawExpr)
         appendSearchCall("kk_string_lastIndexOfAny_strings", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_findAnyOf", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_findLastAnyOf", targetRaw: stringsRawExpr)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -656,6 +658,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfAny_strings",
             "kk_string_lastIndexOfAny_chars",
             "kk_string_lastIndexOfAny_strings",
+            "kk_string_findAnyOf",
+            "kk_string_findLastAnyOf",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indexOfAny call: \(rawName)")

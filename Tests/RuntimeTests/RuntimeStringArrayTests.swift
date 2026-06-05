@@ -492,6 +492,73 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_string_lastIndexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
     }
 
+    func testFlatStringFindAnyOfRuntimeAPIsUseFlattenedStringFields() {
+        let stringNeedles = makeRuntimeArray([
+            rawFromRuntimeString("x"),
+            rawFromRuntimeString("bc"),
+            rawFromRuntimeString("AB"),
+        ])
+        let emptyStringNeedles = makeRuntimeArray([
+            rawFromRuntimeString(""),
+        ])
+
+        withFlatString("abcABC") { data, length, byteCount, hash in
+            let first = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 0, 0)
+            XCTAssertNotEqual(first, runtimeNullSentinelInt)
+            XCTAssertEqual(kk_pair_first(first), 1)
+            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(first), caller: #function), "bc")
+
+            let afterPrefix = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 3, 0)
+            XCTAssertNotEqual(afterPrefix, runtimeNullSentinelInt)
+            XCTAssertEqual(kk_pair_first(afterPrefix), 3)
+            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(afterPrefix), caller: #function), "AB")
+
+            let last = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, stringNeedles, length, 0)
+            XCTAssertNotEqual(last, runtimeNullSentinelInt)
+            XCTAssertEqual(kk_pair_first(last), 3)
+            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(last), caller: #function), "AB")
+
+            let caseInsensitiveNeedles = makeRuntimeArray([
+                rawFromRuntimeString("ab"),
+            ])
+            let caseInsensitive = kk_string_findLastAnyOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                caseInsensitiveNeedles,
+                length,
+                1
+            )
+            XCTAssertNotEqual(caseInsensitive, runtimeNullSentinelInt)
+            XCTAssertEqual(kk_pair_first(caseInsensitive), 3)
+            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(caseInsensitive), caller: #function), "ab")
+
+            XCTAssertEqual(
+                kk_string_findAnyOf_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    makeRuntimeArray([rawFromRuntimeString("z")]),
+                    0,
+                    0
+                ),
+                runtimeNullSentinelInt
+            )
+        }
+
+        withFlatString("abc") { data, length, byteCount, hash in
+            let firstEmpty = kk_string_findAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, 9, 0)
+            XCTAssertNotEqual(firstEmpty, runtimeNullSentinelInt)
+            XCTAssertEqual(kk_pair_first(firstEmpty), 3)
+            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(firstEmpty), caller: #function), "")
+
+            let lastEmpty = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, -1, 0)
+            XCTAssertEqual(lastEmpty, runtimeNullSentinelInt)
+        }
+    }
+
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
