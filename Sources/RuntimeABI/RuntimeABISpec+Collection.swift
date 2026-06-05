@@ -1889,12 +1889,34 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
         // StringBuilder enhancements (STDLIB-311) — buildString DSL helpers
         // (object-oriented StringBuilder API lives in RuntimeABISpec+StringBuilder.swift)
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_append_line",
             parameters: [
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_line_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection"
@@ -1916,10 +1938,35 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_builder_append_range_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "startIndex", type: .intptr),
+                RuntimeABIParameter(name: "endIndex", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_builder_insert",
             parameters: [
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_builder_insert_flat",
+            parameters: [
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection"

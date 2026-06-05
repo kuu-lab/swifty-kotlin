@@ -916,6 +916,74 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
+                "kk_string_builder_append": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_append_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_builder_append_line": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_append_line_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_builder_append_range": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_append_range_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2
+                ),
+                "kk_string_builder_insert": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_insert_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_string_builder_new_from_string": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_new_from_string_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_builder_append_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_append_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_string_builder_append_line_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_append_line_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_string_builder_insert_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_insert_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    stringArgumentPositions: [2]
+                ),
+                "kk_string_builder_appendRange_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_appendRange_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    stringArgumentPositions: [1]
+                ),
+                "kk_string_builder_insertRange_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_insertRange_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 4,
+                    stringArgumentPositions: [2]
+                ),
+                "kk_string_builder_setRange": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_setRange_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    stringArgumentPositions: [3]
+                ),
+                "kk_string_builder_replace_obj": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_builder_replace_obj_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    stringArgumentPositions: [3]
+                ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,

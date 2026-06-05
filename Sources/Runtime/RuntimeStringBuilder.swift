@@ -54,13 +54,47 @@ public func kk_string_builder_new_from_string(_ strRaw: Int) -> Int {
     } else {
         initial = ""
     }
-    return registerRuntimeObject(RuntimeStringBuilderBox(initial))
+    return runtimeStringBuilderNew(initial: initial)
+}
+
+@_cdecl("kk_string_builder_new_from_string_flat")
+public func kk_string_builder_new_from_string_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeStringBuilderNew(
+        initial: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeStringBuilderNew(initial: String) -> Int {
+    registerRuntimeObject(RuntimeStringBuilderBox(initial))
 }
 
 @_cdecl("kk_string_builder_append_obj")
 public func kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
+    runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
+}
+
+@_cdecl("kk_string_builder_append_obj_flat")
+public func kk_string_builder_append_obj_flat(
+    _ sbRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeStringBuilderAppend(
+        sbRaw,
+        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeStringBuilderAppend(_ sbRaw: Int, value: String) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(runtimeElementToString(valueRaw))
+    sb.value.append(value)
     return sbRaw
 }
 
@@ -83,8 +117,26 @@ public func kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
 // no pre-existing compiled artifacts that reference the old names.
 @_cdecl("kk_string_builder_append_line_obj")
 public func kk_string_builder_append_line_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
+    runtimeStringBuilderAppendLine(sbRaw, value: runtimeElementToString(valueRaw))
+}
+
+@_cdecl("kk_string_builder_append_line_obj_flat")
+public func kk_string_builder_append_line_obj_flat(
+    _ sbRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeStringBuilderAppendLine(
+        sbRaw,
+        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeStringBuilderAppendLine(_ sbRaw: Int, value: String) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(runtimeElementToString(valueRaw))
+    sb.value.append(value)
     sb.value.append("\n")
     return sbRaw
 }
@@ -98,20 +150,34 @@ public func kk_string_builder_append_line_noarg_obj(_ sbRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_builder_insert_obj")
-public func kk_string_builder_insert_obj(
+public func kk_string_builder_insert_obj(_ sbRaw: Int, _ index: Int, _ valueRaw: Int) -> Int {
+    runtimeStringBuilderInsert(sbRaw, index: index, value: runtimeElementToString(valueRaw), outThrown: nil)
+}
+
+@_cdecl("kk_string_builder_insert_obj_flat")
+public func kk_string_builder_insert_obj_flat(
     _ sbRaw: Int,
     _ index: Int,
-    _ valueRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
 ) -> Int {
-    outThrown?.pointee = 0
+    runtimeStringBuilderInsert(
+        sbRaw,
+        index: index,
+        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: nil
+    )
+}
+
+private func runtimeStringBuilderInsert(_ sbRaw: Int, index: Int, value str: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index <= utf8Count else {
         runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
         return sbRaw
     }
-    let str = runtimeElementToString(valueRaw)
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
     let insertionPoint = String.Index(utf8Index, within: sb.value) ?? sb.value.endIndex
     sb.value.insert(contentsOf: str, at: insertionPoint)
@@ -197,30 +263,91 @@ public func kk_string_builder_deleteAt(
 
 @_cdecl("kk_string_builder_appendRange_obj")
 public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+    runtimeStringBuilderAppendRange(
+        sbRaw,
+        csq: runtimeElementToString(csqRaw),
+        startIndex: startIndex,
+        endIndex: endIndex
+    )
+}
+
+@_cdecl("kk_string_builder_appendRange_obj_flat")
+public func kk_string_builder_appendRange_obj_flat(
+    _ sbRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startIndex: Int,
+    _ endIndex: Int
+) -> Int {
+    runtimeStringBuilderAppendRange(
+        sbRaw,
+        csq: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        startIndex: startIndex,
+        endIndex: endIndex
+    )
+}
+
+private func runtimeStringBuilderAppendRange(
+    _ sbRaw: Int,
+    csq: String,
+    startIndex: Int,
+    endIndex: Int
+) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let csq = runtimeElementToString(csqRaw)
     // Use UTF-16 code unit indexing to match Kotlin CharSequence semantics.
     sb.value.append(runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex))
     return sbRaw
 }
 
 @_cdecl("kk_string_builder_insertRange_obj")
-public func kk_string_builder_insertRange_obj(
+public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+    runtimeStringBuilderInsertRange(
+        sbRaw,
+        index: index,
+        csq: runtimeElementToString(csqRaw),
+        startIndex: startIndex,
+        endIndex: endIndex,
+        outThrown: nil
+    )
+}
+
+@_cdecl("kk_string_builder_insertRange_obj_flat")
+public func kk_string_builder_insertRange_obj_flat(
     _ sbRaw: Int,
     _ index: Int,
-    _ csqRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
     _ startIndex: Int,
-    _ endIndex: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+    _ endIndex: Int
 ) -> Int {
-    outThrown?.pointee = 0
+    runtimeStringBuilderInsertRange(
+        sbRaw,
+        index: index,
+        csq: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        startIndex: startIndex,
+        endIndex: endIndex,
+        outThrown: nil
+    )
+}
+
+private func runtimeStringBuilderInsertRange(
+    _ sbRaw: Int,
+    index: Int,
+    csq: String,
+    startIndex: Int,
+    endIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index <= utf8Count else {
         runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
         return sbRaw
     }
-    let csq = runtimeElementToString(csqRaw)
     let slice = runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex)
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
     let insertionPoint = String.Index(utf8Index, within: sb.value) ?? sb.value.endIndex
@@ -229,14 +356,42 @@ public func kk_string_builder_insertRange_obj(
 }
 
 @_cdecl("kk_string_builder_setRange")
-public func kk_string_builder_setRange(
+public func kk_string_builder_setRange(_ sbRaw: Int, _ startIndex: Int, _ endIndex: Int, _ valueRaw: Int) -> Int {
+    runtimeStringBuilderSetRange(
+        sbRaw,
+        startIndex: startIndex,
+        endIndex: endIndex,
+        value: runtimeElementToString(valueRaw),
+        outThrown: nil
+    )
+}
+
+@_cdecl("kk_string_builder_setRange_flat")
+public func kk_string_builder_setRange_flat(
     _ sbRaw: Int,
     _ startIndex: Int,
     _ endIndex: Int,
-    _ valueRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
 ) -> Int {
-    outThrown?.pointee = 0
+    runtimeStringBuilderSetRange(
+        sbRaw,
+        startIndex: startIndex,
+        endIndex: endIndex,
+        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        outThrown: nil
+    )
+}
+
+private func runtimeStringBuilderSetRange(
+    _ sbRaw: Int,
+    startIndex: Int,
+    endIndex: Int,
+    value: String,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     guard startIndex >= 0, startIndex <= len, endIndex >= startIndex, endIndex <= len else {
@@ -250,34 +405,53 @@ public func kk_string_builder_setRange(
     let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: endIndex)
     let sIdx = String.Index(startIdx, within: sb.value) ?? sb.value.endIndex
     let eIdx = String.Index(endIdx, within: sb.value) ?? sb.value.endIndex
-    sb.value.replaceSubrange(sIdx..<eIdx, with: runtimeElementToString(valueRaw))
+    sb.value.replaceSubrange(sIdx..<eIdx, with: value)
     return sbRaw
 }
 
 // MARK: - STDLIB-STR-123: Additional StringBuilder methods
 
 @_cdecl("kk_string_builder_replace_obj")
-public func kk_string_builder_replace_obj(
-    _ sbRaw: Int,
-    _ start: Int,
-    _ end: Int,
-    _ strRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let len = sb.value.utf8.count
-    let clampedEnd = min(end, len)
-    guard start >= 0, start <= len, clampedEnd >= start else {
-        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
-        return sbRaw
-    }
+public func kk_string_builder_replace_obj(_ sbRaw: Int, _ start: Int, _ end: Int, _ strRaw: Int) -> Int {
     let replacement: String
     if let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
        let s = extractString(from: ptr) {
         replacement = s
     } else {
         replacement = runtimeElementToString(strRaw)
+    }
+    return runtimeStringBuilderReplace(sbRaw, start: start, end: end, replacement: replacement)
+}
+
+@_cdecl("kk_string_builder_replace_obj_flat")
+public func kk_string_builder_replace_obj_flat(
+    _ sbRaw: Int,
+    _ start: Int,
+    _ end: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeStringBuilderReplace(
+        sbRaw,
+        start: start,
+        end: end,
+        replacement: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeStringBuilderReplace(
+    _ sbRaw: Int,
+    start: Int,
+    end: Int,
+    replacement: String
+) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    let len = sb.value.utf8.count
+    let clampedEnd = min(end, len)
+    guard start >= 0, start <= len, clampedEnd >= start else {
+        fatalError("StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(len)")
     }
     let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: start)
     let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: clampedEnd)

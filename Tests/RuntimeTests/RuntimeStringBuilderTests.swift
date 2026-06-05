@@ -145,27 +145,66 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "Hello")
     }
 
-    // DEBT-RT-001: out-of-bounds insert throws via outThrown instead of fatalError.
-    func testInsertObjOutOfBoundsThrowsStringIndexOutOfBoundsException() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
-        let value = makeRuntimeString("x")
-        var thrown = 0
+    func testFlatStringBuilderAPIsUseFlattenedStringFields() {
+        let builder = withFlatString("ac") { data, length, byteCount, hash in
+            kk_string_builder_new_from_string_flat(data, length, byteCount, hash)
+        }
 
-        _ = kk_string_builder_insert_obj(builder, 99, value, &thrown)
+        let insertReturned = withFlatString("b") { data, length, byteCount, hash in
+            kk_string_builder_insert_obj_flat(builder, 1, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(insertReturned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
 
-        XCTAssertNotEqual(thrown, 0)
-        let box = Unmanaged<AnyObject>.fromOpaque(UnsafeRawPointer(bitPattern: thrown)!)
-            .takeUnretainedValue() as? RuntimeThrowableBox
-        XCTAssertNotNil(box)
-        XCTAssertTrue(
-            box?.message.contains("index=99") ?? false,
-            "expected index=99 in message, got: \(box?.message ?? "<nil>")"
-        )
-        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "hello")
+        let appendReturned = withFlatString("D") { data, length, byteCount, hash in
+            kk_string_builder_append_obj_flat(builder, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(appendReturned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abcD")
+
+        let appendLineReturned = withFlatString("E") { data, length, byteCount, hash in
+            kk_string_builder_append_line_obj_flat(builder, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(appendLineReturned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abcDE\n")
+
+        let rangedBuilder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
+        let appendRangeReturned = withFlatString("WORLD") { data, length, byteCount, hash in
+            kk_string_builder_appendRange_obj_flat(rangedBuilder, data, length, byteCount, hash, 1, 4)
+        }
+        XCTAssertEqual(appendRangeReturned, rangedBuilder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(rangedBuilder)), "helloORL")
+
+        let insertRangeReturned = withFlatString("abcd") { data, length, byteCount, hash in
+            kk_string_builder_insertRange_obj_flat(rangedBuilder, 1, data, length, byteCount, hash, 1, 3)
+        }
+        XCTAssertEqual(insertRangeReturned, rangedBuilder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(rangedBuilder)), "hbcelloORL")
+
+        let setRangeReturned = withFlatString("XY") { data, length, byteCount, hash in
+            kk_string_builder_setRange_flat(rangedBuilder, 1, 3, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(setRangeReturned, rangedBuilder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(rangedBuilder)), "hXYelloORL")
+
+        let replaceReturned = withFlatString("Z") { data, length, byteCount, hash in
+            kk_string_builder_replace_obj_flat(rangedBuilder, 1, 3, data, length, byteCount, hash)
+        }
+        XCTAssertEqual(replaceReturned, rangedBuilder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(rangedBuilder)), "hZelloORL")
     }
 
     private func makeRuntimeString(_ value: String) -> Int {
         registerRuntimeObject(RuntimeStringBox(value))
+    }
+
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        Array(value.utf8).withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
+        }
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

@@ -528,6 +528,102 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringBuilderStringRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("abcd")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let builderExpr = arena.appendExpr(.intLiteral(44), type: types.intType)
+        let startExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let endExpr = arena.appendExpr(.intLiteral(3), type: types.intType)
+
+        var nextTemp: Int32 = 300
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: builderExpr, value: .intLiteral(44)),
+            .constValue(result: startExpr, value: .intLiteral(1)),
+            .constValue(result: endExpr, value: .intLiteral(3)),
+        ]
+
+        func appendBuilderCall(_ calleeName: String, arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendBuilderCall("kk_string_builder_append", arguments: [textExpr])
+        appendBuilderCall("kk_string_builder_append_line", arguments: [textExpr])
+        appendBuilderCall("kk_string_builder_append_range", arguments: [textExpr, startExpr, endExpr])
+        appendBuilderCall("kk_string_builder_insert", arguments: [startExpr, textExpr])
+        appendBuilderCall("kk_string_builder_new_from_string", arguments: [textExpr])
+        appendBuilderCall("kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
+        appendBuilderCall("kk_string_builder_append_line_obj", arguments: [builderExpr, textExpr])
+        appendBuilderCall("kk_string_builder_insert_obj", arguments: [builderExpr, startExpr, textExpr])
+        appendBuilderCall("kk_string_builder_appendRange_obj", arguments: [builderExpr, textExpr, startExpr, endExpr])
+        appendBuilderCall("kk_string_builder_insertRange_obj", arguments: [builderExpr, startExpr, textExpr, startExpr, endExpr])
+        appendBuilderCall("kk_string_builder_setRange", arguments: [builderExpr, startExpr, endExpr, textExpr])
+        appendBuilderCall("kk_string_builder_replace_obj", arguments: [builderExpr, startExpr, endExpr, textExpr])
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1208),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_builder_append",
+            "kk_string_builder_append_line",
+            "kk_string_builder_append_range",
+            "kk_string_builder_insert",
+            "kk_string_builder_new_from_string",
+            "kk_string_builder_append_obj",
+            "kk_string_builder_append_line_obj",
+            "kk_string_builder_insert_obj",
+            "kk_string_builder_appendRange_obj",
+            "kk_string_builder_insertRange_obj",
+            "kk_string_builder_setRange",
+            "kk_string_builder_replace_obj",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw StringBuilder String call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat StringBuilder String call: \(rawName)_flat")
+        }
+    }
+
     func testLLVMBackendEmitsFlatStringCharSelectionRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()

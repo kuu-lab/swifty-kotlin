@@ -226,13 +226,33 @@ private let runtimeBuilderState = RuntimeBuilderState()
 
 @_cdecl("kk_string_builder_append")
 public func kk_string_builder_append(_ strRaw: Int) -> Int {
+    runtimeBuildStringAppendRaw(strRaw)
+}
+
+@_cdecl("kk_string_builder_append_flat")
+public func kk_string_builder_append_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeBuildStringAppend(
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeBuildStringAppend(_ string: String) -> Int {
+    runtimeBuilderState.appendString(string)
+    return 0
+}
+
+private func runtimeBuildStringAppendRaw(_ strRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: strRaw),
           let string = extractString(from: pointer)
     else {
         return 0
     }
-    runtimeBuilderState.appendString(string)
-    return 0
+    return runtimeBuildStringAppend(string)
 }
 
 // NOTE: The PR description originally referenced "kk_string_builder_appendLine" (camelCase),
@@ -240,14 +260,34 @@ public func kk_string_builder_append(_ strRaw: Int) -> Int {
 // the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
 @_cdecl("kk_string_builder_append_line")
 public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
+    runtimeBuildStringAppendLineRaw(valueRaw)
+}
+
+@_cdecl("kk_string_builder_append_line_flat")
+public func kk_string_builder_append_line_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeBuildStringAppendLine(
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeBuildStringAppendLine(_ string: String) -> Int {
+    runtimeBuilderState.appendString(string)
+    runtimeBuilderState.appendString("\n")
+    return 0
+}
+
+private func runtimeBuildStringAppendLineRaw(_ valueRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
           let string = extractString(from: pointer)
     else {
         return 0
     }
-    runtimeBuilderState.appendString(string)
-    runtimeBuilderState.appendString("\n")
-    return 0
+    return runtimeBuildStringAppendLine(string)
 }
 
 // NOTE: See comment above on kk_string_builder_append_line — same snake_case convention applies.
@@ -261,20 +301,61 @@ public func kk_string_builder_append_line_noarg() -> Int {
 public func kk_string_builder_append_range(_ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
     // Use runtimeElementToString for consistency with the object-backed path
     // (kk_string_builder_appendRange_obj), which also accepts arbitrary runtime values.
-    let string = runtimeElementToString(csqRaw)
+    runtimeBuildStringAppendRange(runtimeElementToString(csqRaw), startIndex: startIndex, endIndex: endIndex)
+}
+
+@_cdecl("kk_string_builder_append_range_flat")
+public func kk_string_builder_append_range_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startIndex: Int,
+    _ endIndex: Int
+) -> Int {
+    runtimeBuildStringAppendRange(
+        runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash),
+        startIndex: startIndex,
+        endIndex: endIndex
+    )
+}
+
+private func runtimeBuildStringAppendRange(_ string: String, startIndex: Int, endIndex: Int) -> Int {
     runtimeBuilderState.appendString(runtimeUTF16Substring(string, startIndex: startIndex, endIndex: endIndex))
     return 0
 }
 
 @_cdecl("kk_string_builder_insert")
 public func kk_string_builder_insert(_ index: Int, _ valueRaw: Int) -> Int {
+    runtimeBuildStringInsertRaw(index: index, valueRaw: valueRaw)
+}
+
+@_cdecl("kk_string_builder_insert_flat")
+public func kk_string_builder_insert_flat(
+    _ index: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    runtimeBuildStringInsert(
+        index: index,
+        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+}
+
+private func runtimeBuildStringInsert(index: Int, value string: String) -> Int {
+    runtimeBuilderState.insertString(string, at: index)
+    return 0
+}
+
+private func runtimeBuildStringInsertRaw(index: Int, valueRaw: Int) -> Int {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
           let string = extractString(from: pointer)
     else {
         return 0
     }
-    runtimeBuilderState.insertString(string, at: index)
-    return 0
+    return runtimeBuildStringInsert(index: index, value: string)
 }
 
 @_cdecl("kk_string_builder_delete")
