@@ -5132,14 +5132,13 @@ public func kk_string_commonSuffixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int
 
 // MARK: - STDLIB-316: String.zipWithNext()
 
-@_cdecl("kk_string_zipWithNext")
-public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRaw(strRaw) ?? ""
-    guard source.unicodeScalars.count >= 2 else {
+private func runtimeStringZipWithNext(_ source: String) -> Int {
+    let scalars = Array(source.unicodeScalars)
+    guard scalars.count >= 2 else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    let scalars = Array(source.unicodeScalars)
     var pairs: [Int] = []
+    pairs.reserveCapacity(scalars.count - 1)
     for i in 0 ..< scalars.count - 1 {
         let a = kk_box_char(Int(scalars[i].value))
         let b = kk_box_char(Int(scalars[i + 1].value))
@@ -5148,9 +5147,13 @@ public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
-@_cdecl("kk_string_zipWithNextTransform")
-public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRaw(strRaw) ?? ""
+private func runtimeStringZipWithNextTransform(
+    _ source: String,
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let scalars = Array(source.unicodeScalars)
     guard scalars.count >= 2 else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
@@ -5167,9 +5170,7 @@ public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closur
             outThrown: &thrown
         )
         if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
+            outThrown?.pointee = thrown
             return 0
         }
         results.append(maybeUnbox(result))
@@ -5177,12 +5178,48 @@ public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closur
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
+@_cdecl("kk_string_zipWithNext")
+public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRaw(strRaw) ?? ""
+    return runtimeStringZipWithNext(source)
+}
+
+@_cdecl("kk_string_zipWithNext_flat")
+public func kk_string_zipWithNext_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringZipWithNext(source)
+}
+
+@_cdecl("kk_string_zipWithNextTransform")
+public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let source = runtimeStringFromRaw(strRaw) ?? ""
+    return runtimeStringZipWithNextTransform(source, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+}
+
+@_cdecl("kk_string_zipWithNextTransform_flat")
+public func kk_string_zipWithNextTransform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringZipWithNextTransform(source, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+}
+
 // MARK: - STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform)
 
-@_cdecl("kk_string_zip")
-public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let sourceCodeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    let otherCodeUnits = runtimeStringUTF16CodeUnits(otherRaw)
+private func runtimeStringZip(_ source: String, _ other: String) -> Int {
+    let sourceCodeUnits = Array(source.utf16)
+    let otherCodeUnits = Array(other.utf16)
     let count = min(sourceCodeUnits.count, otherCodeUnits.count)
     var pairs: [Int] = []
     pairs.reserveCapacity(count)
@@ -5194,17 +5231,16 @@ public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: pairs))
 }
 
-@_cdecl("kk_string_zipTransform")
-public func kk_string_zipTransform(
-    _ strRaw: Int,
-    _ otherRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+private func runtimeStringZipTransform(
+    _ source: String,
+    _ other: String,
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let sourceCodeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    let otherCodeUnits = runtimeStringUTF16CodeUnits(otherRaw)
+    let sourceCodeUnits = Array(source.utf16)
+    let otherCodeUnits = Array(other.utf16)
     let count = min(sourceCodeUnits.count, otherCodeUnits.count)
     var results: [Int] = []
     results.reserveCapacity(count)
@@ -5218,14 +5254,77 @@ public func kk_string_zipTransform(
             outThrown: &thrown
         )
         if thrown != 0 {
-            if let outThrown = outThrown {
-                outThrown.pointee = thrown
-            }
+            outThrown?.pointee = thrown
             return 0
         }
         results.append(maybeUnbox(result))
     }
     return registerRuntimeObject(RuntimeListBox(elements: results))
+}
+
+@_cdecl("kk_string_zip")
+public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    return runtimeStringZip(source, other)
+}
+
+@_cdecl("kk_string_zip_flat")
+public func kk_string_zip_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+    return runtimeStringZip(source, other)
+}
+
+@_cdecl("kk_string_zipTransform")
+public func kk_string_zipTransform(
+    _ strRaw: Int,
+    _ otherRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    return runtimeStringZipTransform(source, other, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+}
+
+@_cdecl("kk_string_zipTransform_flat")
+public func kk_string_zipTransform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+    return runtimeStringZipTransform(source, other, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
 }
 
 // MARK: - STDLIB-192: equals(other, ignoreCase)

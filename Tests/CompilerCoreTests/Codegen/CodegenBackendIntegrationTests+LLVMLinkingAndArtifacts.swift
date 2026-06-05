@@ -747,11 +747,15 @@ extension CodegenBackendIntegrationTests {
         let arena = KIRArena()
 
         let text = interner.intern("a,b,c")
+        let other = interner.intern("x,y,z")
         let delimiter = interner.intern(",")
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let otherExpr = arena.appendExpr(.stringLiteral(other), type: types.stringType)
         let delimiterExpr = arena.appendExpr(.stringLiteral(delimiter), type: types.stringType)
         let ignoreCaseExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let limitExpr = arena.appendExpr(.intLiteral(2), type: types.intType)
+        let fnPtrExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let closureExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
         var nextTemp: Int32 = 560
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -761,9 +765,12 @@ extension CodegenBackendIntegrationTests {
 
         var body: [KIRInstruction] = [
             .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: otherExpr, value: .stringLiteral(other)),
             .constValue(result: delimiterExpr, value: .stringLiteral(delimiter)),
             .constValue(result: ignoreCaseExpr, value: .intLiteral(0)),
             .constValue(result: limitExpr, value: .intLiteral(2)),
+            .constValue(result: fnPtrExpr, value: .intLiteral(0)),
+            .constValue(result: closureExpr, value: .intLiteral(0)),
         ]
 
         func appendScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
@@ -777,6 +784,17 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
+        func appendThrowingScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: true,
+                thrownResult: temporary(types.intType)
+            ))
+        }
+
         appendScalarCall("kk_string_asIterable", [textExpr])
         appendScalarCall("kk_string_asSequence", [textExpr])
         appendScalarCall("kk_string_lines", [textExpr])
@@ -784,6 +802,10 @@ extension CodegenBackendIntegrationTests {
         appendScalarCall("kk_string_split", [textExpr, delimiterExpr])
         appendScalarCall("kk_string_split_limit", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence", [textExpr, delimiterExpr])
+        appendScalarCall("kk_string_zipWithNext", [textExpr])
+        appendThrowingScalarCall("kk_string_zipWithNextTransform", [textExpr, fnPtrExpr, closureExpr])
+        appendScalarCall("kk_string_zip", [textExpr, otherExpr])
+        appendThrowingScalarCall("kk_string_zipTransform", [textExpr, otherExpr, fnPtrExpr, closureExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -821,6 +843,10 @@ extension CodegenBackendIntegrationTests {
             "kk_string_split",
             "kk_string_split_limit",
             "kk_string_splitToSequence",
+            "kk_string_zipWithNext",
+            "kk_string_zipWithNextTransform",
+            "kk_string_zip",
+            "kk_string_zipTransform",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")

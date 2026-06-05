@@ -69,6 +69,23 @@ private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMuta
     (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
 }
 
+private func withFlatStringForHOF<T>(
+    _ value: String,
+    _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+) -> T {
+    var length = 0
+    var byteCount = 0
+    var hash = 0
+    let data = runtimeRegisterFlatString(
+        value,
+        outLength: &length,
+        outByteCount: &byteCount,
+        outHash: &hash
+    )
+    let constData = data.map { UnsafePointer($0) }
+    return body(constData, length, byteCount, hash)
+}
+
 final class RuntimeStringHOFTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -534,6 +551,44 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(kk_bits_to_double(result), 0.0, accuracy: 0.000001)
     }
 
+    // STDLIB-316: String.zipWithNext()
+    func testStringZipWithNextFlatPairsAdjacentScalars() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            let result = kk_string_zipWithNext_flat(data, length, byteCount, hash)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_zipWithNext_flat")
+                return
+            }
+
+            XCTAssertEqual(list.elements.count, 1)
+            XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
+            XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("b").value))
+        }
+    }
+
+    func testStringZipWithNextTransformFlatCombinesAdjacentScalars() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_zipWithNextTransform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(zipTransformSumCodepoints, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_zipWithNextTransform_flat")
+                return
+            }
+            XCTAssertEqual(list.elements.count, 1)
+            XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 98)
+        }
+    }
+
     // STDLIB-TEXT-FN-116: CharSequence.zip(other)
     func testStringZipPairsCharsAndStopsAtShorterString() {
         let source = registerRuntimeObject(RuntimeStringBox("abc"))
@@ -574,6 +629,35 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
         XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[2])), 0xDC3B)
         XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[2])), Int(Unicode.Scalar("Z").value))
+    }
+
+    func testStringZipFlatUsesUTF16CodeUnits() {
+        withFlatStringForHOF("a🐻") { data, length, byteCount, hash in
+            withFlatStringForHOF("XYZ") { otherData, otherLength, otherByteCount, otherHash in
+                let result = kk_string_zip_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    otherData,
+                    otherLength,
+                    otherByteCount,
+                    otherHash
+                )
+                guard let list = runtimeListBox(from: result) else {
+                    XCTFail("Expected list from kk_string_zip_flat")
+                    return
+                }
+
+                XCTAssertEqual(list.elements.count, 3)
+                XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), 97)
+                XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
+                XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), 0xD83D)
+                XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[1])), Int(Unicode.Scalar("Y").value))
+                XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[2])), 0xDC3B)
+                XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[2])), Int(Unicode.Scalar("Z").value))
+            }
+        }
     }
 
     // STDLIB-TEXT-FN-116: CharSequence.zip(other, transform)
@@ -619,6 +703,36 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(list.elements.count, 2)
         XCTAssertEqual(kk_unbox_char(list.elements[0]), 0xD83D + Int(Unicode.Scalar("A").value))
         XCTAssertEqual(kk_unbox_char(list.elements[1]), 0xDC3B + Int(Unicode.Scalar("Z").value))
+    }
+
+    func testStringZipTransformFlatUsesUTF16CodeUnits() {
+        withFlatStringForHOF("🐻") { data, length, byteCount, hash in
+            withFlatStringForHOF("AZ") { otherData, otherLength, otherByteCount, otherHash in
+                var thrown = -1
+                let result = kk_string_zipTransform_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    otherData,
+                    otherLength,
+                    otherByteCount,
+                    otherHash,
+                    unsafeBitCast(zipTransformSumCodepoints, to: Int.self),
+                    0,
+                    &thrown
+                )
+
+                XCTAssertEqual(thrown, 0)
+                guard let list = runtimeListBox(from: result) else {
+                    XCTFail("Expected list from kk_string_zipTransform_flat")
+                    return
+                }
+                XCTAssertEqual(list.elements.count, 2)
+                XCTAssertEqual(kk_unbox_char(list.elements[0]), 0xD83D + Int(Unicode.Scalar("A").value))
+                XCTAssertEqual(kk_unbox_char(list.elements[1]), 0xDC3B + Int(Unicode.Scalar("Z").value))
+            }
+        }
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

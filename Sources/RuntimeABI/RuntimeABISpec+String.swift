@@ -3360,10 +3360,43 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_zip_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "otherLength", type: .intptr),
+                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
+                RuntimeABIParameter(name: "otherHash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_zipTransform",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_zipTransform_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "otherLength", type: .intptr),
+                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
+                RuntimeABIParameter(name: "otherHash", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
@@ -3430,6 +3463,31 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
                 RuntimeABIParameter(name: "replacementRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_zipWithNext_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_zipWithNextTransform_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,

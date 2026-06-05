@@ -719,6 +719,28 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
+                "kk_string_zipWithNext": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_zipWithNext_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_zipWithNextTransform": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_zipWithNextTransform_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_zip": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_zip_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_zipTransform": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_zipTransform_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,
