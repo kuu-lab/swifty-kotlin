@@ -238,6 +238,27 @@ public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
 public func kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(lhsRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(rhsRaw, caller: #function)
+    return runtimeStringCompareToLocale(lhs, rhs, localeRaw: localeRaw)
+}
+
+@_cdecl("kk_string_compareTo_locale_flat")
+public func kk_string_compareTo_locale_flat(
+    _ lhsData: UnsafePointer<UInt8>?,
+    _ lhsLength: Int,
+    _ lhsByteCount: Int,
+    _ lhsHash: Int,
+    _ rhsData: UnsafePointer<UInt8>?,
+    _ rhsLength: Int,
+    _ rhsByteCount: Int,
+    _ rhsHash: Int,
+    _ localeRaw: Int
+) -> Int {
+    let lhs = runtimeStringFromFlat(data: lhsData, length: lhsLength, byteCount: lhsByteCount, hash: lhsHash)
+    let rhs = runtimeStringFromFlat(data: rhsData, length: rhsLength, byteCount: rhsByteCount, hash: rhsHash)
+    return runtimeStringCompareToLocale(lhs, rhs, localeRaw: localeRaw)
+}
+
+private func runtimeStringCompareToLocale(_ lhs: String, _ rhs: String, localeRaw: Int) -> Int {
     let locale: Locale = runtimeLocaleBox(from: localeRaw)?.locale ?? Locale.current
     switch lhs.compare(rhs, options: [], range: nil, locale: locale) {
     case .orderedAscending:

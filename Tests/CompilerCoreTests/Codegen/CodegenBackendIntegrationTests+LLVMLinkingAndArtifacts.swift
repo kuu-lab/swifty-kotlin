@@ -63,6 +63,8 @@ extension CodegenBackendIntegrationTests {
         let ignoreCaseTrue = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
         let charNeedle = arena.appendExpr(.charLiteral(UInt32(UnicodeScalar("d").value)), type: types.charType)
         let compareIgnoreCaseResult = arena.appendExpr(.temporary(19), type: types.intType)
+        let compareLocaleResult = arena.appendExpr(.temporary(30), type: types.intType)
+        let localeRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
         let lastIndexIgnoreCaseResult = arena.appendExpr(.temporary(20), type: types.intType)
         let indexOfCharResult = arena.appendExpr(.temporary(21), type: types.intType)
         let lastIndexOfCharResult = arena.appendExpr(.temporary(22), type: types.intType)
@@ -110,6 +112,8 @@ extension CodegenBackendIntegrationTests {
                 .constValue(result: ignoreCaseTrue, value: .boolLiteral(true)),
                 .constValue(result: charNeedle, value: .charLiteral(UInt32(UnicodeScalar("d").value))),
                 .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
+                .constValue(result: localeRaw, value: .intLiteral(0)),
+                .call(symbol: nil, callee: interner.intern("kk_string_compareTo_locale"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_ignoreCase"), arguments: [trimResult, needleExpr, takeCount, ignoreCaseTrue], result: lastIndexIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
@@ -223,6 +227,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_indexOf("))
         XCTAssertFalse(ir.contains("@kk_string_isBlank("))
         XCTAssertFalse(ir.contains("@kk_string_compareToIgnoreCase("))
+        XCTAssertFalse(ir.contains("@kk_string_compareTo_locale("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_ignoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
@@ -241,6 +246,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
         XCTAssertTrue(ir.contains("@kk_string_compareToIgnoreCase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_compareTo_locale_flat"))
         XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_ignoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_char_flat"))
         XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_char_flat"))

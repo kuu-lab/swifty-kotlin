@@ -1074,6 +1074,11 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
+                "kk_string_compareTo_locale": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_compareTo_locale_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1
+                ),
                 "kk_string_contentEquals": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contentEquals_flat",
                     stringArgumentCount: 2,

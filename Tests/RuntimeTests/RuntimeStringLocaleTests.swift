@@ -32,6 +32,23 @@ final class RuntimeStringLocaleTests: XCTestCase {
         return box.value
     }
 
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        let constData = data.map { UnsafePointer($0) }
+        return body(constData, length, byteCount, hash)
+    }
+
     func testLocaleLowercaseUsesTurkishRules() {
         let result = kk_string_lowercase_locale(runtimeString("I"), kk_locale_new(runtimeString("tr")))
         XCTAssertEqual(stringValue(result), "ı")
@@ -49,6 +66,26 @@ final class RuntimeStringLocaleTests: XCTestCase {
             kk_locale_new(runtimeString("en_US"))
         )
         XCTAssertEqual(result, -1)
+    }
+
+    func testLocaleCompareToFlatMatchesBasicOrdering() {
+        let locale = kk_locale_new(runtimeString("en_US"))
+        withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
+            withFlatString("abd") { rhsData, rhsLength, rhsByteCount, rhsHash in
+                let result = kk_string_compareTo_locale_flat(
+                    lhsData,
+                    lhsLength,
+                    lhsByteCount,
+                    lhsHash,
+                    rhsData,
+                    rhsLength,
+                    rhsByteCount,
+                    rhsHash,
+                    locale
+                )
+                XCTAssertEqual(result, -1)
+            }
+        }
     }
 
     func testLocalePropertiesExposeLanguageCountryAndVariant() {

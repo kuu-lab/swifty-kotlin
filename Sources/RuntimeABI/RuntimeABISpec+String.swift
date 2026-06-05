@@ -970,6 +970,22 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_compareTo_locale_flat",
+            parameters: [
+                RuntimeABIParameter(name: "lhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "lhsLength", type: .intptr),
+                RuntimeABIParameter(name: "lhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "lhsHash", type: .intptr),
+                RuntimeABIParameter(name: "rhsData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "rhsLength", type: .intptr),
+                RuntimeABIParameter(name: "rhsByteCount", type: .intptr),
+                RuntimeABIParameter(name: "rhsHash", type: .intptr),
+                RuntimeABIParameter(name: "localeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_trimIndent",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
