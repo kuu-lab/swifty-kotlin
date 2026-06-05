@@ -314,7 +314,60 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                     ),
                     1
                 )
+                XCTAssertEqual(
+                    kk_string_lastIndexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        needleData,
+                        needleLength,
+                        needleByteCount,
+                        needleHash,
+                        length,
+                        1
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_string_compareToIgnoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        needleData,
+                        needleLength,
+                        needleByteCount,
+                        needleHash,
+                        1
+                    ),
+                    -1
+                )
             }
+            XCTAssertEqual(
+                kk_string_indexOf_char_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    kk_box_char(Int(Unicode.Scalar("s").value)),
+                    0,
+                    1
+                ),
+                1
+            )
+            XCTAssertEqual(
+                kk_string_lastIndexOf_char_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    kk_box_char(Int(Unicode.Scalar("K").value)),
+                    length,
+                    0
+                ),
+                6
+            )
         }
         withFlatString("  \n\t") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)), 1)

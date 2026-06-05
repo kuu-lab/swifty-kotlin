@@ -2585,7 +2585,40 @@ public func kk_string_lastIndexOf_flat(
 @_cdecl("kk_string_indexOf_char")
 public func kk_string_indexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
-    guard let needle = UnicodeScalar(kk_unbox_char(charRaw)) else {
+    guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    let start = max(0, startIndexRaw)
+    guard start < source.count else {
+        return -1
+    }
+    let needleString = String(needle)
+    for offset in start..<source.count {
+        let scalar = source[offset]
+        if ignoreCase {
+            if String(scalar).caseInsensitiveCompare(needleString) == .orderedSame {
+                return offset
+            }
+        } else if scalar == needle {
+            return offset
+        }
+    }
+    return -1
+}
+
+@_cdecl("kk_string_indexOf_char_flat")
+public func kk_string_indexOf_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charRaw: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
         return -1
     }
     let ignoreCase = ignoreCaseRaw != 0
@@ -2729,11 +2762,99 @@ public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ s
     return lastIndex
 }
 
+@_cdecl("kk_string_lastIndexOf_ignoreCase_flat")
+public func kk_string_lastIndexOf_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+    let ignoreCase = ignoreCaseRaw != 0
+
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+
+    if other.isEmpty {
+        let start = max(0, min(startIndexRaw, sourceScalars.count))
+        return start
+    }
+    if otherScalars.count > sourceScalars.count {
+        return -1
+    }
+
+    let maxOffset = sourceScalars.count - otherScalars.count
+    let start = max(0, min(startIndexRaw, maxOffset))
+
+    var lastIndex = -1
+    for offset in 0 ... start {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches: Bool
+        if ignoreCase {
+            matches = zip(slice, otherScalars).allSatisfy {
+                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+            }
+        } else {
+            matches = slice.elementsEqual(otherScalars)
+        }
+        if matches { lastIndex = offset }
+    }
+    return lastIndex
+}
+
 // MARK: - STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
 
 @_cdecl("kk_string_lastIndexOf_char")
 public func kk_string_lastIndexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
+    guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
+        return -1
+    }
+    guard !source.isEmpty else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    let start = min(startIndexRaw, source.count - 1)
+    guard start >= 0 else {
+        return -1
+    }
+    let needleStr = String(needle)
+    for offset in stride(from: start, through: 0, by: -1) {
+        let scalar = source[offset]
+        if ignoreCase {
+            if String(scalar).caseInsensitiveCompare(needleStr) == .orderedSame {
+                return offset
+            }
+        } else if scalar == needle {
+            return offset
+        }
+    }
+    return -1
+}
+
+@_cdecl("kk_string_lastIndexOf_char_flat")
+public func kk_string_lastIndexOf_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charRaw: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
         return -1
     }
@@ -2811,6 +2932,39 @@ public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
 public func kk_string_compareToIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    if ignoreCaseRaw == 0 {
+        return runtimeCompareStrings(lhs, rhs)
+    }
+    let comparison = lhs.caseInsensitiveCompare(rhs)
+    switch comparison {
+    case .orderedAscending:
+        return -1
+    case .orderedDescending:
+        return 1
+    case .orderedSame:
+        return 0
+    }
+}
+
+@_cdecl("kk_string_compareToIgnoreCase_flat")
+public func kk_string_compareToIgnoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let lhs = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let rhs = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
     if ignoreCaseRaw == 0 {
         return runtimeCompareStrings(lhs, rhs)
     }

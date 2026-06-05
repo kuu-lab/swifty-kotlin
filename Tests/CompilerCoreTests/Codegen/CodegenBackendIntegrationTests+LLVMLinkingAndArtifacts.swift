@@ -57,6 +57,12 @@ extension CodegenBackendIntegrationTests {
         let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
         let indexOfResult = arena.appendExpr(.temporary(17), type: types.intType)
         let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
+        let ignoreCaseTrue = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
+        let charNeedle = arena.appendExpr(.charLiteral(UInt32(UnicodeScalar("d").value)), type: types.charType)
+        let compareIgnoreCaseResult = arena.appendExpr(.temporary(19), type: types.intType)
+        let lastIndexIgnoreCaseResult = arena.appendExpr(.temporary(20), type: types.intType)
+        let indexOfCharResult = arena.appendExpr(.temporary(21), type: types.intType)
+        let lastIndexOfCharResult = arena.appendExpr(.temporary(22), type: types.intType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
         let labelResult = arena.appendExpr(.temporary(2), type: types.intType)
@@ -90,6 +96,12 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_isBlank"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
+                .constValue(result: ignoreCaseTrue, value: .boolLiteral(true)),
+                .constValue(result: charNeedle, value: .charLiteral(UInt32(UnicodeScalar("d").value))),
+                .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_ignoreCase"), arguments: [trimResult, needleExpr, takeCount, ignoreCaseTrue], result: lastIndexIgnoreCaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
@@ -191,6 +203,10 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf("))
         XCTAssertFalse(ir.contains("@kk_string_isBlank("))
+        XCTAssertFalse(ir.contains("@kk_string_compareToIgnoreCase("))
+        XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_ignoreCase("))
+        XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
+        XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
@@ -198,6 +214,10 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
         XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_compareToIgnoreCase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_ignoreCase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_indexOf_char_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_char_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
         XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))
