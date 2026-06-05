@@ -6483,12 +6483,28 @@ private func isValidBigDecimalFormat(_ s: String) -> Bool {
 
 @_cdecl("kk_string_toBigDecimal")
 public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
           let str = extractString(from: ptr)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimal received invalid string handle")
     }
+    return runtimeStringToBigDecimal(str, outThrown: outThrown)
+}
+
+@_cdecl("kk_string_toBigDecimal_flat")
+public func kk_string_toBigDecimal_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let str = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringToBigDecimal(str, outThrown: outThrown)
+}
+
+private func runtimeStringToBigDecimal(_ str: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
     // leading/trailing whitespace, so we validate the raw string as-is.
     guard isValidBigDecimalFormat(str) else {
@@ -6501,12 +6517,28 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
 
 @_cdecl("kk_string_toBigInteger")
 public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
     guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
           let str = extractString(from: ptr)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
     }
+    return runtimeStringToBigInteger(str, outThrown: outThrown)
+}
+
+@_cdecl("kk_string_toBigInteger_flat")
+public func kk_string_toBigInteger_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let str = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringToBigInteger(str, outThrown: outThrown)
+}
+
+private func runtimeStringToBigInteger(_ str: String, outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     // Validate integer format: [+-]?\d+ (optional single leading sign, then digits).
     // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
     // leading/trailing whitespace, so we validate the raw string as-is.

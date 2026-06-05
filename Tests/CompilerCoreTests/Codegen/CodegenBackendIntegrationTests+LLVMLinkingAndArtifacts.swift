@@ -346,6 +346,8 @@ extension CodegenBackendIntegrationTests {
         appendParsingCall("kk_string_toByte", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByte_radix", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("kk_string_toBigDecimal", arguments: [textExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_toBigInteger", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToInt", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToShort", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_hexToUByte", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
@@ -407,6 +409,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
+            "kk_string_toBigDecimal",
+            "kk_string_toBigInteger",
             "kk_string_hexToInt",
             "kk_string_hexToShort",
             "kk_string_hexToUByte",

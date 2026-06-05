@@ -1329,6 +1329,18 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_toBigDecimal": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toBigDecimal_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_toBigInteger": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toBigInteger_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
                 "kk_string_hexToInt": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToInt_flat",
                     stringArgumentCount: 1,
