@@ -485,6 +485,90 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringCallbackScalarRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("a1b2")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let fnPtrExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let closureExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+
+        var nextTemp: Int32 = 300
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: fnPtrExpr, value: .intLiteral(0)),
+            .constValue(result: closureExpr, value: .intLiteral(0)),
+        ]
+
+        func appendCallbackCall(_ calleeName: String, resultType: TypeID) {
+            let result = temporary(resultType)
+            let thrownResult = temporary(types.intType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: [textExpr, fnPtrExpr, closureExpr],
+                result: result,
+                canThrow: true,
+                thrownResult: thrownResult
+            ))
+        }
+
+        appendCallbackCall("kk_string_count", resultType: types.intType)
+        appendCallbackCall("kk_string_any", resultType: types.booleanType)
+        appendCallbackCall("kk_string_all", resultType: types.booleanType)
+        appendCallbackCall("kk_string_none", resultType: types.booleanType)
+        appendCallbackCall("kk_string_indexOfFirst", resultType: types.intType)
+        appendCallbackCall("kk_string_indexOfLast", resultType: types.intType)
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1203),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_count",
+            "kk_string_any",
+            "kk_string_all",
+            "kk_string_none",
+            "kk_string_indexOfFirst",
+            "kk_string_indexOfLast",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String callback scalar call: \(rawName)_flat")
+        }
+    }
+
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory

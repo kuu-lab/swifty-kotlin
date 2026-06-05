@@ -9,6 +9,7 @@ public enum RuntimeABICType: String, Equatable, Sendable {
     case nullableOpaquePointer = "void * _Nullable"
     case constUInt8Pointer = "const uint8_t *"
     case nullableConstUInt8Pointer = "const uint8_t * _Nullable"
+    case uint8Pointer = "uint8_t *"
     case nullableUInt8Pointer = "uint8_t * _Nullable"
     case constCCharPointer = "const char *"
     case fieldAddrPointer = "void **"
@@ -562,6 +563,14 @@ public enum RuntimeABISpec {
             section: "IO"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_readln_from_syscall",
+            parameters: [
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "IO"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_readlnOrNull",
             parameters: [],
             returnType: .intptr,
@@ -648,6 +657,16 @@ public enum RuntimeABISpec {
             name: "kk_platform_canAccessUnaligned",
             parameters: [
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_sys_write",
+            parameters: [
+                RuntimeABIParameter(name: "fd", type: .int32),
+                RuntimeABIParameter(name: "buffer", type: .constRawPointer),
+                RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
             section: "System"

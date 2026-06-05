@@ -792,12 +792,59 @@ public func kk_string_count(
     return count
 }
 
+@_cdecl("kk_string_count_flat")
+public func kk_string_count_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    if fnPtr == 0 { return scalars.count }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var count = 0
+    for scalar in scalars {
+        var thrown = 0
+        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+        if result != 0 { count += 1 }
+    }
+    return count
+}
+
 @_cdecl("kk_string_any")
 public func kk_string_any(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
+    if fnPtr == 0 { return scalars.isEmpty ? 0 : 1 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    for scalar in scalars {
+        var thrown = 0
+        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+        if result != 0 { return 1 }
+    }
+    return 0
+}
+
+@_cdecl("kk_string_any_flat")
+public func kk_string_any_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     if fnPtr == 0 { return scalars.isEmpty ? 0 : 1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     for scalar in scalars {
@@ -826,12 +873,58 @@ public func kk_string_all(
     return 1
 }
 
+@_cdecl("kk_string_all_flat")
+public func kk_string_all_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    if fnPtr == 0 { return 1 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    for scalar in scalars {
+        var thrown = 0
+        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+        if result == 0 { return 0 }
+    }
+    return 1
+}
+
 @_cdecl("kk_string_none")
 public func kk_string_none(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
+    if fnPtr == 0 { return scalars.isEmpty ? 1 : 0 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    for scalar in scalars {
+        var thrown = 0
+        let result = lambda(closureRaw, Int(scalar.value), &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; return 0 }
+        if result != 0 { return 0 }
+    }
+    return 1
+}
+
+@_cdecl("kk_string_none_flat")
+public func kk_string_none_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     if fnPtr == 0 { return scalars.isEmpty ? 1 : 0 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     for scalar in scalars {
@@ -2293,12 +2386,71 @@ public func kk_string_indexOfFirst(
     return -1
 }
 
+@_cdecl("kk_string_indexOfFirst_flat")
+public func kk_string_indexOfFirst_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard fnPtr != 0 else { return -1 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    for (index, scalar) in scalars.enumerated() {
+        let charRaw = Int(scalar.value)
+        var thrown = 0
+        let result = lambda(closureRaw, charRaw, &thrown)
+        if thrown != 0 {
+            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfFirst predicate")
+            return -1
+        }
+        if maybeUnbox(result) != 0 {
+            return index
+        }
+    }
+    return -1
+}
+
 @_cdecl("kk_string_indexOfLast")
 public func kk_string_indexOfLast(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else { return -1 }
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var lastIndex = -1
+    for (index, scalar) in scalars.enumerated() {
+        let charRaw = Int(scalar.value)
+        var thrown = 0
+        let result = lambda(closureRaw, charRaw, &thrown)
+        if thrown != 0 {
+            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfLast predicate")
+            return -1
+        }
+        if maybeUnbox(result) != 0 {
+            lastIndex = index
+        }
+    }
+    return lastIndex
+}
+
+@_cdecl("kk_string_indexOfLast_flat")
+public func kk_string_indexOfLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var lastIndex = -1

@@ -309,6 +309,8 @@ extension ABIMismatchTests {
             RuntimeABICType.constUInt8Pointer.rawValue
         case "UnsafePointer<UInt8>?":
             RuntimeABICType.nullableConstUInt8Pointer.rawValue
+        case "UnsafeMutablePointer<UInt8>":
+            RuntimeABICType.uint8Pointer.rawValue
         case "UnsafeMutablePointer<UInt8>?":
             RuntimeABICType.nullableUInt8Pointer.rawValue
         case "UnsafeMutablePointer<Int>?":

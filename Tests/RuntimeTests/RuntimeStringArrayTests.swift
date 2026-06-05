@@ -29,6 +29,19 @@ private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
     return tryCast(ptr, to: RuntimeThrowableBox.self)
 }
 
+private let runtimeFlatStringDigitPredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
+    (0x30 ... 0x39).contains(charRaw) ? 1 : 0
+}
+
+private let runtimeFlatStringLowercasePredicate: RuntimeStringUnaryEntry = { _, charRaw, _ in
+    (0x61 ... 0x7A).contains(charRaw) ? 1 : 0
+}
+
+private let runtimeFlatStringThrowingPredicate: RuntimeStringUnaryEntry = { _, _, outThrown in
+    outThrown?.pointee = runtimeAllocateThrowable(message: "flat predicate failure")
+    return 0
+}
+
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -564,6 +577,56 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_string_firstOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
             XCTAssertEqual(kk_string_lastOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
             XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+        }
+    }
+
+    func testFlatStringCallbackScalarRuntimeAPIsUseFlattenedStringFields() {
+        let digitPredicate = unsafeBitCast(runtimeFlatStringDigitPredicate, to: Int.self)
+        let lowercasePredicate = unsafeBitCast(runtimeFlatStringLowercasePredicate, to: Int.self)
+
+        withFlatString("a1b2") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 2)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 1)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, lowercasePredicate, 0, &thrown), 0)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 0)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 1)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 3)
+            XCTAssertEqual(thrown, 0)
+
+            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, 0, 0, &thrown), 4)
+            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
+            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
+            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
+        }
+
+        withFlatString("") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
+            XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
+            XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
+            XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
+            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
+            XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
+            XCTAssertEqual(thrown, 0)
+        }
+
+        withFlatString("abc") { data, length, byteCount, hash in
+            let throwingPredicate = unsafeBitCast(runtimeFlatStringThrowingPredicate, to: Int.self)
+            var thrown = 0
+            XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+            XCTAssertTrue(thrownOutput.contains("flat predicate failure"))
+
+            thrown = 0
+            XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown), -1)
+            XCTAssertNotEqual(thrown, 0)
         }
     }
 
