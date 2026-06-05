@@ -387,6 +387,59 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringIndexOfAnyRuntimeAPIsUseFlattenedStringFields() {
+        let charNeedles = makeRuntimeArray([
+            kk_box_char(Int(Unicode.Scalar("B").value)),
+            kk_box_char(Int(Unicode.Scalar("x").value)),
+        ])
+        let stringNeedles = makeRuntimeArray([
+            rawFromRuntimeString("x"),
+            rawFromRuntimeString("bc"),
+        ])
+        let emptyStringNeedles = makeRuntimeArray([
+            rawFromRuntimeString(""),
+        ])
+
+        withFlatString("aBcabc") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_indexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, 0, 0),
+                1
+            )
+            XCTAssertEqual(
+                kk_string_indexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, 2, 1),
+                4
+            )
+            XCTAssertEqual(
+                kk_string_lastIndexOfAny_chars_flat(data, length, byteCount, hash, charNeedles, length, 1),
+                4
+            )
+            XCTAssertEqual(
+                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 0),
+                4
+            )
+            XCTAssertEqual(
+                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 1),
+                1
+            )
+            XCTAssertEqual(
+                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, length, 0),
+                4
+            )
+            XCTAssertEqual(
+                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, emptyStringNeedles, 2, 0),
+                2
+            )
+            XCTAssertEqual(
+                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, emptyStringNeedles, 99, 0),
+                length
+            )
+        }
+
+        XCTAssertEqual(kk_string_indexOfAny_chars_flat(nil, 0, 0, 0, charNeedles, 0, 1), -1)
+        XCTAssertEqual(kk_string_indexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
+        XCTAssertEqual(kk_string_lastIndexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
+    }
+
     func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
         XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)

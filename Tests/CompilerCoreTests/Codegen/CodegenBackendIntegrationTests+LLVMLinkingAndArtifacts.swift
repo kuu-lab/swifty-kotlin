@@ -569,6 +569,88 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringIndexOfAnyRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("aBcabc")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let charsRawExpr = arena.appendExpr(.intLiteral(101), type: types.intType)
+        let stringsRawExpr = arena.appendExpr(.intLiteral(102), type: types.intType)
+        let startExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let ignoreCaseExpr = arena.appendExpr(.boolLiteral(true), type: types.booleanType)
+
+        var nextTemp: Int32 = 400
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: charsRawExpr, value: .intLiteral(101)),
+            .constValue(result: stringsRawExpr, value: .intLiteral(102)),
+            .constValue(result: startExpr, value: .intLiteral(0)),
+            .constValue(result: ignoreCaseExpr, value: .boolLiteral(true)),
+        ]
+
+        func appendSearchCall(_ calleeName: String, targetRaw: KIRExprID) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: [textExpr, targetRaw, startExpr, ignoreCaseExpr],
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendSearchCall("kk_string_indexOfAny_chars", targetRaw: charsRawExpr)
+        appendSearchCall("kk_string_indexOfAny_strings", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_lastIndexOfAny_chars", targetRaw: charsRawExpr)
+        appendSearchCall("kk_string_lastIndexOfAny_strings", targetRaw: stringsRawExpr)
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1204),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_indexOfAny_chars",
+            "kk_string_indexOfAny_strings",
+            "kk_string_lastIndexOfAny_chars",
+            "kk_string_lastIndexOfAny_strings",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indexOfAny call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String indexOfAny call: \(rawName)_flat")
+        }
+    }
+
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory

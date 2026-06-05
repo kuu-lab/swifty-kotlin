@@ -697,6 +697,26 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
+                "kk_string_indexOfAny_chars": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_indexOfAny_chars_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
+                "kk_string_indexOfAny_strings": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_indexOfAny_strings_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
+                "kk_string_lastIndexOfAny_chars": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lastIndexOfAny_chars_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
+                "kk_string_lastIndexOfAny_strings": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lastIndexOfAny_strings_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
                 "kk_string_compareToIgnoreCase": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareToIgnoreCase_flat",
                     stringArgumentCount: 2,

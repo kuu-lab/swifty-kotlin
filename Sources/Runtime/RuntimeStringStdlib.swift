@@ -2176,6 +2176,41 @@ public func kk_string_indexOfAny_chars(_ strRaw: Int, _ charsRaw: Int, _ startIn
     return -1
 }
 
+@_cdecl("kk_string_indexOfAny_chars_flat")
+public func kk_string_indexOfAny_chars_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let chars = runtimeArrayBox(from: charsRaw), !source.isEmpty, !chars.elements.isEmpty else {
+        return -1
+    }
+    let start = max(0, startIndex)
+    guard start < source.count else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    let needles = chars.elements.compactMap { UnicodeScalar(kk_unbox_char($0)) }
+    guard !needles.isEmpty else {
+        return -1
+    }
+    for offset in start..<source.count {
+        let scalar = source[offset]
+        if needles.contains(where: { needle in
+            if !ignoreCase { return scalar == needle }
+            return String(scalar).caseInsensitiveCompare(String(needle)) == .orderedSame
+        }) {
+            return offset
+        }
+    }
+    return -1
+}
+
 @_cdecl("kk_string_indexOfAny_strings")
 public func kk_string_indexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
@@ -2215,9 +2250,90 @@ public func kk_string_indexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _ sta
     return -1
 }
 
+@_cdecl("kk_string_indexOfAny_strings_flat")
+public func kk_string_indexOfAny_strings_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ stringsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
+          !elements.isEmpty
+    else {
+        return -1
+    }
+    let needles = elements.map { runtimeStringScalars($0) }
+    let clampedStart = max(0, min(startIndex, source.count))
+    if needles.contains(where: \.isEmpty) {
+        return clampedStart
+    }
+    let start = max(0, startIndex)
+    guard start < source.count else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    func matches(_ needle: [UnicodeScalar], at offset: Int) -> Bool {
+        guard offset + needle.count <= source.count else {
+            return false
+        }
+        let haystackSlice = source[offset ..< offset + needle.count]
+        if !ignoreCase {
+            return haystackSlice.elementsEqual(needle)
+        }
+        return zip(haystackSlice, needle).allSatisfy { lhs, rhs in
+            String(lhs).caseInsensitiveCompare(String(rhs)) == .orderedSame
+        }
+    }
+    for offset in start..<source.count {
+        if needles.contains(where: { matches($0, at: offset) }) {
+            return offset
+        }
+    }
+    return -1
+}
+
 @_cdecl("kk_string_lastIndexOfAny_chars")
 public func kk_string_lastIndexOfAny_chars(_ strRaw: Int, _ charsRaw: Int, _ startIndex: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
+    guard let chars = runtimeArrayBox(from: charsRaw), !source.isEmpty, !chars.elements.isEmpty else {
+        return -1
+    }
+    let start = min(startIndex, source.count - 1)
+    guard start >= 0 else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    let needles = chars.elements.compactMap { UnicodeScalar(kk_unbox_char($0)) }
+    guard !needles.isEmpty else {
+        return -1
+    }
+    for offset in stride(from: start, through: 0, by: -1) {
+        let scalar = source[offset]
+        if needles.contains(where: { needle in
+            if !ignoreCase { return scalar == needle }
+            return String(scalar).caseInsensitiveCompare(String(needle)) == .orderedSame
+        }) {
+            return offset
+        }
+    }
+    return -1
+}
+
+@_cdecl("kk_string_lastIndexOfAny_chars_flat")
+public func kk_string_lastIndexOfAny_chars_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let chars = runtimeArrayBox(from: charsRaw), !source.isEmpty, !chars.elements.isEmpty else {
         return -1
     }
@@ -2277,6 +2393,55 @@ public func kk_string_lastIndexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _
     }
     for offset in stride(from: start, through: 0, by: -1) {
         // swiftlint:disable:next for_where
+        if needles.contains(where: { matches($0, at: offset) }) {
+            return offset
+        }
+    }
+    return -1
+}
+
+@_cdecl("kk_string_lastIndexOfAny_strings_flat")
+public func kk_string_lastIndexOfAny_strings_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ stringsRaw: Int,
+    _ startIndex: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
+          !elements.isEmpty
+    else {
+        return -1
+    }
+    let needles = elements.map { runtimeStringScalars($0) }
+    let clampedStart = min(startIndex, source.count)
+    if needles.contains(where: \.isEmpty) {
+        return clampedStart >= 0 ? clampedStart : -1
+    }
+    guard !source.isEmpty else {
+        return -1
+    }
+    let start = min(startIndex, source.count - 1)
+    guard start >= 0 else {
+        return -1
+    }
+    let ignoreCase = ignoreCaseRaw != 0
+    func matches(_ needle: [UnicodeScalar], at offset: Int) -> Bool {
+        guard offset + needle.count <= source.count else {
+            return false
+        }
+        let haystackSlice = source[offset ..< offset + needle.count]
+        if !ignoreCase {
+            return haystackSlice.elementsEqual(needle)
+        }
+        return zip(haystackSlice, needle).allSatisfy { lhs, rhs in
+            String(lhs).caseInsensitiveCompare(String(rhs)) == .orderedSame
+        }
+    }
+    for offset in stride(from: start, through: 0, by: -1) {
         if needles.contains(where: { matches($0, at: offset) }) {
             return offset
         }
