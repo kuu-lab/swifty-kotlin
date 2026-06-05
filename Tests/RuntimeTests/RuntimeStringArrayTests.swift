@@ -651,11 +651,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(thrown, 0)
             XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), 3)
             XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_unbox_char(kk_string_find_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown)), 49)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(
+                kk_unbox_char(kk_string_findLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown)),
+                50
+            )
+            XCTAssertEqual(thrown, 0)
 
             XCTAssertEqual(kk_string_count_flat(data, length, byteCount, hash, 0, 0, &thrown), 4)
             XCTAssertEqual(kk_string_any_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
             XCTAssertEqual(kk_string_all_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
             XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 0)
+            XCTAssertEqual(kk_string_find_flat(data, length, byteCount, hash, 0, 0, &thrown), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_findLast_flat(data, length, byteCount, hash, 0, 0, &thrown), runtimeNullSentinelInt)
         }
 
         withFlatString("") { data, length, byteCount, hash in
@@ -666,6 +675,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(kk_string_none_flat(data, length, byteCount, hash, 0, 0, &thrown), 1)
             XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
             XCTAssertEqual(kk_string_indexOfLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), -1)
+            XCTAssertEqual(kk_string_find_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_findLast_flat(data, length, byteCount, hash, digitPredicate, 0, &thrown), runtimeNullSentinelInt)
             XCTAssertEqual(thrown, 0)
         }
 
@@ -679,6 +690,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
             thrown = 0
             XCTAssertEqual(kk_string_indexOfFirst_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown), -1)
+            XCTAssertNotEqual(thrown, 0)
+
+            thrown = 0
+            XCTAssertEqual(
+                kk_string_find_flat(data, length, byteCount, hash, throwingPredicate, 0, &thrown),
+                runtimeNullSentinelInt
+            )
             XCTAssertNotEqual(thrown, 0)
         }
     }

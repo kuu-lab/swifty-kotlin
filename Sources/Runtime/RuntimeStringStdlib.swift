@@ -6338,12 +6338,70 @@ public func kk_string_find(
     return runtimeNullSentinelInt
 }
 
+@_cdecl("kk_string_find_flat")
+public func kk_string_find_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard fnPtr != 0 else { return runtimeNullSentinelInt }
+    for scalar in scalars {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
+        if result != 0 { return kk_box_char(Int(scalar.value)) }
+    }
+    return runtimeNullSentinelInt
+}
+
 @_cdecl("kk_string_findLast")
 public func kk_string_findLast(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
     let scalars = runtimeStringScalars(strRaw)
+    guard fnPtr != 0 else { return runtimeNullSentinelInt }
+    var foundChar: UnicodeScalar?
+    for scalar in scalars {
+        var thrown = 0
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
+        if result != 0 { foundChar = scalar }
+    }
+    if let char = foundChar {
+        return kk_box_char(Int(char.value))
+    }
+    return runtimeNullSentinelInt
+}
+
+@_cdecl("kk_string_findLast_flat")
+public func kk_string_findLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard fnPtr != 0 else { return runtimeNullSentinelInt }
     var foundChar: UnicodeScalar?
     for scalar in scalars {

@@ -841,6 +841,18 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_string_find": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_find_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_findLast": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_findLast_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_toBoolean": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toBoolean_flat",
                     stringArgumentCount: 1,

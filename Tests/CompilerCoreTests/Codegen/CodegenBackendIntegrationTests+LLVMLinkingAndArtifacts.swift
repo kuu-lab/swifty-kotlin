@@ -526,6 +526,8 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_none", resultType: types.booleanType)
         appendCallbackCall("kk_string_indexOfFirst", resultType: types.intType)
         appendCallbackCall("kk_string_indexOfLast", resultType: types.intType)
+        appendCallbackCall("kk_string_find", resultType: types.intType)
+        appendCallbackCall("kk_string_findLast", resultType: types.intType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -562,6 +564,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_none",
             "kk_string_indexOfFirst",
             "kk_string_indexOfLast",
+            "kk_string_find",
+            "kk_string_findLast",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
