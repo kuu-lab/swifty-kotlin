@@ -50,6 +50,8 @@ extension CodegenBackendIntegrationTests {
         let concatResult = arena.appendExpr(.temporary(0), type: types.stringType)
         let paddedExpr = arena.appendExpr(.stringLiteral(padded), type: types.stringType)
         let trimResult = arena.appendExpr(.temporary(12), type: types.stringType)
+        let trimStartResult = arena.appendExpr(.temporary(28), type: types.stringType)
+        let trimEndResult = arena.appendExpr(.temporary(29), type: types.stringType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
         let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
@@ -96,6 +98,8 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_concat"), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
                 .constValue(result: paddedExpr, value: .stringLiteral(padded)),
                 .call(symbol: nil, callee: interner.intern("kk_string_trim"), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_trimStart"), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_trimEnd"), arguments: [paddedExpr], result: trimEndResult, canThrow: false, thrownResult: nil),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_take"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
@@ -211,6 +215,8 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_from_utf8"))
         XCTAssertFalse(ir.contains("@kk_string_concat("))
         XCTAssertFalse(ir.contains("@kk_string_trim("))
+        XCTAssertFalse(ir.contains("@kk_string_trimStart("))
+        XCTAssertFalse(ir.contains("@kk_string_trimEnd("))
         XCTAssertFalse(ir.contains("@kk_string_take("))
         XCTAssertFalse(ir.contains("@kk_string_startsWith("))
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
@@ -227,6 +233,8 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_equalsIgnoreCase("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_trimStart_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_trimEnd_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
         XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))

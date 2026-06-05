@@ -4344,7 +4344,30 @@ private func runtimeStringLineSequenceRaw(_ source: String) -> Int {
 @_cdecl("kk_string_trimStart")
 public func kk_string_trimStart(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(String(source.drop { $0.isWhitespace }))
+    return runtimeMakeStringRaw(runtimeStringTrimStartRaw(source))
+}
+
+@_cdecl("kk_string_trimStart_flat")
+public func kk_string_trimStart_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeReturnFlatString(
+        runtimeStringTrimStartRaw(source),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+private func runtimeStringTrimStartRaw(_ source: String) -> String {
+    String(source.drop { $0.isWhitespace })
 }
 
 @_cdecl("kk_string_trimStart_predicate")
@@ -4368,7 +4391,30 @@ public func kk_string_trimStart_predicate(
 @_cdecl("kk_string_trimEnd")
 public func kk_string_trimEnd(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(String(source.reversed().drop { $0.isWhitespace }.reversed()))
+    return runtimeMakeStringRaw(runtimeStringTrimEndRaw(source))
+}
+
+@_cdecl("kk_string_trimEnd_flat")
+public func kk_string_trimEnd_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeReturnFlatString(
+        runtimeStringTrimEndRaw(source),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+private func runtimeStringTrimEndRaw(_ source: String) -> String {
+    String(source.reversed().drop { $0.isWhitespace }.reversed())
 }
 
 @_cdecl("kk_string_trimEnd_predicate")

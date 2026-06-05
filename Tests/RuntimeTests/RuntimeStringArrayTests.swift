@@ -244,6 +244,54 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringTrimStartAndTrimEndReturnFlattenedStringFields() {
+        withFlatString("  hello  ") { data, length, byteCount, hash in
+            var startLength = 0
+            var startByteCount = 0
+            var startHash = 0
+            let startData = kk_string_trimStart_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                &startLength,
+                &startByteCount,
+                &startHash
+            )
+            XCTAssertEqual(
+                flatStringValue(
+                    data: startData.map { UnsafePointer($0) },
+                    length: startLength,
+                    byteCount: startByteCount,
+                    hash: startHash
+                ),
+                "hello  "
+            )
+
+            var endLength = 0
+            var endByteCount = 0
+            var endHash = 0
+            let endData = kk_string_trimEnd_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                &endLength,
+                &endByteCount,
+                &endHash
+            )
+            XCTAssertEqual(
+                flatStringValue(
+                    data: endData.map { UnsafePointer($0) },
+                    length: endLength,
+                    byteCount: endByteCount,
+                    hash: endHash
+                ),
+                "  hello"
+            )
+        }
+    }
+
     func testFlatStringSubstringReportsThrownSlot() {
         withFlatString("abc") { data, length, byteCount, hash in
             var outLength = 0
