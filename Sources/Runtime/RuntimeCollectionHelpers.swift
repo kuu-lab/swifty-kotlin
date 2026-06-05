@@ -111,8 +111,7 @@ func runtimeIterableElements(from rawValue: Int) -> [Int]? {
         return elements
     }
     if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        let listRaw = kk_string_toList(stringIterable.strRaw)
-        return runtimeCollectionElements(from: listRaw)
+        return stringIterable.source.unicodeScalars.map { kk_box_char(Int($0.value)) }
     }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)

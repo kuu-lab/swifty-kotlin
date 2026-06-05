@@ -733,6 +733,93 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringListSequenceRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("a,b,c")
+        let delimiter = interner.intern(",")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let delimiterExpr = arena.appendExpr(.stringLiteral(delimiter), type: types.stringType)
+        let ignoreCaseExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let limitExpr = arena.appendExpr(.intLiteral(2), type: types.intType)
+
+        var nextTemp: Int32 = 560
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: delimiterExpr, value: .stringLiteral(delimiter)),
+            .constValue(result: ignoreCaseExpr, value: .intLiteral(0)),
+            .constValue(result: limitExpr, value: .intLiteral(2)),
+        ]
+
+        func appendScalarCall(_ calleeName: String, _ arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendScalarCall("kk_string_asIterable", [textExpr])
+        appendScalarCall("kk_string_asSequence", [textExpr])
+        appendScalarCall("kk_string_lines", [textExpr])
+        appendScalarCall("kk_string_lineSequence", [textExpr])
+        appendScalarCall("kk_string_split", [textExpr, delimiterExpr])
+        appendScalarCall("kk_string_split_limit", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
+        appendScalarCall("kk_string_splitToSequence", [textExpr, delimiterExpr])
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1207),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_asIterable",
+            "kk_string_asSequence",
+            "kk_string_lines",
+            "kk_string_lineSequence",
+            "kk_string_split",
+            "kk_string_split_limit",
+            "kk_string_splitToSequence",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String list/sequence call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String list/sequence call: \(rawName)_flat")
+        }
+    }
+
     func testLLVMBackendEmitsFlatStringByteArrayRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()

@@ -1307,10 +1307,42 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_split_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "delimiterData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "delimiterLength", type: .intptr),
+                RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
+                RuntimeABIParameter(name: "delimiterHash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_split_limit",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "delimRaw", type: .intptr),
+                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+                RuntimeABIParameter(name: "limitRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_split_limit_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "delimiterData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "delimiterLength", type: .intptr),
+                RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
+                RuntimeABIParameter(name: "delimiterHash", type: .intptr),
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
                 RuntimeABIParameter(name: "limitRaw", type: .intptr),
             ],
@@ -1999,11 +2031,33 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_lines_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         // STDLIB-666: String.lineSequence
         RuntimeABIFunctionSpec(
             name: "kk_string_lineSequence",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_lineSequence_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -2562,6 +2616,17 @@ public extension RuntimeABISpec {
             name: "kk_string_asIterable",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_asIterable_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -3136,6 +3201,21 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "delimRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_splitToSequence_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "delimiterData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "delimiterLength", type: .intptr),
+                RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
+                RuntimeABIParameter(name: "delimiterHash", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"

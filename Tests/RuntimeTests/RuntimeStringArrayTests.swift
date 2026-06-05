@@ -911,11 +911,80 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         // The iterable should be a RuntimeStringIterableBox, not a list.
         let iterableBox = runtimeStringIterableBox(from: iterableRaw)
         XCTAssertNotNil(iterableBox, "asIterable should return a RuntimeStringIterableBox")
-        XCTAssertEqual(iterableBox?.strRaw, strRaw, "Box should store the original string handle")
+        XCTAssertEqual(iterableBox?.source, "abc", "Box should store the immutable string payload")
 
         // It should NOT be a list (lazy, not materialised).
         let listBox = runtimeListBox(from: iterableRaw)
         XCTAssertNil(listBox, "asIterable should NOT materialise a list eagerly")
+    }
+
+    func testFlatStringListSequenceRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("a\nb\r\nc") { data, length, byteCount, hash in
+            let lines = runtimeListBox(from: kk_string_lines_flat(data, length, byteCount, hash))
+            XCTAssertEqual(lines?.elements.map(runtimeStringValue), ["a", "b", "c"])
+
+            let lineSequence = kk_string_lineSequence_flat(data, length, byteCount, hash)
+            XCTAssertEqual(runtimeSequenceSourceElements(from: lineSequence)?.map(runtimeStringValue), ["a", "b", "c"])
+        }
+
+        withFlatString("a,b,c") { data, length, byteCount, hash in
+            withFlatString(",") { delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
+                let split = runtimeListBox(from: kk_string_split_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    delimiterData,
+                    delimiterLength,
+                    delimiterByteCount,
+                    delimiterHash
+                ))
+                XCTAssertEqual(split?.elements.map(runtimeStringValue), ["a", "b", "c"])
+
+                let splitLimit = runtimeListBox(from: kk_string_split_limit_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    delimiterData,
+                    delimiterLength,
+                    delimiterByteCount,
+                    delimiterHash,
+                    0,
+                    2
+                ))
+                XCTAssertEqual(splitLimit?.elements.map(runtimeStringValue), ["a", "b,c"])
+
+                let splitSequence = kk_string_splitToSequence_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    delimiterData,
+                    delimiterLength,
+                    delimiterByteCount,
+                    delimiterHash
+                )
+                XCTAssertEqual(runtimeSequenceSourceElements(from: splitSequence)?.map(runtimeStringValue), ["a", "b", "c"])
+            }
+        }
+
+        withFlatString("aé") { data, length, byteCount, hash in
+            let iterableRaw = kk_string_asIterable_flat(data, length, byteCount, hash)
+            let iterableBox = runtimeStringIterableBox(from: iterableRaw)
+            XCTAssertEqual(iterableBox?.source, "aé")
+            XCTAssertNil(runtimeListBox(from: iterableRaw), "asIterable should stay lazy on the flat ABI path")
+            let list = runtimeListBox(from: kk_string_iterable_toList(iterableRaw))
+            XCTAssertEqual(list?.elements.map(kk_unbox_char), [97, 233])
+        }
+
+        withFlatString("a🐻") { data, length, byteCount, hash in
+            let sequenceRaw = kk_string_asSequence_flat(data, length, byteCount, hash)
+            XCTAssertEqual(
+                runtimeSequenceSourceElements(from: sequenceRaw)?.map(kk_unbox_char),
+                [97, 0xD83D, 0xDC3B]
+            )
+        }
     }
 
     func testStringAsIterableToListMaterialises() {

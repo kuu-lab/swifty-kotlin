@@ -672,6 +672,41 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_asIterable": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_asIterable_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_asSequence": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_asSequence_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_lines": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lines_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_lineSequence": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lineSequence_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_split": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_split_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_split_limit": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_split_limit_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 2
+                ),
+                "kk_string_splitToSequence": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_splitToSequence_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,

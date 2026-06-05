@@ -2229,6 +2229,17 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_asSequence_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
     ]
 
     public static let i18nFunctions: [RuntimeABIFunctionSpec] = []

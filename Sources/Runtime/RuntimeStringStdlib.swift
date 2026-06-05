@@ -301,7 +301,31 @@ public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
+    return runtimeStringSplitRaw(source, delimiter: delimiter)
+}
 
+@_cdecl("kk_string_split_flat")
+public func kk_string_split_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    return runtimeStringSplitRaw(source, delimiter: delimiter)
+}
+
+private func runtimeStringSplitRaw(_ source: String, delimiter: String) -> Int {
     if delimiter.isEmpty {
         return runtimeMakeStringListRaw([source])
     }
@@ -314,9 +338,48 @@ public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
 public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-    let ignoreCase = ignoreCaseRaw != 0
-    let limit = limitRaw
+    return runtimeStringSplitLimitRaw(
+        source,
+        delimiter: delimiter,
+        ignoreCase: ignoreCaseRaw != 0,
+        limit: limitRaw
+    )
+}
 
+@_cdecl("kk_string_split_limit_flat")
+public func kk_string_split_limit_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ ignoreCaseRaw: Int,
+    _ limitRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    return runtimeStringSplitLimitRaw(
+        source,
+        delimiter: delimiter,
+        ignoreCase: ignoreCaseRaw != 0,
+        limit: limitRaw
+    )
+}
+
+private func runtimeStringSplitLimitRaw(
+    _ source: String,
+    delimiter: String,
+    ignoreCase: Bool,
+    limit: Int
+) -> Int {
     if delimiter.isEmpty {
         return runtimeMakeStringListRaw([source])
     }
@@ -556,8 +619,7 @@ public func kk_string_reversed_flat(
 
 @_cdecl("kk_string_toList")
 public func kk_string_toList(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 @_cdecl("kk_string_toList_flat")
@@ -567,9 +629,11 @@ public func kk_string_toList_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { kk_box_char(Int($0.value)) }
-    return runtimeMakeListRaw(charRaws)
+    runtimeStringToCharListRaw(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
+}
+
+private func runtimeStringToCharListRaw(_ source: String) -> Int {
+    runtimeMakeListRaw(source.unicodeScalars.map { kk_box_char(Int($0.value)) })
 }
 
 // MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
@@ -698,7 +762,23 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
 /// (e.g. via `iterator()`, `toList()`, or `for-in`).  Creation is O(1).
 @_cdecl("kk_string_asIterable")
 public func kk_string_asIterable(_ strRaw: Int) -> Int {
-    let box = RuntimeStringIterableBox(strRaw: strRaw)
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringAsIterableRaw(source)
+}
+
+@_cdecl("kk_string_asIterable_flat")
+public func kk_string_asIterable_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringAsIterableRaw(source)
+}
+
+private func runtimeStringAsIterableRaw(_ source: String) -> Int {
+    let box = RuntimeStringIterableBox(source: source)
     return registerRuntimeObject(box)
 }
 
@@ -716,14 +796,14 @@ public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
         // Unrecognised input — return an empty list.
         return kk_string_toList(runtimeMakeStringRaw(""))
     }
-    return kk_string_toList(box.strRaw)
+    return runtimeStringToCharListRaw(box.source)
 }
 
 /// Create an iterator from a lazy string iterable (for `for (c in str.asIterable())`).
 @_cdecl("kk_string_iterable_iterator")
 public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     if let box = runtimeStringIterableBox(from: iterableRaw) {
-        return kk_string_iterator(box.strRaw)
+        return runtimeStringIteratorRaw(box.source)
     }
     // Validate that the raw value is a valid string handle before falling
     // back, to avoid reinterpreting an unrelated object pointer as a string.
@@ -738,8 +818,24 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
 
 @_cdecl("kk_string_asSequence")
 public func kk_string_asSequence(_ strRaw: Int) -> Int {
-    // Lazy: store only the string handle; characters are yielded on demand
-    let seq = RuntimeSequenceBox(steps: [.stringSource(strRaw: strRaw)])
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringAsSequenceRaw(source)
+}
+
+@_cdecl("kk_string_asSequence_flat")
+public func kk_string_asSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringAsSequenceRaw(source)
+}
+
+private func runtimeStringAsSequenceRaw(_ source: String) -> Int {
+    // Lazy: store the immutable string payload; characters are yielded on demand.
+    let seq = RuntimeSequenceBox(steps: [.stringSource(source: source)])
     return registerRuntimeObject(seq)
 }
 
@@ -781,13 +877,7 @@ public func kk_string_withIndex_flat(
 
 @_cdecl("kk_string_iterator")
 public func kk_string_iterator(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    let box = RuntimeStringIteratorBox(charRaws: charRaws)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    runtimeStringIteratorRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
 }
 
 @_cdecl("kk_string_iterator_flat")
@@ -797,8 +887,11 @@ public func kk_string_iterator_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { kk_box_char(Int($0.value)) }
+    runtimeStringIteratorRaw(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
+}
+
+private func runtimeStringIteratorRaw(_ source: String) -> Int {
+    let charRaws = source.unicodeScalars.map { kk_box_char(Int($0.value)) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -4207,12 +4300,42 @@ public func kk_string_toByteOrNull_flat(
 @_cdecl("kk_string_lines")
 public func kk_string_lines(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
+    return runtimeStringLinesRaw(source)
+}
+
+@_cdecl("kk_string_lines_flat")
+public func kk_string_lines_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringLinesRaw(source)
+}
+
+private func runtimeStringLinesRaw(_ source: String) -> Int {
+    runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_lineSequence")
 public func kk_string_lineSequence(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringLineSequenceRaw(source)
+}
+
+@_cdecl("kk_string_lineSequence_flat")
+public func kk_string_lineSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringLineSequenceRaw(source)
+}
+
+private func runtimeStringLineSequenceRaw(_ source: String) -> Int {
     let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
     let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
     return registerRuntimeObject(seq)
@@ -6445,7 +6568,31 @@ public func kk_string_dropWhile(
 public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
+    return runtimeStringSplitToSequenceRaw(source, delimiter: delimiter)
+}
 
+@_cdecl("kk_string_splitToSequence_flat")
+public func kk_string_splitToSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    return runtimeStringSplitToSequenceRaw(source, delimiter: delimiter)
+}
+
+private func runtimeStringSplitToSequenceRaw(_ source: String, delimiter: String) -> Int {
     if delimiter.isEmpty {
         let singleElement = runtimeMakeStringRaw(source)
         let seq = RuntimeSequenceBox(steps: [.source(elements: [singleElement])])

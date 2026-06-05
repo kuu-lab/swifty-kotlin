@@ -521,15 +521,13 @@ final class RuntimeStringIteratorBox {
 }
 
 /// Lazy iterable view for `String.asIterable()` (STDLIB-317).
-/// Stores only the string raw handle; characters are yielded on demand when
+/// Stores the immutable string payload; characters are yielded on demand when
 /// the iterable is consumed (e.g. via `iterator()`, `toList()`, or `for-in`).
-/// In the current runtime the iterable delegates to the existing `kk_string_toList`
-/// materialisation at consumption time, keeping the creation itself O(1).
 final class RuntimeStringIterableBox {
-    let strRaw: Int
+    let source: String
 
-    init(strRaw: Int) {
-        self.strRaw = strRaw
+    init(source: String) {
+        self.source = source
     }
 }
 
@@ -553,7 +551,7 @@ final class RuntimeMapIteratorBox {
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
 enum SequenceStepKind {
     case source(elements: [Int])
-    case stringSource(strRaw: Int)
+    case stringSource(source: String)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)
     case filterNotStep(fnPtr: Int, closureRaw: Int)

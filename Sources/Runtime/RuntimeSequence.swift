@@ -745,15 +745,14 @@ func runtimeTraverseSequenceWithState(
                 )
             }
             return
-        case let .stringSource(strRaw):
+        case let .stringSource(source):
             // Lazy: iterate string characters on demand without pre-materializing.
             // NOTE: Kotlin Char is a UTF-16 code unit (16-bit). Iterating unicodeScalars
             // produces values > 0xFFFF for supplementary characters (e.g. emoji),
             // which do not fit in a Kotlin Char. We iterate utf16 code units instead to
             // match Kotlin's Char semantics correctly. Supplementary characters are split
             // into two surrogate code units, which is the expected Kotlin behaviour.
-            let str = runtimeStringFromRawOrPanic(strRaw, caller: "kk_string_asSequence")
-            for codeUnit in str.utf16 {
+            for codeUnit in source.utf16 {
                 emit(kk_box_char(Int(codeUnit)))
                 if state.stop { break }
             }
@@ -1287,13 +1286,12 @@ private func evaluateSequence(
             elements = source
             break
         }
-        if case let .stringSource(strRaw) = step {
+        if case let .stringSource(source) = step {
             // Materialize string characters at terminal evaluation only.
             // Use utf16 code units (not unicodeScalars) so that supplementary characters
             // (emoji, etc. with scalar value > 0xFFFF) are represented as surrogate pairs,
             // matching Kotlin's UTF-16 Char semantics.
-            let str = runtimeStringFromRawOrPanic(strRaw, caller: "kk_string_asSequence")
-            elements = str.utf16.map { kk_box_char(Int($0)) }
+            elements = source.utf16.map { kk_box_char(Int($0)) }
             break
         }
         if case let .generator(seed, fnPtr, closureRaw) = step {
