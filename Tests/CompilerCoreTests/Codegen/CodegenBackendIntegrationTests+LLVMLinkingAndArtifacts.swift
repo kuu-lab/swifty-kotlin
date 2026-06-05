@@ -291,6 +291,7 @@ extension CodegenBackendIntegrationTests {
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
         let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
         let radixExpr = arena.appendExpr(.intLiteral(16), type: types.intType)
+        let formatExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
         var nextTemp: Int32 = 100
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -302,6 +303,7 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: textExpr, value: .stringLiteral(text)),
             .constValue(result: nullStringExpr, value: .null),
             .constValue(result: radixExpr, value: .intLiteral(16)),
+            .constValue(result: formatExpr, value: .intLiteral(0)),
         ]
 
         func appendParsingCall(
@@ -344,6 +346,15 @@ extension CodegenBackendIntegrationTests {
         appendParsingCall("kk_string_toByte", arguments: [textExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByte_radix", arguments: [textExpr, radixExpr], resultType: types.intType, canThrow: true)
         appendParsingCall("kk_string_toByteOrNull", arguments: [textExpr], resultType: nullableIntType)
+        appendParsingCall("kk_string_hexToInt", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_hexToShort", arguments: [textExpr, formatExpr], resultType: types.intType, canThrow: true)
+        appendParsingCall("kk_string_hexToUByte", arguments: [textExpr, formatExpr], resultType: types.ubyteType, canThrow: true)
+        appendParsingCall("kk_string_hexToUShort", arguments: [textExpr, formatExpr], resultType: types.ushortType, canThrow: true)
+        appendParsingCall("kk_string_hexToUInt", arguments: [textExpr, formatExpr], resultType: types.uintType, canThrow: true)
+        appendParsingCall("kk_string_hexToULong", arguments: [textExpr, formatExpr], resultType: types.ulongType, canThrow: true)
+        appendParsingCall("kk_string_hexToLong", arguments: [textExpr, formatExpr], resultType: types.longType, canThrow: true)
+        appendParsingCall("kk_string_hexToByteArray", arguments: [textExpr, formatExpr], resultType: types.intType)
+        appendParsingCall("kk_string_hexToUByteArray", arguments: [textExpr, formatExpr], resultType: types.intType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -396,6 +407,15 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toByte",
             "kk_string_toByte_radix",
             "kk_string_toByteOrNull",
+            "kk_string_hexToInt",
+            "kk_string_hexToShort",
+            "kk_string_hexToUByte",
+            "kk_string_hexToUShort",
+            "kk_string_hexToUInt",
+            "kk_string_hexToULong",
+            "kk_string_hexToLong",
+            "kk_string_hexToByteArray",
+            "kk_string_hexToUByteArray",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")

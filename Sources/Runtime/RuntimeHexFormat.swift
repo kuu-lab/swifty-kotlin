@@ -36,6 +36,15 @@ private func hexFormatStringFromRaw(_ raw: Int) -> String? {
     return extractString(from: pointer)
 }
 
+private func hexFormatStringFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+}
+
 private func hexFormatMakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -224,12 +233,11 @@ private func hexFormatStripPrefixSuffix(
 }
 
 private func hexFormatCleanNumberString(
-    _ receiverRaw: Int,
+    _ str: String,
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> String? {
     outThrown?.pointee = 0
-    let str = hexFormatStringFromRaw(receiverRaw) ?? ""
     let format = hexFormatBoxFromRaw(formatRaw)
     guard let cleaned = hexFormatStripPrefixSuffix(str, format: format) else {
         let prefix = format?.numberPrefix ?? ""
@@ -253,12 +261,12 @@ private func hexFormatThrowInvalidHex(_ cleaned: String, _ outThrown: UnsafeMuta
 }
 
 private func hexFormatParseUnsigned<T: FixedWidthInteger & UnsignedInteger>(
-    _ receiverRaw: Int,
+    _ receiver: String,
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?,
     as _: T.Type
 ) -> T? {
-    guard let cleaned = hexFormatCleanNumberString(receiverRaw, formatRaw, outThrown) else {
+    guard let cleaned = hexFormatCleanNumberString(receiver, formatRaw, outThrown) else {
         return nil
     }
     guard let value = T(cleaned, radix: 16) else {
@@ -276,8 +284,32 @@ public func kk_string_hexToInt(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToInt(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToInt_flat")
+public func kk_string_hexToInt_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToInt(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToInt(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt32.self
@@ -293,8 +325,32 @@ public func kk_string_hexToUByte(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToUByte(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToUByte_flat")
+public func kk_string_hexToUByte_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUByte(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToUByte(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt8.self
@@ -310,8 +366,32 @@ public func kk_string_hexToUShort(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToUShort(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToUShort_flat")
+public func kk_string_hexToUShort_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUShort(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToUShort(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt16.self
@@ -327,8 +407,32 @@ public func kk_string_hexToUInt(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToUInt(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToUInt_flat")
+public func kk_string_hexToUInt_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToUInt(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToUInt(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt32.self
@@ -344,8 +448,32 @@ public func kk_string_hexToULong(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToULong(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToULong_flat")
+public func kk_string_hexToULong_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToULong(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToULong(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt64.self
@@ -361,8 +489,32 @@ public func kk_string_hexToShort(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToShort(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToShort_flat")
+public func kk_string_hexToShort_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToShort(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToShort(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt16.self
@@ -378,8 +530,32 @@ public func kk_string_hexToLong(
     _ formatRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringHexToLong(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
+}
+
+@_cdecl("kk_string_hexToLong_flat")
+public func kk_string_hexToLong_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringHexToLong(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw,
+        outThrown
+    )
+}
+
+private func runtimeStringHexToLong(
+    _ receiver: String,
+    _ formatRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let value = hexFormatParseUnsigned(
-        receiverRaw,
+        receiver,
         formatRaw,
         outThrown,
         as: UInt64.self
@@ -391,7 +567,25 @@ public func kk_string_hexToLong(
 
 @_cdecl("kk_string_hexToByteArray")
 public func kk_string_hexToByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> Int {
-    let bytes = hexFormatParseByteValues(receiverRaw, formatRaw).map { Int(Int8(bitPattern: $0)) }
+    runtimeStringHexToByteArray(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw)
+}
+
+@_cdecl("kk_string_hexToByteArray_flat")
+public func kk_string_hexToByteArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int
+) -> Int {
+    runtimeStringHexToByteArray(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw
+    )
+}
+
+private func runtimeStringHexToByteArray(_ receiver: String, _ formatRaw: Int) -> Int {
+    let bytes = hexFormatParseByteValues(receiver, formatRaw).map { Int(Int8(bitPattern: $0)) }
     return hexFormatMakeListRaw(bytes)
 }
 
@@ -399,7 +593,25 @@ public func kk_string_hexToByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> In
 
 @_cdecl("kk_string_hexToUByteArray")
 public func kk_string_hexToUByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> Int {
-    let bytes = hexFormatParseByteValues(receiverRaw, formatRaw).map { Int($0) }
+    runtimeStringHexToUByteArray(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw)
+}
+
+@_cdecl("kk_string_hexToUByteArray_flat")
+public func kk_string_hexToUByteArray_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formatRaw: Int
+) -> Int {
+    runtimeStringHexToUByteArray(
+        hexFormatStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        formatRaw
+    )
+}
+
+private func runtimeStringHexToUByteArray(_ receiver: String, _ formatRaw: Int) -> Int {
+    let bytes = hexFormatParseByteValues(receiver, formatRaw).map { Int($0) }
     let box = RuntimeArrayBox(length: bytes.count)
     for (i, byte) in bytes.enumerated() {
         box.elements[i] = byte
@@ -407,8 +619,7 @@ public func kk_string_hexToUByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> I
     return registerRuntimeObject(box)
 }
 
-private func hexFormatParseByteValues(_ receiverRaw: Int, _ formatRaw: Int) -> [UInt8] {
-    let str = hexFormatStringFromRaw(receiverRaw) ?? ""
+private func hexFormatParseByteValues(_ str: String, _ formatRaw: Int) -> [UInt8] {
     let format = hexFormatBoxFromRaw(formatRaw)
     let separator = format?.byteSeparator ?? ""
 

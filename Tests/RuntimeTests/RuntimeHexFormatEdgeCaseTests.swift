@@ -26,6 +26,15 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         }
     }
 
+    private func withFlatString<T>(
+        _ text: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        Array(text.utf8).withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, text.unicodeScalars.count, text.utf8.count, 0)
+        }
+    }
+
     private func extractString(_ raw: Int) -> String? {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
         return Runtime.extractString(from: ptr)
@@ -423,6 +432,60 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         let fmt = makeFormat(byteSeparator: ":")
         let result = kk_string_hexToUByteArray(makeString("00:ff"), fmt)
         XCTAssertEqual(extractArrayElements(result), [0, 255])
+    }
+
+    func testFlatStringHexDecodeRuntimeAPIsUseFlattenedStringFields() {
+        let fmt = makeFormat()
+
+        withFlatString("000000ff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_hexToInt_flat(data, length, byteCount, hash, fmt, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("ffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_hexToShort_flat(data, length, byteCount, hash, fmt, &thrown), -1)
+            XCTAssertEqual(thrown, 0)
+
+            thrown = 0
+            XCTAssertEqual(kk_string_hexToUShort_flat(data, length, byteCount, hash, fmt, &thrown), Int(UInt16.max))
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("ff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_hexToUByte_flat(data, length, byteCount, hash, fmt, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("ffffffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_hexToUInt_flat(data, length, byteCount, hash, fmt, &thrown), Int(UInt32.max))
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_unbox_long(kk_string_hexToULong_flat(data, length, byteCount, hash, fmt, &thrown)), -1)
+            XCTAssertEqual(thrown, 0)
+
+            thrown = 0
+            XCTAssertEqual(kk_unbox_long(kk_string_hexToLong_flat(data, length, byteCount, hash, fmt, &thrown)), -1)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("00ff") { data, length, byteCount, hash in
+            XCTAssertEqual(extractListElements(kk_string_hexToByteArray_flat(data, length, byteCount, hash, fmt)), [0, -1])
+            XCTAssertEqual(extractArrayElements(kk_string_hexToUByteArray_flat(data, length, byteCount, hash, fmt)), [0, 255])
+        }
+
+        let prefixedFmt = registerRuntimeObject(RuntimeHexFormatBox(numberPrefix: "0x", numberSuffix: "h"))
+        withFlatString("0xffh") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_hexToInt_flat(data, length, byteCount, hash, prefixedFmt, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("ff") { data, length, byteCount, hash in
+            var thrown = 0
+            _ = kk_string_hexToInt_flat(data, length, byteCount, hash, prefixedFmt, &thrown)
+            XCTAssertNotEqual(thrown, 0)
+        }
     }
 
     // MARK: - String.hexToLong – basic
