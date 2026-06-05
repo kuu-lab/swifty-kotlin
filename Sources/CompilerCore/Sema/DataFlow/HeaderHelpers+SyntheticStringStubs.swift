@@ -1804,7 +1804,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty",
+            externalLinkName: "kk_string_isNotEmpty_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1837,7 +1837,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank",
+            externalLinkName: "kk_string_isNotBlank_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,

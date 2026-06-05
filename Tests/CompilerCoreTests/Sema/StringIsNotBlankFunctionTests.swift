@@ -4,8 +4,8 @@ import XCTest
 /// STDLIB-TEXT-FN-029: Validates that `isNotBlank` resolves through Sema for
 /// both `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// The runtime helper is `kk_string_isNotBlank` and the Sema-side extension
-/// stub is registered in `HeaderHelpers+SyntheticStringStubs.swift`.
+/// The String receiver lowers to `kk_string_isNotBlank_flat`; the CharSequence
+/// compatibility overload still uses `kk_string_isNotBlank`.
 final class StringIsNotBlankFunctionTests: XCTestCase {
     func testIsNotBlankFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -29,21 +29,42 @@ final class StringIsNotBlankFunctionTests: XCTestCase {
         )
     }
 
-    func testIsNotBlankStringExtensionHasRuntimeLink() throws {
+    func testIsNotBlankStringAndCharSequenceExtensionsHaveRuntimeLinks() throws {
         let ctx = makeContextFromSource("fun noop() {}")
         try runSema(ctx)
 
         let sema = try XCTUnwrap(ctx.sema)
         let interner = ctx.interner
         let fqName = ["kotlin", "text", "isNotBlank"].map { interner.intern($0) }
-        let symbol = try XCTUnwrap(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.text.isNotBlank to be registered"
+        let symbols = sema.symbols.lookupAll(fqName: fqName)
+        let stringSymbol = try XCTUnwrap(
+            symbols.first {
+                sema.symbols.functionSignature(for: $0)?.receiverType == sema.types.stringType
+            },
+            "Expected kotlin.text.isNotBlank(String receiver) to be registered"
         )
         XCTAssertEqual(
-            sema.symbols.externalLinkName(for: symbol),
+            sema.symbols.externalLinkName(for: stringSymbol),
+            "kk_string_isNotBlank_flat",
+            "Expected String.isNotBlank extension to link to kk_string_isNotBlank_flat"
+        )
+
+        let charSequenceSymbolID = try XCTUnwrap(sema.types.charSequenceInterfaceSymbol)
+        let charSequenceType = sema.types.make(.classType(ClassType(
+            classSymbol: charSequenceSymbolID,
+            args: [],
+            nullability: .nonNull
+        )))
+        let charSequenceSymbol = try XCTUnwrap(
+            symbols.first {
+                sema.symbols.functionSignature(for: $0)?.receiverType == charSequenceType
+            },
+            "Expected kotlin.text.isNotBlank(CharSequence receiver) to be registered"
+        )
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: charSequenceSymbol),
             "kk_string_isNotBlank",
-            "Expected isNotBlank extension to link to kk_string_isNotBlank"
+            "Expected CharSequence.isNotBlank extension to keep kk_string_isNotBlank"
         )
     }
 }
