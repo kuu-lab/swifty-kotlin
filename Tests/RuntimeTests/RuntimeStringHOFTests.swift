@@ -189,6 +189,25 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(result), "bee")
     }
 
+    func testFirstNotNullOfFlatReturnsFirstNonNullResult() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(result), "bee")
+    }
+
     func testFirstNotNullOfSetsThrownWhenNoResultMatches() {
         let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
@@ -199,6 +218,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             0,
             &thrown
         )
+
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testFirstNotNullOfFlatSetsThrownWhenNoResultMatches() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0)
@@ -249,6 +287,25 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(result), "bee")
     }
 
+    func testFirstNotNullOfOrNullFlatReturnsFirstNonNullResult() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOfOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(runtimeStringValue(result), "bee")
+    }
+
     func testFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
         let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
@@ -259,6 +316,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             0,
             &thrown
         )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testFirstNotNullOfOrNullFlatReturnsNullSentinelWhenNoResultMatches() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOfOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
@@ -456,6 +532,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             0,
             &thrown
         )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 294)
+    }
+
+    func testReduceOrNullFlatUsesFirstCharacterAsInitialAccumulator() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 294)

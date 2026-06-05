@@ -717,9 +717,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(thrown, 0)
             XCTAssertEqual(kk_unbox_char(kk_string_firstOrNull_flat(data, length, byteCount, hash)), 97)
             XCTAssertEqual(kk_unbox_char(kk_string_lastOrNull_flat(data, length, byteCount, hash)), 99)
+            XCTAssertEqual(kk_string_get_flat(data, length, byteCount, hash, 1, &thrown), 98)
+            XCTAssertEqual(thrown, 0)
             XCTAssertEqual(kk_unbox_char(kk_string_getOrNull_flat(data, length, byteCount, hash, 1)), 98)
             XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, -1), runtimeNullSentinelInt)
             XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 3), runtimeNullSentinelInt)
+
+            thrown = 0
+            XCTAssertEqual(kk_string_get_flat(data, length, byteCount, hash, 3, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
 
             thrown = 0
             XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 0)

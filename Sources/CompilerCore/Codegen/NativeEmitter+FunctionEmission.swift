@@ -1205,6 +1205,24 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_string_firstNotNullOf": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_firstNotNullOf_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_firstNotNullOfOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_firstNotNullOfOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_reduceOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_reduceOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_toBoolean": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toBoolean_flat",
                     stringArgumentCount: 1,

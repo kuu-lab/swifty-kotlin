@@ -673,6 +673,7 @@ extension CodegenBackendIntegrationTests {
         appendSelectionCall("kk_string_firstOrNull", arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall("kk_string_lastOrNull", arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall("kk_string_singleOrNull", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_get", arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
         appendSelectionCall("kk_string_getOrNull", arguments: [textExpr, indexExpr], resultType: nullableCharType)
         body.append(.returnUnit)
 
@@ -710,6 +711,7 @@ extension CodegenBackendIntegrationTests {
             "kk_string_firstOrNull",
             "kk_string_lastOrNull",
             "kk_string_singleOrNull",
+            "kk_string_get",
             "kk_string_getOrNull",
         ]
         for rawName in rawNames {
@@ -761,6 +763,9 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_indexOfLast", resultType: types.intType)
         appendCallbackCall("kk_string_find", resultType: types.intType)
         appendCallbackCall("kk_string_findLast", resultType: types.intType)
+        appendCallbackCall("kk_string_firstNotNullOf", resultType: types.intType)
+        appendCallbackCall("kk_string_firstNotNullOfOrNull", resultType: types.intType)
+        appendCallbackCall("kk_string_reduceOrNull", resultType: types.intType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -799,6 +804,9 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfLast",
             "kk_string_find",
             "kk_string_findLast",
+            "kk_string_firstNotNullOf",
+            "kk_string_firstNotNullOfOrNull",
+            "kk_string_reduceOrNull",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")

@@ -6629,8 +6629,39 @@ public func kk_string_firstNotNullOf(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringFirstNotNullOf(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_firstNotNullOf_flat")
+public func kk_string_firstNotNullOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringFirstNotNullOf(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringFirstNotNullOf(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     for scalar in scalars {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
@@ -6660,8 +6691,39 @@ public func kk_string_firstNotNullOfOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringFirstNotNullOfOrNull(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_firstNotNullOfOrNull_flat")
+public func kk_string_firstNotNullOfOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringFirstNotNullOfOrNull(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringFirstNotNullOfOrNull(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     for scalar in scalars {
         var thrown = 0
         let result = runtimeInvokeCollectionLambda1(
@@ -6690,8 +6752,39 @@ public func kk_string_reduceOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringReduceOrNull(
+        runtimeStringUTF16CodeUnits(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_reduceOrNull_flat")
+public func kk_string_reduceOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringReduceOrNull(
+        runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringReduceOrNull(
+    _ codeUnits: [UInt16],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
     guard !codeUnits.isEmpty else {
         return runtimeNullSentinelInt
     }
