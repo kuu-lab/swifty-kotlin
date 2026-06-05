@@ -33,6 +33,22 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         return registerRuntimeObject(box)
     }
 
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        return body(data.map { UnsafePointer($0) }, length, byteCount, hash)
+    }
+
     private func makeArrayRaw(_ elements: [Int]) -> Int {
         let box = RuntimeArrayBox(length: elements.count)
         box.elements = elements
@@ -68,6 +84,45 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         let toByteElems = extractListElements(toByte)
         XCTAssertEqual(encodeElems, toByteElems,
                        "encodeToByteArray and toByteArray should produce identical results")
+    }
+
+    func testFlatStringEncodeToByteArrayRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("H\u{00E9}") { data, length, byteCount, hash in
+            let expected = [72, -61, -87]
+            XCTAssertEqual(
+                extractListElements(kk_string_toByteArray_flat(data, length, byteCount, hash)),
+                expected
+            )
+            XCTAssertEqual(
+                extractListElements(kk_string_encodeToByteArray_flat(data, length, byteCount, hash)),
+                expected
+            )
+        }
+
+        withFlatString("Hello") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                extractListElements(kk_string_encodeToByteArray_range_flat(data, length, byteCount, hash, 1, 4)),
+                [101, 108, 108]
+            )
+        }
+
+        withFlatString("A\u{00E9}") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                extractListElements(
+                    kk_string_toByteArray_charset_flat(data, length, byteCount, hash, kk_charset_us_ascii())
+                ),
+                [65, 63]
+            )
+        }
+
+        withFlatString("AB") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                extractListElements(
+                    kk_string_encodeToByteArray_charset_flat(data, length, byteCount, hash, kk_charset_utf_16be())
+                ),
+                [0, 65, 0, 66]
+            )
+        }
     }
 
     // MARK: - decodeToString: basic ASCII round-trip

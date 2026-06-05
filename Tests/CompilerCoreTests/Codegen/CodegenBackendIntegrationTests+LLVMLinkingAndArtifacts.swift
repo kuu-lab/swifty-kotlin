@@ -733,6 +733,88 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringByteArrayRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("abcdef")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let charsetExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let startExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let endExpr = arena.appendExpr(.intLiteral(4), type: types.intType)
+
+        var nextTemp: Int32 = 600
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: charsetExpr, value: .intLiteral(0)),
+            .constValue(result: startExpr, value: .intLiteral(1)),
+            .constValue(result: endExpr, value: .intLiteral(4)),
+        ]
+
+        func appendByteArrayCall(_ calleeName: String, _ arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendByteArrayCall("kk_string_toByteArray", [textExpr])
+        appendByteArrayCall("kk_string_toByteArray_charset", [textExpr, charsetExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray", [textExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray_range", [textExpr, startExpr, endExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray_charset", [textExpr, charsetExpr])
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1206),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_toByteArray",
+            "kk_string_toByteArray_charset",
+            "kk_string_encodeToByteArray",
+            "kk_string_encodeToByteArray_range",
+            "kk_string_encodeToByteArray_charset",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String byte-array call: \(rawName)_flat")
+        }
+    }
+
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory
