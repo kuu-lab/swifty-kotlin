@@ -263,6 +263,64 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("KSwiftK") { data, length, byteCount, hash in
+            withFlatString("KSw") { prefixData, prefixLength, prefixByteCount, prefixHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_startsWith_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            prefixData,
+                            prefixLength,
+                            prefixByteCount,
+                            prefixHash
+                        )
+                    ),
+                    1
+                )
+            }
+            withFlatString("swift") { needleData, needleLength, needleByteCount, needleHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_contains_ignoreCase_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            needleData,
+                            needleLength,
+                            needleByteCount,
+                            needleHash,
+                            1
+                        )
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_string_indexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        needleData,
+                        needleLength,
+                        needleByteCount,
+                        needleHash,
+                        0,
+                        1
+                    ),
+                    1
+                )
+            }
+        }
+        withFlatString("  \n\t") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)), 1)
+        }
+    }
+
     func testStringSplitProducesListOfStrings() {
         let splitRaw = kk_string_split(
             rawFromRuntimeString("1,2,3"),

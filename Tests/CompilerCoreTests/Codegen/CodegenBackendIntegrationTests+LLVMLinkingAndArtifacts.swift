@@ -42,6 +42,7 @@ extension CodegenBackendIntegrationTests {
         let left = interner.intern("left")
         let right = interner.intern("right")
         let padded = interner.intern("  padded  ")
+        let needle = interner.intern("pad")
 
         let leftExpr = arena.appendExpr(.stringLiteral(left), type: types.stringType)
         let rightExpr = arena.appendExpr(.stringLiteral(right), type: types.stringType)
@@ -51,6 +52,11 @@ extension CodegenBackendIntegrationTests {
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
         let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
+        let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
+        let startsWithResult = arena.appendExpr(.temporary(15), type: types.booleanType)
+        let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
+        let indexOfResult = arena.appendExpr(.temporary(17), type: types.intType)
+        let isBlankResult = arena.appendExpr(.temporary(18), type: types.booleanType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
         let labelResult = arena.appendExpr(.temporary(2), type: types.intType)
@@ -79,6 +85,11 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_trim"), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_take"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
+                .constValue(result: needleExpr, value: .stringLiteral(needle)),
+                .call(symbol: nil, callee: interner.intern("kk_string_startsWith"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_contains_str"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_indexOf"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_isBlank"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
@@ -176,9 +187,17 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_concat("))
         XCTAssertFalse(ir.contains("@kk_string_trim("))
         XCTAssertFalse(ir.contains("@kk_string_take("))
+        XCTAssertFalse(ir.contains("@kk_string_startsWith("))
+        XCTAssertFalse(ir.contains("@kk_string_contains_str("))
+        XCTAssertFalse(ir.contains("@kk_string_indexOf("))
+        XCTAssertFalse(ir.contains("@kk_string_isBlank("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_isBlank_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
         XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))

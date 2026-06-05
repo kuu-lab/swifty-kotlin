@@ -28,6 +28,15 @@ private func runtimeStringFromFlat(
     )
 }
 
+private func runtimeStringScalarsFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> [UnicodeScalar] {
+    Array(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
+}
+
 private func runtimeReturnFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -1115,6 +1124,27 @@ public func kk_string_startsWith(_ strRaw: Int, _ prefixRaw: Int) -> Int {
     return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
 }
 
+@_cdecl("kk_string_startsWith_flat")
+public func kk_string_startsWith_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ prefixData: UnsafePointer<UInt8>?,
+    _ prefixLength: Int,
+    _ prefixByteCount: Int,
+    _ prefixHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let prefix = runtimeStringFromFlat(
+        data: prefixData,
+        length: prefixLength,
+        byteCount: prefixByteCount,
+        hash: prefixHash
+    )
+    return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
+}
+
 @_cdecl("kk_string_endsWith")
 public func kk_string_endsWith(_ strRaw: Int, _ suffixRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -1122,10 +1152,55 @@ public func kk_string_endsWith(_ strRaw: Int, _ suffixRaw: Int) -> Int {
     return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
 }
 
+@_cdecl("kk_string_endsWith_flat")
+public func kk_string_endsWith_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ suffixData: UnsafePointer<UInt8>?,
+    _ suffixLength: Int,
+    _ suffixByteCount: Int,
+    _ suffixHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let suffix = runtimeStringFromFlat(
+        data: suffixData,
+        length: suffixLength,
+        byteCount: suffixByteCount,
+        hash: suffixHash
+    )
+    return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
+}
+
 @_cdecl("kk_string_contains_str")
 public func kk_string_contains_str(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    if other.isEmpty {
+        return kk_box_bool(1)
+    }
+    return kk_box_bool(source.contains(other) ? 1 : 0)
+}
+
+@_cdecl("kk_string_contains_str_flat")
+public func kk_string_contains_str_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
     if other.isEmpty {
         return kk_box_bool(1)
     }
@@ -1143,6 +1218,51 @@ public func kk_string_contains_str(_ strRaw: Int, _ otherRaw: Int) -> Int {
 public func kk_string_contains_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    let ignoreCase = ignoreCaseRaw != 0
+
+    if other.isEmpty {
+        return kk_box_bool(1)
+    }
+    if !ignoreCase {
+        return kk_box_bool(source.contains(other) ? 1 : 0)
+    }
+
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+    if otherScalars.count > sourceScalars.count {
+        return kk_box_bool(0)
+    }
+    for offset in 0 ... (sourceScalars.count - otherScalars.count) {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches = zip(slice, otherScalars).allSatisfy {
+            String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+        }
+        if matches {
+            return kk_box_bool(1)
+        }
+    }
+    return kk_box_bool(0)
+}
+
+@_cdecl("kk_string_contains_ignoreCase_flat")
+public func kk_string_contains_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
     let ignoreCase = ignoreCaseRaw != 0
 
     if other.isEmpty {
@@ -1507,12 +1627,82 @@ public func kk_string_indexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
     return -1
 }
 
+@_cdecl("kk_string_indexOf_flat")
+public func kk_string_indexOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringScalarsFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+
+    if other.isEmpty {
+        return 0
+    }
+    if other.count > source.count {
+        return -1
+    }
+
+    for offset in 0 ... (source.count - other.count)
+        where source[offset ..< (offset + other.count)].elementsEqual(other)
+    {
+        return offset
+    }
+    return -1
+}
+
 // MARK: - String.indexOf(String, startIndex) / indexOfFirst / indexOfLast
 
 @_cdecl("kk_string_indexOf_from")
 public func kk_string_indexOf_from(_ strRaw: Int, _ otherRaw: Int, _ startIndex: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
     let other = runtimeStringScalars(otherRaw)
+
+    let start = max(0, min(startIndex, source.count))
+    if other.isEmpty {
+        return start
+    }
+    if other.count > source.count - start {
+        return -1
+    }
+
+    for offset in start ... (source.count - other.count)
+        where source[offset ..< (offset + other.count)].elementsEqual(other)
+    {
+        return offset
+    }
+    return -1
+}
+
+@_cdecl("kk_string_indexOf_from_flat")
+public func kk_string_indexOf_from_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ startIndex: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringScalarsFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
 
     let start = max(0, min(startIndex, source.count))
     if other.isEmpty {
@@ -1873,9 +2063,31 @@ public func kk_string_isEmpty(_ strRaw: Int) -> Int {
     return kk_box_bool(source.isEmpty ? 1 : 0)
 }
 
+@_cdecl("kk_string_isEmpty_flat")
+public func kk_string_isEmpty_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return kk_box_bool(source.isEmpty ? 1 : 0)
+}
+
 @_cdecl("kk_string_isNotEmpty")
 public func kk_string_isNotEmpty(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return kk_box_bool(source.isEmpty ? 0 : 1)
+}
+
+@_cdecl("kk_string_isNotEmpty_flat")
+public func kk_string_isNotEmpty_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     return kk_box_bool(source.isEmpty ? 0 : 1)
 }
 
@@ -1885,9 +2097,31 @@ public func kk_string_isBlank(_ strRaw: Int) -> Int {
     return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0)
 }
 
+@_cdecl("kk_string_isBlank_flat")
+public func kk_string_isBlank_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0)
+}
+
 @_cdecl("kk_string_isNotBlank")
 public func kk_string_isNotBlank(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+}
+
+@_cdecl("kk_string_isNotBlank_flat")
+public func kk_string_isNotBlank_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
 }
 
@@ -2311,6 +2545,41 @@ public func kk_string_lastIndexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
     return lastIndex
 }
 
+@_cdecl("kk_string_lastIndexOf_flat")
+public func kk_string_lastIndexOf_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringScalarsFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+
+    if other.isEmpty {
+        return source.count
+    }
+    if other.count > source.count {
+        return -1
+    }
+
+    var lastIndex = -1
+    for offset in 0 ... (source.count - other.count)
+        where source[offset ..< (offset + other.count)].elementsEqual(other)
+    {
+        lastIndex = offset
+    }
+    return lastIndex
+}
+
 // MARK: - STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex, ignoreCase)
 
 @_cdecl("kk_string_indexOf_char")
@@ -2344,6 +2613,56 @@ public func kk_string_indexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRa
 public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
+    let ignoreCase = ignoreCaseRaw != 0
+
+    if other.isEmpty {
+        let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
+        return start
+    }
+
+    let sourceScalars = Array(source.unicodeScalars)
+    let otherScalars = Array(other.unicodeScalars)
+    let start = max(0, min(startIndexRaw, sourceScalars.count))
+
+    if otherScalars.count > sourceScalars.count - start {
+        return -1
+    }
+
+    for offset in start ... (sourceScalars.count - otherScalars.count) {
+        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
+        let matches: Bool
+        if ignoreCase {
+            matches = zip(slice, otherScalars).allSatisfy {
+                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
+            }
+        } else {
+            matches = slice.elementsEqual(otherScalars)
+        }
+        if matches { return offset }
+    }
+    return -1
+}
+
+@_cdecl("kk_string_indexOf_ignoreCase_flat")
+public func kk_string_indexOf_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ startIndexRaw: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
     let ignoreCase = ignoreCaseRaw != 0
 
     if other.isEmpty {

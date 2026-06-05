@@ -559,6 +559,12 @@ extension NativeEmitter {
                 let canThrow: Bool
             }
 
+            struct FlatScalarReturnCallSpec {
+                let flatName: String
+                let stringArgumentCount: Int
+                let extraArgumentCount: Int
+            }
+
             let flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
                 "kk_string_trim": FlatStringReturnCallSpec(
                     flatName: "kk_string_trim_flat",
@@ -619,6 +625,69 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
+                ),
+            ]
+
+            let flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
+                "kk_string_startsWith": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_startsWith_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_endsWith": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_endsWith_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_contains_str": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_contains_str_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_contains_ignoreCase": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_contains_ignoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_indexOf": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_indexOf_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_indexOf_from": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_indexOf_from_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_lastIndexOf": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lastIndexOf_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_indexOf_ignoreCase": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_indexOf_ignoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 2
+                ),
+                "kk_string_isEmpty": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isEmpty_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_isNotEmpty": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isNotEmpty_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_isBlank": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isBlank_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_isNotBlank": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isNotBlank_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
                 ),
             ]
 
@@ -723,8 +792,58 @@ extension NativeEmitter {
                 return true
             }
 
+            func emitFlatScalarReturnCall(_ spec: FlatScalarReturnCallSpec) -> Bool {
+                let requiredArgumentCount = spec.stringArgumentCount + spec.extraArgumentCount
+                guard argumentValues.count >= requiredArgumentCount,
+                      let flattenedArgs = flattenedStringArguments(
+                          values: argumentValues,
+                          types: argumentTypes,
+                          stringArgumentCount: spec.stringArgumentCount,
+                          suffix: "\(spec.flatName)_\(instructionIndex)"
+                      ),
+                      var parameterTypes = flattenedStringParameterTypes(
+                          argumentCount: spec.stringArgumentCount
+                      )
+                else {
+                    return false
+                }
+
+                let extraArguments = Array(
+                    argumentValues[
+                        spec.stringArgumentCount ..< (spec.stringArgumentCount + spec.extraArgumentCount)
+                    ]
+                )
+                parameterTypes.append(contentsOf: Array(repeating: int64Type, count: spec.extraArgumentCount))
+
+                guard let runtimeFunction = declareExternalFunction(
+                    named: spec.flatName,
+                    parameterTypes: parameterTypes,
+                    returnType: int64Type
+                )
+                else {
+                    return false
+                }
+                let scalarValue = bindings.buildCall(
+                    builder,
+                    functionType: runtimeFunction.type,
+                    callee: runtimeFunction.value,
+                    arguments: flattenedArgs + extraArguments,
+                    name: "\(spec.flatName)_value_\(instructionIndex)"
+                )
+                storeResult(result, scalarValue)
+                if usesThrownChannel {
+                    storeThrownResultZero(thrownResult)
+                }
+                return true
+            }
+
             if let spec = flatStringReturnCallSpecs[calleeName],
                emitFlatStringReturnCall(spec)
+            {
+                return true
+            }
+            if let spec = flatScalarReturnCallSpecs[calleeName],
+               emitFlatScalarReturnCall(spec)
             {
                 return true
             }
