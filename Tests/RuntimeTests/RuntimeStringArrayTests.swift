@@ -523,6 +523,50 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringCharSelectionRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("abc") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_unbox_char(kk_string_first_flat(data, length, byteCount, hash, &thrown)), 97)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_unbox_char(kk_string_last_flat(data, length, byteCount, hash, &thrown)), 99)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_unbox_char(kk_string_firstOrNull_flat(data, length, byteCount, hash)), 97)
+            XCTAssertEqual(kk_unbox_char(kk_string_lastOrNull_flat(data, length, byteCount, hash)), 99)
+            XCTAssertEqual(kk_unbox_char(kk_string_getOrNull_flat(data, length, byteCount, hash, 1)), 98)
+            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, -1), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 3), runtimeNullSentinelInt)
+
+            thrown = 0
+            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+            XCTAssertTrue(thrownOutput.contains("more than one element"))
+            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+        }
+
+        withFlatString("x") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_unbox_char(kk_string_single_flat(data, length, byteCount, hash, &thrown)), 120)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(kk_unbox_char(kk_string_singleOrNull_flat(data, length, byteCount, hash)), 120)
+        }
+
+        withFlatString("") { data, length, byteCount, hash in
+            var thrown = 0
+            XCTAssertEqual(kk_string_first_flat(data, length, byteCount, hash, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            thrown = 0
+            XCTAssertEqual(kk_string_last_flat(data, length, byteCount, hash, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            thrown = 0
+            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 0)
+            XCTAssertNotEqual(thrown, 0)
+            XCTAssertEqual(kk_string_firstOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_lastOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), runtimeNullSentinelInt)
+        }
+    }
+
     func testStringSplitProducesListOfStrings() {
         let splitRaw = kk_string_split(
             rawFromRuntimeString("1,2,3"),

@@ -37,6 +37,15 @@ private func runtimeStringScalarsFromFlat(
     Array(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
 }
 
+private func runtimeStringUTF16CodeUnitsFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> [UInt16] {
+    Array(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash).utf16)
+}
+
 private func runtimeReturnFlatString(
     _ value: String,
     outLength: UnsafeMutablePointer<Int>?,
@@ -2321,10 +2330,44 @@ public func kk_string_first(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int
     return kk_box_char(Int(first))
 }
 
+@_cdecl("kk_string_first_flat")
+public func kk_string_first_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let first = codeUnits.first else {
+        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        return 0
+    }
+    return kk_box_char(Int(first))
+}
+
 @_cdecl("kk_string_last")
 public func kk_string_last(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let last = codeUnits.last else {
+        runtimeSetThrown(outThrown, message: "Char sequence is empty.")
+        return 0
+    }
+    return kk_box_char(Int(last))
+}
+
+@_cdecl("kk_string_last_flat")
+public func kk_string_last_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let last = codeUnits.last else {
         runtimeSetThrown(outThrown, message: "Char sequence is empty.")
         return 0
@@ -2346,9 +2389,43 @@ public func kk_string_single(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     return kk_box_char(Int(codeUnits[0]))
 }
 
+@_cdecl("kk_string_single_flat")
+public func kk_string_single_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard codeUnits.count == 1 else {
+        let msg = codeUnits.isEmpty
+            ? "Char sequence is empty."
+            : "Char sequence has more than one element."
+        runtimeSetThrown(outThrown, message: msg)
+        return 0
+    }
+    return kk_box_char(Int(codeUnits[0]))
+}
+
 @_cdecl("kk_string_firstOrNull")
 public func kk_string_firstOrNull(_ strRaw: Int) -> Int {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard let first = codeUnits.first else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(first))
+}
+
+@_cdecl("kk_string_firstOrNull_flat")
+public func kk_string_firstOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let first = codeUnits.first else {
         return runtimeNullSentinelInt
     }
@@ -2364,6 +2441,20 @@ public func kk_string_lastOrNull(_ strRaw: Int) -> Int {
     return kk_box_char(Int(last))
 }
 
+@_cdecl("kk_string_lastOrNull_flat")
+public func kk_string_lastOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard let last = codeUnits.last else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(last))
+}
+
 @_cdecl("kk_string_singleOrNull")
 public func kk_string_singleOrNull(_ strRaw: Int) -> Int {
     let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
@@ -2373,9 +2464,38 @@ public func kk_string_singleOrNull(_ strRaw: Int) -> Int {
     return kk_box_char(Int(codeUnits[0]))
 }
 
+@_cdecl("kk_string_singleOrNull_flat")
+public func kk_string_singleOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard codeUnits.count == 1 else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(codeUnits[0]))
+}
+
 @_cdecl("kk_string_getOrNull")
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
     let scalars = runtimeStringScalars(strRaw)
+    guard index >= 0, index < scalars.count else {
+        return runtimeNullSentinelInt
+    }
+    return kk_box_char(Int(scalars[index].value))
+}
+
+@_cdecl("kk_string_getOrNull_flat")
+public func kk_string_getOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ index: Int
+) -> Int {
+    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard index >= 0, index < scalars.count else {
         return runtimeNullSentinelInt
     }

@@ -747,6 +747,44 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_first": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_first_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_last": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_last_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_single": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_single_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: true
+                ),
+                "kk_string_firstOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_firstOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_lastOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_lastOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_singleOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_singleOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_getOrNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_getOrNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
                 "kk_string_toBoolean": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toBoolean_flat",
                     stringArgumentCount: 1,

@@ -395,6 +395,96 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatStringCharSelectionRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+        let nullableCharType = types.makeNullable(types.charType)
+
+        let text = interner.intern("abc")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let indexExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
+
+        var nextTemp: Int32 = 200
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: indexExpr, value: .intLiteral(1)),
+        ]
+
+        func appendSelectionCall(
+            _ calleeName: String,
+            arguments: [KIRExprID],
+            resultType: TypeID,
+            canThrow: Bool = false
+        ) {
+            let result = temporary(resultType)
+            let thrownResult = canThrow ? temporary(types.intType) : nil
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: result,
+                canThrow: canThrow,
+                thrownResult: thrownResult
+            ))
+        }
+
+        appendSelectionCall("kk_string_first", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_last", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_single", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_firstOrNull", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_lastOrNull", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_singleOrNull", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_getOrNull", arguments: [textExpr, indexExpr], resultType: nullableCharType)
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1202),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_first",
+            "kk_string_last",
+            "kk_string_single",
+            "kk_string_firstOrNull",
+            "kk_string_lastOrNull",
+            "kk_string_singleOrNull",
+            "kk_string_getOrNull",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String char-selection call: \(rawName)_flat")
+        }
+    }
+
     func testLlvmBindingsCandidatePathsHonorEnvironmentOverride() {
         // Create a temp file so the existence check passes.
         let tempURL = FileManager.default.temporaryDirectory
