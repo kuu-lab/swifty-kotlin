@@ -2998,6 +2998,40 @@ public func kk_string_contentEquals(_ receiverRaw: Int, _ otherRaw: Int) -> Int 
     return kk_box_bool(receiverStr == otherStr ? 1 : 0)
 }
 
+@_cdecl("kk_string_contentEquals_flat")
+public func kk_string_contentEquals_flat(
+    _ receiverData: UnsafePointer<UInt8>?,
+    _ receiverLength: Int,
+    _ receiverByteCount: Int,
+    _ receiverHash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    let receiverIsNull = (receiverData == nil)
+    let otherIsNull = (otherData == nil)
+    if receiverIsNull && otherIsNull {
+        return kk_box_bool(1)
+    }
+    if receiverIsNull || otherIsNull {
+        return kk_box_bool(0)
+    }
+    let receiverStr = runtimeStringFromFlat(
+        data: receiverData,
+        length: receiverLength,
+        byteCount: receiverByteCount,
+        hash: receiverHash
+    )
+    let otherStr = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+    return kk_box_bool(receiverStr == otherStr ? 1 : 0)
+}
+
 @_cdecl("kk_string_contentEquals_ignoreCase")
 public func kk_string_contentEquals_ignoreCase(_ receiverRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let receiverIsNull = (receiverRaw == runtimeNullSentinelInt)
@@ -3012,6 +3046,44 @@ public func kk_string_contentEquals_ignoreCase(_ receiverRaw: Int, _ otherRaw: I
           let otherStr = runtimeStringFromRaw(otherRaw) else {
         return kk_box_bool(0)
     }
+    if ignoreCaseRaw == 0 {
+        return kk_box_bool(receiverStr == otherStr ? 1 : 0)
+    }
+    return kk_box_bool(receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0)
+}
+
+@_cdecl("kk_string_contentEquals_ignoreCase_flat")
+public func kk_string_contentEquals_ignoreCase_flat(
+    _ receiverData: UnsafePointer<UInt8>?,
+    _ receiverLength: Int,
+    _ receiverByteCount: Int,
+    _ receiverHash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    let receiverIsNull = (receiverData == nil)
+    let otherIsNull = (otherData == nil)
+    if receiverIsNull && otherIsNull {
+        return kk_box_bool(1)
+    }
+    if receiverIsNull || otherIsNull {
+        return kk_box_bool(0)
+    }
+    let receiverStr = runtimeStringFromFlat(
+        data: receiverData,
+        length: receiverLength,
+        byteCount: receiverByteCount,
+        hash: receiverHash
+    )
+    let otherStr = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
     if ignoreCaseRaw == 0 {
         return kk_box_bool(receiverStr == otherStr ? 1 : 0)
     }
@@ -3922,6 +3994,35 @@ public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreC
         return kk_box_bool(0)
     }
     let cmp = kk_string_compareToIgnoreCase(strRaw, otherRaw, ignoreCaseRaw)
+    return kk_box_bool(cmp == 0 ? 1 : 0)
+}
+
+@_cdecl("kk_string_equalsIgnoreCase_flat")
+public func kk_string_equalsIgnoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int
+) -> Int {
+    guard otherData != nil else {
+        return kk_box_bool(0)
+    }
+    let cmp = kk_string_compareToIgnoreCase_flat(
+        data,
+        length,
+        byteCount,
+        hash,
+        otherData,
+        otherLength,
+        otherByteCount,
+        otherHash,
+        ignoreCaseRaw
+    )
     return kk_box_bool(cmp == 0 ? 1 : 0)
 }
 

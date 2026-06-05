@@ -2050,6 +2050,25 @@ public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
     return kk_box_bool(str.isEmpty ? 1 : 0)
 }
 
+@_cdecl("kk_string_isNullOrEmpty_flat")
+public func kk_string_isNullOrEmpty_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard data != nil else {
+        return kk_box_bool(1)
+    }
+    let str = runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+    return kk_box_bool(str.isEmpty ? 1 : 0)
+}
+
 @_cdecl("kk_string_isNullOrBlank")
 public func kk_string_isNullOrBlank(_ strRaw: Int) -> Int {
     guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw) else {
@@ -2058,6 +2077,25 @@ public func kk_string_isNullOrBlank(_ strRaw: Int) -> Int {
     guard let str = extractString(from: rawPointer) else {
         return kk_box_bool(0)
     }
+    return kk_box_bool(str.allSatisfy(\.isWhitespace) ? 1 : 0)
+}
+
+@_cdecl("kk_string_isNullOrBlank_flat")
+public func kk_string_isNullOrBlank_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    guard data != nil else {
+        return kk_box_bool(1)
+    }
+    let str = runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
     return kk_box_bool(str.allSatisfy(\.isWhitespace) ? 1 : 0)
 }
 

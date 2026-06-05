@@ -374,6 +374,63 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringNullableScalarRuntimeAPIsUseDataNull() {
+        XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(nil, 0, 0, 0)), 1)
+        XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0)), 1)
+
+        withFlatString("") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash)), 1)
+            XCTAssertEqual(kk_unbox_bool(kk_string_contentEquals_flat(data, length, byteCount, hash, nil, 0, 0, 0)), 0)
+        }
+
+        withFlatString("  \n\t") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 1)
+        }
+
+        withFlatString("KSwiftK") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 0)
+            XCTAssertEqual(
+                kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)),
+                0
+            )
+            withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_contentEquals_ignoreCase_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            otherData,
+                            otherLength,
+                            otherByteCount,
+                            otherHash,
+                            1
+                        )
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_equalsIgnoreCase_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            otherData,
+                            otherLength,
+                            otherByteCount,
+                            otherHash,
+                            1
+                        )
+                    ),
+                    1
+                )
+            }
+        }
+    }
+
     func testStringSplitProducesListOfStrings() {
         let splitRaw = kk_string_split(
             rawFromRuntimeString("1,2,3"),

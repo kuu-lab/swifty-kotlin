@@ -445,6 +445,22 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_string_equalsIgnoreCase_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "otherData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "otherLength", type: .intptr),
+                RuntimeABIParameter(name: "otherByteCount", type: .intptr),
+                RuntimeABIParameter(name: "otherHash", type: .intptr),
+                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_isEmpty_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -479,6 +495,28 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isNotBlank_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_isNullOrEmpty_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_isNullOrBlank_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),

@@ -38,6 +38,7 @@ extension CodegenBackendIntegrationTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let arena = KIRArena()
+        let nullableStringType = types.makeNullable(types.stringType)
 
         let left = interner.intern("left")
         let right = interner.intern("right")
@@ -63,6 +64,12 @@ extension CodegenBackendIntegrationTests {
         let lastIndexIgnoreCaseResult = arena.appendExpr(.temporary(20), type: types.intType)
         let indexOfCharResult = arena.appendExpr(.temporary(21), type: types.intType)
         let lastIndexOfCharResult = arena.appendExpr(.temporary(22), type: types.intType)
+        let nullStringExpr = arena.appendExpr(.null, type: nullableStringType)
+        let isNullOrEmptyResult = arena.appendExpr(.temporary(23), type: types.booleanType)
+        let isNullOrBlankResult = arena.appendExpr(.temporary(24), type: types.booleanType)
+        let contentEqualsResult = arena.appendExpr(.temporary(25), type: types.booleanType)
+        let contentEqualsIgnoreCaseResult = arena.appendExpr(.temporary(26), type: types.booleanType)
+        let equalsIgnoreCaseResult = arena.appendExpr(.temporary(27), type: types.booleanType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
         let labelResult = arena.appendExpr(.temporary(2), type: types.intType)
@@ -102,6 +109,12 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_ignoreCase"), arguments: [trimResult, needleExpr, takeCount, ignoreCaseTrue], result: lastIndexIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
+                .constValue(result: nullStringExpr, value: .null),
+                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_contentEquals"), arguments: [trimResult, nullStringExpr], result: contentEqualsResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_ignoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: contentEqualsIgnoreCaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_equalsIgnoreCase"), arguments: [trimResult, nullStringExpr, ignoreCaseTrue], result: equalsIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: labelValue, value: .intLiteral(7)),
@@ -207,6 +220,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_ignoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
+        XCTAssertFalse(ir.contains("@kk_string_isNullOrEmpty("))
+        XCTAssertFalse(ir.contains("@kk_string_isNullOrBlank("))
+        XCTAssertFalse(ir.contains("@kk_string_contentEquals("))
+        XCTAssertFalse(ir.contains("@kk_string_contentEquals_ignoreCase("))
+        XCTAssertFalse(ir.contains("@kk_string_equalsIgnoreCase("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
@@ -218,6 +236,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_ignoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_char_flat"))
         XCTAssertTrue(ir.contains("@kk_string_lastIndexOf_char_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_isNullOrEmpty_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_isNullOrBlank_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_contentEquals_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_contentEquals_ignoreCase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
         XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))
         XCTAssertTrue(ir.contains("@kk_coroutine_suspended"))

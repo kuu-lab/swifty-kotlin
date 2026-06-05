@@ -689,6 +689,21 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
+                "kk_string_contentEquals": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_contentEquals_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_contentEquals_ignoreCase": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_contentEquals_ignoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_equalsIgnoreCase": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_equalsIgnoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1
+                ),
                 "kk_string_isEmpty": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isEmpty_flat",
                     stringArgumentCount: 1,
@@ -706,6 +721,16 @@ extension NativeEmitter {
                 ),
                 "kk_string_isNotBlank": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isNotBlank_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_isNullOrEmpty": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isNullOrEmpty_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_isNullOrBlank": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isNullOrBlank_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
