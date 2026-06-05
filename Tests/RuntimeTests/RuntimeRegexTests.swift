@@ -19,6 +19,15 @@ final class RuntimeRegexTests: XCTestCase {
         }
     }
 
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        Array(value.utf8).withUnsafeBufferPointer { buffer in
+            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
+        }
+    }
+
     private func runtimeString(_ raw: Int) -> String {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
               let box = tryCast(ptr, to: RuntimeStringBox.self) else {
@@ -132,5 +141,44 @@ final class RuntimeRegexTests: XCTestCase {
         XCTAssertEqual(lhsRange.last, 3)
         XCTAssertEqual(rhsRange.first, 4)
         XCTAssertEqual(rhsRange.last, 5)
+    }
+
+    func testFlatStringRegexRuntimeAPIsUseFlattenedStringFields() {
+        let regexRaw = withFlatString("[a-z]+") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+
+        withFlatString("abc") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)), 1)
+        }
+        withFlatString("abc123") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, regexRaw)), 0)
+        }
+        withFlatString("123abc") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_contains_regex_flat(data, length, byteCount, hash, regexRaw)), 1)
+        }
+
+        let fromToRegex = withFlatString("\\d+") { data, length, byteCount, hash in
+            kk_string_toRegex_flat(data, length, byteCount, hash)
+        }
+        XCTAssertEqual(runtimeString(kk_regex_pattern(fromToRegex)), "\\d+")
+
+        let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
+            kk_regex_create_with_option_flat(data, length, byteCount, hash, kk_box_int(3))
+        }
+        withFlatString("a.b") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)), 1)
+        }
+        withFlatString("axb") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)), 0)
+        }
+
+        let ignoreCaseOptions = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_int(0)]))
+        let ignoreCaseRegex = withFlatString("[a-z]+") { data, length, byteCount, hash in
+            kk_regex_create_with_options_flat(data, length, byteCount, hash, ignoreCaseOptions)
+        }
+        withFlatString("HELLO") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, ignoreCaseRegex)), 1)
+        }
     }
 }

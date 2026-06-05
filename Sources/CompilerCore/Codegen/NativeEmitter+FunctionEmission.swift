@@ -783,6 +783,36 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_regex_create": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_create_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_regex_create_with_option": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_create_with_option_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_regex_create_with_options": FlatScalarReturnCallSpec(
+                    flatName: "kk_regex_create_with_options_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_matches_regex": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_matches_regex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_contains_regex": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_contains_regex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_toRegex": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toRegex_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_startsWith": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,

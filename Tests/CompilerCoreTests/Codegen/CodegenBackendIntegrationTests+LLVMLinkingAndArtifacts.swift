@@ -423,6 +423,93 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatRegexStringRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let pattern = interner.intern("[a-z]+")
+        let input = interner.intern("abc")
+        let patternExpr = arena.appendExpr(.stringLiteral(pattern), type: types.stringType)
+        let inputExpr = arena.appendExpr(.stringLiteral(input), type: types.stringType)
+        let regexExpr = arena.appendExpr(.intLiteral(42), type: types.intType)
+        let optionExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let optionsSetExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
+
+        var nextTemp: Int32 = 200
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: patternExpr, value: .stringLiteral(pattern)),
+            .constValue(result: inputExpr, value: .stringLiteral(input)),
+            .constValue(result: regexExpr, value: .intLiteral(42)),
+            .constValue(result: optionExpr, value: .intLiteral(0)),
+            .constValue(result: optionsSetExpr, value: .intLiteral(0)),
+        ]
+
+        func appendRegexCall(_ calleeName: String, arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendRegexCall("kk_regex_create", arguments: [patternExpr])
+        appendRegexCall("kk_regex_create_with_option", arguments: [patternExpr, optionExpr])
+        appendRegexCall("kk_regex_create_with_options", arguments: [patternExpr, optionsSetExpr])
+        appendRegexCall("kk_string_matches_regex", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_string_contains_regex", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_string_toRegex", arguments: [patternExpr])
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1207),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_regex_create",
+            "kk_regex_create_with_option",
+            "kk_regex_create_with_options",
+            "kk_string_matches_regex",
+            "kk_string_contains_regex",
+            "kk_string_toRegex",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
+        }
+    }
+
     func testLLVMBackendEmitsFlatStringCharSelectionRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
