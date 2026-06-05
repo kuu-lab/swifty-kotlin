@@ -383,8 +383,8 @@ extension BuildKIRRegressionTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             XCTAssertEqual(throwFlags["kk_string_trim"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_split"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_toInt"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_string_toDouble"]?.allSatisfy { $0 == true }, true)
         }

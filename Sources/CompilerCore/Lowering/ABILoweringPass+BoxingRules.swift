@@ -105,8 +105,6 @@ extension ABILoweringPass {
                     return boxCallees.int
                 case .ulong:
                     return boxCallees.long
-                default:
-                    return nil
                 }
             }
             return nil

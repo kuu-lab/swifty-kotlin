@@ -4,7 +4,7 @@ import XCTest
 
 /// Verifies CharSequence?.isNullOrBlank() (STDLIB-TEXT-FN-032) resolves cleanly
 /// in Sema and lowers through the nullable-receiver fallback to the runtime
-/// helper `kk_string_isNullOrBlank`.
+/// helper `kk_string_isNullOrBlank_flat`.
 final class StringIsNullOrBlankFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
         named member: String,
@@ -78,7 +78,7 @@ final class StringIsNullOrBlankFunctionTests: XCTestCase {
     }
 
     /// The compiler should lower nullable-receiver isNullOrBlank() to the runtime helper
-    /// `kk_string_isNullOrBlank`, classified as non-throwing.
+    /// `kk_string_isNullOrBlank_flat`, classified as non-throwing.
     func testIsNullOrBlankLowersToRuntimeHelperNonThrowing() throws {
         let source = """
         fun main() {
@@ -97,8 +97,8 @@ final class StringIsNullOrBlankFunctionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let isNullOrBlankFlags = try XCTUnwrap(
-                throwFlags["kk_string_isNullOrBlank"],
-                "Expected kk_string_isNullOrBlank calls to appear in main()"
+                throwFlags["kk_string_isNullOrBlank_flat"],
+                "Expected kk_string_isNullOrBlank_flat calls to appear in main()"
             )
             XCTAssertEqual(isNullOrBlankFlags.count, 2)
             XCTAssertTrue(isNullOrBlankFlags.allSatisfy { $0 == false })

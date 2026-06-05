@@ -1074,6 +1074,11 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
+                "kk_string_compareTo_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_compareTo_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_compareTo_locale": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareTo_locale_flat",
                     stringArgumentCount: 2,
@@ -1094,7 +1099,7 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
-                "kk_string_isEmpty": FlatScalarReturnCallSpec(
+                "kk_string_isEmpty_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isEmpty_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
@@ -1104,7 +1109,7 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_isBlank": FlatScalarReturnCallSpec(
+                "kk_string_isBlank_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isBlank_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
@@ -1114,12 +1119,12 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_isNullOrEmpty": FlatScalarReturnCallSpec(
+                "kk_string_isNullOrEmpty_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isNullOrEmpty_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_isNullOrBlank": FlatScalarReturnCallSpec(
+                "kk_string_isNullOrBlank_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isNullOrBlank_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
@@ -1161,6 +1166,12 @@ extension NativeEmitter {
                     flatName: "kk_string_getOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
+                ),
+                "kk_string_get_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_get_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_string_count": FlatScalarReturnCallSpec(
                     flatName: "kk_string_count_flat",
@@ -1678,7 +1689,7 @@ extension NativeEmitter {
                 }
                 return true
 
-            case "kk_string_compareTo", "kk_string_compareTo_member":
+            case "kk_string_compareTo":
                 guard let flattenedArgs = flattenedStringArguments(
                     values: argumentValues,
                     types: argumentTypes,
@@ -1704,42 +1715,6 @@ extension NativeEmitter {
                 storeResult(result, compared)
                 if usesThrownChannel {
                     storeThrownResultZero(thrownResult)
-                }
-                return true
-
-            case "kk_string_get":
-                guard argumentValues.count >= 2,
-                      let flattenedArgs = flattenedStringArguments(
-                          values: argumentValues,
-                          types: argumentTypes,
-                          stringArgumentCount: 1,
-                          suffix: "get_\(instructionIndex)"
-                      ),
-                      var parameterTypes = flattenedStringParameterTypes(argumentCount: 1)
-                else {
-                    return false
-                }
-                parameterTypes.append(contentsOf: [int64Type, outThrownPointerType])
-                let thrownSlot = usesThrownChannel ? allocateI64Slot(name: "string_get_thrown_\(instructionIndex)") : nil
-                let thrownPointer = thrownSlot ?? nullThrownPointer
-                guard let getFunction = declareExternalFunction(
-                    named: "kk_string_get_flat",
-                    parameterTypes: parameterTypes,
-                    returnType: int64Type
-                )
-                else {
-                    return false
-                }
-                let charValue = bindings.buildCall(
-                    builder,
-                    functionType: getFunction.type,
-                    callee: getFunction.value,
-                    arguments: flattenedArgs + [argumentValues[1], thrownPointer],
-                    name: "string_get_\(instructionIndex)"
-                )
-                storeResult(result, charValue)
-                if usesThrownChannel {
-                    handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
                 }
                 return true
 

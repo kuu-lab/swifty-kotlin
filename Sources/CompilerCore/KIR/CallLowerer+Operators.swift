@@ -354,7 +354,7 @@ extension CallLowerer {
             return result
         }
         // String comparison desugaring: route <, <=, >, >= on String operands
-        // through kk_string_compareTo (content comparison) instead of the default
+        // through kk_string_compareTo_flat (content comparison) instead of the default
         // kk_op_lt/le/gt/ge path which compares raw pointer addresses.
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
@@ -367,7 +367,7 @@ extension CallLowerer {
                 let compareResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_compareTo"),
+                    callee: interner.intern("kk_string_compareTo_flat"),
                     arguments: [lhsID, rhsID],
                     result: compareResult,
                     canThrow: false,
@@ -655,13 +655,11 @@ extension CallLowerer {
                 propertyConstantInitializers: propertyConstantInitializers,
                 instructions: &instructions
             )
-            let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-            instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
             let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get"),
-                arguments: [receiverID, indexID, thrownExpr],
+                callee: interner.intern("kk_string_get_flat"),
+                arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
                 thrownResult: nil

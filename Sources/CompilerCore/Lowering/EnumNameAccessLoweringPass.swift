@@ -144,7 +144,7 @@ final class EnumNameAccessLoweringPass: LoweringPass {
         printlnCallee: InternedString,
         kkPrintlnAnyCallee: InternedString
     ) -> [KIRInstruction]? {
-        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction,
+        guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction,
               callee == printlnCallee || callee == kkPrintlnAnyCallee,
               arguments.count == 1,
               let classSymbol = enumClassSymbol(

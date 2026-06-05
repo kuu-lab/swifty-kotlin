@@ -7,7 +7,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     // MARK: - classify() Tests
 
     func testClassifyBuiltinTypes() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
         let sema = SemaModule(
@@ -43,7 +42,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyNothingType() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -93,7 +91,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyUnknownTypes() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),

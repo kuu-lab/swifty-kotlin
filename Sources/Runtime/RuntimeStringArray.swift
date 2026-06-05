@@ -455,23 +455,6 @@ public func kk_string_compareTo_flat(
     return 0
 }
 
-@_cdecl("kk_string_length")
-public func kk_string_length(_ strRaw: Int) -> Int {
-    if strRaw == runtimeNullSentinelInt {
-        return runtimeNullSentinelInt
-    }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw) else {
-        return runtimeNullSentinelInt
-    }
-    let isObjectPointer = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(UInt(bitPattern: ptr))
-    }
-    guard isObjectPointer, let stringBox = tryCast(ptr, to: RuntimeStringBox.self) else {
-        return runtimeNullSentinelInt
-    }
-    return stringBox.value.utf8.count
-}
-
 @_cdecl("kk_op_is")
 public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
     let token = Int64(truncatingIfNeeded: typeToken)
@@ -2034,17 +2017,6 @@ func runtimeFormatFloatingPoint(_ value: Float) -> String {
 
 // MARK: - String nullable receiver helpers
 
-@_cdecl("kk_string_isNullOrEmpty")
-public func kk_string_isNullOrEmpty(_ strRaw: Int) -> Int {
-    guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw) else {
-        return kk_box_bool(1)
-    }
-    guard let str = extractString(from: rawPointer) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(str.isEmpty ? 1 : 0)
-}
-
 @_cdecl("kk_string_isNullOrEmpty_flat")
 public func kk_string_isNullOrEmpty_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -2062,17 +2034,6 @@ public func kk_string_isNullOrEmpty_flat(
         hash: hash
     )
     return kk_box_bool(str.isEmpty ? 1 : 0)
-}
-
-@_cdecl("kk_string_isNullOrBlank")
-public func kk_string_isNullOrBlank(_ strRaw: Int) -> Int {
-    guard let rawPointer = UnsafeMutableRawPointer(bitPattern: strRaw) else {
-        return kk_box_bool(1)
-    }
-    guard let str = extractString(from: rawPointer) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(str.allSatisfy(\.isWhitespace) ? 1 : 0)
 }
 
 @_cdecl("kk_string_isNullOrBlank_flat")

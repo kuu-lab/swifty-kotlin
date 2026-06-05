@@ -25,7 +25,6 @@ private const val PI = 3.14159265358979323846
 private const val TWO_PI = 2.0 * PI
 private const val HALF_PI = PI / 2.0
 private const val INV_PI = 1.0 / PI
-private const val E = 2.71828182845904523536
 private const val LN_2 = 0.69314718055994530942
 private const val INV_LN_2 = 1.0 / LN_2
 

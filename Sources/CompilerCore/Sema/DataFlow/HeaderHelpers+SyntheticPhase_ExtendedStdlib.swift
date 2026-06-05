@@ -2,7 +2,7 @@ import Foundation
 
 /// Extended stdlib batch of synthetic stub registrations from `registerSyntheticDelegateStubs`.
 ///
-/// This Phase covers a 66-call block that previously sat in the middle of the
+/// This Phase covers a 54-call block that previously sat in the middle of the
 /// central dispatch: Atomic/Enum/Uuid/Serialization/Networking/Logging/
 /// Locale/NumberFormat/Streams/Concurrency/Coroutines/JS-binding stubs.
 ///
@@ -31,7 +31,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-                registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticSerializationStubs(symbols: symbols, types: types, interner: interner)

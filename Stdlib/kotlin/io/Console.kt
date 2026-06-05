@@ -3,7 +3,6 @@ package kotlin.io
 import kswiftk.internal.*
 
 private const val STDOUT_FD = 1
-private const val STDIN_FD = 0
 private const val BUFFER_SIZE = 8192
 
 private val writeBuffer = ByteArray(BUFFER_SIZE)

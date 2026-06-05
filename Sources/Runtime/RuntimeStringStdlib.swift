@@ -3081,12 +3081,6 @@ public func kk_string_getOrNull_flat(
 
 // MARK: - STDLIB-187: isEmpty / isNotEmpty / isBlank / isNotBlank
 
-@_cdecl("kk_string_isEmpty")
-public func kk_string_isEmpty(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return kk_box_bool(source.isEmpty ? 1 : 0)
-}
-
 @_cdecl("kk_string_isEmpty_flat")
 public func kk_string_isEmpty_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -3113,12 +3107,6 @@ public func kk_string_isNotEmpty_flat(
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     return kk_box_bool(source.isEmpty ? 0 : 1)
-}
-
-@_cdecl("kk_string_isBlank")
-public func kk_string_isBlank(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0)
 }
 
 @_cdecl("kk_string_isBlank_flat")
@@ -3904,20 +3892,6 @@ public func kk_string_lastIndexOf_char_flat(
     return -1
 }
 
-@_cdecl("kk_string_get")
-public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard indexRaw >= 0, indexRaw < scalars.count else {
-        runtimeSetThrown(
-            outThrown,
-            message: "StringIndexOutOfBoundsException: index=\(indexRaw), length=\(scalars.count)"
-        )
-        return 0
-    }
-    return Int(scalars[indexRaw].value)
-}
-
 @_cdecl("kk_string_get_flat")
 public func kk_string_get_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -3943,13 +3917,6 @@ public func kk_string_get_flat(
         return 0
     }
     return Int(scalars[indexRaw].value)
-}
-
-@_cdecl("kk_string_compareTo_member")
-public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    return runtimeCompareStrings(lhs, rhs)
 }
 
 @_cdecl("kk_string_compareToIgnoreCase")
@@ -7400,27 +7367,15 @@ public func __string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
     return kk_string_format(formatRaw, argsArrayRaw)
 }
 
-// MARK: - String struct representation
+// MARK: - String struct representation / String length compatibility export
 
-/// Internal representation of String as a struct with explicit fields
-/// This replaces the opaque pointer representation with a structured layout
+/// Minimal pointer-backed representation for the exported length helper.
+/// Compiler-generated aggregate strings normally extract length directly.
 struct KSwiftStringStruct {
-    var data: UnsafeMutablePointer<UInt8>  // UTF-8 byte array
-    var length: Int                       // Character count (not byte count)
-    var byteCount: Int                    // Byte count for UTF-8
-    var hash: Int?                        // Cached hash value (optional)
-}
-
-// MARK: - String struct field access functions
-
-@_cdecl("kk_string_struct_create")
-public func kk_string_struct_create(_ data: UnsafeMutablePointer<UInt8>, _ byteCount: Int, _ length: Int) -> Int {
-    let structPointer = UnsafeMutablePointer<KSwiftStringStruct>.allocate(capacity: 1)
-    structPointer.pointee.data = data
-    structPointer.pointee.byteCount = byteCount
-    structPointer.pointee.length = length
-    structPointer.pointee.hash = nil
-    return Int(bitPattern: structPointer)
+    var data: UnsafeMutablePointer<UInt8>
+    var length: Int
+    var byteCount: Int
+    var hash: Int?
 }
 
 @_cdecl("kk_string_struct_get_length")
@@ -7429,55 +7384,4 @@ public func kk_string_struct_get_length(_ structRaw: Int) -> Int {
         return 0
     }
     return structPointer.pointee.length
-}
-
-@_cdecl("kk_string_struct_set_length")
-public func kk_string_struct_set_length(_ structRaw: Int, _ length: Int) {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return
-    }
-    structPointer.pointee.length = length
-}
-
-@_cdecl("kk_string_struct_get_byte_count")
-public func kk_string_struct_get_byte_count(_ structRaw: Int) -> Int {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return 0
-    }
-    return structPointer.pointee.byteCount
-}
-
-@_cdecl("kk_string_struct_get_hash")
-public func kk_string_struct_get_hash(_ structRaw: Int) -> Int {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return 0
-    }
-    return structPointer.pointee.hash ?? 0
-}
-
-@_cdecl("kk_string_struct_set_hash")
-public func kk_string_struct_set_hash(_ structRaw: Int, _ hash: Int) {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return
-    }
-    structPointer.pointee.hash = hash
-}
-
-@_cdecl("kk_string_struct_get_data_pointer")
-public func kk_string_struct_get_data_pointer(_ structRaw: Int) -> UnsafeMutablePointer<UInt8>? {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return nil
-    }
-    return structPointer.pointee.data
-}
-
-@_cdecl("kk_string_struct_free")
-public func kk_string_struct_free(_ structRaw: Int) {
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return
-    }
-    // Free the data buffer
-    structPointer.pointee.data.deallocate()
-    // Free the struct itself
-    structPointer.deallocate()
 }

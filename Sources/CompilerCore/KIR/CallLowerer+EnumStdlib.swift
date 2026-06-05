@@ -74,11 +74,6 @@ extension CallLowerer {
                 return $0.id.rawValue < $1.id.rawValue
             })
 
-        let entryType = sema.types.make(.classType(ClassType(
-            classSymbol: nominalSymbol.id,
-            args: [],
-            nullability: .nonNull
-        )))
         let enumValuesArray = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
         let entriesCountExpr = arena.appendExpr(.intLiteral(Int64(entries.count)), type: intType)
         instructions.append(.constValue(result: entriesCountExpr, value: .intLiteral(Int64(entries.count))))

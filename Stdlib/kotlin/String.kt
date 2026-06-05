@@ -29,7 +29,7 @@ fun String.isNotEmpty(): Boolean = this.length > 0
 
 fun String.isBlank(): Boolean {
     for (i in 0 until this.length) {
-        val char = __string_get(this, i)
+        val char = __string_get_flat(this, i)
         if (!char.isWhitespace()) {
             return false
         }
@@ -39,19 +39,19 @@ fun String.isBlank(): Boolean {
 
 fun String.isNotBlank(): Boolean = !this.isBlank()
 
-// MARK: - Comparison (use legacy for now)
+// MARK: - Comparison (runtime-backed)
 
-operator fun String.compareTo(other: String): Int = __string_compareTo(this, other)
+operator fun String.compareTo(other: String): Int = __string_compareTo_flat(this, other)
 
-// MARK: - String concatenation (use legacy for now)
+// MARK: - String concatenation (runtime-backed)
 
 operator fun String.plus(other: Any?): String = __string_concat(this, other.toString())
 
-// MARK: - Character access (use legacy for now)
+// MARK: - Character access (runtime-backed)
 
 operator fun String.get(index: Int): Char {
     if (index < 0 || index >= this.length) {
         throw IndexOutOfBoundsException("String index out of range: $index")
     }
-    return __string_get(this, index)
+    return __string_get_flat(this, index)
 }

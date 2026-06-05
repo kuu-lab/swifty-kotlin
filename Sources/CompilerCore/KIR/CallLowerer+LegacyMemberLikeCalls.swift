@@ -1208,8 +1208,8 @@ extension CallLowerer {
                 let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     let runtimeCallee = calleeStr == "isNullOrEmpty"
-                        ? "kk_string_isNullOrEmpty"
-                        : "kk_string_isNullOrBlank"
+                        ? "kk_string_isNullOrEmpty_flat"
+                        : "kk_string_isNullOrBlank_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
@@ -1704,15 +1704,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                let stringGetThrownExpr: KIRExprID?
-                if calleeStr == "get" {
-                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    stringGetThrownExpr = zeroExpr
-                } else {
-                    stringGetThrownExpr = nil
-                }
-
                 // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char) — 1-arg overload routes to the dedicated Char runtime entry.
                 if calleeStr == "indexOf",
                    sema.types.isSubtype(
@@ -1760,9 +1751,9 @@ extension CallLowerer {
                 case "lastIndexOf":
                     ("kk_string_lastIndexOf", [loweredReceiverID, loweredArgIDs[0]])
                 case "get":
-                    ("kk_string_get", [loweredReceiverID, loweredArgIDs[0], stringGetThrownExpr!])
+                    ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "compareTo":
-                    ("kk_string_compareTo_member", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":

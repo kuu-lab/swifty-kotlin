@@ -737,77 +737,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_struct_create",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .uint8Pointer),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "length", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_set_length",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-                RuntimeABIParameter(name: "length", type: .intptr),
-            ],
-            returnType: .void,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_get_byte_count",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_get_hash",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_set_hash",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .void,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_get_data_pointer",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_struct_free",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-            ],
-            returnType: .void,
-            section: "String"
-        ),
-        // Legacy pointer/string-box export retained until the runtime stdlib is
-        // fully flattened. Compiler-generated String.length uses aggregate field
-        // extraction through kk_string_struct_get_length instead.
-        RuntimeABIFunctionSpec(
-            name: "kk_string_length",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_trim",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
@@ -1036,22 +965,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_isNullOrEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_isNullOrBlank",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -1971,17 +1884,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        // STDLIB-140: String.get
-        RuntimeABIFunctionSpec(
-            name: "kk_string_get",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "indexRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_get_flat",
             parameters: [
@@ -1991,16 +1893,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "indexRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-141: String.compareTo
-        RuntimeABIFunctionSpec(
-            name: "kk_string_compareTo_member",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -3021,23 +2913,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-187
         RuntimeABIFunctionSpec(
-            name: "kk_string_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_isNotEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_isBlank",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],

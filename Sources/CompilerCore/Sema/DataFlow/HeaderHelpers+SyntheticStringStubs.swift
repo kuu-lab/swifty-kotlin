@@ -1748,7 +1748,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "get",
-            externalLinkName: "kk_string_get",
+            externalLinkName: "kk_string_get_flat",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
@@ -1764,7 +1764,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "compareTo",
-            externalLinkName: "kk_string_compareTo_member",
+            externalLinkName: "kk_string_compareTo_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -1793,7 +1793,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isEmpty",
-            externalLinkName: "kk_string_isEmpty",
+            externalLinkName: "kk_string_isEmpty_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
@@ -1826,7 +1826,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isBlank",
-            externalLinkName: "kk_string_isBlank",
+            externalLinkName: "kk_string_isBlank_flat",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,

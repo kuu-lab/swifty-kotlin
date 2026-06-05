@@ -129,28 +129,13 @@ external fun __char_digitToInt_radix(c: Char, radix: Int): Int
 @KSwiftKRuntimeName("kk_string_struct_get_length")
 external fun __string_struct_get_length(s: String): Int
 
-@KSwiftKRuntimeName("kk_string_struct_get_byte_count")
-external fun __string_struct_get_byte_count(s: String): Int
+// MARK: - String operations still requiring runtime support
 
-@KSwiftKRuntimeName("kk_string_struct_get_hash")
-external fun __string_struct_get_hash(s: String): Int
-
-@KSwiftKRuntimeName("kk_string_struct_set_hash")
-external fun __string_struct_set_hash(s: String, hash: Int): Unit
-
-@KSwiftKRuntimeName("kk_string_struct_get_data_pointer")
-external fun __string_struct_get_data_pointer(s: String): Int?
-
-// MARK: - Legacy String functions (kept for compatibility during transition)
-
-@KSwiftKRuntimeName("kk_string_length")
-external fun __string_length(s: String): Int
-
-@KSwiftKRuntimeName("kk_string_compareTo")
-external fun __string_compareTo(s1: String, s2: String): Int
+@KSwiftKRuntimeName("kk_string_compareTo_flat")
+external fun __string_compareTo_flat(s1: String, s2: String): Int
 
 @KSwiftKRuntimeName("kk_string_concat")
 external fun __string_concat(s1: String, s2: String): String
 
-@KSwiftKRuntimeName("kk_string_get")
-external fun __string_get(s: String, index: Int): Char
+@KSwiftKRuntimeName("kk_string_get_flat")
+external fun __string_get_flat(s: String, index: Int): Char

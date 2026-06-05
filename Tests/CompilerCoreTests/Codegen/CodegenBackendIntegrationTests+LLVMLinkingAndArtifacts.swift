@@ -108,7 +108,7 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_startsWith"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf"), arguments: [trimResult, needleExpr], result: indexOfResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_isBlank"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_isBlank_flat"), arguments: [trimResult], result: isBlankResult, canThrow: false, thrownResult: nil),
                 .constValue(result: ignoreCaseTrue, value: .boolLiteral(true)),
                 .constValue(result: charNeedle, value: .charLiteral(UInt32(UnicodeScalar("d").value))),
                 .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
@@ -118,8 +118,8 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
                 .constValue(result: nullStringExpr, value: .null),
-                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
-                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrEmpty_flat"), arguments: [nullStringExpr], result: isNullOrEmptyResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contentEquals"), arguments: [trimResult, nullStringExpr], result: contentEqualsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_ignoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: contentEqualsIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_equalsIgnoreCase"), arguments: [trimResult, nullStringExpr, ignoreCaseTrue], result: equalsIgnoreCaseResult, canThrow: false, thrownResult: nil),
@@ -225,14 +225,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_startsWith("))
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf("))
-        XCTAssertFalse(ir.contains("@kk_string_isBlank("))
         XCTAssertFalse(ir.contains("@kk_string_compareToIgnoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_compareTo_locale("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_ignoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
-        XCTAssertFalse(ir.contains("@kk_string_isNullOrEmpty("))
-        XCTAssertFalse(ir.contains("@kk_string_isNullOrBlank("))
         XCTAssertFalse(ir.contains("@kk_string_contentEquals("))
         XCTAssertFalse(ir.contains("@kk_string_contentEquals_ignoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_equalsIgnoreCase("))
@@ -679,7 +676,7 @@ extension CodegenBackendIntegrationTests {
         appendSelectionCall("kk_string_firstOrNull", arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall("kk_string_lastOrNull", arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall("kk_string_singleOrNull", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("kk_string_get", arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_get_flat", arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
         appendSelectionCall("kk_string_getOrNull", arguments: [textExpr, indexExpr], resultType: nullableCharType)
         body.append(.returnUnit)
 
@@ -717,13 +714,13 @@ extension CodegenBackendIntegrationTests {
             "kk_string_firstOrNull",
             "kk_string_lastOrNull",
             "kk_string_singleOrNull",
-            "kk_string_get",
             "kk_string_getOrNull",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String char-selection call: \(rawName)_flat")
         }
+        XCTAssertTrue(ir.contains("@kk_string_get_flat"), "Missing flat String.get call")
     }
 
     func testLLVMBackendEmitsFlatStringCallbackScalarRuntimeCalls() throws {

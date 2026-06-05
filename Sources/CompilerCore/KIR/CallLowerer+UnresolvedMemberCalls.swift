@@ -72,9 +72,9 @@ extension CallLowerer {
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
             switch memberName {
             case "compareTo":
-                return interner.intern("kk_string_compareTo_member")
+                return interner.intern("kk_string_compareTo_flat")
             case "get":
-                return interner.intern("kk_string_get")
+                return interner.intern("kk_string_get_flat")
             case "lines":
                 return interner.intern("kk_string_lines")
             case "lineSequence":
