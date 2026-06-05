@@ -4907,9 +4907,7 @@ public func kk_string_replaceIndentByMargin(
 
 // MARK: - STDLIB-316: String.chunked / String.windowed
 
-@_cdecl("kk_string_chunked")
-public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+private func runtimeStringChunked(_ source: String, size: Int) -> Int {
     guard size > 0 else {
         return runtimeMakeStringListRaw([])
     }
@@ -4924,21 +4922,14 @@ public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
     return runtimeMakeStringListRaw(chunks)
 }
 
-@_cdecl("kk_string_chunked_sequence")
-public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
-    let chunksRaw = kk_string_chunked(strRaw, size)
-    return kk_list_asSequence(chunksRaw)
-}
-
-@_cdecl("kk_string_chunked_sequence_transform")
-public func kk_string_chunked_sequence_transform(
-    _ strRaw: Int,
-    _ size: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+private func runtimeStringChunkedSequenceTransform(
+    _ source: String,
+    size: Int,
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    outThrown?.pointee = 0
     let chunkSize = max(1, size)
     let scalars = Array(source.unicodeScalars)
     let estimatedChunks = scalars.isEmpty ? 0 : (scalars.count + chunkSize - 1) / chunkSize
@@ -4964,16 +4955,7 @@ public func kk_string_chunked_sequence_transform(
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
 }
 
-@_cdecl("kk_string_windowed_default")
-public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
-    return kk_string_windowed(strRaw, size, 1)
-}
-
-@_cdecl("kk_string_windowed")
-public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
-    // Validate handle before any early return so invalid handles always trap
-    // consistently with other string runtime entry points.
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+private func runtimeStringWindowed(_ source: String, size: Int, step: Int) -> Int {
     // Return an empty list for non-positive size/step to preserve the
     // original 2-arg overload semantics (Kotlin throws IllegalArgumentException,
     // but this runtime returns empty for resilience).
@@ -4990,9 +4972,12 @@ public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
     return runtimeMakeStringListRaw(windows)
 }
 
-@_cdecl("kk_string_windowed_partial")
-public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+private func runtimeStringWindowedPartial(
+    _ source: String,
+    size: Int,
+    step: Int,
+    partialWindows: Int
+) -> Int {
     // Clamp non-positive size/step to 1, matching list windowed_partial behaviour (kk_list_windowed_partial).
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
@@ -5009,9 +4994,12 @@ public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, 
     return runtimeMakeStringListRaw(windows)
 }
 
-@_cdecl("kk_string_windowedSequence_partial")
-public func kk_string_windowedSequence_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+private func runtimeStringWindowedSequencePartial(
+    _ source: String,
+    size: Int,
+    step: Int,
+    partialWindows: Int
+) -> Int {
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
     let scalars = Array(source.unicodeScalars)
@@ -5027,18 +5015,16 @@ public func kk_string_windowedSequence_partial(_ strRaw: Int, _ size: Int, _ ste
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: windows)]))
 }
 
-@_cdecl("kk_string_windowedSequence_transform")
-public func kk_string_windowedSequence_transform(
-    _ strRaw: Int,
-    _ size: Int,
-    _ step: Int,
-    _ partialWindows: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
+private func runtimeStringWindowedSequenceTransform(
+    _ source: String,
+    size: Int,
+    step: Int,
+    partialWindows: Int,
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let clampedSize = max(1, size)
     let clampedStep = max(1, step)
     let scalars = Array(source.unicodeScalars)
@@ -5064,6 +5050,205 @@ public func kk_string_windowedSequence_transform(
         i += clampedStep
     }
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+}
+
+@_cdecl("kk_string_chunked")
+public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringChunked(source, size: size)
+}
+
+@_cdecl("kk_string_chunked_flat")
+public func kk_string_chunked_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringChunked(source, size: size)
+}
+
+@_cdecl("kk_string_chunked_sequence")
+public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return kk_list_asSequence(runtimeStringChunked(source, size: size))
+}
+
+@_cdecl("kk_string_chunked_sequence_flat")
+public func kk_string_chunked_sequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return kk_list_asSequence(runtimeStringChunked(source, size: size))
+}
+
+@_cdecl("kk_string_chunked_sequence_transform")
+public func kk_string_chunked_sequence_transform(
+    _ strRaw: Int,
+    _ size: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringChunkedSequenceTransform(
+        source,
+        size: size,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_chunked_sequence_transform_flat")
+public func kk_string_chunked_sequence_transform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringChunkedSequenceTransform(
+        source,
+        size: size,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_windowed_default")
+public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowed(source, size: size, step: 1)
+}
+
+@_cdecl("kk_string_windowed_default_flat")
+public func kk_string_windowed_default_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringWindowed(source, size: size, step: 1)
+}
+
+@_cdecl("kk_string_windowed")
+public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowed(source, size: size, step: step)
+}
+
+@_cdecl("kk_string_windowed_flat")
+public func kk_string_windowed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int,
+    _ step: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringWindowed(source, size: size, step: step)
+}
+
+@_cdecl("kk_string_windowed_partial")
+public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedPartial(source, size: size, step: step, partialWindows: partialWindows)
+}
+
+@_cdecl("kk_string_windowed_partial_flat")
+public func kk_string_windowed_partial_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringWindowedPartial(source, size: size, step: step, partialWindows: partialWindows)
+}
+
+@_cdecl("kk_string_windowedSequence_partial")
+public func kk_string_windowedSequence_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedSequencePartial(source, size: size, step: step, partialWindows: partialWindows)
+}
+
+@_cdecl("kk_string_windowedSequence_partial_flat")
+public func kk_string_windowedSequence_partial_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringWindowedSequencePartial(source, size: size, step: step, partialWindows: partialWindows)
+}
+
+@_cdecl("kk_string_windowedSequence_transform")
+public func kk_string_windowedSequence_transform(
+    _ strRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedSequenceTransform(
+        source,
+        size: size,
+        step: step,
+        partialWindows: partialWindows,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_windowedSequence_transform_flat")
+public func kk_string_windowedSequence_transform_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringWindowedSequenceTransform(
+        source,
+        size: size,
+        step: step,
+        partialWindows: partialWindows,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
 }
 
 // MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith

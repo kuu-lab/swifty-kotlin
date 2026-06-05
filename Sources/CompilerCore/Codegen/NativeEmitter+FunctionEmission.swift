@@ -719,6 +719,48 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
+                "kk_string_chunked": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_chunked_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_chunked_sequence": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_chunked_sequence_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_chunked_sequence_transform": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_chunked_sequence_transform_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    canThrow: true
+                ),
+                "kk_string_windowed_default": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_windowed_default_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_windowed": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_windowed_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2
+                ),
+                "kk_string_windowed_partial": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_windowed_partial_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
+                "kk_string_windowedSequence_partial": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_windowedSequence_partial_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3
+                ),
+                "kk_string_windowedSequence_transform": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_windowedSequence_transform_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 5,
+                    canThrow: true
+                ),
                 "kk_string_zipWithNext": FlatScalarReturnCallSpec(
                     flatName: "kk_string_zipWithNext_flat",
                     stringArgumentCount: 1,

@@ -42,6 +42,10 @@ private let runtimeFlatStringThrowingPredicate: RuntimeStringUnaryEntry = { _, _
     return 0
 }
 
+private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, strRaw, _ in
+    runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
+}
+
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -1031,6 +1035,72 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(
                 runtimeSequenceSourceElements(from: sequenceRaw)?.map(kk_unbox_char),
                 [97, 0xD83D, 0xDC3B]
+            )
+        }
+    }
+
+    func testFlatStringChunkedWindowedRuntimeAPIsUseFlattenedStringFields() {
+        withFlatString("abcde") { data, length, byteCount, hash in
+            let chunks = runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))
+            XCTAssertEqual(chunks?.elements.map(runtimeStringValue), ["ab", "cd", "e"])
+
+            let chunkSequence = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
+            XCTAssertEqual(runtimeSequenceSourceElements(from: chunkSequence)?.map(runtimeStringValue), ["abc", "de"])
+
+            var thrown = -1
+            let transformedChunks = kk_string_chunked_sequence_transform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                2,
+                unsafeBitCast(runtimeFlatStringLengthTransform, to: Int.self),
+                0,
+                &thrown
+            )
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(runtimeSequenceSourceElements(from: transformedChunks), [2, 2, 1])
+
+            let defaultWindows = runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 3))
+            XCTAssertEqual(defaultWindows?.elements.map(runtimeStringValue), ["abc", "bcd", "cde"])
+
+            let steppedWindows = runtimeListBox(from: kk_string_windowed_flat(data, length, byteCount, hash, 3, 2))
+            XCTAssertEqual(steppedWindows?.elements.map(runtimeStringValue), ["abc", "cde"])
+
+            let partialWindows = runtimeListBox(from: kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1))
+            XCTAssertEqual(partialWindows?.elements.map(runtimeStringValue), ["abc", "cde", "e"])
+
+            let partialWindowSequence = kk_string_windowedSequence_partial_flat(data, length, byteCount, hash, 3, 2, 1)
+            XCTAssertEqual(
+                runtimeSequenceSourceElements(from: partialWindowSequence)?.map(runtimeStringValue),
+                ["abc", "cde", "e"]
+            )
+
+            thrown = -1
+            let transformedWindows = kk_string_windowedSequence_transform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                3,
+                2,
+                1,
+                unsafeBitCast(runtimeFlatStringLengthTransform, to: Int.self),
+                0,
+                &thrown
+            )
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(runtimeSequenceSourceElements(from: transformedWindows), [3, 3, 1])
+        }
+
+        withFlatString("") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                runtimeListBox(from: kk_string_chunked_flat(data, length, byteCount, hash, 2))?.elements.count,
+                0
+            )
+            XCTAssertEqual(
+                runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 2))?.elements.count,
+                0
             )
         }
     }

@@ -754,6 +754,9 @@ extension CodegenBackendIntegrationTests {
         let delimiterExpr = arena.appendExpr(.stringLiteral(delimiter), type: types.stringType)
         let ignoreCaseExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let limitExpr = arena.appendExpr(.intLiteral(2), type: types.intType)
+        let sizeExpr = arena.appendExpr(.intLiteral(2), type: types.intType)
+        let stepExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let partialExpr = arena.appendExpr(.intLiteral(1), type: types.intType)
         let fnPtrExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let closureExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
@@ -769,6 +772,9 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: delimiterExpr, value: .stringLiteral(delimiter)),
             .constValue(result: ignoreCaseExpr, value: .intLiteral(0)),
             .constValue(result: limitExpr, value: .intLiteral(2)),
+            .constValue(result: sizeExpr, value: .intLiteral(2)),
+            .constValue(result: stepExpr, value: .intLiteral(1)),
+            .constValue(result: partialExpr, value: .intLiteral(1)),
             .constValue(result: fnPtrExpr, value: .intLiteral(0)),
             .constValue(result: closureExpr, value: .intLiteral(0)),
         ]
@@ -802,6 +808,17 @@ extension CodegenBackendIntegrationTests {
         appendScalarCall("kk_string_split", [textExpr, delimiterExpr])
         appendScalarCall("kk_string_split_limit", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence", [textExpr, delimiterExpr])
+        appendScalarCall("kk_string_chunked", [textExpr, sizeExpr])
+        appendScalarCall("kk_string_chunked_sequence", [textExpr, sizeExpr])
+        appendThrowingScalarCall("kk_string_chunked_sequence_transform", [textExpr, sizeExpr, fnPtrExpr, closureExpr])
+        appendScalarCall("kk_string_windowed_default", [textExpr, sizeExpr])
+        appendScalarCall("kk_string_windowed", [textExpr, sizeExpr, stepExpr])
+        appendScalarCall("kk_string_windowed_partial", [textExpr, sizeExpr, stepExpr, partialExpr])
+        appendScalarCall("kk_string_windowedSequence_partial", [textExpr, sizeExpr, stepExpr, partialExpr])
+        appendThrowingScalarCall(
+            "kk_string_windowedSequence_transform",
+            [textExpr, sizeExpr, stepExpr, partialExpr, fnPtrExpr, closureExpr]
+        )
         appendScalarCall("kk_string_zipWithNext", [textExpr])
         appendThrowingScalarCall("kk_string_zipWithNextTransform", [textExpr, fnPtrExpr, closureExpr])
         appendScalarCall("kk_string_zip", [textExpr, otherExpr])
@@ -843,6 +860,14 @@ extension CodegenBackendIntegrationTests {
             "kk_string_split",
             "kk_string_split_limit",
             "kk_string_splitToSequence",
+            "kk_string_chunked",
+            "kk_string_chunked_sequence",
+            "kk_string_chunked_sequence_transform",
+            "kk_string_windowed_default",
+            "kk_string_windowed",
+            "kk_string_windowed_partial",
+            "kk_string_windowedSequence_partial",
+            "kk_string_windowedSequence_transform",
             "kk_string_zipWithNext",
             "kk_string_zipWithNextTransform",
             "kk_string_zip",
