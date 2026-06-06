@@ -18,6 +18,26 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         return Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
     }
 
+    private func externalLink(
+        for member: String,
+        receiverType: TypeID,
+        parameterCount: Int,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> String? {
+        let fq = ["kotlin", "text", member].map { interner.intern($0) }
+        guard let sym = sema.symbols.lookupAll(fqName: fq).first(where: { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return signature.receiverType == receiverType
+                && signature.parameterTypes.count == parameterCount
+        }) else {
+            return nil
+        }
+        return sema.symbols.externalLinkName(for: sym)
+    }
+
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -280,14 +300,50 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
         XCTAssertEqual(
             externalLink(for: "toBigDecimal", sema: sema, interner: interner),
-            "kk_string_toBigDecimal",
-            "String.toBigDecimal should link to kk_string_toBigDecimal"
+            "kk_string_toBigDecimal_flat",
+            "String.toBigDecimal should link to kk_string_toBigDecimal_flat"
         )
         XCTAssertEqual(
             externalLink(for: "toBigInteger", sema: sema, interner: interner),
-            "kk_string_toBigInteger",
-            "String.toBigInteger should link to kk_string_toBigInteger"
+            "kk_string_toBigInteger_flat",
+            "String.toBigInteger should link to kk_string_toBigInteger_flat"
         )
+    }
+
+    func testStringScalarResultStubsUseFlatExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(member: String, parameterCount: Int, link: String)] = [
+            ("first", 0, "kk_string_first_flat"),
+            ("last", 0, "kk_string_last_flat"),
+            ("single", 0, "kk_string_single_flat"),
+            ("firstOrNull", 0, "kk_string_firstOrNull_flat"),
+            ("lastOrNull", 0, "kk_string_lastOrNull_flat"),
+            ("singleOrNull", 0, "kk_string_singleOrNull_flat"),
+            ("getOrNull", 1, "kk_string_getOrNull_flat"),
+            ("count", 1, "kk_string_count_flat"),
+            ("any", 1, "kk_string_any_flat"),
+            ("all", 1, "kk_string_all_flat"),
+            ("none", 1, "kk_string_none_flat"),
+            ("find", 1, "kk_string_find_flat"),
+            ("findLast", 1, "kk_string_findLast_flat"),
+            ("indexOfFirst", 1, "kk_string_indexOfFirst_flat"),
+            ("indexOfLast", 1, "kk_string_indexOfLast_flat"),
+        ]
+
+        for item in expected {
+            XCTAssertEqual(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ),
+                item.link,
+                "String.\(item.member) should link to \(item.link)"
+            )
+        }
     }
 
     func testNewSubstringAndSearchStubsHaveCorrectExternalLinks() throws {

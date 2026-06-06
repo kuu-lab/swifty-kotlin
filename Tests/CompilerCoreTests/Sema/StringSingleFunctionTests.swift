@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-066: Validates that `CharSequence.single()` resolves through
 /// Sema for String receivers across multiple call sites and links to the
-/// runtime helper `kk_string_single` (see
+/// runtime helper `kk_string_single_flat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 final class StringSingleFunctionTests: XCTestCase {
     func testStringSingleResolvesInSource() throws {
@@ -52,7 +52,7 @@ final class StringSingleFunctionTests: XCTestCase {
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
             resolvedReturnType = sema.symbols.functionSignature(for: symbol)?.returnType
         }
-        XCTAssertEqual(resolvedLink, "kk_string_single")
+        XCTAssertEqual(resolvedLink, "kk_string_single_flat")
         XCTAssertNotNil(resolvedReturnType, "single() should expose a return type")
     }
 
@@ -74,6 +74,6 @@ final class StringSingleFunctionTests: XCTestCase {
             })
             resolvedLink = sema.symbols.externalLinkName(for: symbol)
         }
-        XCTAssertEqual(resolvedLink, "kk_string_singleOrNull")
+        XCTAssertEqual(resolvedLink, "kk_string_singleOrNull_flat")
     }
 }

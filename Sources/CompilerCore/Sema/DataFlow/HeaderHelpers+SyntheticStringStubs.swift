@@ -1892,7 +1892,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "first",
-            externalLinkName: "kk_string_first",
+            externalLinkName: "kk_string_first_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1903,7 +1903,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "last",
-            externalLinkName: "kk_string_last",
+            externalLinkName: "kk_string_last_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1914,7 +1914,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "single",
-            externalLinkName: "kk_string_single",
+            externalLinkName: "kk_string_single_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
@@ -1925,7 +1925,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "firstOrNull",
-            externalLinkName: "kk_string_firstOrNull",
+            externalLinkName: "kk_string_firstOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1936,7 +1936,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastOrNull",
-            externalLinkName: "kk_string_lastOrNull",
+            externalLinkName: "kk_string_lastOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1947,7 +1947,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull",
+            externalLinkName: "kk_string_singleOrNull_flat",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
@@ -1960,7 +1960,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "getOrNull",
-            externalLinkName: "kk_string_getOrNull",
+            externalLinkName: "kk_string_getOrNull_flat",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
@@ -2210,7 +2210,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "count",
-            externalLinkName: "kk_string_count",
+            externalLinkName: "kk_string_count_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
@@ -2220,7 +2220,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "any",
-            externalLinkName: "kk_string_any",
+            externalLinkName: "kk_string_any_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
@@ -2230,7 +2230,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "all",
-            externalLinkName: "kk_string_all",
+            externalLinkName: "kk_string_all_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
@@ -2240,7 +2240,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "none",
-            externalLinkName: "kk_string_none",
+            externalLinkName: "kk_string_none_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
@@ -2599,7 +2599,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "find",
-            externalLinkName: "kk_string_find",
+            externalLinkName: "kk_string_find_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
@@ -2609,7 +2609,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "findLast",
-            externalLinkName: "kk_string_findLast",
+            externalLinkName: "kk_string_findLast_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
@@ -2631,7 +2631,7 @@ extension DataFlowSemaPhase {
         // --- String.indexOfFirst / indexOfLast ---
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst",
+            externalLinkName: "kk_string_indexOfFirst_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
@@ -2641,7 +2641,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast",
+            externalLinkName: "kk_string_indexOfLast_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
@@ -2970,7 +2970,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBigDecimal",
-            externalLinkName: "kk_string_toBigDecimal",
+            externalLinkName: "kk_string_toBigDecimal_flat",
             receiverType: stringType,
             parameters: [],
             returnType: bigDecimalType,
@@ -2981,7 +2981,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBigInteger",
-            externalLinkName: "kk_string_toBigInteger",
+            externalLinkName: "kk_string_toBigInteger_flat",
             receiverType: stringType,
             parameters: [],
             returnType: bigIntegerType,
