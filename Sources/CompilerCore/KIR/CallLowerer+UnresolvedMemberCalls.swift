@@ -76,9 +76,9 @@ extension CallLowerer {
             case "get":
                 return interner.intern("kk_string_get_flat")
             case "lines":
-                return interner.intern("kk_string_lines")
+                return interner.intern("kk_string_lines_flat")
             case "lineSequence":
-                return interner.intern("kk_string_lineSequence")
+                return interner.intern("kk_string_lineSequence_flat")
             case "toRegex":
                 return argumentCount == 0
                     ? interner.intern("kk_string_toRegex")

@@ -382,7 +382,7 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             XCTAssertEqual(throwFlags["kk_string_trim"]?.allSatisfy { $0 == false }, true)
-            XCTAssertEqual(throwFlags["kk_string_split"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_toInt"]?.allSatisfy { $0 == true }, true)

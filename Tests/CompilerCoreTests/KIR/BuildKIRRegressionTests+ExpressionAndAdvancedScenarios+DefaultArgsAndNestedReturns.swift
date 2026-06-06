@@ -18,7 +18,7 @@ extension BuildKIRRegressionTests {
             let module = try XCTUnwrap(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_string_split"), "Expected direct kk_string_split call, got: \(callees)")
+            XCTAssertTrue(callees.contains("kk_string_split_flat"), "Expected direct kk_string_split_flat call, got: \(callees)")
             XCTAssertTrue(callees.contains("kk_string_startsWith"), "Expected direct kk_string_startsWith call, got: \(callees)")
             XCTAssertFalse(callees.contains { $0.contains("split$default") || $0.contains("startsWith$default") },
                            "External string stubs must not route through $default: \(callees)")

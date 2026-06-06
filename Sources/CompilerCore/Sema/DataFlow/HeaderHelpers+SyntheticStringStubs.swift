@@ -357,7 +357,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split",
+            externalLinkName: "kk_string_split_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -371,7 +371,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-EDGE-001: split with limit / ignoreCase ---
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -385,7 +385,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -399,7 +399,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit",
+            externalLinkName: "kk_string_split_limit_flat",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -1089,7 +1089,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toList",
-            externalLinkName: "kk_string_toList",
+            externalLinkName: "kk_string_toList_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listCharType,
@@ -1160,7 +1160,7 @@ extension DataFlowSemaPhase {
         }()
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet",
+            externalLinkName: "kk_string_toSortedSet_flat",
             receiverType: stringType,
             parameters: [],
             returnType: setCharType,
@@ -1181,7 +1181,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCharArray",
-            externalLinkName: "kk_string_toCharArray",
+            externalLinkName: "kk_string_toCharArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: charArrayType,
@@ -1203,7 +1203,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "toTypedArray",
-            externalLinkName: "kk_string_toTypedArray",
+            externalLinkName: "kk_string_toTypedArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: arrayCharType,
@@ -1250,7 +1250,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable",
+            externalLinkName: "kk_string_asIterable_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
@@ -2786,7 +2786,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lines",
-            externalLinkName: "kk_string_lines",
+            externalLinkName: "kk_string_lines_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listStringType,
@@ -2799,7 +2799,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lineSequence",
-            externalLinkName: "kk_string_lineSequence",
+            externalLinkName: "kk_string_lineSequence_flat",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceStringType,
@@ -2824,7 +2824,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray",
+            externalLinkName: "kk_string_toByteArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listIntType,
@@ -2872,7 +2872,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_charset",
+            externalLinkName: "kk_string_toByteArray_charset_flat",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -2885,6 +2885,7 @@ extension DataFlowSemaPhase {
 
         // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
+<<<<<<< HEAD
             named: "toByteArray",
             externalLinkName: "kk_string_encodeToByteArray_range",
             receiverType: stringType,
@@ -2902,6 +2903,10 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray",
             externalLinkName: "kk_string_encodeToByteArray",
+=======
+            named: "encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_flat",
+>>>>>>> e60884240 (Route string collection stubs to flat ABI)
             receiverType: stringType,
             parameters: [],
             returnType: byteArrayTypeForEncode,
@@ -2910,6 +2915,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+<<<<<<< HEAD
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_range",
             externalLinkName: "kk_string_encodeToByteArray_range",
@@ -2927,6 +2933,29 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_charset",
             externalLinkName: "kk_string_encodeToByteArray_charset",
+=======
+        // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
+        for functionName in ["encodeToByteArray", "toByteArray"] {
+            registerSyntheticStringExtensionFunction(
+                named: functionName,
+                externalLinkName: "kk_string_encodeToByteArray_range_flat",
+                receiverType: stringType,
+                parameters: [
+                    ("startIndex", intType, false, false),
+                    ("endIndex", intType, false, false),
+                ],
+                returnType: byteArrayTypeForEncode,
+                packageFQName: kotlinTextPkg,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload
+        registerSyntheticStringExtensionFunction(
+            named: "encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
+>>>>>>> e60884240 (Route string collection stubs to flat ABI)
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -3218,7 +3247,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "chunked",
-            externalLinkName: "kk_string_chunked",
+            externalLinkName: "kk_string_chunked_flat",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3335,7 +3364,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed_default",
+            externalLinkName: "kk_string_windowed_default_flat",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3348,7 +3377,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed",
+            externalLinkName: "kk_string_windowed_flat",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3362,7 +3391,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed_partial",
+            externalLinkName: "kk_string_windowed_partial_flat",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3594,7 +3623,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext",
+            externalLinkName: "kk_string_zipWithNext_flat",
             receiverType: stringType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3722,7 +3751,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asSequence",
-            externalLinkName: "kk_string_asSequence",
+            externalLinkName: "kk_string_asSequence_flat",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceCharType,
@@ -3733,7 +3762,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable",
+            externalLinkName: "kk_string_asIterable_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
@@ -3767,7 +3796,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex",
+            externalLinkName: "kk_string_withIndex_flat",
             receiverType: stringType,
             parameters: [],
             returnType: iterableIndexedValueCharType,

@@ -784,10 +784,10 @@ final class CollectionLiteralLoweringTests: XCTestCase {
             body: [
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_split"),
+                    callee: interner.intern("kk_string_split_flat"),
                     arguments: [sourceExpr, delimitersExpr, ignoreCaseExpr, limitExpr],
                     result: splitResult,
-                    canThrow: true,
+                    canThrow: false,
                     thrownResult: nil
                 ),
                 .call(
@@ -810,7 +810,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        XCTAssertTrue(callees.contains("kk_string_split"))
+        XCTAssertTrue(callees.contains("kk_string_split_flat"))
         XCTAssertTrue(callees.contains("kk_list_to_string"),
                       "split result should be recognized as list and routed through kk_list_to_string")
     }

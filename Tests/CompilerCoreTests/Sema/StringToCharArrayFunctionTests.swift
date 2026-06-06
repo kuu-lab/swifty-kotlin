@@ -2,7 +2,7 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-093: Validates that `String.toCharArray()` resolves through Sema
-/// and links to the `kk_string_toCharArray` runtime entry.
+/// and links to the `kk_string_toCharArray_flat` runtime entry.
 ///
 /// The synthetic extension function is registered in
 /// `HeaderHelpers+SyntheticStringStubs.swift`, the call lowering routes to the
@@ -49,7 +49,7 @@ final class StringToCharArrayFunctionTests: XCTestCase {
 }
 
 /// STDLIB-TEXT-FN-109: Validates that `String.toTypedArray()` resolves through Sema
-/// and links to the `kk_string_toTypedArray` runtime entry.
+/// and links to the `kk_string_toTypedArray_flat` runtime entry.
 ///
 /// The synthetic extension function is registered in
 /// `HeaderHelpers+SyntheticStringStubs.swift` and the runtime implementation

@@ -66,7 +66,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         let expected: [String: String] = [
             "trim": "kk_string_trim",
-            "split": "kk_string_split",
+            "split": "kk_string_split_flat",
             "replace": "kk_string_replace",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
@@ -380,15 +380,61 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
 
         let expected: [String: String] = [
+<<<<<<< HEAD
             "toList": "kk_string_toList",
             "toCharArray": "kk_string_toCharArray",
             "toTypedArray": "kk_string_toTypedArray",
+=======
+            "repeat": "kk_string_repeat",
+            "reversed": "kk_string_reversed",
+            "toList": "kk_string_toList_flat",
+            "toCharArray": "kk_string_toCharArray_flat",
+            "toTypedArray": "kk_string_toTypedArray_flat",
+>>>>>>> e60884240 (Route string collection stubs to flat ABI)
         ]
         for (member, expectedLink) in expected {
             XCTAssertEqual(
                 externalLink(for: member, sema: sema, interner: interner),
                 expectedLink,
                 "String.\(member) should link to \(expectedLink)"
+            )
+        }
+    }
+
+    func testStringCollectionAndSequenceResultStubsUseFlatExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(member: String, parameterCount: Int, link: String)] = [
+            ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
+            ("asIterable", 0, "kk_string_asIterable_flat"),
+            ("lines", 0, "kk_string_lines_flat"),
+            ("lineSequence", 0, "kk_string_lineSequence_flat"),
+            ("toByteArray", 0, "kk_string_toByteArray_flat"),
+            ("toByteArray", 1, "kk_string_toByteArray_charset_flat"),
+            ("toByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
+            ("encodeToByteArray", 0, "kk_string_encodeToByteArray_flat"),
+            ("encodeToByteArray", 1, "kk_string_encodeToByteArray_charset_flat"),
+            ("encodeToByteArray", 2, "kk_string_encodeToByteArray_range_flat"),
+            ("chunked", 1, "kk_string_chunked_flat"),
+            ("windowed", 1, "kk_string_windowed_default_flat"),
+            ("windowed", 2, "kk_string_windowed_flat"),
+            ("windowed", 3, "kk_string_windowed_partial_flat"),
+            ("zipWithNext", 0, "kk_string_zipWithNext_flat"),
+            ("asSequence", 0, "kk_string_asSequence_flat"),
+            ("withIndex", 0, "kk_string_withIndex_flat"),
+        ]
+
+        for item in expected {
+            XCTAssertEqual(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ),
+                item.link,
+                "String.\(item.member)/\(item.parameterCount) should link to \(item.link)"
             )
         }
     }
