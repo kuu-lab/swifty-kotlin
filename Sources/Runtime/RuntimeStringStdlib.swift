@@ -5907,21 +5907,6 @@ private func runtimeStringMapNotNull(
     return runtimeMakeListRaw(mappedElements)
 }
 
-@_cdecl("kk_string_firstNotNullOf")
-public func kk_string_firstNotNullOf(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringFirstNotNullOf(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_firstNotNullOf_flat")
 public func kk_string_firstNotNullOf_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -5967,21 +5952,6 @@ private func runtimeStringFirstNotNullOf(
         message: "NoSuchElementException: No element of the char sequence was transformed to a non-null value."
     )
     return 0
-}
-
-@_cdecl("kk_string_firstNotNullOfOrNull")
-public func kk_string_firstNotNullOfOrNull(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringFirstNotNullOfOrNull(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_string_firstNotNullOfOrNull_flat")
@@ -6030,21 +6000,6 @@ private func runtimeStringFirstNotNullOfOrNull(
 
 // MARK: - STDLIB-TEXT-FN-049: CharSequence.reduceOrNull
 
-@_cdecl("kk_string_reduceOrNull")
-public func kk_string_reduceOrNull(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringReduceOrNull(
-        runtimeStringUTF16CodeUnits(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_reduceOrNull_flat")
 public func kk_string_reduceOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -6091,21 +6046,6 @@ private func runtimeStringReduceOrNull(
         }
     }
     return acc
-}
-
-@_cdecl("kk_string_reduceRightIndexed")
-public func kk_string_reduceRightIndexed(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringReduceRightIndexed(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_string_reduceRightIndexed_flat")
@@ -6162,21 +6102,6 @@ private func runtimeStringReduceRightIndexed(
     return acc
 }
 
-@_cdecl("kk_string_reduceRightIndexedOrNull")
-public func kk_string_reduceRightIndexedOrNull(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringReduceRightIndexedOrNull(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_reduceRightIndexedOrNull_flat")
 public func kk_string_reduceRightIndexedOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -6226,21 +6151,6 @@ private func runtimeStringReduceRightIndexedOrNull(
         }
     }
     return acc
-}
-
-@_cdecl("kk_string_reduceRightOrNull")
-public func kk_string_reduceRightOrNull(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringReduceRightOrNull(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_string_reduceRightOrNull_flat")

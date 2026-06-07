@@ -1670,21 +1670,21 @@ extension CallLowerer {
                     )
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf":
-                        usesStringFlatABI ? "kk_string_firstNotNullOf_flat" : "kk_string_firstNotNullOf"
+                        "kk_string_firstNotNullOf_flat"
                     case "firstNotNullOfOrNull":
-                        usesStringFlatABI ? "kk_string_firstNotNullOfOrNull_flat" : "kk_string_firstNotNullOfOrNull"
+                        "kk_string_firstNotNullOfOrNull_flat"
                     case "reduceOrNull":
-                        usesStringFlatABI ? "kk_string_reduceOrNull_flat" : "kk_string_reduceOrNull"
+                        "kk_string_reduceOrNull_flat"
                     case "reduceRightIndexed":
-                        usesStringFlatABI ? "kk_string_reduceRightIndexed_flat" : "kk_string_reduceRightIndexed"
+                        "kk_string_reduceRightIndexed_flat"
                     case "reduceRightIndexedOrNull":
-                        usesStringFlatABI ? "kk_string_reduceRightIndexedOrNull_flat" : "kk_string_reduceRightIndexedOrNull"
+                        "kk_string_reduceRightIndexedOrNull_flat"
                     case "sumBy":
                         "kk_string_sumBy_flat"
                     case "sumByDouble":
                         "kk_string_sumByDouble_flat"
                     default:
-                        usesStringFlatABI ? "kk_string_reduceRightOrNull_flat" : "kk_string_reduceRightOrNull"
+                        "kk_string_reduceRightOrNull_flat"
                     }
                     instructions.append(.call(
                         symbol: nil,

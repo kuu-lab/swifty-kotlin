@@ -1319,37 +1319,37 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_firstNotNullOf": FlatScalarReturnCallSpec(
+                "kk_string_firstNotNullOf_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_firstNotNullOf_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_firstNotNullOfOrNull": FlatScalarReturnCallSpec(
+                "kk_string_firstNotNullOfOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_firstNotNullOfOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_reduceOrNull": FlatScalarReturnCallSpec(
+                "kk_string_reduceOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_reduceOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_reduceRightIndexed": FlatScalarReturnCallSpec(
+                "kk_string_reduceRightIndexed_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_reduceRightIndexed_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_reduceRightIndexedOrNull": FlatScalarReturnCallSpec(
+                "kk_string_reduceRightIndexedOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_reduceRightIndexedOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_reduceRightOrNull": FlatScalarReturnCallSpec(
+                "kk_string_reduceRightOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_reduceRightOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,

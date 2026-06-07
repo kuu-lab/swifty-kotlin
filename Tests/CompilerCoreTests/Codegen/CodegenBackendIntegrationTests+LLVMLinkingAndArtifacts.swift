@@ -912,12 +912,12 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_map", resultType: types.anyType)
         appendCallbackCall("kk_string_mapIndexed", resultType: types.anyType)
         appendCallbackCall("kk_string_mapNotNull", resultType: types.anyType)
-        appendCallbackCall("kk_string_firstNotNullOf", resultType: types.intType)
-        appendCallbackCall("kk_string_firstNotNullOfOrNull", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceOrNull", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightIndexed", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightIndexedOrNull", resultType: types.intType)
-        appendCallbackCall("kk_string_reduceRightOrNull", resultType: types.intType)
+        appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_reduceRightIndexed_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_reduceRightIndexedOrNull_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_reduceRightOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_sumBy_flat", resultType: types.intType)
         appendCallbackCall("kk_string_sumByDouble_flat", resultType: types.doubleType)
         body.append(.returnUnit)
@@ -958,6 +958,12 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfLast_flat",
             "kk_string_find_flat",
             "kk_string_findLast_flat",
+            "kk_string_firstNotNullOf_flat",
+            "kk_string_firstNotNullOfOrNull_flat",
+            "kk_string_reduceOrNull_flat",
+            "kk_string_reduceRightIndexed_flat",
+            "kk_string_reduceRightIndexedOrNull_flat",
+            "kk_string_reduceRightOrNull_flat",
             "kk_string_sumBy_flat",
             "kk_string_sumByDouble_flat",
         ]
@@ -972,12 +978,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_map",
             "kk_string_mapIndexed",
             "kk_string_mapNotNull",
-            "kk_string_firstNotNullOf",
-            "kk_string_firstNotNullOfOrNull",
-            "kk_string_reduceOrNull",
-            "kk_string_reduceRightIndexed",
-            "kk_string_reduceRightIndexedOrNull",
-            "kk_string_reduceRightOrNull",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")

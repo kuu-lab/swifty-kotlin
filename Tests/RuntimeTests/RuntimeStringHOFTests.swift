@@ -306,15 +306,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfReturnsFirstNonNullResult() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(runtimeStringValue(result), "bee")
@@ -340,15 +344,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfSetsThrownWhenNoResultMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0)
@@ -374,15 +382,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfTreatsZeroAsNullFromNullableLambda() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOf(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOf_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(result, 0)
         XCTAssertNotEqual(thrown, 0)
@@ -404,15 +416,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOfOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfStringForB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(runtimeStringValue(result), "bee")
@@ -438,15 +454,19 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfOrNullReturnsNullSentinelWhenNoResultMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOfOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
@@ -472,30 +492,38 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testFirstNotNullOfOrNullTreatsZeroAsNullFromNullableLambda() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_firstNotNullOfOrNull(
-            source,
-            unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_firstNotNullOfOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(firstNotNullOfAlwaysZeroNull, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
     func testReduceRightIndexedWalksRightToLeftWithIndexes() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
@@ -521,60 +549,76 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testReduceRightIndexedUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 295)
     }
 
     func testReduceRightIndexedSetsThrownForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexed(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(result, runtimeExceptionCaughtSentinel)
         XCTAssertNotEqual(thrown, 0)
     }
 
     func testReduceRightIndexedOrNullWalksRightToLeftWithIndexes() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexedOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
     }
 
     func testReduceRightIndexedOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexedOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
@@ -600,30 +644,38 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightIndexedOrNull(
-            source,
-            unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexedOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedIndexChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 295)
     }
 
     func testReduceRightOrNullWalksRightToLeft() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightPickB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightPickB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
@@ -649,77 +701,97 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testReduceRightOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
         var thrown = 0
 
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightPickB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
+            kk_string_reduceRightOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightPickB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
     func testReduceRightOrNullUsesLastCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceRightOrNull(
-            source,
-            unsafeBitCast(reduceRightChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 294)
     }
 
-    // MARK: - STDLIB-TEXT-FN-049: kk_string_reduceOrNull
+    // MARK: - STDLIB-TEXT-FN-049: kk_string_reduceOrNull_flat
 
     func testReduceOrNullWalksLeftToRight() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullPickB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
     }
 
     func testReduceOrNullReturnsNullSentinelForEmptyString() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
         var thrown = 0
 
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullPickB, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullPickB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
     func testReduceOrNullUsesFirstCharacterAsInitialAccumulator() {
-        let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
 
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 294)
@@ -745,30 +817,38 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testReduceOrNullReturnsSingleCharForOneCharString() {
-        let source = registerRuntimeObject(RuntimeStringBox("x"))
         var thrown = 0
 
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("x") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("x").value))
     }
 
     func testReduceOrNullUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("a🐻"))
         var thrown = 0
 
-        let result = kk_string_reduceOrNull(
-            source,
-            unsafeBitCast(reduceOrNullChecksum, to: Int.self),
-            0,
-            &thrown
-        )
+        let result = withFlatStringForHOF("a🐻") { data, length, byteCount, hash in
+            kk_string_reduceOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceOrNullChecksum, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 97 + 0xD83D + 0xDC3B)
