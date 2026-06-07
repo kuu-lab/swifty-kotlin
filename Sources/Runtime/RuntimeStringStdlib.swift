@@ -115,13 +115,6 @@ private func runtimeStringTrimWithPredicate(
 
 // MARK: - STDLIB-006/009/013 String Functions
 
-@_cdecl("kk_string_trim")
-public func kk_string_trim(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-    return runtimeMakeStringRaw(trimmed)
-}
-
 @_cdecl("kk_string_trim_flat")
 public func kk_string_trim_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -157,12 +150,6 @@ public func kk_string_trim_predicate(
         trimTrailing: true,
         context: "trim predicate"
     )
-}
-
-@_cdecl("kk_string_lowercase")
-public func kk_string_lowercase(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(source.lowercased())
 }
 
 @_cdecl("kk_string_lowercase_flat")
@@ -609,12 +596,6 @@ public func kk_string_repeat(_ strRaw: Int, _ countRaw: Int, _ outThrown: Unsafe
         return runtimeMakeStringRaw("")
     }
     return runtimeMakeStringRaw(String(repeating: source, count: countRaw))
-}
-
-@_cdecl("kk_string_reversed")
-public func kk_string_reversed(_ strRaw: Int) -> Int {
-    let reversed = runtimeStringFromScalars(runtimeStringScalars(strRaw).reversed())
-    return runtimeMakeStringRaw(reversed)
 }
 
 @_cdecl("kk_string_reversed_flat")
@@ -4103,12 +4084,6 @@ private func runtimeStringLineSequenceRaw(_ source: String) -> Int {
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_string_trimStart")
-public func kk_string_trimStart(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeStringTrimStartRaw(source))
-}
-
 @_cdecl("kk_string_trimStart_flat")
 public func kk_string_trimStart_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -4148,12 +4123,6 @@ public func kk_string_trimStart_predicate(
         trimTrailing: false,
         context: "trimStart predicate"
     )
-}
-
-@_cdecl("kk_string_trimEnd")
-public func kk_string_trimEnd(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeMakeStringRaw(runtimeStringTrimEndRaw(source))
 }
 
 @_cdecl("kk_string_trimEnd_flat")

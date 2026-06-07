@@ -55,6 +55,8 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_string_isNotEmpty": "kk_string_isNotEmpty_flat",
             "kk_string_last": "kk_string_last_flat",
             "kk_string_lastOrNull": "kk_string_lastOrNull_flat",
+            "kk_string_lowercase": "kk_string_lowercase_flat",
+            "kk_string_reversed": "kk_string_reversed_flat",
             "kk_string_single": "kk_string_single_flat",
             "kk_string_singleOrNull": "kk_string_singleOrNull_flat",
             "kk_string_toBoolean": "kk_string_toBoolean_flat",
@@ -79,6 +81,10 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_string_toUIntOrNull_radix": "kk_string_toUIntOrNull_radix_flat",
             "kk_string_toULongOrNull_radix": "kk_string_toULongOrNull_radix_flat",
             "kk_string_toUShortOrNull_radix": "kk_string_toUShortOrNull_radix_flat",
+            "kk_string_trim": "kk_string_trim_flat",
+            "kk_string_trimEnd": "kk_string_trimEnd_flat",
+            "kk_string_trimStart": "kk_string_trimStart_flat",
+            "kk_string_uppercase": "kk_string_uppercase_flat",
         ]
     }
 

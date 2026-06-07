@@ -52,6 +52,9 @@ extension CodegenBackendIntegrationTests {
         let trimResult = arena.appendExpr(.temporary(12), type: types.stringType)
         let trimStartResult = arena.appendExpr(.temporary(28), type: types.stringType)
         let trimEndResult = arena.appendExpr(.temporary(29), type: types.stringType)
+        let lowercaseResult = arena.appendExpr(.temporary(31), type: types.stringType)
+        let uppercaseResult = arena.appendExpr(.temporary(32), type: types.stringType)
+        let reversedResult = arena.appendExpr(.temporary(33), type: types.stringType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
         let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
@@ -102,6 +105,9 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_trim"), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_trimStart"), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_trimEnd"), arguments: [paddedExpr], result: trimEndResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_lowercase"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_uppercase"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_reversed"), arguments: [paddedExpr], result: reversedResult, canThrow: false, thrownResult: nil),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_take"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
@@ -221,6 +227,9 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_trim("))
         XCTAssertFalse(ir.contains("@kk_string_trimStart("))
         XCTAssertFalse(ir.contains("@kk_string_trimEnd("))
+        XCTAssertFalse(ir.contains("@kk_string_lowercase("))
+        XCTAssertFalse(ir.contains("@kk_string_uppercase("))
+        XCTAssertFalse(ir.contains("@kk_string_reversed("))
         XCTAssertFalse(ir.contains("@kk_string_take("))
         XCTAssertFalse(ir.contains("@kk_string_startsWith("))
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
@@ -237,6 +246,9 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_trim_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trimStart_flat"))
         XCTAssertTrue(ir.contains("@kk_string_trimEnd_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_lowercase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
         XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))

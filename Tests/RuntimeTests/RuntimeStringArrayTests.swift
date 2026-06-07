@@ -8,6 +8,15 @@ import XCTest
 #endif
 
 private typealias RuntimeStringUnaryEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
+private typealias RuntimeFlatStringReturnEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 
 private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
     kk_box_char(Int(Character("B").unicodeScalars.first!.value))
@@ -101,6 +110,24 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         hash: Int
     ) -> String {
         runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        using call: RuntimeFlatStringReturnEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
     }
 
     // MARK: - kk_string_from_utf8
@@ -225,9 +252,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - STDLIB-006 string runtime ABI
 
-    func testStringTrimRemovesLeadingAndTrailingWhitespace() {
-        let raw = kk_string_trim(rawFromRuntimeString("  hello  "))
-        XCTAssertEqual(runtimeStringValue(raw), "hello")
+    func testFlatStringTrimRemovesLeadingAndTrailingWhitespace() {
+        XCTAssertEqual(flatStringReturnValue("  hello  ", using: kk_string_trim_flat), "hello")
     }
 
     func testFlatStringTrimReturnsFlattenedStringFields() {
@@ -246,6 +272,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 "hello"
             )
         }
+        XCTAssertEqual(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat), "kswiftk")
+        XCTAssertEqual(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat), "KSWIFTK")
+        XCTAssertEqual(flatStringReturnValue("abc", using: kk_string_reversed_flat), "cba")
     }
 
     func testFlatStringTrimStartAndTrimEndReturnFlattenedStringFields() {

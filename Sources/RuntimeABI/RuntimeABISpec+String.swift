@@ -737,14 +737,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_trim",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_trim_predicate",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
@@ -2011,28 +2003,12 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-144: String.trimStart/trimEnd
         RuntimeABIFunctionSpec(
-            name: "kk_string_trimStart",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_trimStart_predicate",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_trimEnd",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
