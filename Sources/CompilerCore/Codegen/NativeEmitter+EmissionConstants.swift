@@ -35,11 +35,169 @@ extension NativeEmitter {
         calleeName: String,
         argumentValues: [LLVMCAPIBindings.LLVMValueRef],
         argumentTypes: [TypeID?] = [],
+        resultType: TypeID? = nil,
         state: EmissionBuilderState,
         instructionIndex: Int
     ) -> (handled: Bool, value: LLVMCAPIBindings.LLVMValueRef?) {
         let lhs = argumentValues.count > 0 ? argumentValues[0] : state.zeroValue
         let rhs = argumentValues.count > 1 ? argumentValues[1] : state.zeroValue
+
+        func isStringAggregateType(_ type: TypeID?) -> Bool {
+            guard let type,
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: type)
+            else {
+                return false
+            }
+            return state.typeLowering != nil
+        }
+
+        func stringAggregateFields(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
+            guard let data = bindings.buildExtractValue(state.builder, aggregate: value, index: 0, name: "str_data_\(suffix)"),
+                  let length = bindings.buildExtractValue(state.builder, aggregate: value, index: 1, name: "str_length_\(suffix)"),
+                  let byteCount = bindings.buildExtractValue(state.builder, aggregate: value, index: 2, name: "str_bytes_\(suffix)"),
+                  let hash = bindings.buildExtractValue(state.builder, aggregate: value, index: 3, name: "str_hash_\(suffix)")
+            else {
+                return nil
+            }
+            return [data, length, byteCount, hash]
+        }
+
+        func declareTypedExternalFunction(
+            named name: String,
+            parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?],
+            returnType: LLVMCAPIBindings.LLVMTypeRef?
+        ) -> LLVMFunction? {
+            guard let externalType = bindings.functionType(
+                returnType: returnType,
+                parameters: parameterTypes,
+                isVarArg: false
+            ) else {
+                return nil
+            }
+            let externalValue = bindings.getNamedFunction(module: state.module, name: name)
+                ?? bindings.addFunction(module: state.module, name: name, functionType: externalType)
+            guard let externalValue else {
+                return nil
+            }
+            return LLVMFunction(value: externalValue, type: externalType)
+        }
+
+        func bridgeStringAggregateToRuntimeRaw(
+            _ value: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering = state.typeLowering,
+                  let fields = stringAggregateFields(value, suffix: "\(suffix)_to_raw"),
+                  let bridgeFunction = declareTypedExternalFunction(
+                      named: "kk_string_from_flat",
+                      parameterTypes: [
+                          typeLowering.dataPointerType,
+                          state.int64Type,
+                          state.int64Type,
+                          state.int64Type,
+                      ],
+                      returnType: state.int64Type
+                  )
+            else {
+                return nil
+            }
+            return bindings.buildCall(
+                state.builder,
+                functionType: bridgeFunction.type,
+                callee: bridgeFunction.value,
+                arguments: fields,
+                name: "string_raw_\(suffix)"
+            ).flatMap { raw in
+                // String? uses null data in aggregate form and the runtime null
+                // sentinel at erased/raw boundaries.
+                guard let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                      let isNull = bindings.buildICmpEqual(
+                          state.builder,
+                          lhs: fields[0],
+                          rhs: nullData,
+                          name: "string_raw_isnull_\(suffix)"
+                      ),
+                      let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true)
+                else {
+                    return raw
+                }
+                return bindings.buildSelect(
+                    state.builder,
+                    condition: isNull,
+                    thenValue: sentinel,
+                    elseValue: raw,
+                    name: "string_raw_nullable_\(suffix)"
+                ) ?? raw
+            }
+        }
+
+        func bridgeRuntimeRawToStringAggregate(
+            _ raw: LLVMCAPIBindings.LLVMValueRef,
+            suffix: String
+        ) -> LLVMCAPIBindings.LLVMValueRef? {
+            guard let typeLowering = state.typeLowering,
+                  let pointerType = bindings.pointerType(state.int64Type, addressSpace: 0),
+                  let lengthSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_length_\(suffix)"),
+                  let byteCountSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_bytes_\(suffix)"),
+                  let hashSlot = bindings.buildAlloca(state.builder, type: state.int64Type, name: "string_bridge_hash_\(suffix)")
+            else {
+                return nil
+            }
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: lengthSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: byteCountSlot)
+            _ = bindings.buildStore(state.builder, value: state.zeroValue, pointer: hashSlot)
+            guard let bridgeFunction = declareTypedExternalFunction(
+                named: "kk_string_to_flat",
+                parameterTypes: [
+                    state.int64Type,
+                    pointerType,
+                    pointerType,
+                    pointerType,
+                ],
+                returnType: typeLowering.dataPointerType
+            ),
+                let data = bindings.buildCall(
+                    state.builder,
+                    functionType: bridgeFunction.type,
+                    callee: bridgeFunction.value,
+                    arguments: [raw, lengthSlot, byteCountSlot, hashSlot],
+                    name: "string_bridge_data_\(suffix)"
+                ),
+                let length = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: lengthSlot,
+                    name: "string_bridge_length_val_\(suffix)"
+                ),
+                let byteCount = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: byteCountSlot,
+                    name: "string_bridge_bytes_val_\(suffix)"
+                ),
+                let hash = bindings.buildLoad(
+                    state.builder,
+                    type: state.int64Type,
+                    pointer: hashSlot,
+                    name: "string_bridge_hash_val_\(suffix)"
+                )
+            else {
+                return nil
+            }
+            return buildStringAggregate(
+                builder: state.builder,
+                lowering: typeLowering,
+                data: data,
+                length: length,
+                byteCount: byteCount,
+                hash: hash,
+                name: "string_bridge_\(suffix)"
+            )
+        }
 
         func boolCondition(
             from value: LLVMCAPIBindings.LLVMValueRef,
@@ -304,11 +462,89 @@ extension NativeEmitter {
         case "kk_op_inv":
             lowered = bindings.buildNot(state.builder, value: lhs, name: "inv_\(instructionIndex)")
         case "kk_op_elvis":
-            let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true) ?? state.zeroValue
-            if let isNull = bindings.buildICmpEqual(state.builder, lhs: lhs, rhs: sentinel, name: "elvis_isnull_\(instructionIndex)") {
-                lowered = bindings.buildSelect(state.builder, condition: isNull, thenValue: rhs, elseValue: lhs, name: "elvis_\(instructionIndex)")
+            let lhsType = argumentTypes.indices.contains(0) ? argumentTypes[0] : nil
+            let rhsType = argumentTypes.indices.contains(1) ? argumentTypes[1] : nil
+            let lhsIsString = isStringAggregateType(lhsType)
+            let rhsIsString = isStringAggregateType(rhsType)
+            let resultIsString = isStringAggregateType(resultType)
+            if resultIsString {
+                let lhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if lhsIsString {
+                    lhsValue = lhs
+                } else {
+                    lhsValue = bridgeRuntimeRawToStringAggregate(lhs, suffix: "elvis_\(instructionIndex)_lhs")
+                }
+                guard let typeLowering = state.typeLowering,
+                      let lhsValue,
+                      let lhsData = bindings.buildExtractValue(
+                          state.builder,
+                          aggregate: lhsValue,
+                          index: 0,
+                          name: "elvis_str_data_\(instructionIndex)"
+                      ),
+                      let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                      let isNull = bindings.buildICmpEqual(
+                          state.builder,
+                          lhs: lhsData,
+                          rhs: nullData,
+                          name: "elvis_string_isnull_\(instructionIndex)"
+                      )
+                else {
+                    lowered = nil
+                    break
+                }
+                let rhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if rhsIsString {
+                    rhsValue = rhs
+                } else {
+                    rhsValue = bridgeRuntimeRawToStringAggregate(rhs, suffix: "elvis_\(instructionIndex)_rhs")
+                }
+                if let rhsValue {
+                    lowered = bindings.buildSelect(
+                        state.builder,
+                        condition: isNull,
+                        thenValue: rhsValue,
+                        elseValue: lhsValue,
+                        name: "elvis_\(instructionIndex)"
+                    )
+                } else {
+                    lowered = nil
+                }
             } else {
-                lowered = nil
+                let lhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if lhsIsString {
+                    lhsValue = bridgeStringAggregateToRuntimeRaw(lhs, suffix: "elvis_\(instructionIndex)_lhs")
+                } else {
+                    lhsValue = lhs
+                }
+                let sentinel = bindings.constInt(state.int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true) ?? state.zeroValue
+                guard let lhsValue,
+                      let isNull = bindings.buildICmpEqual(
+                    state.builder,
+                    lhs: lhsValue,
+                    rhs: sentinel,
+                    name: "elvis_isnull_\(instructionIndex)"
+                ) else {
+                    lowered = nil
+                    break
+                }
+                let rhsValue: LLVMCAPIBindings.LLVMValueRef?
+                if rhsIsString {
+                    rhsValue = bridgeStringAggregateToRuntimeRaw(rhs, suffix: "elvis_\(instructionIndex)_rhs")
+                } else {
+                    rhsValue = rhs
+                }
+                if let rhsValue {
+                    lowered = bindings.buildSelect(
+                        state.builder,
+                        condition: isNull,
+                        thenValue: rhsValue,
+                        elseValue: lhsValue,
+                        name: "elvis_\(instructionIndex)"
+                    )
+                } else {
+                    lowered = nil
+                }
             }
         default:
             return (false, nil)

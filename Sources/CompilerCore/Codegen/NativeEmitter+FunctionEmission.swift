@@ -12,6 +12,8 @@ extension NativeEmitter {
         outThrownPointerType: LLVMCAPIBindings.LLVMTypeRef,
         internalFunctions: [SymbolID: LLVMFunction],
         globalVariables: [SymbolID: LLVMCAPIBindings.LLVMValueRef] = [:],
+        runtimeCallbackRawReturnSymbols: Set<SymbolID> = [],
+        returnsRawStringRuntimeCallback: Bool = false,
         diContext: DebugInfoContext? = nil
     ) throws {
         guard let builder = bindings.createBuilder(context: context) else {
@@ -338,7 +340,28 @@ extension NativeEmitter {
                 callee: bridgeFunction.value,
                 arguments: fields,
                 name: "string_raw_\(suffix)"
-            )
+            ).flatMap { raw in
+                // String? uses null data in aggregate form and the runtime null
+                // sentinel at erased/raw boundaries.
+                guard let nullData = bindings.constPointerNull(typeLowering.dataPointerType),
+                      let isNull = bindings.buildICmpEqual(
+                          builder,
+                          lhs: fields[0],
+                          rhs: nullData,
+                          name: "string_raw_isnull_\(suffix)"
+                      ),
+                      let sentinel = bindings.constInt(int64Type, value: UInt64(bitPattern: Int64.min), signExtend: true)
+                else {
+                    return raw
+                }
+                return bindings.buildSelect(
+                    builder,
+                    condition: isNull,
+                    thenValue: sentinel,
+                    elseValue: raw,
+                    name: "string_raw_nullable_\(suffix)"
+                ) ?? raw
+            }
         }
 
         func bridgeRuntimeRawToStringAggregate(
@@ -1662,7 +1685,19 @@ extension NativeEmitter {
                         + (spec.canThrow ? [thrownSlot ?? nullThrownPointer] : []),
                     name: "\(spec.flatName)_value_\(instructionIndex)"
                 )
-                storeResult(result, scalarValue)
+                let storedScalarValue: LLVMCAPIBindings.LLVMValueRef?
+                if let result,
+                   isStringAggregateExpr(result),
+                   let scalarValue
+                {
+                    storedScalarValue = bridgeRuntimeRawToStringAggregate(
+                        scalarValue,
+                        suffix: "\(spec.flatName)_result_\(instructionIndex)"
+                    ) ?? scalarValue
+                } else {
+                    storedScalarValue = scalarValue
+                }
+                storeResult(result, storedScalarValue)
                 if spec.canThrow {
                     if usesThrownChannel {
                         handleThrownSlot(thrownSlot, thrownResult: thrownResult, instructionIndex: instructionIndex)
@@ -2072,6 +2107,7 @@ extension NativeEmitter {
                 calleeName: calleeName,
                 argumentValues: argumentValues,
                 argumentTypes: argumentTypes,
+                resultType: result.flatMap(module.arena.exprType),
                 state: builderState,
                 instructionIndex: instructionIndex
             )
@@ -2684,6 +2720,22 @@ extension NativeEmitter {
                 )
                 let storedCallValue: LLVMCAPIBindings.LLVMValueRef?
                 if isInternalCall,
+                   let effectiveSymbol,
+                   runtimeCallbackRawReturnSymbols.contains(effectiveSymbol),
+                   let result,
+                   isStringAggregateExpr(result),
+                   let callValue
+                {
+                    storedCallValue = bridgeRuntimeRawToStringAggregate(
+                        callValue,
+                        suffix: "\(instructionIndex)_runtime_callback_result"
+                    ) ?? callValue
+                } else if isInternalCall,
+                          let effectiveSymbol,
+                          runtimeCallbackRawReturnSymbols.contains(effectiveSymbol)
+                {
+                    storedCallValue = callValue
+                } else if isInternalCall,
                    let result,
                    let returnType = internalSignature?.returnType,
                    isStringAggregateType(returnType),
@@ -3181,12 +3233,24 @@ extension NativeEmitter {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
-                let returnValue = coerceStringValueForType(
-                    resolveValue(value),
-                    from: module.arena.exprType(value),
-                    to: function.returnType,
-                    suffix: "return_\(instructionIndex)"
-                )
+                let resolvedReturnValue = resolveValue(value)
+                let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
+                    if isStringAggregateType(module.arena.exprType(value)) {
+                        bridgeStringAggregateToRuntimeRaw(
+                            resolvedReturnValue,
+                            suffix: "return_\(instructionIndex)"
+                        ) ?? resolvedReturnValue
+                    } else {
+                        resolvedReturnValue
+                    }
+                } else {
+                    coerceStringValueForType(
+                        resolvedReturnValue,
+                        from: module.arena.exprType(value),
+                        to: function.returnType,
+                        suffix: "return_\(instructionIndex)"
+                    )
+                }
                 emitFramePop("ret_val_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: returnValue)
 
@@ -3201,12 +3265,24 @@ extension NativeEmitter {
                 }
                 emitFramePop("ret_nonlocal_\(instructionIndex)")
                 if let value {
-                    let returnValue = coerceStringValueForType(
-                        resolveValue(value),
-                        from: module.arena.exprType(value),
-                        to: function.returnType,
-                        suffix: "nonlocal_return_\(instructionIndex)"
-                    )
+                    let resolvedReturnValue = resolveValue(value)
+                    let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
+                        if isStringAggregateType(module.arena.exprType(value)) {
+                            bridgeStringAggregateToRuntimeRaw(
+                                resolvedReturnValue,
+                                suffix: "nonlocal_return_\(instructionIndex)"
+                            ) ?? resolvedReturnValue
+                        } else {
+                            resolvedReturnValue
+                        }
+                    } else {
+                        coerceStringValueForType(
+                            resolvedReturnValue,
+                            from: module.arena.exprType(value),
+                            to: function.returnType,
+                            suffix: "nonlocal_return_\(instructionIndex)"
+                        )
+                    }
                     _ = bindings.buildRet(builder, value: returnValue)
                 } else {
                     _ = bindings.buildRet(builder, value: zeroValue)

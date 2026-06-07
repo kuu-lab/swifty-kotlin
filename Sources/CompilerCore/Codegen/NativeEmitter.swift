@@ -184,6 +184,21 @@ struct NativeEmitter {
         }
 
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
+        let runtimeCallbackRawReturnSymbols = Set(
+            module.arena.callableValueInfoByExprID.values
+                .filter(\.hasClosureParam)
+                .map(\.symbol)
+        )
+
+        func returnsRawStringRuntimeCallback(_ function: KIRFunction) -> Bool {
+            guard runtimeCallbackRawReturnSymbols.contains(function.symbol),
+                  let typeSystem,
+                  case .stringStruct = typeSystem.kind(of: function.returnType)
+            else {
+                return false
+            }
+            return true
+        }
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
@@ -200,7 +215,9 @@ struct NativeEmitter {
                 loweredLLVMType(for: $0.type, lowering: typeLowering, defaultType: int64Type)
             }
             parameterTypes.append(outThrownPointerType)
-            let returnType = loweredLLVMType(for: function.returnType, lowering: typeLowering, defaultType: int64Type)
+            let returnType = returnsRawStringRuntimeCallback(function)
+                ? int64Type
+                : loweredLLVMType(for: function.returnType, lowering: typeLowering, defaultType: int64Type)
 
             guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
@@ -240,6 +257,8 @@ struct NativeEmitter {
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,
+                    runtimeCallbackRawReturnSymbols: runtimeCallbackRawReturnSymbols,
+                    returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback(function),
                     diContext: diContext
                 )
             } catch {
