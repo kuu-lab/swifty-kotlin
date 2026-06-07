@@ -2007,8 +2007,7 @@ public func kk_string_toFloatOrNull_flat(
     return runtimeFloatBitsToInt(parsed)
 }
 
-@_cdecl("kk_string_indexOf")
-public func kk_string_indexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
+func runtimeStringIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
     let other = runtimeStringScalars(otherRaw)
 
@@ -2062,27 +2061,6 @@ public func kk_string_indexOf_flat(
 }
 
 // MARK: - String.indexOf(String, startIndex) / indexOfFirst / indexOfLast
-
-@_cdecl("kk_string_indexOf_from")
-public func kk_string_indexOf_from(_ strRaw: Int, _ otherRaw: Int, _ startIndex: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    let other = runtimeStringScalars(otherRaw)
-
-    let start = max(0, min(startIndex, source.count))
-    if other.isEmpty {
-        return start
-    }
-    if other.count > source.count - start {
-        return -1
-    }
-
-    for offset in start ... (source.count - other.count)
-        where source[offset ..< (offset + other.count)].elementsEqual(other)
-    {
-        return offset
-    }
-    return -1
-}
 
 @_cdecl("kk_string_indexOf_from_flat")
 public func kk_string_indexOf_from_flat(
@@ -2893,7 +2871,7 @@ public func kk_string_ifEmpty(
 @_cdecl("kk_string_substringBefore")
 public func kk_string_substringBefore(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_indexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringIndexOfRaw(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
@@ -2965,7 +2943,7 @@ public func kk_string_substringAfter_char(
 @_cdecl("kk_string_substringBeforeLast")
 public func kk_string_substringBeforeLast(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_lastIndexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringLastIndexOfRaw(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
@@ -2997,7 +2975,7 @@ public func kk_string_substringBeforeLast_char(_ strRaw: Int, _ delimiterRaw: In
 @_cdecl("kk_string_substringAfterLast")
 public func kk_string_substringAfterLast(_ strRaw: Int, _ delimiterRaw: Int, _ missingDelimiterValueRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let idx = kk_string_lastIndexOf(strRaw, delimiterRaw)
+    let idx = runtimeStringLastIndexOfRaw(strRaw, delimiterRaw)
     if idx < 0 {
         return runtimeMakeStringRaw(runtimeSubstringMissingDelimiterValue(
             sourceRaw: strRaw,
@@ -3225,8 +3203,7 @@ public func kk_string_replaceBeforeLast_char(
     )
 }
 
-@_cdecl("kk_string_lastIndexOf")
-public func kk_string_lastIndexOf(_ strRaw: Int, _ otherRaw: Int) -> Int {
+func runtimeStringLastIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
     let other = runtimeStringScalars(otherRaw)
 
@@ -3283,31 +3260,6 @@ public func kk_string_lastIndexOf_flat(
 
 // MARK: - STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex, ignoreCase)
 
-@_cdecl("kk_string_indexOf_char")
-public func kk_string_indexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
-        return -1
-    }
-    let ignoreCase = ignoreCaseRaw != 0
-    let start = max(0, startIndexRaw)
-    guard start < source.count else {
-        return -1
-    }
-    let needleString = String(needle)
-    for offset in start..<source.count {
-        let scalar = source[offset]
-        if ignoreCase {
-            if String(scalar).caseInsensitiveCompare(needleString) == .orderedSame {
-                return offset
-            }
-        } else if scalar == needle {
-            return offset
-        }
-    }
-    return -1
-}
-
 @_cdecl("kk_string_indexOf_char_flat")
 public func kk_string_indexOf_char_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -3342,40 +3294,6 @@ public func kk_string_indexOf_char_flat(
 }
 
 // MARK: - STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
-
-@_cdecl("kk_string_indexOf_ignoreCase")
-public func kk_string_indexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    let ignoreCase = ignoreCaseRaw != 0
-
-    if other.isEmpty {
-        let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
-        return start
-    }
-
-    let sourceScalars = Array(source.unicodeScalars)
-    let otherScalars = Array(other.unicodeScalars)
-    let start = max(0, min(startIndexRaw, sourceScalars.count))
-
-    if otherScalars.count > sourceScalars.count - start {
-        return -1
-    }
-
-    for offset in start ... (sourceScalars.count - otherScalars.count) {
-        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
-        let matches: Bool
-        if ignoreCase {
-            matches = zip(slice, otherScalars).allSatisfy {
-                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
-            }
-        } else {
-            matches = slice.elementsEqual(otherScalars)
-        }
-        if matches { return offset }
-    }
-    return -1
-}
 
 @_cdecl("kk_string_indexOf_ignoreCase_flat")
 public func kk_string_indexOf_ignoreCase_flat(
@@ -3425,42 +3343,6 @@ public func kk_string_indexOf_ignoreCase_flat(
         if matches { return offset }
     }
     return -1
-}
-
-@_cdecl("kk_string_lastIndexOf_ignoreCase")
-public func kk_string_lastIndexOf_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    let ignoreCase = ignoreCaseRaw != 0
-
-    let sourceScalars = Array(source.unicodeScalars)
-    let otherScalars = Array(other.unicodeScalars)
-
-    if other.isEmpty {
-        let start = max(0, min(startIndexRaw, sourceScalars.count))
-        return start
-    }
-    if otherScalars.count > sourceScalars.count {
-        return -1
-    }
-
-    let maxOffset = sourceScalars.count - otherScalars.count
-    let start = max(0, min(startIndexRaw, maxOffset))
-
-    var lastIndex = -1
-    for offset in 0 ... start {
-        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
-        let matches: Bool
-        if ignoreCase {
-            matches = zip(slice, otherScalars).allSatisfy {
-                String($0).caseInsensitiveCompare(String($1)) == .orderedSame
-            }
-        } else {
-            matches = slice.elementsEqual(otherScalars)
-        }
-        if matches { lastIndex = offset }
-    }
-    return lastIndex
 }
 
 @_cdecl("kk_string_lastIndexOf_ignoreCase_flat")
@@ -3516,34 +3398,6 @@ public func kk_string_lastIndexOf_ignoreCase_flat(
 }
 
 // MARK: - STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
-
-@_cdecl("kk_string_lastIndexOf_char")
-public func kk_string_lastIndexOf_char(_ strRaw: Int, _ charRaw: Int, _ startIndexRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    guard let needle = runtimeUnicodeScalarFromRaw(charRaw) else {
-        return -1
-    }
-    guard !source.isEmpty else {
-        return -1
-    }
-    let ignoreCase = ignoreCaseRaw != 0
-    let start = min(startIndexRaw, source.count - 1)
-    guard start >= 0 else {
-        return -1
-    }
-    let needleStr = String(needle)
-    for offset in stride(from: start, through: 0, by: -1) {
-        let scalar = source[offset]
-        if ignoreCase {
-            if String(scalar).caseInsensitiveCompare(needleStr) == .orderedSame {
-                return offset
-            }
-        } else if scalar == needle {
-            return offset
-        }
-    }
-    return -1
-}
 
 @_cdecl("kk_string_lastIndexOf_char_flat")
 public func kk_string_lastIndexOf_char_flat(
@@ -3608,8 +3462,7 @@ public func kk_string_get_flat(
     return Int(scalars[indexRaw].value)
 }
 
-@_cdecl("kk_string_compareToIgnoreCase")
-public func kk_string_compareToIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+func runtimeStringCompareToIgnoreCaseRaw(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
     if ignoreCaseRaw == 0 {
@@ -5144,7 +4997,7 @@ public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreC
     if otherRaw == runtimeNullSentinelInt {
         return kk_box_bool(0)
     }
-    let cmp = kk_string_compareToIgnoreCase(strRaw, otherRaw, ignoreCaseRaw)
+    let cmp = runtimeStringCompareToIgnoreCaseRaw(strRaw, otherRaw, ignoreCaseRaw)
     return kk_box_bool(cmp == 0 ? 1 : 0)
 }
 
