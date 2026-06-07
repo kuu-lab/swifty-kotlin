@@ -1512,11 +1512,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringToIntSuccessAndFailure() {
         var thrown = 0
-        let value = kk_string_toInt(rawFromRuntimeString("42"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(value, 42)
+        withFlatString("42") { data, length, byteCount, hash in
+            let value = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(value, 42)
+        }
 
-        _ = kk_string_toInt(rawFromRuntimeString("4x"), &thrown)
+        withFlatString("4x") { data, length, byteCount, hash in
+            _ = kk_string_toInt_flat(data, length, byteCount, hash, &thrown)
+        }
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
@@ -1525,7 +1529,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToIntRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        _ = kk_string_toInt_radix(rawFromRuntimeString("10"), 1, &thrown)
+        withFlatString("10") { data, length, byteCount, hash in
+            _ = kk_string_toInt_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
@@ -1535,16 +1541,25 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToIntOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
-        XCTAssertEqual(kk_string_toIntOrNull_radix(rawFromRuntimeString("ff"), 16, &thrown), 255)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toIntOrNull_radix(rawFromRuntimeString("xz"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        withFlatString("ff") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("xz") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
     }
 
     func testStringToIntOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        let result = kk_string_toIntOrNull_radix(rawFromRuntimeString("10"), 1, &thrown)
+        let result = withFlatString("10") { data, length, byteCount, hash in
+            kk_string_toIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
         XCTAssertNotEqual(thrown, 0)
@@ -1555,18 +1570,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToUByteOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
-        XCTAssertEqual(kk_string_toUByteOrNull_radix(rawFromRuntimeString("ff"), 16, &thrown), 255)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUByteOrNull_radix(rawFromRuntimeString("100"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUByteOrNull_radix(rawFromRuntimeString("xz"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        withFlatString("ff") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown), 255)
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("100") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("xz") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
     }
 
     func testStringToUByteOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        let result = kk_string_toUByteOrNull_radix(rawFromRuntimeString("10"), 1, &thrown)
+        let result = withFlatString("10") { data, length, byteCount, hash in
+            kk_string_toUByteOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
         XCTAssertNotEqual(thrown, 0)
@@ -1577,18 +1606,35 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToUShortOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
-        XCTAssertEqual(kk_string_toUShortOrNull_radix(rawFromRuntimeString("ffff"), 16, &thrown), Int(UInt16.max))
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUShortOrNull_radix(rawFromRuntimeString("10000"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUShortOrNull_radix(rawFromRuntimeString("xz"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        withFlatString("ffff") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(UInt16.max)
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("10000") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("xz") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
     }
 
     func testStringToUShortOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        let result = kk_string_toUShortOrNull_radix(rawFromRuntimeString("10"), 1, &thrown)
+        let result = withFlatString("10") { data, length, byteCount, hash in
+            kk_string_toUShortOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
         XCTAssertNotEqual(thrown, 0)
@@ -1599,18 +1645,35 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToUIntOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
-        XCTAssertEqual(kk_string_toUIntOrNull_radix(rawFromRuntimeString("ffffffff"), 16, &thrown), Int(UInt32.max))
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUIntOrNull_radix(rawFromRuntimeString("100000000"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toUIntOrNull_radix(rawFromRuntimeString("xz"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        withFlatString("ffffffff") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(UInt32.max)
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("100000000") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("xz") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
     }
 
     func testStringToUIntOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        let result = kk_string_toUIntOrNull_radix(rawFromRuntimeString("10"), 1, &thrown)
+        let result = withFlatString("10") { data, length, byteCount, hash in
+            kk_string_toUIntOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
         XCTAssertNotEqual(thrown, 0)
@@ -1621,21 +1684,35 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringToULongOrNullRadixSuccessAndInvalidInput() {
         var thrown = 0
 
-        XCTAssertEqual(
-            kk_string_toULongOrNull_radix(rawFromRuntimeString("ffffffffffffffff"), 16, &thrown),
-            Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
-        )
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toULongOrNull_radix(rawFromRuntimeString("10000000000000000"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(kk_string_toULongOrNull_radix(rawFromRuntimeString("xz"), 16, &thrown), runtimeNullSentinelInt)
-        XCTAssertEqual(thrown, 0)
+        withFlatString("ffffffffffffffff") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("10000000000000000") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
+        withFlatString("xz") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 16, &thrown),
+                runtimeNullSentinelInt
+            )
+            XCTAssertEqual(thrown, 0)
+        }
     }
 
     func testStringToULongOrNullRadixThrowsOnInvalidRadix() {
         var thrown = 0
 
-        let result = kk_string_toULongOrNull_radix(rawFromRuntimeString("10"), 1, &thrown)
+        let result = withFlatString("10") { data, length, byteCount, hash in
+            kk_string_toULongOrNull_radix_flat(data, length, byteCount, hash, 1, &thrown)
+        }
 
         XCTAssertEqual(result, runtimeNullSentinelInt)
         XCTAssertNotEqual(thrown, 0)
@@ -1645,17 +1722,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringToDoubleParsesSpecialValuesAndThrowsOnInvalidInput() {
         var thrown = 0
-        let parsed = kk_string_toDouble(rawFromRuntimeString("  -Infinity "), &thrown)
+        let parsed = withFlatString("  -Infinity ") { data, length, byteCount, hash in
+            kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+        }
         XCTAssertEqual(thrown, 0)
         let parsedValue = Double(bitPattern: UInt64(bitPattern: Int64(parsed)))
         XCTAssertEqual(parsedValue, -.infinity)
 
-        let nanRaw = kk_string_toDouble(rawFromRuntimeString("NaN"), &thrown)
+        let nanRaw = withFlatString("NaN") { data, length, byteCount, hash in
+            kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+        }
         XCTAssertEqual(thrown, 0)
         let nanValue = Double(bitPattern: UInt64(bitPattern: Int64(nanRaw)))
         XCTAssertTrue(nanValue.isNaN)
 
-        _ = kk_string_toDouble(rawFromRuntimeString("nope"), &thrown)
+        withFlatString("nope") { data, length, byteCount, hash in
+            _ = kk_string_toDouble_flat(data, length, byteCount, hash, &thrown)
+        }
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("NumberFormatException"))

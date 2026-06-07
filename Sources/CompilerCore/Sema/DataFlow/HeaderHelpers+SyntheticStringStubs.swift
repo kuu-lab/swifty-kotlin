@@ -2885,7 +2885,6 @@ extension DataFlowSemaPhase {
 
         // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
-<<<<<<< HEAD
             named: "toByteArray",
             externalLinkName: "kk_string_encodeToByteArray_range",
             receiverType: stringType,
@@ -2903,10 +2902,6 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray",
             externalLinkName: "kk_string_encodeToByteArray",
-=======
-            named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_flat",
->>>>>>> e60884240 (Route string collection stubs to flat ABI)
             receiverType: stringType,
             parameters: [],
             returnType: byteArrayTypeForEncode,
@@ -2915,7 +2910,17 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-<<<<<<< HEAD
+        registerSyntheticStringExtensionFunction(
+            named: "encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray",
+            receiverType: stringType,
+            parameters: [],
+            returnType: byteArrayTypeForEncode,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_range",
             externalLinkName: "kk_string_encodeToByteArray_range",
@@ -2933,12 +2938,21 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_charset",
             externalLinkName: "kk_string_encodeToByteArray_charset",
-=======
+            receiverType: stringType,
+            parameters: [
+                ("charset", charsetType, false, false),
+            ],
+            returnType: byteArrayTypeForEncode,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
         for functionName in ["encodeToByteArray", "toByteArray"] {
             registerSyntheticStringExtensionFunction(
                 named: functionName,
-                externalLinkName: "kk_string_encodeToByteArray_range_flat",
+                externalLinkName: "kk_string_encodeToByteArray_range",
                 receiverType: stringType,
                 parameters: [
                     ("startIndex", intType, false, false),
@@ -2954,8 +2968,7 @@ extension DataFlowSemaPhase {
         // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload
         registerSyntheticStringExtensionFunction(
             named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
->>>>>>> e60884240 (Route string collection stubs to flat ABI)
+            externalLinkName: "kk_string_encodeToByteArray_charset",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),

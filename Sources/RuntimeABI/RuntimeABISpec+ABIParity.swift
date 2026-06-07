@@ -1075,29 +1075,17 @@ public extension RuntimeABISpec {
             p("endRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toBooleanStrictOrNull", parameters: [
-            p("strRaw", .intptr),
-        ]),
         abiParitySpec("kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
         ]),
-        abiParitySpec("kk_string_toByte", parameters: [
-            p("strRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_string_toByte_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_string_toByte_radix", parameters: [
-            p("strRaw", .intptr),
-            p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_string_toByte_radix_flat", parameters: [
@@ -1108,18 +1096,11 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toByteOrNull", parameters: [
-            p("strRaw", .intptr),
-        ]),
         abiParitySpec("kk_string_toByteOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),
             p("byteCount", .intptr),
             p("hash", .intptr),
-        ]),
-        abiParitySpec("kk_string_toShort", parameters: [
-            p("strRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_string_toShort_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
@@ -1127,9 +1108,6 @@ public extension RuntimeABISpec {
             p("byteCount", .intptr),
             p("hash", .intptr),
             p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_string_toShortOrNull", parameters: [
-            p("strRaw", .intptr),
         ]),
         abiParitySpec("kk_string_toShortOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),

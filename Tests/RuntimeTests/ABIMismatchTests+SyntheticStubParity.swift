@@ -129,11 +129,11 @@ extension ABIMismatchTests {
         "kk_string_hexToUInt",
         "kk_string_hexToULong",
         "kk_string_hexToUShort",
-        "kk_string_toIntOrNull_radix",
-        "kk_string_toUByteOrNull_radix",
-        "kk_string_toUIntOrNull_radix",
-        "kk_string_toULongOrNull_radix",
-        "kk_string_toUShortOrNull_radix",
+        "kk_string_toIntOrNull_radix_flat",
+        "kk_string_toUByteOrNull_radix_flat",
+        "kk_string_toUIntOrNull_radix_flat",
+        "kk_string_toULongOrNull_radix_flat",
+        "kk_string_toUShortOrNull_radix_flat",
     ]
 
     // MARK: System / timing / Stream toList

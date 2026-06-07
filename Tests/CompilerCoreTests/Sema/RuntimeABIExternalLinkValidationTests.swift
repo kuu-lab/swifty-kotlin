@@ -32,7 +32,8 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
                 compilerCore.appendingPathComponent("Sema"),
             ]
         )
-        let missing = linkNames
+        let resolvedLinkNames = Set(linkNames.map { loweredRuntimeLinkAlias[$0] ?? $0 })
+        let missing = resolvedLinkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
             .sorted()
@@ -41,6 +42,34 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             missing.isEmpty,
             "KIR runtime link name literals missing from RuntimeABISpec: \(missing.joined(separator: ", "))"
         )
+    }
+
+    private var loweredRuntimeLinkAlias: [String: String] {
+        [
+            // KIR keeps semantic String callee names; LLVM emission lowers these to flattened runtime ABI symbols.
+            "kk_string_toBoolean": "kk_string_toBoolean_flat",
+            "kk_string_toBooleanStrict": "kk_string_toBooleanStrict_flat",
+            "kk_string_toBooleanStrictOrNull": "kk_string_toBooleanStrictOrNull_flat",
+            "kk_string_toByte": "kk_string_toByte_flat",
+            "kk_string_toByteOrNull": "kk_string_toByteOrNull_flat",
+            "kk_string_toByte_radix": "kk_string_toByte_radix_flat",
+            "kk_string_toDouble": "kk_string_toDouble_flat",
+            "kk_string_toDoubleOrNull": "kk_string_toDoubleOrNull_flat",
+            "kk_string_toFloat": "kk_string_toFloat_flat",
+            "kk_string_toFloatOrNull": "kk_string_toFloatOrNull_flat",
+            "kk_string_toInt": "kk_string_toInt_flat",
+            "kk_string_toIntOrNull": "kk_string_toIntOrNull_flat",
+            "kk_string_toIntOrNull_radix": "kk_string_toIntOrNull_radix_flat",
+            "kk_string_toInt_radix": "kk_string_toInt_radix_flat",
+            "kk_string_toLong": "kk_string_toLong_flat",
+            "kk_string_toLongOrNull": "kk_string_toLongOrNull_flat",
+            "kk_string_toShort": "kk_string_toShort_flat",
+            "kk_string_toShortOrNull": "kk_string_toShortOrNull_flat",
+            "kk_string_toUByteOrNull_radix": "kk_string_toUByteOrNull_radix_flat",
+            "kk_string_toUIntOrNull_radix": "kk_string_toUIntOrNull_radix_flat",
+            "kk_string_toULongOrNull_radix": "kk_string_toULongOrNull_radix_flat",
+            "kk_string_toUShortOrNull_radix": "kk_string_toUShortOrNull_radix_flat",
+        ]
     }
 
     private var allowedCompilerExternalLinks: Set<String> {

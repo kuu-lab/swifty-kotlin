@@ -380,17 +380,11 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
 
         let expected: [String: String] = [
-<<<<<<< HEAD
+            "repeat": "kk_string_repeat",
+            "reversed": "kk_string_reversed",
             "toList": "kk_string_toList",
             "toCharArray": "kk_string_toCharArray",
             "toTypedArray": "kk_string_toTypedArray",
-=======
-            "repeat": "kk_string_repeat",
-            "reversed": "kk_string_reversed",
-            "toList": "kk_string_toList_flat",
-            "toCharArray": "kk_string_toCharArray_flat",
-            "toTypedArray": "kk_string_toTypedArray_flat",
->>>>>>> e60884240 (Route string collection stubs to flat ABI)
         ]
         for (member, expectedLink) in expected {
             XCTAssertEqual(
