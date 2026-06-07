@@ -767,6 +767,7 @@ extension CodegenBackendIntegrationTests {
 
         let text = interner.intern("abcd")
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let formTagExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
         var nextTemp: Int32 = 300
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -778,11 +779,11 @@ extension CodegenBackendIntegrationTests {
             .constValue(result: textExpr, value: .stringLiteral(text)),
         ]
 
-        func appendPredicateCall(_ calleeName: String) {
+        func appendPredicateCall(_ calleeName: String, arguments: [KIRExprID]? = nil) {
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern(calleeName),
-                arguments: [textExpr],
+                arguments: arguments ?? [textExpr],
                 result: temporary(types.booleanType),
                 canThrow: false,
                 thrownResult: nil
@@ -791,6 +792,7 @@ extension CodegenBackendIntegrationTests {
 
         appendPredicateCall("kk_string_isNotEmpty_flat")
         appendPredicateCall("kk_string_isNotBlank_flat")
+        appendPredicateCall("kk_string_isNormalized_flat", arguments: [textExpr, formTagExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -823,6 +825,7 @@ extension CodegenBackendIntegrationTests {
         let flatNames = [
             "kk_string_isNotEmpty_flat",
             "kk_string_isNotBlank_flat",
+            "kk_string_isNormalized_flat",
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))

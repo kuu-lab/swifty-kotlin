@@ -298,6 +298,19 @@ public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
+@_cdecl("kk_string_isNormalized_flat")
+public func kk_string_isNormalized_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ formTagRaw: Int
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
+    return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
+}
+
 @_cdecl("kk_string_split")
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

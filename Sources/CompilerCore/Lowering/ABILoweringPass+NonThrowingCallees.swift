@@ -84,7 +84,7 @@ extension ABILoweringPass {
             interner.intern("kk_normalization_form_nfkc"),
             interner.intern("kk_normalization_form_nfkd"),
             interner.intern("kk_string_normalize"),
-            interner.intern("kk_string_isNormalized"),
+            interner.intern("kk_string_isNormalized_flat"),
             interner.intern("kk_string_format"),
             interner.intern("kk_string_replace"),
             interner.intern("kk_string_replace_char"),

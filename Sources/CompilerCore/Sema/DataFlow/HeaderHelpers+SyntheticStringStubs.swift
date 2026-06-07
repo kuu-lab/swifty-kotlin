@@ -344,7 +344,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNormalized",
-            externalLinkName: "kk_string_isNormalized",
+            externalLinkName: "kk_string_isNormalized_flat",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),

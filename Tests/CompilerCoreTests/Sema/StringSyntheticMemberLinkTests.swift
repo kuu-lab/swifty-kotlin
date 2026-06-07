@@ -224,8 +224,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
         XCTAssertEqual(
             externalLink(for: "isNormalized", sema: sema, interner: interner),
-            "kk_string_isNormalized",
-            "String.isNormalized should link to kk_string_isNormalized"
+            "kk_string_isNormalized_flat",
+            "String.isNormalized should link to kk_string_isNormalized_flat"
         )
     }
 
@@ -825,7 +825,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let expectedLinks: [String: String] = [
                 "normalize": "kk_string_normalize",
-                "isNormalized": "kk_string_isNormalized",
+                "isNormalized": "kk_string_isNormalized_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {

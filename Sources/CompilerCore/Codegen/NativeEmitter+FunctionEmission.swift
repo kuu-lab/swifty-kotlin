@@ -1140,6 +1140,11 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
+                "kk_string_isNormalized_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_isNormalized_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
                 "kk_string_equalsIgnoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_equalsIgnoreCase_flat",
                     stringArgumentCount: 2,
