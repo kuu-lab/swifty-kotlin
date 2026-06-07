@@ -101,21 +101,11 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(try Data(contentsOf: fileURL), Data([0, 127, 128, 255]))
     }
 
-    func testStringByteInputStreamDefaultCharsetYieldsUtf8Bytes() {
-        let streamRaw = kk_string_byteInputStream(runtimeStringRaw("A\u{00E9}"))
-        XCTAssertEqual(readInputStreamBytes(streamRaw), [65, 195, 169])
-    }
-
     func testStringByteInputStreamFlatDefaultCharsetYieldsUtf8Bytes() {
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
             let streamRaw = kk_string_byteInputStream_flat(data, length, byteCount, hash)
             XCTAssertEqual(readInputStreamBytes(streamRaw), [65, 195, 169])
         }
-    }
-
-    func testStringByteInputStreamExplicitCharsetYieldsEncodedBytes() {
-        let streamRaw = kk_string_byteInputStream_charset(runtimeStringRaw("AB"), kk_charset_utf_16be())
-        XCTAssertEqual(readInputStreamBytes(streamRaw), [0, 65, 0, 66])
     }
 
     func testStringByteInputStreamFlatExplicitCharsetYieldsEncodedBytes() {

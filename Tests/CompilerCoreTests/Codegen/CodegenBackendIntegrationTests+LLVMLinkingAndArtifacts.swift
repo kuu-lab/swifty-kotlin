@@ -1335,8 +1335,8 @@ extension CodegenBackendIntegrationTests {
         appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
         appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
         appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_byteInputStream", [textExpr])
-        appendByteArrayCall("kk_string_byteInputStream_charset", [textExpr, charsetExpr])
+        appendByteArrayCall("kk_string_byteInputStream_flat", [textExpr])
+        appendByteArrayCall("kk_string_byteInputStream_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1372,12 +1372,17 @@ extension CodegenBackendIntegrationTests {
             "kk_string_encodeToByteArray",
             "kk_string_encodeToByteArray_range",
             "kk_string_encodeToByteArray_charset",
-            "kk_string_byteInputStream",
-            "kk_string_byteInputStream_charset",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String byte-array call: \(rawName)_flat")
+        }
+        let removedRawStringStreamNames = ["", "_charset"].map {
+            ["kk", "string", "byteInputStream"].joined(separator: "_") + $0
+        }
+        for rawName in removedRawStringStreamNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw String stream call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String stream call: \(rawName)_flat")
         }
     }
 

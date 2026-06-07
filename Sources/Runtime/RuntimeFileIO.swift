@@ -1982,12 +1982,6 @@ public func kk_bytearray_inputStream_range(
 // STDLIB-IO-FN-011: String.byteInputStream() — encodes the receiver as UTF-8 and
 // returns a ByteArrayInputStream over the resulting bytes. Default charset overload
 // mirrors `String.toByteArray()` semantics for behavioral consistency.
-@_cdecl("kk_string_byteInputStream")
-public func kk_string_byteInputStream(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringByteInputStream(source)
-}
-
 @_cdecl("kk_string_byteInputStream_flat")
 public func kk_string_byteInputStream_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -2001,12 +1995,6 @@ public func kk_string_byteInputStream_flat(
 
 // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset) — charset-aware
 // overload. Reuses the same charset table as String.toByteArray(charset).
-@_cdecl("kk_string_byteInputStream_charset")
-public func kk_string_byteInputStream_charset(_ strRaw: Int, _ charsetTag: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringByteInputStream(source, charsetTag: charsetTag)
-}
-
 @_cdecl("kk_string_byteInputStream_charset_flat")
 public func kk_string_byteInputStream_charset_flat(
     _ data: UnsafePointer<UInt8>?,

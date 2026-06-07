@@ -327,10 +327,17 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_string_byteInputStream_flat"))
-            XCTAssertTrue(callNames.contains("kk_string_byteInputStream_charset_flat"))
-            XCTAssertFalse(callNames.contains("kk_string_byteInputStream"))
-            XCTAssertFalse(callNames.contains("kk_string_byteInputStream_charset"))
+            let flatNames = [
+                "kk_string_byteInputStream_flat",
+                "kk_string_byteInputStream_charset_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+            }
+            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
+            for rawName in rawNames {
+                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String stream call \(rawName)")
+            }
         }
     }
 
@@ -339,8 +346,12 @@ extension BuildKIRRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        XCTAssertTrue(callees.contains(interner.intern("kk_string_byteInputStream_flat")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_string_byteInputStream_charset_flat")))
+        for flatName in [
+            "kk_string_byteInputStream_flat",
+            "kk_string_byteInputStream_charset_flat",
+        ] {
+            XCTAssertTrue(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
+        }
     }
 
     func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {

@@ -1580,12 +1580,12 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_byteInputStream": FlatScalarReturnCallSpec(
+                "kk_string_byteInputStream_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_byteInputStream_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_byteInputStream_charset": FlatScalarReturnCallSpec(
+                "kk_string_byteInputStream_charset_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_byteInputStream_charset_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
