@@ -932,11 +932,11 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendMaterializationCall("kk_string_toList")
-        appendMaterializationCall("kk_string_toCharArray")
-        appendMaterializationCall("kk_string_toTypedArray")
-        appendMaterializationCall("kk_string_toSortedSet")
-        appendMaterializationCall("kk_string_withIndex")
+        appendMaterializationCall("kk_string_toList_flat")
+        appendMaterializationCall("kk_string_toCharArray_flat")
+        appendMaterializationCall("kk_string_toTypedArray_flat")
+        appendMaterializationCall("kk_string_toSortedSet_flat")
+        appendMaterializationCall("kk_string_withIndex_flat")
         appendMaterializationCall("kk_string_iterator")
         body.append(.returnUnit)
 
@@ -1041,25 +1041,25 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendScalarCall("kk_string_asIterable", [textExpr])
-        appendScalarCall("kk_string_asSequence", [textExpr])
-        appendScalarCall("kk_string_lines", [textExpr])
-        appendScalarCall("kk_string_lineSequence", [textExpr])
-        appendScalarCall("kk_string_split", [textExpr, delimiterExpr])
-        appendScalarCall("kk_string_split_limit", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
+        appendScalarCall("kk_string_asIterable_flat", [textExpr])
+        appendScalarCall("kk_string_asSequence_flat", [textExpr])
+        appendScalarCall("kk_string_lines_flat", [textExpr])
+        appendScalarCall("kk_string_lineSequence_flat", [textExpr])
+        appendScalarCall("kk_string_split_flat", [textExpr, delimiterExpr])
+        appendScalarCall("kk_string_split_limit_flat", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence", [textExpr, delimiterExpr])
-        appendScalarCall("kk_string_chunked", [textExpr, sizeExpr])
+        appendScalarCall("kk_string_chunked_flat", [textExpr, sizeExpr])
         appendScalarCall("kk_string_chunked_sequence", [textExpr, sizeExpr])
         appendThrowingScalarCall("kk_string_chunked_sequence_transform", [textExpr, sizeExpr, fnPtrExpr, closureExpr])
-        appendScalarCall("kk_string_windowed_default", [textExpr, sizeExpr])
-        appendScalarCall("kk_string_windowed", [textExpr, sizeExpr, stepExpr])
-        appendScalarCall("kk_string_windowed_partial", [textExpr, sizeExpr, stepExpr, partialExpr])
+        appendScalarCall("kk_string_windowed_default_flat", [textExpr, sizeExpr])
+        appendScalarCall("kk_string_windowed_flat", [textExpr, sizeExpr, stepExpr])
+        appendScalarCall("kk_string_windowed_partial_flat", [textExpr, sizeExpr, stepExpr, partialExpr])
         appendScalarCall("kk_string_windowedSequence_partial", [textExpr, sizeExpr, stepExpr, partialExpr])
         appendThrowingScalarCall(
             "kk_string_windowedSequence_transform",
             [textExpr, sizeExpr, stepExpr, partialExpr, fnPtrExpr, closureExpr]
         )
-        appendScalarCall("kk_string_zipWithNext", [textExpr])
+        appendScalarCall("kk_string_zipWithNext_flat", [textExpr])
         appendThrowingScalarCall("kk_string_zipWithNextTransform", [textExpr, fnPtrExpr, closureExpr])
         appendScalarCall("kk_string_zip", [textExpr, otherExpr])
         appendThrowingScalarCall("kk_string_zipTransform", [textExpr, otherExpr, fnPtrExpr, closureExpr])
@@ -1154,11 +1154,11 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendByteArrayCall("kk_string_toByteArray", [textExpr])
-        appendByteArrayCall("kk_string_toByteArray_charset", [textExpr, charsetExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray", [textExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_range", [textExpr, startExpr, endExpr])
-        appendByteArrayCall("kk_string_encodeToByteArray_charset", [textExpr, charsetExpr])
+        appendByteArrayCall("kk_string_toByteArray_flat", [textExpr])
+        appendByteArrayCall("kk_string_toByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
+        appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
