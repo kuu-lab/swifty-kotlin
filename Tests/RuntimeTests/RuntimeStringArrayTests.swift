@@ -433,9 +433,14 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 ),
                 6
             )
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 1)
         }
         withFlatString("  \n\t") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isBlank_flat(data, length, byteCount, hash)), 1)
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNotBlank_flat(data, length, byteCount, hash)), 0)
+        }
+        withFlatString("") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_unbox_bool(kk_string_isNotEmpty_flat(data, length, byteCount, hash)), 0)
         }
     }
 

@@ -2880,12 +2880,6 @@ public func kk_string_isEmpty_flat(
     return kk_box_bool(source.isEmpty ? 1 : 0)
 }
 
-@_cdecl("kk_string_isNotEmpty")
-public func kk_string_isNotEmpty(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return kk_box_bool(source.isEmpty ? 0 : 1)
-}
-
 @_cdecl("kk_string_isNotEmpty_flat")
 public func kk_string_isNotEmpty_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -2906,12 +2900,6 @@ public func kk_string_isBlank_flat(
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0)
-}
-
-@_cdecl("kk_string_isNotBlank")
-public func kk_string_isNotBlank(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
 }
 
 @_cdecl("kk_string_isNotBlank_flat")

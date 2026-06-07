@@ -10,7 +10,8 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let linkNames = Set(sema.symbols.allSymbols().compactMap { symbol in
             sema.symbols.externalLinkName(for: symbol.id)
-        }.filter { !$0.isEmpty })
+        }.filter { !$0.isEmpty }
+            .map { loweredRuntimeLinkAlias[$0] ?? $0 })
         let missing = linkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
@@ -50,6 +51,8 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_string_first": "kk_string_first_flat",
             "kk_string_firstOrNull": "kk_string_firstOrNull_flat",
             "kk_string_getOrNull": "kk_string_getOrNull_flat",
+            "kk_string_isNotBlank": "kk_string_isNotBlank_flat",
+            "kk_string_isNotEmpty": "kk_string_isNotEmpty_flat",
             "kk_string_last": "kk_string_last_flat",
             "kk_string_lastOrNull": "kk_string_lastOrNull_flat",
             "kk_string_single": "kk_string_single_flat",

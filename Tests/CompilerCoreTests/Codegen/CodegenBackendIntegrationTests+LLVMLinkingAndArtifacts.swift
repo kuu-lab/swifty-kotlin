@@ -723,6 +723,76 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_get_flat"), "Missing flat String.get call")
     }
 
+    func testLLVMBackendEmitsFlatStringPredicateRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let text = interner.intern("abcd")
+        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+
+        var nextTemp: Int32 = 300
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: textExpr, value: .stringLiteral(text)),
+        ]
+
+        func appendPredicateCall(_ calleeName: String) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: [textExpr],
+                result: temporary(types.booleanType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendPredicateCall("kk_string_isNotEmpty")
+        appendPredicateCall("kk_string_isNotBlank")
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1210),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        let rawNames = [
+            "kk_string_isNotEmpty",
+            "kk_string_isNotBlank",
+        ]
+        for rawName in rawNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String predicate call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String predicate call: \(rawName)_flat")
+        }
+    }
+
     func testLLVMBackendEmitsFlatStringCallbackScalarRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
