@@ -1680,9 +1680,9 @@ extension CallLowerer {
                     case "reduceRightIndexedOrNull":
                         usesStringFlatABI ? "kk_string_reduceRightIndexedOrNull_flat" : "kk_string_reduceRightIndexedOrNull"
                     case "sumBy":
-                        usesStringFlatABI ? "kk_string_sumBy_flat" : "kk_string_sumBy"
+                        "kk_string_sumBy_flat"
                     case "sumByDouble":
-                        usesStringFlatABI ? "kk_string_sumByDouble_flat" : "kk_string_sumByDouble"
+                        "kk_string_sumByDouble_flat"
                     default:
                         usesStringFlatABI ? "kk_string_reduceRightOrNull_flat" : "kk_string_reduceRightOrNull"
                     }

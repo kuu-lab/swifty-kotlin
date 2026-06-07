@@ -918,8 +918,8 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_reduceRightIndexed", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightIndexedOrNull", resultType: types.intType)
         appendCallbackCall("kk_string_reduceRightOrNull", resultType: types.intType)
-        appendCallbackCall("kk_string_sumBy", resultType: types.intType)
-        appendCallbackCall("kk_string_sumByDouble", resultType: types.doubleType)
+        appendCallbackCall("kk_string_sumBy_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_sumByDouble_flat", resultType: types.doubleType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -958,6 +958,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfLast_flat",
             "kk_string_find_flat",
             "kk_string_findLast_flat",
+            "kk_string_sumBy_flat",
+            "kk_string_sumByDouble_flat",
         ]
         for flatName in flatNames {
             let rawName = String(flatName.dropLast("_flat".count))
@@ -976,8 +978,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_reduceRightIndexed",
             "kk_string_reduceRightIndexedOrNull",
             "kk_string_reduceRightOrNull",
-            "kk_string_sumBy",
-            "kk_string_sumByDouble",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")

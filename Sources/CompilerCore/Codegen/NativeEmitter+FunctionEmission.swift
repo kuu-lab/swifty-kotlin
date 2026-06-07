@@ -1355,13 +1355,13 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_sumBy": FlatScalarReturnCallSpec(
+                "kk_string_sumBy_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_sumBy_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_sumByDouble": FlatScalarReturnCallSpec(
+                "kk_string_sumByDouble_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_sumByDouble_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,

@@ -6293,21 +6293,6 @@ private func runtimeStringReduceRightOrNull(
     return acc
 }
 
-@_cdecl("kk_string_sumBy")
-public func kk_string_sumBy(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringSumBy(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_sumBy_flat")
 public func kk_string_sumBy_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -6348,21 +6333,6 @@ private func runtimeStringSumBy(
         total += maybeUnbox(result)
     }
     return total
-}
-
-@_cdecl("kk_string_sumByDouble")
-public func kk_string_sumByDouble(
-    _ strRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringSumByDouble(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_string_sumByDouble_flat")
