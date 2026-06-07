@@ -909,8 +909,8 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     }
     // Validate that the raw value is a valid string handle before falling
     // back, to avoid reinterpreting an unrelated object pointer as a string.
-    if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-        return kk_string_iterator(iterableRaw)
+    if let string = extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) {
+        return runtimeStringIteratorRaw(string)
     }
     // Return an empty iterator for unrecognised inputs (including null
     // sentinel) rather than misinterpreting them as string handles.
@@ -970,11 +970,6 @@ public func kk_string_withIndex_flat(
 }
 
 // MARK: - STDLIB-189: String iterator and HOF (filter, map, count, any, all, none)
-
-@_cdecl("kk_string_iterator")
-public func kk_string_iterator(_ strRaw: Int) -> Int {
-    runtimeStringIteratorRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
-}
 
 @_cdecl("kk_string_iterator_flat")
 public func kk_string_iterator_flat(

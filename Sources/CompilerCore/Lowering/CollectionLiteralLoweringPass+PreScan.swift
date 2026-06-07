@@ -668,6 +668,10 @@ extension CollectionLiteralLoweringPass {
         stringExprIDs: inout Set<Int32>
     ) {
         let kind = types.kind(of: typeID)
+        if case .stringStruct = kind {
+            stringExprIDs.insert(rawID)
+            return
+        }
         guard case let .classType(classType) = kind else { return }
 
         let classSymbol = classType.classSymbol

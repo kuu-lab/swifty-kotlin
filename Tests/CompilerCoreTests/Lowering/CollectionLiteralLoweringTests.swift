@@ -69,6 +69,51 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         return extractCallees(from: fn.body, interner: interner)
     }
 
+    func testRangeIteratorOnStringStructParameterRewritesToFlatStringIterator() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (ctx, types, _) = makeKIRContextWithSema(interner: interner)
+
+        let parameterSymbol = SymbolID(rawValue: 100)
+        let parameterExpr = arena.appendExpr(.symbolRef(parameterSymbol), type: types.stringType)
+        let iteratorExpr = arena.appendExpr(.temporary(1))
+
+        let function = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [KIRParameter(symbol: parameterSymbol, type: types.stringType)],
+            returnType: types.unitType,
+            body: [
+                .constValue(result: parameterExpr, value: .symbolRef(parameterSymbol)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_range_iterator"),
+                    arguments: [parameterExpr],
+                    result: iteratorExpr,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(function))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+
+        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        XCTAssertTrue(
+            callees.contains("kk_string_iterator_flat"),
+            "String iterator lowering should target the flat ABI, got: \(callees)"
+        )
+        XCTAssertFalse(
+            callees.contains("kk_string_iterator"),
+            "String iterator lowering must not leave the raw String ABI, got: \(callees)"
+        )
+    }
+
     // MARK: - listOf rewriting
 
     func testListOfRewrittenToKkListOf() throws {

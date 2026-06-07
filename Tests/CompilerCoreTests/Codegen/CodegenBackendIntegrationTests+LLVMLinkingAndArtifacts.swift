@@ -1099,7 +1099,7 @@ extension CodegenBackendIntegrationTests {
         appendMaterializationCall("kk_string_toSortedSet_flat")
         appendMaterializationCall("kk_string_toCollection_flat", extraArguments: [destinationExpr])
         appendMaterializationCall("kk_string_withIndex_flat")
-        appendMaterializationCall("kk_string_iterator")
+        appendMaterializationCall("kk_string_iterator_flat")
         body.append(.returnUnit)
 
         let main = KIRFunction(
