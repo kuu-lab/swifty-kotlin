@@ -787,12 +787,6 @@ public func kk_chararray_concatToString(_ arrRaw: Int) -> Int {
 /// Returns a lazy `Iterable<Char>` wrapper around the given string.
 /// Character materialisation is deferred until the iterable is actually consumed
 /// (e.g. via `iterator()`, `toList()`, or `for-in`).  Creation is O(1).
-@_cdecl("kk_string_asIterable")
-public func kk_string_asIterable(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringAsIterableRaw(source)
-}
-
 @_cdecl("kk_string_asIterable_flat")
 public func kk_string_asIterable_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -841,12 +835,6 @@ public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     // sentinel) rather than misinterpreting them as string handles.
     let box = RuntimeStringIteratorBox(charRaws: [])
     return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_string_asSequence")
-public func kk_string_asSequence(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringAsSequenceRaw(source)
 }
 
 @_cdecl("kk_string_asSequence_flat")

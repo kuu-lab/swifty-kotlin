@@ -1228,9 +1228,15 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
+        let flatOnlyNames = [
+            "kk_string_asIterable_flat",
+            "kk_string_asSequence_flat",
+        ]
+        for flatName in flatOnlyNames {
+            XCTAssertTrue(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")
+        }
+
         let rawNames = [
-            "kk_string_asIterable",
-            "kk_string_asSequence",
             "kk_string_lines",
             "kk_string_lineSequence",
             "kk_string_split",

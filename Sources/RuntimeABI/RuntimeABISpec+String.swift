@@ -2303,14 +2303,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-317: String.asIterable() — lazy Iterable<Char>
         RuntimeABIFunctionSpec(
-            name: "kk_string_asIterable",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_asIterable_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
