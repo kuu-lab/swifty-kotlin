@@ -1255,32 +1255,7 @@ extension RuntimeSequenceTests {
         }
     }
 
-    private func setElements(_ setRaw: Int) -> [Int] {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: setRaw) else {
-            return []
-        }
-        guard let box = try? XCTUnwrap(tryCast(ptr, to: RuntimeSetBox.self)) else {
-            return []
-        }
-        return box.elements
-    }
 
-    private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-            return nil
-        }
-        return try? XCTUnwrap(tryCast(ptr, to: RuntimeThrowableBox.self))
-    }
-
-    private func mapKeys(_ mapRaw: Int) -> [Int] {
-        let iterator = kk_map_iterator(mapRaw)
-        var keys: [Int] = []
-        while kk_map_iterator_hasNext(iterator) != 0 {
-            keys.append(kk_map_iterator_next(iterator))
-        }
-        return keys
-
-    }
     private func makeArray(_ elements: [Int]) -> Int {
         let arrayRaw = kk_array_new(elements.count)
         var thrown = 0

@@ -1855,7 +1855,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let firstNotNullOfBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOf_flat"
             }
             XCTAssertEqual(firstNotNullOfBindings.count, 2)
         }
@@ -1883,7 +1883,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_firstNotNullOfOrNull_flat"
             }
             XCTAssertEqual(bindings.count, 2)
         }
@@ -1913,10 +1913,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let links = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }.filter { link in
-                link == "kk_string_reduceRightIndexed" || link == "kk_string_reduceRightIndexed_flat"
+                link == "kk_string_reduceRightIndexed_flat"
             }
             XCTAssertEqual(links.count, 2)
-            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightIndexed", "kk_string_reduceRightIndexed_flat"]))
+            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightIndexed_flat"]))
         }
     }
 
@@ -1944,12 +1944,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let links = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }.filter { link in
-                link == "kk_string_reduceRightIndexedOrNull" || link == "kk_string_reduceRightIndexedOrNull_flat"
+                link == "kk_string_reduceRightIndexedOrNull_flat"
             }
             XCTAssertEqual(links.count, 2)
             XCTAssertEqual(
                 Set(links),
-                Set(["kk_string_reduceRightIndexedOrNull", "kk_string_reduceRightIndexedOrNull_flat"])
+                Set(["kk_string_reduceRightIndexedOrNull_flat"])
             )
         }
     }
@@ -1978,10 +1978,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let links = sema.bindings.callBindings.values.compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }.filter { link in
-                link == "kk_string_reduceRightOrNull" || link == "kk_string_reduceRightOrNull_flat"
+                link == "kk_string_reduceRightOrNull_flat"
             }
             XCTAssertEqual(links.count, 2)
-            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightOrNull", "kk_string_reduceRightOrNull_flat"]))
+            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightOrNull_flat"]))
         }
     }
 
@@ -2008,12 +2008,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
                 let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
-                return link == "kk_string_sumBy" || link == "kk_string_sumBy_flat"
+                return link == "kk_string_sumBy_flat"
             }
             XCTAssertEqual(bindings.count, 2)
             XCTAssertEqual(
                 Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
-                Set(["kk_string_sumBy", "kk_string_sumBy_flat"])
+                Set(["kk_string_sumBy_flat"])
             )
             for binding in bindings {
                 XCTAssertTrue(
@@ -2049,12 +2049,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
                 let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
-                return link == "kk_string_sumByDouble" || link == "kk_string_sumByDouble_flat"
+                return link == "kk_string_sumByDouble_flat"
             }
             XCTAssertEqual(bindings.count, 2)
             XCTAssertEqual(
                 Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
-                Set(["kk_string_sumByDouble", "kk_string_sumByDouble_flat"])
+                Set(["kk_string_sumByDouble_flat"])
             )
             for binding in bindings {
                 XCTAssertTrue(

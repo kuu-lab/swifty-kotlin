@@ -14,11 +14,6 @@ public struct StdlibSurfaceArity: Equatable, Hashable, Sendable {
     public let minimum: Int
     public let maximum: Int
 
-    public init(_ exact: Int) {
-        self.minimum = exact
-        self.maximum = exact
-    }
-
     public init(_ range: ClosedRange<Int>) {
         self.minimum = range.lowerBound
         self.maximum = range.upperBound
@@ -122,9 +117,5 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
         fallback: String
     ) -> String {
         collectionHOFMember(ownerKind: ownerKind, memberName: memberName, arity: arity)?.runtimeLinkName ?? fallback
-    }
-
-    public static func collectionHOFRuntimeLinkNames(ownerKind: StdlibSurfaceOwnerKind) -> Set<String> {
-        Set(collectionHOFMembers.lazy.filter { $0.ownerKind == ownerKind }.map(\.runtimeLinkName))
     }
 }

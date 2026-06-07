@@ -39,11 +39,6 @@ final class RuntimeUuidEdgeCaseTests: XCTestCase {
         Int(bitPattern: UInt(truncatingIfNeeded: bits))
     }
 
-    private func extractPairBox(_ raw: Int) -> RuntimePairBox? {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-        return tryCast(ptr, to: RuntimePairBox.self)
-    }
-
     private func extractArrayBox(_ raw: Int) -> RuntimeArrayBox? {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
         return tryCast(ptr, to: RuntimeArrayBox.self)

@@ -1027,9 +1027,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
     /// run the lowering pass, and return the resulting callees.
     private func buildAndLowerVirtualCall(
         receiverTypeName: String,
-        callee: String,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        callee: String
     ) throws -> [String] {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1112,9 +1110,7 @@ final class CollectionLiteralLoweringTests: XCTestCase {
     private func buildAndLowerVirtualCallWithArgs(
         receiverTypeName: String,
         callee: String,
-        argCount: Int = 0,
-        file: StaticString = #filePath,
-        line: UInt = #line
+        argCount: Int = 0
     ) throws -> [String] {
         let interner = StringInterner()
         let arena = KIRArena()

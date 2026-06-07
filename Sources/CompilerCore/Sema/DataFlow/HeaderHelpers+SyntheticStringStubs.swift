@@ -2387,7 +2387,7 @@ extension DataFlowSemaPhase {
             named: "firstNotNullOf",
             fqName: firstNotNullOfFQName,
             receiverType: charSequenceType,
-            externalLinkName: "kk_string_firstNotNullOf",
+            externalLinkName: "kk_string_firstNotNullOf_flat",
             returnsNullable: false
         )
 
@@ -2397,14 +2397,14 @@ extension DataFlowSemaPhase {
             named: "firstNotNullOfOrNull",
             fqName: firstNotNullOfOrNullFQName,
             receiverType: charSequenceType,
-            externalLinkName: "kk_string_firstNotNullOfOrNull",
+            externalLinkName: "kk_string_firstNotNullOfOrNull_flat",
             returnsNullable: true
         )
 
         // --- STDLIB-TEXT-HOF-003: CharSequence.reduceRightIndexed(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexed",
-            externalLinkName: "kk_string_reduceRightIndexed",
+            externalLinkName: "kk_string_reduceRightIndexed_flat",
             receiverType: charSequenceType,
             parameters: [("operation", intCharCharToCharType, false, false)],
             returnType: charType,
@@ -2428,7 +2428,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-004: CharSequence.reduceRightIndexedOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexedOrNull",
-            externalLinkName: "kk_string_reduceRightIndexedOrNull",
+            externalLinkName: "kk_string_reduceRightIndexedOrNull_flat",
             receiverType: charSequenceType,
             parameters: [("operation", intCharCharToCharType, false, false)],
             returnType: nullableCharType,
@@ -2452,7 +2452,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-005: CharSequence.reduceRightOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightOrNull",
-            externalLinkName: "kk_string_reduceRightOrNull",
+            externalLinkName: "kk_string_reduceRightOrNull_flat",
             receiverType: charSequenceType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
@@ -2476,7 +2476,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
-            externalLinkName: "kk_string_reduceOrNull",
+            externalLinkName: "kk_string_reduceOrNull_flat",
             receiverType: charSequenceType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
@@ -2500,7 +2500,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
             named: "sumBy",
-            externalLinkName: "kk_string_sumBy",
+            externalLinkName: "kk_string_sumBy_flat",
             receiverType: charSequenceType,
             parameters: [("selector", charToIntType, false, false)],
             returnType: intType,
@@ -2542,7 +2542,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-007: CharSequence.sumByDouble(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
             named: "sumByDouble",
-            externalLinkName: "kk_string_sumByDouble",
+            externalLinkName: "kk_string_sumByDouble_flat",
             receiverType: charSequenceType,
             parameters: [("selector", charToDoubleType, false, false)],
             returnType: doubleType,
