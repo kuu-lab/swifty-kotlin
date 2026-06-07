@@ -10,8 +10,7 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
         let runtimeABINames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let linkNames = Set(sema.symbols.allSymbols().compactMap { symbol in
             sema.symbols.externalLinkName(for: symbol.id)
-        }.filter { !$0.isEmpty }
-            .map { loweredRuntimeLinkAlias[$0] ?? $0 })
+        }.filter { !$0.isEmpty })
         let missing = linkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
@@ -33,7 +32,7 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
                 compilerCore.appendingPathComponent("Sema"),
             ]
         )
-        let resolvedLinkNames = Set(linkNames.map { loweredRuntimeLinkAlias[$0] ?? $0 })
+        let resolvedLinkNames = Set(linkNames)
         let missing = resolvedLinkNames
             .subtracting(runtimeABINames)
             .subtracting(allowedCompilerExternalLinks)
@@ -43,18 +42,6 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             missing.isEmpty,
             "KIR runtime link name literals missing from RuntimeABISpec: \(missing.joined(separator: ", "))"
         )
-    }
-
-    private var loweredRuntimeLinkAlias: [String: String] {
-        [
-            // KIR keeps a few semantic String callee names; LLVM emission lowers these to flattened runtime ABI symbols.
-            "kk_string_findAnyOf": "kk_string_findAnyOf_flat",
-            "kk_string_findLastAnyOf": "kk_string_findLastAnyOf_flat",
-            "kk_string_indexOfAny_chars": "kk_string_indexOfAny_chars_flat",
-            "kk_string_indexOfAny_strings": "kk_string_indexOfAny_strings_flat",
-            "kk_string_lastIndexOfAny_chars": "kk_string_lastIndexOfAny_chars_flat",
-            "kk_string_lastIndexOfAny_strings": "kk_string_lastIndexOfAny_strings_flat",
-        ]
     }
 
     private var allowedCompilerExternalLinks: Set<String> {

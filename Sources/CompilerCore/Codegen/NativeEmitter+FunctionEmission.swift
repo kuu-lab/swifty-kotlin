@@ -1085,32 +1085,32 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_indexOfAny_chars": FlatScalarReturnCallSpec(
+                "kk_string_indexOfAny_chars_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOfAny_chars_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_indexOfAny_strings": FlatScalarReturnCallSpec(
+                "kk_string_indexOfAny_strings_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOfAny_strings_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_lastIndexOfAny_chars": FlatScalarReturnCallSpec(
+                "kk_string_lastIndexOfAny_chars_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastIndexOfAny_chars_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_lastIndexOfAny_strings": FlatScalarReturnCallSpec(
+                "kk_string_lastIndexOfAny_strings_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastIndexOfAny_strings_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_findAnyOf": FlatScalarReturnCallSpec(
+                "kk_string_findAnyOf_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_findAnyOf_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_findLastAnyOf": FlatScalarReturnCallSpec(
+                "kk_string_findLastAnyOf_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_findLastAnyOf_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3

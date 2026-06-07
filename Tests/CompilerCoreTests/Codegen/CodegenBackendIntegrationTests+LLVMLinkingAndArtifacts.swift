@@ -976,12 +976,12 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendSearchCall("kk_string_indexOfAny_chars", targetRaw: charsRawExpr)
-        appendSearchCall("kk_string_indexOfAny_strings", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_lastIndexOfAny_chars", targetRaw: charsRawExpr)
-        appendSearchCall("kk_string_lastIndexOfAny_strings", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_findAnyOf", targetRaw: stringsRawExpr)
-        appendSearchCall("kk_string_findLastAnyOf", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_indexOfAny_chars_flat", targetRaw: charsRawExpr)
+        appendSearchCall("kk_string_indexOfAny_strings_flat", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_lastIndexOfAny_chars_flat", targetRaw: charsRawExpr)
+        appendSearchCall("kk_string_lastIndexOfAny_strings_flat", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_findAnyOf_flat", targetRaw: stringsRawExpr)
+        appendSearchCall("kk_string_findLastAnyOf_flat", targetRaw: stringsRawExpr)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1011,17 +1011,18 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_indexOfAny_chars",
-            "kk_string_indexOfAny_strings",
-            "kk_string_lastIndexOfAny_chars",
-            "kk_string_lastIndexOfAny_strings",
-            "kk_string_findAnyOf",
-            "kk_string_findLastAnyOf",
+        let flatNames = [
+            "kk_string_indexOfAny_chars_flat",
+            "kk_string_indexOfAny_strings_flat",
+            "kk_string_lastIndexOfAny_chars_flat",
+            "kk_string_lastIndexOfAny_strings_flat",
+            "kk_string_findAnyOf_flat",
+            "kk_string_findLastAnyOf_flat",
         ]
-        for rawName in rawNames {
+        for flatName in flatNames {
+            let rawName = String(flatName.dropLast("_flat".count))
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indexOfAny call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String indexOfAny call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String indexOfAny call: \(flatName)")
         }
     }
 
