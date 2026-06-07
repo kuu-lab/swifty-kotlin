@@ -1815,7 +1815,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty",
+            externalLinkName: "kk_string_isNotEmpty_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1849,7 +1849,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-029: CharSequence.isNotBlank ---
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank",
+            externalLinkName: "kk_string_isNotBlank_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,

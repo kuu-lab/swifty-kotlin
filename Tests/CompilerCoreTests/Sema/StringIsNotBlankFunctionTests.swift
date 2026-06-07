@@ -4,8 +4,7 @@ import XCTest
 /// STDLIB-TEXT-FN-029: Validates that `isNotBlank` resolves through Sema for
 /// both `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// The String receiver lowers to `kk_string_isNotBlank_flat`; the CharSequence
-/// compatibility overload still uses `kk_string_isNotBlank`.
+/// Both String and CharSequence receivers link to the flattened String ABI.
 final class StringIsNotBlankFunctionTests: XCTestCase {
     func testIsNotBlankFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -63,8 +62,8 @@ final class StringIsNotBlankFunctionTests: XCTestCase {
         )
         XCTAssertEqual(
             sema.symbols.externalLinkName(for: charSequenceSymbol),
-            "kk_string_isNotBlank",
-            "Expected CharSequence.isNotBlank extension to keep kk_string_isNotBlank"
+            "kk_string_isNotBlank_flat",
+            "Expected CharSequence.isNotBlank extension to link to kk_string_isNotBlank_flat"
         )
     }
 }

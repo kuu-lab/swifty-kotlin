@@ -1469,9 +1469,9 @@ extension CallLowerer {
                 if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
                     let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
                     instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "kk_string_first"
-                        : calleeStr == "last" ? "kk_string_last"
-                        : "kk_string_single"
+                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
+                        : calleeStr == "last" ? "kk_string_last_flat"
+                        : "kk_string_single_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
@@ -1483,9 +1483,9 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull"
-                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull"
-                        : "kk_string_singleOrNull"
+                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
+                        : "kk_string_singleOrNull_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),

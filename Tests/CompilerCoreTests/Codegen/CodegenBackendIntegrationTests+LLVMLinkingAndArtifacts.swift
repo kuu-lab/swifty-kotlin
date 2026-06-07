@@ -706,14 +706,14 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendSelectionCall("kk_string_first", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("kk_string_last", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("kk_string_single", arguments: [textExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("kk_string_firstOrNull", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("kk_string_lastOrNull", arguments: [textExpr], resultType: nullableCharType)
-        appendSelectionCall("kk_string_singleOrNull", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_first_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_last_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_single_flat", arguments: [textExpr], resultType: types.charType, canThrow: true)
+        appendSelectionCall("kk_string_firstOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_lastOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_singleOrNull_flat", arguments: [textExpr], resultType: nullableCharType)
         appendSelectionCall("kk_string_get_flat", arguments: [textExpr, indexExpr], resultType: types.charType, canThrow: true)
-        appendSelectionCall("kk_string_getOrNull", arguments: [textExpr, indexExpr], resultType: nullableCharType)
+        appendSelectionCall("kk_string_getOrNull_flat", arguments: [textExpr, indexExpr], resultType: nullableCharType)
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -743,18 +743,19 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_first",
-            "kk_string_last",
-            "kk_string_single",
-            "kk_string_firstOrNull",
-            "kk_string_lastOrNull",
-            "kk_string_singleOrNull",
-            "kk_string_getOrNull",
+        let flatNames = [
+            "kk_string_first_flat",
+            "kk_string_last_flat",
+            "kk_string_single_flat",
+            "kk_string_firstOrNull_flat",
+            "kk_string_lastOrNull_flat",
+            "kk_string_singleOrNull_flat",
+            "kk_string_getOrNull_flat",
         ]
-        for rawName in rawNames {
+        for flatName in flatNames {
+            let rawName = String(flatName.dropLast("_flat".count))
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String char-selection call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String char-selection call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String char-selection call: \(flatName)")
         }
         XCTAssertTrue(ir.contains("@kk_string_get_flat"), "Missing flat String.get call")
     }
@@ -788,8 +789,8 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendPredicateCall("kk_string_isNotEmpty")
-        appendPredicateCall("kk_string_isNotBlank")
+        appendPredicateCall("kk_string_isNotEmpty_flat")
+        appendPredicateCall("kk_string_isNotBlank_flat")
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -819,13 +820,14 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        let rawNames = [
-            "kk_string_isNotEmpty",
-            "kk_string_isNotBlank",
+        let flatNames = [
+            "kk_string_isNotEmpty_flat",
+            "kk_string_isNotBlank_flat",
         ]
-        for rawName in rawNames {
+        for flatName in flatNames {
+            let rawName = String(flatName.dropLast("_flat".count))
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String predicate call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String predicate call: \(rawName)_flat")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String predicate call: \(flatName)")
         }
     }
 

@@ -4,8 +4,7 @@ import XCTest
 /// STDLIB-TEXT-FN-030: Validates that `isNotEmpty` resolves through Sema for
 /// `String` and `CharSequence` receivers, returning a non-null `Boolean`.
 ///
-/// The String receiver lowers to `kk_string_isNotEmpty_flat`; the CharSequence
-/// compatibility overload still uses `kk_string_isNotEmpty`.
+/// Both String and CharSequence receivers link to the flattened String ABI.
 final class StringIsNotEmptyFunctionTests: XCTestCase {
     func testIsNotEmptyFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -63,8 +62,8 @@ final class StringIsNotEmptyFunctionTests: XCTestCase {
         )
         XCTAssertEqual(
             sema.symbols.externalLinkName(for: charSequenceSymbol),
-            "kk_string_isNotEmpty",
-            "Expected CharSequence.isNotEmpty extension to keep kk_string_isNotEmpty"
+            "kk_string_isNotEmpty_flat",
+            "Expected CharSequence.isNotEmpty extension to link to kk_string_isNotEmpty_flat"
         )
     }
 }

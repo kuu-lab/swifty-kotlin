@@ -1970,6 +1970,49 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextCharSequenceIsNotEmptyAndIsNotBlankEdgeCases() throws {
+        let source = """
+        fun hasContent(value: CharSequence): Boolean {
+            return value.isNotEmpty()
+        }
+
+        fun hasNonBlank(value: CharSequence): Boolean {
+            return value.isNotBlank()
+        }
+
+        fun main() {
+            println(hasContent("abc"))
+            println(hasContent(""))
+            println(hasNonBlank(" abc "))
+            println(hasNonBlank("   "))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextCharSequenceIsNotEmptyAndIsNotBlankEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                true
+                false
+                true
+                false
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testKotlinTextIfEmptyEdgeCases() throws {
         let source = """
         fun choose(value: CharSequence): String {

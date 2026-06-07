@@ -479,11 +479,18 @@ extension NativeEmitter {
             }
             var flattened: [LLVMCAPIBindings.LLVMValueRef] = []
             for index in 0..<stringArgumentCount {
-                guard isStringAggregateType(argumentTypes[index]),
-                      let fields = stringAggregateFields(argumentValues[index], suffix: "\(suffix)_arg\(index)")
-                else {
+                let stringValue: LLVMCAPIBindings.LLVMValueRef
+                if isStringAggregateType(argumentTypes[index]) {
+                    stringValue = argumentValues[index]
+                } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                    argumentValues[index],
+                    suffix: "\(suffix)_arg\(index)_raw"
+                ) {
+                    stringValue = bridged
+                } else {
                     return nil
                 }
+                guard let fields = stringAggregateFields(stringValue, suffix: "\(suffix)_arg\(index)") else { return nil }
                 flattened.append(contentsOf: fields)
             }
             return flattened
@@ -529,11 +536,18 @@ extension NativeEmitter {
             var flattened: [LLVMCAPIBindings.LLVMValueRef] = []
             for index in 0..<argumentCount {
                 if stringPositions.contains(index) {
-                    guard isStringAggregateType(argumentTypes[index]),
-                          let fields = stringAggregateFields(argumentValues[index], suffix: "\(suffix)_arg\(index)")
-                    else {
+                    let stringValue: LLVMCAPIBindings.LLVMValueRef
+                    if isStringAggregateType(argumentTypes[index]) {
+                        stringValue = argumentValues[index]
+                    } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                        argumentValues[index],
+                        suffix: "\(suffix)_arg\(index)_raw"
+                    ) {
+                        stringValue = bridged
+                    } else {
                         return nil
                     }
+                    guard let fields = stringAggregateFields(stringValue, suffix: "\(suffix)_arg\(index)") else { return nil }
                     flattened.append(contentsOf: fields)
                 } else {
                     flattened.append(argumentValues[index])
@@ -1136,11 +1150,6 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_isNotEmpty": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNotEmpty_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_isNotEmpty_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isNotEmpty_flat",
                     stringArgumentCount: 1,
@@ -1148,11 +1157,6 @@ extension NativeEmitter {
                 ),
                 "kk_string_isBlank_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_isBlank_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_isNotBlank": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_isNotBlank_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
@@ -1171,40 +1175,40 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_first": FlatScalarReturnCallSpec(
+                "kk_string_first_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_first_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_last": FlatScalarReturnCallSpec(
+                "kk_string_last_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_last_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_single": FlatScalarReturnCallSpec(
+                "kk_string_single_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_single_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_firstOrNull": FlatScalarReturnCallSpec(
+                "kk_string_firstOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_firstOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_lastOrNull": FlatScalarReturnCallSpec(
+                "kk_string_lastOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_singleOrNull": FlatScalarReturnCallSpec(
+                "kk_string_singleOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_singleOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_getOrNull": FlatScalarReturnCallSpec(
+                "kk_string_getOrNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_getOrNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
