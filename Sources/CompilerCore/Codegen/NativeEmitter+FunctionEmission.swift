@@ -720,6 +720,18 @@ extension NativeEmitter {
                     extraArgumentCount: 3,
                     canThrow: true
                 ),
+                "kk_string_repeat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_repeat_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
+                "kk_string_repeat_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_repeat_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
+                ),
                 "kk_string_take_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_take_flat",
                     stringArgumentCount: 1,

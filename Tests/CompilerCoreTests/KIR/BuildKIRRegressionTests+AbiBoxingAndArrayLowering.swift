@@ -547,6 +547,7 @@ extension BuildKIRRegressionTests {
             "1,2,3".split(",")
             maybe.isNullOrEmpty()
             maybe.isNullOrBlank()
+            "ab".repeat(2)
             "42".toInt()
             "3.14".toDouble()
         }
@@ -564,6 +565,8 @@ extension BuildKIRRegressionTests {
             XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_repeat_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertNil(throwFlags["kk_string_repeat"])
             XCTAssertEqual(throwFlags["kk_string_toInt_flat"]?.allSatisfy { $0 == true }, true)
             XCTAssertEqual(throwFlags["kk_string_toDouble_flat"]?.allSatisfy { $0 == true }, true)
         }

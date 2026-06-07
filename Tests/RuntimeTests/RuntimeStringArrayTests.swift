@@ -1477,6 +1477,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_drop_flat), "")
     }
 
+    func testStringRepeatFlatFunction() {
+        XCTAssertEqual(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat), "")
+        XCTAssertEqual(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat), "ababab")
+        XCTAssertEqual(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat), "éé")
+    }
+
+    func testStringRepeatFlatNegativeThrowsIllegalArgumentException() {
+        var thrown = 0
+        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
+        XCTAssertNotEqual(thrown, 0, "kk_string_repeat_flat(-1) should set outThrown")
+    }
+
     func testStringTakeNegativeThrowsIllegalArgumentException() {
         // STDLIB-005-BUG-01: negative count must throw, not silently return empty/full.
         var thrown = 0
