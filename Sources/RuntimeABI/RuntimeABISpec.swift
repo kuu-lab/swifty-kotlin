@@ -1836,30 +1836,12 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_matches_regex",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "regex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_matches_regex_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "regex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_contains_regex",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,

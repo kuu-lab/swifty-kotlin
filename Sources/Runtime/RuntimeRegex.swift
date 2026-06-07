@@ -265,11 +265,6 @@ private func runtimeRegexCreate(pattern: String) -> Int {
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: pattern))
 }
 
-@_cdecl("kk_string_matches_regex")
-public func kk_string_matches_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    runtimeStringMatchesRegex(regexStringFromRaw(strRaw) ?? "", regexRaw)
-}
-
 @_cdecl("kk_string_matches_regex_flat")
 public func kk_string_matches_regex_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -291,11 +286,6 @@ private func runtimeStringMatchesRegex(_ rawStr: String, _ regexRaw: Int) -> Int
     let match = regexBox.regex.firstMatch(in: str, options: [.anchored], range: range)
     let fullMatch = match != nil && match!.range.length == range.length
     return kk_box_bool(fullMatch ? 1 : 0)
-}
-
-@_cdecl("kk_string_contains_regex")
-public func kk_string_contains_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    runtimeStringContainsRegex(regexStringFromRaw(strRaw) ?? "", regexRaw)
 }
 
 @_cdecl("kk_string_contains_regex_flat")

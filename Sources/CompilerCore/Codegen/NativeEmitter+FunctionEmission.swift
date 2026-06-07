@@ -918,12 +918,12 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_matches_regex": FlatScalarReturnCallSpec(
+                "kk_string_matches_regex_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_matches_regex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_contains_regex": FlatScalarReturnCallSpec(
+                "kk_string_contains_regex_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contains_regex_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1

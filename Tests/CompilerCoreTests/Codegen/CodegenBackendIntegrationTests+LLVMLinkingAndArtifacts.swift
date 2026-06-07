@@ -530,8 +530,8 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_create", arguments: [patternExpr])
         appendRegexCall("kk_regex_create_with_option", arguments: [patternExpr, optionExpr])
         appendRegexCall("kk_regex_create_with_options", arguments: [patternExpr, optionsSetExpr])
-        appendRegexCall("kk_string_matches_regex", arguments: [inputExpr, regexExpr])
-        appendRegexCall("kk_string_contains_regex", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_toRegex", arguments: [patternExpr])
         appendRegexCall("kk_regex_find", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_findAll", arguments: [regexExpr, inputExpr])
@@ -574,8 +574,6 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_create",
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
-            "kk_string_matches_regex",
-            "kk_string_contains_regex",
             "kk_string_toRegex",
             "kk_regex_find",
             "kk_regex_findAll",
@@ -588,6 +586,12 @@ extension CodegenBackendIntegrationTests {
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
+        }
+
+        let removedRawStringPredicateNames = ["matches", "contains"].map { "kk_string_\($0)_regex" }
+        for rawName in removedRawStringPredicateNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw Regex String call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
         }
     }

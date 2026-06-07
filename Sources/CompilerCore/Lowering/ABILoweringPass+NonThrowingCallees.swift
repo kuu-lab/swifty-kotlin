@@ -1038,9 +1038,7 @@ extension ABILoweringPass {
             // Regex (STDLIB-100/101/102/103)
             interner.intern("kk_regex_create"),
             interner.intern("kk_regex_create_flat"),
-            interner.intern("kk_string_matches_regex"),
             interner.intern("kk_string_matches_regex_flat"),
-            interner.intern("kk_string_contains_regex"),
             interner.intern("kk_string_contains_regex_flat"),
             interner.intern("kk_regex_find"),
             interner.intern("kk_regex_findAll"),
