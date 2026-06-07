@@ -7,8 +7,8 @@ import XCTest
 // in the KSwiftK runtime and which are absent (gaps).
 //
 // Implemented (common scope, backed by runtime functions):
-//   - String.lowercase()                   → kk_string_lowercase
-//   - String.uppercase()                   → kk_string_uppercase
+//   - String.lowercase()                   → kk_string_lowercase_flat
+//   - String.uppercase()                   → kk_string_uppercase_flat
 //   - String.lowercase(Locale)             → kk_string_lowercase_locale
 //   - String.uppercase(Locale)             → kk_string_uppercase_locale
 //   - String.compareTo(String, Locale)     → kk_string_compareTo_locale

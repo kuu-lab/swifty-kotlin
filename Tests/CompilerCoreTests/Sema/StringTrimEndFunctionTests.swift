@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-111: Validates that `String.trimEnd` resolves through Sema for
 /// both the zero-argument whitespace overload and the predicate overload.
-/// The zero-arg form binds to runtime link `kk_string_trimEnd`, while the
+/// The zero-arg form binds to runtime link `kk_string_trimEnd_flat`, while the
 /// predicate form binds to `kk_string_trimEnd_predicate`.
 final class StringTrimEndFunctionTests: XCTestCase {
     func testTrimEndFunctionResolvesInSource() throws {

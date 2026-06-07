@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-034: Validates that `CharSequence.lastIndexOf` resolves through
 /// Sema for the (Char, startIndex, ignoreCase) overload and gets wired to the
-/// runtime entry point `kk_string_lastIndexOf_char`. The previously-existing
+/// runtime entry point `kk_string_lastIndexOf_char_flat`. The previously-existing
 /// String/String overloads remain wired to `kk_string_lastIndexOf_flat` and
 /// `kk_string_lastIndexOf_ignoreCase_flat` respectively.
 final class StringLastIndexOfFunctionTests: XCTestCase {
@@ -47,8 +47,8 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
                 .compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         XCTAssertTrue(
-            links.contains("kk_string_lastIndexOf_char"),
-            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char, got: \(links)"
+            links.contains("kk_string_lastIndexOf_char_flat"),
+            "Expected CharSequence.lastIndexOf(Char, Int, Boolean) to link to kk_string_lastIndexOf_char_flat, got: \(links)"
         )
         // Existing overloads must continue to be registered.
         XCTAssertTrue(
@@ -93,8 +93,8 @@ final class StringLastIndexOfFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_lastIndexOf_char",
-                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char"
+                "kk_string_lastIndexOf_char_flat",
+                "Expected lastIndexOf(Char, Int, Boolean) to resolve to kk_string_lastIndexOf_char_flat"
             )
         }
     }

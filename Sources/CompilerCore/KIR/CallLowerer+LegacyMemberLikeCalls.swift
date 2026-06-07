@@ -1280,7 +1280,7 @@ extension CallLowerer {
                 if calleeStr == "lowercase" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_lowercase"),
+                        callee: interner.intern("kk_string_lowercase_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1291,7 +1291,7 @@ extension CallLowerer {
                 if calleeStr == "uppercase" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_uppercase"),
+                        callee: interner.intern("kk_string_uppercase_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1685,7 +1685,7 @@ extension CallLowerer {
                     instructions.append(.constValue(result: endExpr, value: .intLiteral(0)))
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_substring"),
+                        callee: interner.intern("kk_string_substring_flat"),
                         arguments: [loweredReceiverID, loweredArgIDs[0], endExpr, hasEndExpr],
                         result: result,
                         canThrow: true,
@@ -1717,7 +1717,7 @@ extension CallLowerer {
                     instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_indexOf_char"),
+                        callee: interner.intern("kk_string_indexOf_char_flat"),
                         arguments: [loweredReceiverID, loweredArgIDs[0], zeroIndexExpr, falseExpr],
                         result: result,
                         canThrow: false,
@@ -2029,8 +2029,8 @@ extension CallLowerer {
                 ))
                 return result
             }
-            // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex) — 2-arg overload routes to kk_string_indexOf_char.
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
+            // STDLIB-TEXT-FN-020: CharSequence.indexOf(Char, startIndex) — 2-arg overload routes to kk_string_indexOf_char_flat.
+            if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver),
                calleeStr == "indexOf",
                sema.types.isSubtype(firstArgType, sema.types.charType)
             {
@@ -2038,7 +2038,7 @@ extension CallLowerer {
                 instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_indexOf_char"),
+                    callee: interner.intern("kk_string_indexOf_char_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], falseExpr],
                     result: result,
                     canThrow: false,
@@ -2163,7 +2163,7 @@ extension CallLowerer {
                 instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(1)))
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_substring"),
+                    callee: interner.intern("kk_string_substring_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], hasEndExpr],
                     result: result,
                     canThrow: true,

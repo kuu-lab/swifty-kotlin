@@ -7,7 +7,7 @@ import XCTest
 /// - `kk_string_indexOf_flat` (single String argument)
 /// - `kk_string_indexOf_from_flat` (String + startIndex)
 /// - `kk_string_indexOf_ignoreCase_flat` (String + startIndex + ignoreCase)
-/// - `kk_string_indexOf_char` (Char + optional startIndex + optional ignoreCase)
+/// - `kk_string_indexOf_char_flat` (Char + optional startIndex + optional ignoreCase)
 final class StringIndexOfFunctionTests: XCTestCase {
     func testIndexOfStringResolvesInSource() throws {
         let ctx = makeContextFromSource("""

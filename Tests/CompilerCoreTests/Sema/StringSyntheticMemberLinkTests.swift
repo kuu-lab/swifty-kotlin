@@ -65,7 +65,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "trim": "kk_string_trim",
+            "trim": "kk_string_trim_flat",
             "split": "kk_string_split_flat",
             "replace": "kk_string_replace",
             "startsWith": "kk_string_startsWith_flat",
@@ -182,13 +182,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         XCTAssertEqual(
             externalLink(for: "lowercase", sema: sema, interner: interner),
-            "kk_string_lowercase",
-            "String.lowercase should link to kk_string_lowercase"
+            "kk_string_lowercase_flat",
+            "String.lowercase should link to kk_string_lowercase_flat"
         )
         XCTAssertEqual(
             externalLink(for: "uppercase", sema: sema, interner: interner),
-            "kk_string_uppercase",
-            "String.uppercase should link to kk_string_uppercase"
+            "kk_string_uppercase_flat",
+            "String.uppercase should link to kk_string_uppercase_flat"
         )
         XCTAssertEqual(
             externalLink(for: "capitalize", sema: sema, interner: interner),
@@ -200,14 +200,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let lowercaseLinks = Set(
             sema.symbols.lookupAll(fqName: lowercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase"))
+        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_flat"))
         XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_locale"))
 
         let uppercaseFQ = ["kotlin", "text", "uppercase"].map { interner.intern($0) }
         let uppercaseLinks = Set(
             sema.symbols.lookupAll(fqName: uppercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
         )
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase"))
+        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_flat"))
         XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale"))
     }
 
@@ -451,10 +451,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [String: String] = [
-            "drop": "kk_string_drop",
-            "take": "kk_string_take",
-            "dropLast": "kk_string_dropLast",
-            "takeLast": "kk_string_takeLast",
+            "drop": "kk_string_drop_flat",
+            "take": "kk_string_take_flat",
+            "dropLast": "kk_string_dropLast_flat",
+            "takeLast": "kk_string_takeLast_flat",
         ]
         for (member, expectedLink) in expected {
             XCTAssertEqual(
@@ -582,9 +582,9 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [String: Set<String>] = [
-            "trim": ["kk_string_trim", "kk_string_trim_predicate"],
-            "trimStart": ["kk_string_trimStart", "kk_string_trimStart_predicate"],
-            "trimEnd": ["kk_string_trimEnd", "kk_string_trimEnd_predicate"],
+            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate"],
+            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate"],
+            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate"],
         ]
 
         for (member, expectedLinks) in expected {
