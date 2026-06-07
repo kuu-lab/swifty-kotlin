@@ -1069,7 +1069,7 @@ extension CodegenBackendIntegrationTests {
         appendMaterializationCall("kk_string_toCharArray_flat")
         appendMaterializationCall("kk_string_toTypedArray_flat")
         appendMaterializationCall("kk_string_toSortedSet_flat")
-        appendMaterializationCall("kk_string_toCollection", extraArguments: [destinationExpr])
+        appendMaterializationCall("kk_string_toCollection_flat", extraArguments: [destinationExpr])
         appendMaterializationCall("kk_string_withIndex_flat")
         appendMaterializationCall("kk_string_iterator")
         body.append(.returnUnit)

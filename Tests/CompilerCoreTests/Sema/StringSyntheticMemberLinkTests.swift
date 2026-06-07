@@ -231,12 +231,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         let links = externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
         XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence_transform"),
-            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+            links.contains("kk_string_chunked_sequence_transform_flat"),
+            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
         )
         XCTAssertTrue(
-            links.contains("kk_string_chunked_sequence"),
-            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
+            links.contains("kk_string_chunked_sequence_flat"),
+            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence_flat"
         )
         XCTAssertTrue(
             links.contains("kk_string_chunked_sequence_transform_flat"),
@@ -582,13 +582,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         XCTAssertEqual(
             externalLink(for: "chunkedSequence", sema: sema, interner: interner),
-            "kk_string_chunked_sequence",
-            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence"
+            "kk_string_chunked_sequence_flat",
+            "CharSequence.chunkedSequence should link to kk_string_chunked_sequence_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
-                .contains("kk_string_chunked_sequence_transform"),
-            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform"
+                .contains("kk_string_chunked_sequence_transform_flat"),
+            "CharSequence.chunkedSequence(size, transform) should link to kk_string_chunked_sequence_transform_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "chunkedSequence", sema: sema, interner: interner)
@@ -607,13 +607,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         XCTAssertEqual(
             externalLink(for: "windowedSequence", sema: sema, interner: interner),
-            "kk_string_windowedSequence_partial",
-            "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial"
+            "kk_string_windowedSequence_partial_flat",
+            "CharSequence.windowedSequence should link to kk_string_windowedSequence_partial_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "windowedSequence", sema: sema, interner: interner)
-                .contains("kk_string_windowedSequence_transform"),
-            "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform"
+                .contains("kk_string_windowedSequence_transform_flat"),
+            "CharSequence.windowedSequence(size, step, partialWindows, transform) should link to kk_string_windowedSequence_transform_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "windowedSequence", sema: sema, interner: interner)
@@ -865,7 +865,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             }
             XCTAssertEqual(callExprs.count, 2)
             let expectedLinks = [
-                "kk_string_chunked_sequence",
+                "kk_string_chunked_sequence_flat",
                 "kk_string_chunked_sequence_flat",
             ]
             for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
@@ -904,7 +904,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             }
             XCTAssertEqual(callExprs.count, 2)
             let expectedLinks = [
-                "kk_string_chunked_sequence_transform",
+                "kk_string_chunked_sequence_transform_flat",
                 "kk_string_chunked_sequence_transform_flat",
             ]
             for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
@@ -943,7 +943,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             }
             XCTAssertEqual(callExprs.count, 2)
             let expectedLinks = [
-                "kk_string_windowedSequence_partial",
+                "kk_string_windowedSequence_partial_flat",
                 "kk_string_windowedSequence_partial_flat",
             ]
             for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
@@ -982,7 +982,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             }
             XCTAssertEqual(callExprs.count, 2)
             let expectedLinks = [
-                "kk_string_windowedSequence_transform",
+                "kk_string_windowedSequence_transform_flat",
                 "kk_string_windowedSequence_transform_flat",
             ]
             for (callExpr, expectedLink) in zip(callExprs, expectedLinks) {
@@ -1828,7 +1828,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLinks,
-                ["kk_string_zipWithNext", "kk_string_zipWithNextTransform"]
+                ["kk_string_zipWithNext_flat", "kk_string_zipWithNextTransform_flat"]
             )
         }
     }
@@ -2138,7 +2138,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let chosenCallee = try XCTUnwrap(
                 callExprIDs.compactMap { sema.bindings.callBinding(for: $0)?.chosenCallee }.first
             )
-            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_string_withIndex")
+            XCTAssertEqual(sema.symbols.externalLinkName(for: chosenCallee), "kk_string_withIndex_flat")
         }
     }
 
@@ -2177,7 +2177,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLinks,
-                ["kk_string_zip", "kk_string_zipTransform"]
+                ["kk_string_zip_flat", "kk_string_zipTransform_flat"]
             )
         }
     }

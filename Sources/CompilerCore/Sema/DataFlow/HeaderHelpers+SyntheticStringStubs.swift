@@ -1170,7 +1170,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet",
+            externalLinkName: "kk_string_toSortedSet_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: setCharType,
@@ -1217,7 +1217,7 @@ extension DataFlowSemaPhase {
         // The destination type is erased to `Any` in the ABI (type parameter C).
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection",
+            externalLinkName: "kk_string_toCollection_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("destination", types.anyType, false, false),
@@ -3385,7 +3385,7 @@ extension DataFlowSemaPhase {
                 named: "chunkedSequence",
                 externalLinkName: receiverType == stringType
                     ? "kk_string_chunked_sequence_flat"
-                    : "kk_string_chunked_sequence",
+                    : "kk_string_chunked_sequence_flat",
                 receiverType: receiverType,
                 parameters: [
                     ("size", intType, false, false),
@@ -3454,7 +3454,7 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(
                     receiverType == stringType
                         ? "kk_string_chunked_sequence_transform_flat"
-                        : "kk_string_chunked_sequence_transform",
+                        : "kk_string_chunked_sequence_transform_flat",
                     for: functionSymbol
                 )
                 let sizeParameter = symbols.define(
@@ -3537,7 +3537,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowedSequence",
-            externalLinkName: "kk_string_windowedSequence_partial",
+            externalLinkName: "kk_string_windowedSequence_partial_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("size", intType, false, false),
@@ -3685,7 +3685,7 @@ extension DataFlowSemaPhase {
         }
         registerWindowedSequenceTransform(
             receiverType: charSequenceType,
-            externalLinkName: "kk_string_windowedSequence_transform"
+            externalLinkName: "kk_string_windowedSequence_transform_flat"
         )
         registerWindowedSequenceTransform(
             receiverType: stringType,
@@ -3788,7 +3788,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext",
+            externalLinkName: "kk_string_zipWithNext_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3810,7 +3810,7 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(
                     receiverType == stringType
                         ? "kk_string_zipWithNextTransform_flat"
-                        : "kk_string_zipWithNextTransform",
+                        : "kk_string_zipWithNextTransform_flat",
                     for: existingZipWithNextTransform
                 )
                 return
@@ -3852,7 +3852,7 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName(
                 receiverType == stringType
                     ? "kk_string_zipWithNextTransform_flat"
-                    : "kk_string_zipWithNextTransform",
+                    : "kk_string_zipWithNextTransform_flat",
                 for: transformMemberSymbol
             )
             let transformParamName = interner.intern("transform")
@@ -3970,7 +3970,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex",
+            externalLinkName: "kk_string_withIndex_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
@@ -4060,7 +4060,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip",
+            externalLinkName: "kk_string_zip_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("other", charSequenceType, false, false),
@@ -4081,7 +4081,7 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(
                     receiverType == stringType
                         ? "kk_string_zipTransform_flat"
-                        : "kk_string_zipTransform",
+                        : "kk_string_zipTransform_flat",
                     for: existingZipTransform
                 )
                 return
@@ -4123,7 +4123,7 @@ extension DataFlowSemaPhase {
             symbols.setExternalLinkName(
                 receiverType == stringType
                     ? "kk_string_zipTransform_flat"
-                    : "kk_string_zipTransform",
+                    : "kk_string_zipTransform_flat",
                 for: memberSymbol
             )
             let otherParamName = interner.intern("other")

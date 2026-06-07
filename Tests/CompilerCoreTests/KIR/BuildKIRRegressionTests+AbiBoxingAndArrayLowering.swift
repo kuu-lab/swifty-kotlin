@@ -193,6 +193,67 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    func testBuildKIRLowersCharSequenceCollectionSequenceMembersToFlatRuntimeCalls() throws {
+        let source = """
+        fun main(value: CharSequence, other: CharSequence) {
+            value.toSortedSet()
+            value.toCollection(mutableListOf<Char>())
+            value.withIndex()
+            value.zipWithNext()
+            value.zipWithNext { a, _ -> a }
+            value.zip(other)
+            value.zip(other) { a, _ -> a }
+            value.chunkedSequence(2)
+            value.chunkedSequence(2) { chunk -> chunk.length }
+            value.windowedSequence(2, 1, true)
+            value.windowedSequence(2, 1, true) { window -> window.length }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            let flatNames = [
+                "kk_string_toSortedSet_flat",
+                "kk_string_toCollection_flat",
+                "kk_string_withIndex_flat",
+                "kk_string_zipWithNext_flat",
+                "kk_string_zipWithNextTransform_flat",
+                "kk_string_zip_flat",
+                "kk_string_zipTransform_flat",
+                "kk_string_chunked_sequence_flat",
+                "kk_string_chunked_sequence_transform_flat",
+                "kk_string_windowedSequence_partial_flat",
+                "kk_string_windowedSequence_transform_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+            }
+
+            let rawNames = [
+                "kk_string_toSortedSet",
+                "kk_string_toCollection",
+                "kk_string_withIndex",
+                "kk_string_zipWithNext",
+                "kk_string_zipWithNextTransform",
+                "kk_string_zip",
+                "kk_string_zipTransform",
+                "kk_string_chunked_sequence",
+                "kk_string_chunked_sequence_transform",
+                "kk_string_windowedSequence_partial",
+                "kk_string_windowedSequence_transform",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw CharSequence String call \(rawName)")
+            }
+        }
+    }
+
     func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
         let source = """
         fun main(value: String) {

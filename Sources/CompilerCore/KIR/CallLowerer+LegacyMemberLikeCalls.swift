@@ -2033,7 +2033,7 @@ extension CallLowerer {
             {
                 let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                     ? "kk_string_chunked_sequence_transform_flat"
-                    : "kk_string_chunked_sequence_transform"
+                    : "kk_string_chunked_sequence_transform_flat"
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(runtimeCallee),
@@ -2160,7 +2160,7 @@ extension CallLowerer {
                 }
                 let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                     ? "kk_string_chunked_sequence_transform_flat"
-                    : "kk_string_chunked_sequence_transform"
+                    : "kk_string_chunked_sequence_transform_flat"
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(runtimeCallee),
@@ -2267,7 +2267,7 @@ extension CallLowerer {
             {
                 let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                     ? "kk_string_windowedSequence_partial_flat"
-                    : "kk_string_windowedSequence_partial"
+                    : "kk_string_windowedSequence_partial_flat"
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(runtimeCallee),
@@ -2361,7 +2361,7 @@ extension CallLowerer {
                 if let callArguments {
                     let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                         ? "kk_string_windowedSequence_transform_flat"
-                        : "kk_string_windowedSequence_transform"
+                        : "kk_string_windowedSequence_transform_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCallee),
