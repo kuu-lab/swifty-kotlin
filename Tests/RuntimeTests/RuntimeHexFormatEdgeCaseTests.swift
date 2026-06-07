@@ -18,20 +18,60 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeString(_ text: String) -> Int {
-        text.withCString { cstr in
-            cstr.withMemoryRebound(to: UInt8.self, capacity: text.utf8.count) { ptr in
-                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
-            }
-        }
-    }
-
     private func withFlatString<T>(
         _ text: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
     ) -> T {
         Array(text.utf8).withUnsafeBufferPointer { buffer in
             body(buffer.baseAddress, text.unicodeScalars.count, text.utf8.count, 0)
+        }
+    }
+
+    private func hexToInt(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToInt_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToShort(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToShort_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToUByte(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToUByte_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToUShort(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToUShort_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToULong(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToULong_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToLong(_ text: String, _ formatRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToLong_flat(data, length, byteCount, hash, formatRaw, outThrown)
+        }
+    }
+
+    private func hexToByteArray(_ text: String, _ formatRaw: Int) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToByteArray_flat(data, length, byteCount, hash, formatRaw)
+        }
+    }
+
+    private func hexToUByteArray(_ text: String, _ formatRaw: Int) -> Int {
+        withFlatString(text) { data, length, byteCount, hash in
+            kk_string_hexToUByteArray_flat(data, length, byteCount, hash, formatRaw)
         }
     }
 
@@ -247,8 +287,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArrayEmptyString() {
         let fmt = makeFormat()
-        let strRaw = makeString("")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("", fmt)
         XCTAssertEqual(extractListElements(result), [], "Empty hex string must produce empty ByteArray")
     }
 
@@ -256,8 +295,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArrayContiguous() {
         let fmt = makeFormat()
-        let strRaw = makeString("deadbeef")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("deadbeef", fmt)
         // 0xDE=222, stored as signed: Int(Int8(bitPattern:0xDE)) = -34
         let expected: [Int] = [
             Int(Int8(bitPattern: 0xDE)),
@@ -270,8 +308,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArraySinglePair() {
         let fmt = makeFormat()
-        let strRaw = makeString("0a")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("0a", fmt)
         XCTAssertEqual(extractListElements(result), [0x0A])
     }
 
@@ -279,8 +316,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArrayWithColonSeparator() {
         let fmt = makeFormat(byteSeparator: ":")
-        let strRaw = makeString("01:02:03")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("01:02:03", fmt)
         XCTAssertEqual(extractListElements(result), [0x01, 0x02, 0x03])
     }
 
@@ -293,8 +329,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         let encoded = extractString(encodedRaw) ?? ""
         XCTAssertEqual(encoded, "10-20-30")
         // Decode
-        let strRaw = makeString(encoded)
-        let decoded = kk_string_hexToByteArray(strRaw, fmt)
+        let decoded = hexToByteArray(encoded, fmt)
         XCTAssertEqual(extractListElements(decoded), original)
     }
 
@@ -305,8 +340,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         let encodedRaw = kk_bytearray_toHexString(arrRaw, fmt)
         let encoded = extractString(encodedRaw) ?? ""
         XCTAssertEqual(encoded, "007f80ff")
-        let strRaw = makeString(encoded)
-        let decoded = kk_string_hexToByteArray(strRaw, fmt)
+        let decoded = hexToByteArray(encoded, fmt)
         XCTAssertEqual(extractListElements(decoded), original)
     }
 
@@ -314,36 +348,32 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToIntBasic() {
         let fmt = makeFormat()
-        let strRaw = makeString("000000ff")
         var thrown = 0
-        let result = kk_string_hexToInt(strRaw, fmt, &thrown)
+        let result = hexToInt("000000ff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 255)
     }
 
     func testHexToIntMaxPositive() {
         let fmt = makeFormat()
-        let strRaw = makeString("7fffffff")
         var thrown = 0
-        let result = kk_string_hexToInt(strRaw, fmt, &thrown)
+        let result = hexToInt("7fffffff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Int32.max))
     }
 
     func testHexToIntNegativeOne() {
         let fmt = makeFormat()
-        let strRaw = makeString("ffffffff")
         var thrown = 0
-        let result = kk_string_hexToInt(strRaw, fmt, &thrown)
+        let result = hexToInt("ffffffff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, -1, "0xFFFFFFFF reinterpreted as signed Int32 must equal -1")
     }
 
     func testHexToIntZero() {
         let fmt = makeFormat()
-        let strRaw = makeString("00000000")
         var thrown = 0
-        let result = kk_string_hexToInt(strRaw, fmt, &thrown)
+        let result = hexToInt("00000000", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, 0)
     }
@@ -353,15 +383,15 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
     func testHexToShortBasic() {
         let fmt = makeFormat()
         var thrown = 0
-        XCTAssertEqual(kk_string_hexToShort(makeString("00ff"), fmt, &thrown), 255)
+        XCTAssertEqual(hexToShort("00ff", fmt, &thrown), 255)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_hexToShort(makeString("ffff"), fmt, &thrown), -1)
+        XCTAssertEqual(hexToShort("ffff", fmt, &thrown), -1)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        _ = kk_string_hexToShort(makeString("10000"), fmt, &thrown)
+        _ = hexToShort("10000", fmt, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
@@ -370,15 +400,15 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
     func testHexToUByteBasic() {
         let fmt = makeFormat()
         var thrown = 0
-        XCTAssertEqual(kk_string_hexToUByte(makeString("ff"), fmt, &thrown), 255)
+        XCTAssertEqual(hexToUByte("ff", fmt, &thrown), 255)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_hexToUByte(makeString("00"), fmt, &thrown), 0)
+        XCTAssertEqual(hexToUByte("00", fmt, &thrown), 0)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        _ = kk_string_hexToUByte(makeString("100"), fmt, &thrown)
+        _ = hexToUByte("100", fmt, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
@@ -387,15 +417,15 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
     func testHexToUShortBasic() {
         let fmt = makeFormat()
         var thrown = 0
-        XCTAssertEqual(kk_string_hexToUShort(makeString("ffff"), fmt, &thrown), Int(UInt16.max))
+        XCTAssertEqual(hexToUShort("ffff", fmt, &thrown), Int(UInt16.max))
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        XCTAssertEqual(kk_string_hexToUShort(makeString("0000"), fmt, &thrown), 0)
+        XCTAssertEqual(hexToUShort("0000", fmt, &thrown), 0)
         XCTAssertEqual(thrown, 0)
 
         thrown = 0
-        _ = kk_string_hexToUShort(makeString("10000"), fmt, &thrown)
+        _ = hexToUShort("10000", fmt, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
@@ -404,17 +434,17 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
     func testHexToULongBasic() {
         let fmt = makeFormat()
         var thrown = 0
-        let max = kk_string_hexToULong(makeString("ffffffffffffffff"), fmt, &thrown)
+        let max = hexToULong("ffffffffffffffff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(max), -1)
 
         thrown = 0
-        let zero = kk_string_hexToULong(makeString("0000000000000000"), fmt, &thrown)
+        let zero = hexToULong("0000000000000000", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(zero), 0)
 
         thrown = 0
-        _ = kk_string_hexToULong(makeString("10000000000000000"), fmt, &thrown)
+        _ = hexToULong("10000000000000000", fmt, &thrown)
         XCTAssertNotEqual(thrown, 0)
     }
 
@@ -422,7 +452,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToUByteArrayContiguousHex() {
         let fmt = makeFormat()
-        let result = kk_string_hexToUByteArray(makeString("00ff"), fmt)
+        let result = hexToUByteArray("00ff", fmt)
         XCTAssertEqual(extractArrayElements(result), [0, 255])
     }
 
@@ -430,7 +460,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToUByteArrayWithSeparator() {
         let fmt = makeFormat(byteSeparator: ":")
-        let result = kk_string_hexToUByteArray(makeString("00:ff"), fmt)
+        let result = hexToUByteArray("00:ff", fmt)
         XCTAssertEqual(extractArrayElements(result), [0, 255])
     }
 
@@ -492,27 +522,24 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToLongBasic() {
         let fmt = makeFormat()
-        let strRaw = makeString("ff")
         var thrown = 0
-        let result = kk_string_hexToLong(strRaw, fmt, &thrown)
+        let result = hexToLong("ff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(result), 255)
     }
 
     func testHexToLongNegativeOne() {
         let fmt = makeFormat()
-        let strRaw = makeString("ffffffffffffffff")
         var thrown = 0
-        let result = kk_string_hexToLong(strRaw, fmt, &thrown)
+        let result = hexToLong("ffffffffffffffff", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(result), -1, "0xFFFFFFFFFFFFFFFF reinterpreted as signed Int64 must equal -1")
     }
 
     func testHexToLongZero() {
         let fmt = makeFormat()
-        let strRaw = makeString("0")
         var thrown = 0
-        let result = kk_string_hexToLong(strRaw, fmt, &thrown)
+        let result = hexToLong("0", fmt, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_unbox_long(result), 0)
     }
@@ -531,8 +558,8 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         XCTAssertEqual(lower, upper.lowercased(), "Uppercase and lowercase hex strings must be case-equivalent")
 
         // Both should decode to the same bytes (using lower fmt for decode)
-        let decodedLower = extractListElements(kk_string_hexToByteArray(makeString(lower), fmtLower))
-        let decodedUpper = extractListElements(kk_string_hexToByteArray(makeString(upper.lowercased()), fmtLower))
+        let decodedLower = extractListElements(hexToByteArray(lower, fmtLower))
+        let decodedUpper = extractListElements(hexToByteArray(upper.lowercased(), fmtLower))
         XCTAssertEqual(decodedLower, decodedUpper)
         XCTAssertEqual(decodedLower, original)
     }
@@ -589,9 +616,8 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         // Tolerant decode: strip prefix before parsing
         let stripped = withPrefix.hasPrefix(prefix) ? String(withPrefix.dropFirst(prefix.count)) : withPrefix
         let fmtDecode = makeFormat()
-        let strRaw = makeString(stripped)
         var thrown = 0
-        let decoded = kk_string_hexToInt(strRaw, fmtDecode, &thrown)
+        let decoded = hexToInt(stripped, fmtDecode, &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(decoded, 255, "Tolerant prefix decode must recover original Int value")
     }
@@ -613,8 +639,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         let encodedRaw = kk_bytearray_toHexString(arrRaw, fmt)
         let encoded = extractString(encodedRaw) ?? ""
         XCTAssertEqual(encoded, "10-:20-:30")
-        let strRaw = makeString(encoded)
-        let decoded = kk_string_hexToByteArray(strRaw, fmt)
+        let decoded = hexToByteArray(encoded, fmt)
         XCTAssertEqual(extractListElements(decoded), original,
             "Multi-char separator round-trip must restore original bytes")
     }
@@ -642,8 +667,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
         let arrRaw = makeListRaw(original)
         let encodedRaw = kk_bytearray_toHexString(arrRaw, fmt)
         let encoded = extractString(encodedRaw) ?? ""
-        let strRaw = makeString(encoded)
-        let decoded = kk_string_hexToByteArray(strRaw, fmt)
+        let decoded = hexToByteArray(encoded, fmt)
         XCTAssertEqual(extractListElements(decoded), original,
             "Full 0-255 byte range must round-trip through ByteArray.toHexString / hexToByteArray")
     }
@@ -652,8 +676,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArrayAcceptsUppercaseInput() {
         let fmt = makeFormat()
-        let strRaw = makeString("DEADBEEF")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("DEADBEEF", fmt)
         // 0xDE stored as signed Byte
         let expected: [Int] = [
             Int(Int8(bitPattern: 0xDE)),
@@ -667,8 +690,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
 
     func testHexToByteArrayAcceptsMixedCaseInput() {
         let fmt = makeFormat()
-        let strRaw = makeString("DeAdBeEf")
-        let result = kk_string_hexToByteArray(strRaw, fmt)
+        let result = hexToByteArray("DeAdBeEf", fmt)
         let expected: [Int] = [
             Int(Int8(bitPattern: 0xDE)),
             Int(Int8(bitPattern: 0xAD)),

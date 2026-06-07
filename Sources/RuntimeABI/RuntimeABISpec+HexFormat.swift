@@ -60,32 +60,12 @@ public extension RuntimeABISpec {
             section: "HexFormat"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_hexToInt",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_hexToInt_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_hexToShort",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -106,32 +86,12 @@ public extension RuntimeABISpec {
             section: "HexFormat"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_hexToUByte",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_hexToUByte_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_hexToUShort",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -152,32 +112,12 @@ public extension RuntimeABISpec {
             section: "HexFormat"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_hexToUInt",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_hexToUInt_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_hexToULong",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -198,16 +138,6 @@ public extension RuntimeABISpec {
             section: "HexFormat"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_hexToLong",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_hexToLong_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -221,30 +151,12 @@ public extension RuntimeABISpec {
             section: "HexFormat"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_hexToByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_hexToByteArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "formatRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "HexFormat"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_hexToUByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
                 RuntimeABIParameter(name: "formatRaw", type: .intptr),
             ],
             returnType: .intptr,

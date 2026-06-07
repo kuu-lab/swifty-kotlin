@@ -278,15 +278,6 @@ private func hexFormatParseUnsigned<T: FixedWidthInteger & UnsignedInteger>(
 
 // MARK: - String.hexToInt(format)
 
-@_cdecl("kk_string_hexToInt")
-public func kk_string_hexToInt(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToInt(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
-
 @_cdecl("kk_string_hexToInt_flat")
 public func kk_string_hexToInt_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -318,15 +309,6 @@ private func runtimeStringHexToInt(
 }
 
 // MARK: - String.hexToUByte(format)
-
-@_cdecl("kk_string_hexToUByte")
-public func kk_string_hexToUByte(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToUByte(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
 
 @_cdecl("kk_string_hexToUByte_flat")
 public func kk_string_hexToUByte_flat(
@@ -360,15 +342,6 @@ private func runtimeStringHexToUByte(
 
 // MARK: - String.hexToUShort(format)
 
-@_cdecl("kk_string_hexToUShort")
-public func kk_string_hexToUShort(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToUShort(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
-
 @_cdecl("kk_string_hexToUShort_flat")
 public func kk_string_hexToUShort_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -400,15 +373,6 @@ private func runtimeStringHexToUShort(
 }
 
 // MARK: - String.hexToUInt(format)
-
-@_cdecl("kk_string_hexToUInt")
-public func kk_string_hexToUInt(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToUInt(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
 
 @_cdecl("kk_string_hexToUInt_flat")
 public func kk_string_hexToUInt_flat(
@@ -442,15 +406,6 @@ private func runtimeStringHexToUInt(
 
 // MARK: - String.hexToULong(format)
 
-@_cdecl("kk_string_hexToULong")
-public func kk_string_hexToULong(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToULong(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
-
 @_cdecl("kk_string_hexToULong_flat")
 public func kk_string_hexToULong_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -482,15 +437,6 @@ private func runtimeStringHexToULong(
 }
 
 // MARK: - String.hexToShort(format)
-
-@_cdecl("kk_string_hexToShort")
-public func kk_string_hexToShort(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToShort(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
 
 @_cdecl("kk_string_hexToShort_flat")
 public func kk_string_hexToShort_flat(
@@ -524,15 +470,6 @@ private func runtimeStringHexToShort(
 
 // MARK: - String.hexToLong(format)
 
-@_cdecl("kk_string_hexToLong")
-public func kk_string_hexToLong(
-    _ receiverRaw: Int,
-    _ formatRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringHexToLong(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw, outThrown)
-}
-
 @_cdecl("kk_string_hexToLong_flat")
 public func kk_string_hexToLong_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -565,11 +502,6 @@ private func runtimeStringHexToLong(
 
 // MARK: - String.hexToByteArray(format)
 
-@_cdecl("kk_string_hexToByteArray")
-public func kk_string_hexToByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> Int {
-    runtimeStringHexToByteArray(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw)
-}
-
 @_cdecl("kk_string_hexToByteArray_flat")
 public func kk_string_hexToByteArray_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -590,11 +522,6 @@ private func runtimeStringHexToByteArray(_ receiver: String, _ formatRaw: Int) -
 }
 
 // MARK: - String.hexToUByteArray(format)
-
-@_cdecl("kk_string_hexToUByteArray")
-public func kk_string_hexToUByteArray(_ receiverRaw: Int, _ formatRaw: Int) -> Int {
-    runtimeStringHexToUByteArray(hexFormatStringFromRaw(receiverRaw) ?? "", formatRaw)
-}
 
 @_cdecl("kk_string_hexToUByteArray_flat")
 public func kk_string_hexToUByteArray_flat(

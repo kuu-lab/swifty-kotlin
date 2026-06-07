@@ -471,19 +471,25 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toByteOrNull",
             "kk_string_toBigDecimal",
             "kk_string_toBigInteger",
-            "kk_string_hexToInt",
-            "kk_string_hexToShort",
-            "kk_string_hexToUByte",
-            "kk_string_hexToUShort",
-            "kk_string_hexToUInt",
-            "kk_string_hexToULong",
-            "kk_string_hexToLong",
-            "kk_string_hexToByteArray",
-            "kk_string_hexToUByteArray",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String parse call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String parse call: \(rawName)_flat")
+        }
+        let removedRawHexNames = [
+            "Int",
+            "Short",
+            "UByte",
+            "UShort",
+            "UInt",
+            "ULong",
+            "Long",
+            "ByteArray",
+            "UByteArray",
+        ].map { "kk_string_hexTo\($0)" }
+        for rawName in removedRawHexNames {
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected removed raw String hex call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String hex call: \(rawName)_flat")
         }
     }
 
