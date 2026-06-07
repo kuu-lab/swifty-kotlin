@@ -1,4 +1,0 @@
-Another instance of SwiftPM (PID: 54649) is already running using '/Users/kuu/kotlin-compiler/.build', waiting until that process has finished execution...[0/1] Planning build
-Building for debugging...
-[0/7] Write swift-version--58304C5D6DBC2206.txt
-Build complete! (1.15s)
