@@ -101,6 +101,16 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(try Data(contentsOf: fileURL), Data([0, 127, 128, 255]))
     }
 
+    func testStringByteInputStreamDefaultCharsetYieldsUtf8Bytes() {
+        let streamRaw = kk_string_byteInputStream(runtimeStringRaw("A\u{00E9}"))
+        XCTAssertEqual(readInputStreamBytes(streamRaw), [65, 195, 169])
+    }
+
+    func testStringByteInputStreamExplicitCharsetYieldsEncodedBytes() {
+        let streamRaw = kk_string_byteInputStream_charset(runtimeStringRaw("AB"), kk_charset_utf_16be())
+        XCTAssertEqual(readInputStreamBytes(streamRaw), [0, 65, 0, 66])
+    }
+
     // STDLIB-IO-FN-016: File.forEachBlock — default blockSize accumulates all bytes
     func testForEachBlockDefaultBlockSizeAccumulatesAllBytes() throws {
         let bytes: [UInt8] = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -354,6 +364,19 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         return bytes.withUnsafeBufferPointer { buffer -> Int in
             let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
             return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
+        }
+    }
+
+    private func readInputStreamBytes(_ streamRaw: Int) -> [Int] {
+        var result: [Int] = []
+        var thrown = 0
+        while true {
+            let byte = kk_input_stream_read(streamRaw, &thrown)
+            XCTAssertEqual(thrown, 0)
+            if byte < 0 {
+                return result
+            }
+            result.append(byte)
         }
     }
 

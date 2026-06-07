@@ -58,32 +58,35 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     // MARK: - encodeToByteArray: basic ASCII round-trip
 
     func testEncodeToByteArrayASCII() {
-        let strRaw = makeString("Hello")
-        let result = kk_string_encodeToByteArray(strRaw)
-        let elements = extractListElements(result)
-        // "Hello" -> [72, 101, 108, 108, 111]
-        XCTAssertEqual(elements, [72, 101, 108, 108, 111])
+        withFlatString("Hello") { data, length, byteCount, hash in
+            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let elements = extractListElements(result)
+            // "Hello" -> [72, 101, 108, 108, 111]
+            XCTAssertEqual(elements, [72, 101, 108, 108, 111])
+        }
     }
 
     // MARK: - encodeToByteArray: non-ASCII (multi-byte UTF-8)
 
     func testEncodeToByteArrayNonASCII() {
-        let strRaw = makeString("\u{00E9}") // e-acute (U+00E9), UTF-8: [0xC3, 0xA9]
-        let result = kk_string_encodeToByteArray(strRaw)
-        let elements = extractListElements(result)
-        XCTAssertEqual(elements, [-61, -87])
+        withFlatString("\u{00E9}") { data, length, byteCount, hash in
+            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let elements = extractListElements(result)
+            XCTAssertEqual(elements, [-61, -87])
+        }
     }
 
     // MARK: - encodeToByteArray matches toByteArray
 
     func testEncodeToByteArrayMatchesToByteArray() {
-        let strRaw = makeString("test123")
-        let encode = kk_string_encodeToByteArray(strRaw)
-        let toByte = kk_string_toByteArray(strRaw)
-        let encodeElems = extractListElements(encode)
-        let toByteElems = extractListElements(toByte)
-        XCTAssertEqual(encodeElems, toByteElems,
-                       "encodeToByteArray and toByteArray should produce identical results")
+        withFlatString("test123") { data, length, byteCount, hash in
+            let encode = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let toByte = kk_string_toByteArray_flat(data, length, byteCount, hash)
+            let encodeElems = extractListElements(encode)
+            let toByteElems = extractListElements(toByte)
+            XCTAssertEqual(encodeElems, toByteElems,
+                           "encodeToByteArray and toByteArray should produce identical results")
+        }
     }
 
     func testFlatStringEncodeToByteArrayRuntimeAPIsUseFlattenedStringFields() {
@@ -146,10 +149,11 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
 
     func testRoundTripUTF8() {
         let original = "Hello, World! \u{1F600}" // includes emoji (4-byte UTF-8)
-        let strRaw = makeString(original)
-        let encoded = kk_string_encodeToByteArray(strRaw)
-        let decoded = kk_bytearray_decodeToString(encoded)
-        XCTAssertEqual(extractSwiftString(decoded), original)
+        withFlatString(original) { data, length, byteCount, hash in
+            let encoded = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            let decoded = kk_bytearray_decodeToString(encoded)
+            XCTAssertEqual(extractSwiftString(decoded), original)
+        }
     }
 
     // MARK: - decodeToString: negative byte values (truncating semantics)
@@ -186,9 +190,10 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     // MARK: - encodeToByteArray: empty string
 
     func testEncodeToByteArrayEmptyString() {
-        let strRaw = makeString("")
-        let result = kk_string_encodeToByteArray(strRaw)
-        XCTAssertEqual(extractListElements(result), [])
+        withFlatString("") { data, length, byteCount, hash in
+            let result = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
+            XCTAssertEqual(extractListElements(result), [])
+        }
     }
 
     // MARK: - decodeToString(charset): UTF-8 (charset ID 0)

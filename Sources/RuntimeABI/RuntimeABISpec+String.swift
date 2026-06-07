@@ -2067,14 +2067,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-145: String.toByteArray
         RuntimeABIFunctionSpec(
-            name: "kk_string_toByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_toByteArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2086,15 +2078,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-581: String.toByteArray(charset: Charset)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toByteArray_charset",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "charsetTag", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toByteArray_charset_flat",
             parameters: [
@@ -2163,14 +2146,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_encodeToByteArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2182,16 +2157,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray_range",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "startIndex", type: .intptr),
-                RuntimeABIParameter(name: "endIndex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_encodeToByteArray_range_flat",
             parameters: [
@@ -2206,15 +2171,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-573: String.encodeToByteArray(charset)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_encodeToByteArray_charset",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "charsetID", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_encodeToByteArray_charset_flat",
             parameters: [
