@@ -1047,7 +1047,7 @@ extension DataFlowSemaPhase {
             )))
             registerSyntheticStringExtensionFunction(
                 named: "byteInputStream",
-                externalLinkName: "kk_string_byteInputStream",
+                externalLinkName: "kk_string_byteInputStream_flat",
                 receiverType: types.stringType,
                 parameters: [],
                 returnType: byteArrayInputStreamType,
@@ -1057,7 +1057,7 @@ extension DataFlowSemaPhase {
             )
             registerSyntheticStringExtensionFunction(
                 named: "byteInputStream",
-                externalLinkName: "kk_string_byteInputStream_charset",
+                externalLinkName: "kk_string_byteInputStream_charset_flat",
                 receiverType: types.stringType,
                 parameters: [
                     ("charset", charsetType, false, false),

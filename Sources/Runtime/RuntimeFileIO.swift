@@ -1985,8 +1985,18 @@ public func kk_bytearray_inputStream_range(
 @_cdecl("kk_string_byteInputStream")
 public func kk_string_byteInputStream(_ strRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let bytes = source.utf8.map { UInt8($0) }
-    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
+    return runtimeStringByteInputStream(source)
+}
+
+@_cdecl("kk_string_byteInputStream_flat")
+public func kk_string_byteInputStream_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringByteInputStream(source)
 }
 
 // STDLIB-IO-FN-011: String.byteInputStream(charset: Charset) — charset-aware
@@ -1994,10 +2004,31 @@ public func kk_string_byteInputStream(_ strRaw: Int) -> Int {
 @_cdecl("kk_string_byteInputStream_charset")
 public func kk_string_byteInputStream_charset(_ strRaw: Int, _ charsetTag: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringByteInputStream(source, charsetTag: charsetTag)
+}
+
+@_cdecl("kk_string_byteInputStream_charset_flat")
+public func kk_string_byteInputStream_charset_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ charsetTag: Int
+) -> Int {
+    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringByteInputStream(source, charsetTag: charsetTag)
+}
+
+private func runtimeStringByteInputStream(_ source: String) -> Int {
+    let bytes = source.utf8.map { UInt8($0) }
+    return registerRuntimeObject(RuntimeInputStreamBox(data: Data(bytes)))
+}
+
+private func runtimeStringByteInputStream(_ source: String, charsetTag: Int) -> Int {
     let bytesRaw = runtimeStringToByteArrayWithCharsetRaw(source, charsetTag: charsetTag)
     guard let bytes = runtimeByteArrayBytes(from: bytesRaw) else {
         // Fall back to UTF-8 if the encoded bytes cannot be retrieved (should not happen)
-        return registerRuntimeObject(RuntimeInputStreamBox(data: Data(source.utf8.map { UInt8($0) })))
+        return runtimeStringByteInputStream(source)
     }
     let unsignedBytes = bytes.map { UInt8(truncatingIfNeeded: $0) }
     return registerRuntimeObject(RuntimeInputStreamBox(data: Data(unsignedBytes)))

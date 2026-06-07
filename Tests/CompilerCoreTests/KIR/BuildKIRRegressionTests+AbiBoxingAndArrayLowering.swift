@@ -309,6 +309,40 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    func testBuildKIRLowersStringByteInputStreamToFlatRuntimeCalls() throws {
+        let source = """
+        import kotlin.text.Charsets
+
+        fun main(value: String) {
+            value.byteInputStream()
+            value.byteInputStream(Charsets.UTF_16)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_string_byteInputStream_flat"))
+            XCTAssertTrue(callNames.contains("kk_string_byteInputStream_charset_flat"))
+            XCTAssertFalse(callNames.contains("kk_string_byteInputStream"))
+            XCTAssertFalse(callNames.contains("kk_string_byteInputStream_charset"))
+        }
+    }
+
+    func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_string_byteInputStream_flat")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_string_byteInputStream_charset_flat")))
+    }
+
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {

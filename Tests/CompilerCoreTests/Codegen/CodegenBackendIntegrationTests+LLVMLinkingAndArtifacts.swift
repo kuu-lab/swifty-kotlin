@@ -1310,6 +1310,8 @@ extension CodegenBackendIntegrationTests {
         appendByteArrayCall("kk_string_encodeToByteArray_flat", [textExpr])
         appendByteArrayCall("kk_string_encodeToByteArray_range_flat", [textExpr, startExpr, endExpr])
         appendByteArrayCall("kk_string_encodeToByteArray_charset_flat", [textExpr, charsetExpr])
+        appendByteArrayCall("kk_string_byteInputStream", [textExpr])
+        appendByteArrayCall("kk_string_byteInputStream_charset", [textExpr, charsetExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1345,6 +1347,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_encodeToByteArray",
             "kk_string_encodeToByteArray_range",
             "kk_string_encodeToByteArray_charset",
+            "kk_string_byteInputStream",
+            "kk_string_byteInputStream_charset",
         ]
         for rawName in rawNames {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String byte-array call: \(rawName)")

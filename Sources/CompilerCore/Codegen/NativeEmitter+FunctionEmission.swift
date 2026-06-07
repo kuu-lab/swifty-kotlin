@@ -1557,6 +1557,16 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
+                "kk_string_byteInputStream": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_byteInputStream_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_string_byteInputStream_charset": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_byteInputStream_charset_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
             ]
             for spec in Array(flatScalarReturnCallSpecs.values)
             where flatScalarReturnCallSpecs[spec.flatName] == nil {

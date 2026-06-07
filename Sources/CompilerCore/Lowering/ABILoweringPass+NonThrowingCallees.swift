@@ -179,6 +179,8 @@ extension ABILoweringPass {
             interner.intern("kk_string_encodeToByteArray_flat"),
             interner.intern("kk_string_encodeToByteArray_range_flat"),
             interner.intern("kk_string_encodeToByteArray_charset_flat"),
+            interner.intern("kk_string_byteInputStream_flat"),
+            interner.intern("kk_string_byteInputStream_charset_flat"),
             interner.intern("kk_charset_utf_8"),
             interner.intern("kk_charset_iso_8859_1"),
             interner.intern("kk_charset_us_ascii"),
