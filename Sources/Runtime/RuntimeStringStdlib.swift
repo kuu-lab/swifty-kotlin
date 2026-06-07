@@ -6022,8 +6022,39 @@ public func kk_string_reduceRightIndexed(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringReduceRightIndexed(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_reduceRightIndexed_flat")
+public func kk_string_reduceRightIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringReduceRightIndexed(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringReduceRightIndexed(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     guard !scalars.isEmpty else {
         return handleCollectionLambdaThrow(
             runtimeAllocateThrowable(message: "Empty char sequence can't be reduced."),
@@ -6060,8 +6091,39 @@ public func kk_string_reduceRightIndexedOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringReduceRightIndexedOrNull(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_reduceRightIndexedOrNull_flat")
+public func kk_string_reduceRightIndexedOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringReduceRightIndexedOrNull(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringReduceRightIndexedOrNull(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     guard !scalars.isEmpty else {
         return runtimeNullSentinelInt
     }
@@ -6095,8 +6157,39 @@ public func kk_string_reduceRightOrNull(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringReduceRightOrNull(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_reduceRightOrNull_flat")
+public func kk_string_reduceRightOrNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringReduceRightOrNull(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringReduceRightOrNull(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     guard !scalars.isEmpty else {
         return runtimeNullSentinelInt
     }
@@ -6129,8 +6222,39 @@ public func kk_string_sumBy(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringSumBy(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_sumBy_flat")
+public func kk_string_sumBy_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringSumBy(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringSumBy(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     var total = 0
     for scalar in scalars {
         var thrown = 0
@@ -6155,8 +6279,39 @@ public func kk_string_sumByDouble(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringSumByDouble(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_sumByDouble_flat")
+public func kk_string_sumByDouble_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringSumByDouble(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringSumByDouble(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     var total = 0.0
     for scalar in scalars {
         var thrown = 0

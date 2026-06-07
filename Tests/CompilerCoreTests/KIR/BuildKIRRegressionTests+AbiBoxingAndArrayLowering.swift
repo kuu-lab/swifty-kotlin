@@ -193,6 +193,53 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    func testBuildKIRLowersStringHOFScalarResultsToFlatRuntimeCalls() throws {
+        let source = """
+        fun main(value: String) {
+            value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
+            value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
+            value.reduceOrNull { acc, _ -> acc }
+            value.reduceRightIndexed { _, ch, _ -> ch }
+            value.reduceRightIndexedOrNull { _, ch, _ -> ch }
+            value.reduceRightOrNull { ch, _ -> ch }
+            value.sumBy { 1 }
+            value.sumByDouble { 1.0 }
+            value.indexOfFirst { it == 'a' }
+            value.indexOfLast { it == 'b' }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            let flatNames = [
+                "kk_string_firstNotNullOf_flat",
+                "kk_string_firstNotNullOfOrNull_flat",
+                "kk_string_reduceOrNull_flat",
+                "kk_string_reduceRightIndexed_flat",
+                "kk_string_reduceRightIndexedOrNull_flat",
+                "kk_string_reduceRightOrNull_flat",
+                "kk_string_sumBy_flat",
+                "kk_string_sumByDouble_flat",
+                "kk_string_indexOfFirst_flat",
+                "kk_string_indexOfLast_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")
+            }
+
+            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
+            for rawName in rawNames {
+                XCTAssertFalse(callNames.contains(rawName), "Unexpected raw String HOF call \(rawName)")
+            }
+        }
+    }
+
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {

@@ -370,6 +370,25 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
     }
 
+    func testReduceRightIndexedFlatWalksRightToLeftWithIndexes() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+    }
+
     func testReduceRightIndexedUsesLastCharacterAsInitialAccumulator() {
         let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
@@ -430,6 +449,25 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
+    func testReduceRightIndexedOrNullFlatReturnsNullSentinelForEmptyString() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("") { data, length, byteCount, hash in
+            kk_string_reduceRightIndexedOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightIndexedPickIndexOne, to: Int.self),
+                0,
+                &thrown
+            )
+        }
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
     func testReduceRightIndexedOrNullUsesLastCharacterAsInitialAccumulator() {
         let source = registerRuntimeObject(RuntimeStringBox("abc"))
         var thrown = 0
@@ -455,6 +493,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             0,
             &thrown
         )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
+    }
+
+    func testReduceRightOrNullFlatWalksRightToLeft() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            kk_string_reduceRightOrNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(reduceRightPickB, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, Int(Unicode.Scalar("b").value))
@@ -601,6 +658,25 @@ final class RuntimeStringHOFTests: XCTestCase {
         XCTAssertEqual(result, 21)
     }
 
+    func testSumByFlatAppliesSelectorToEveryCharacter() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
+            kk_string_sumBy_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(sumByWeightedA, to: Int.self),
+                0,
+                &thrown
+            )
+        }
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, 21)
+    }
+
     func testSumByReturnsZeroForEmptyString() {
         let source = registerRuntimeObject(RuntimeStringBox(""))
         var thrown = 0
@@ -626,6 +702,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             0,
             &thrown
         )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(kk_bits_to_double(result), 3.25, accuracy: 0.000001)
+    }
+
+    func testSumByDoubleFlatAppliesSelectorToEveryCharacter() {
+        var thrown = 0
+
+        let result = withFlatStringForHOF("aba") { data, length, byteCount, hash in
+            kk_string_sumByDouble_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(sumByDoubleWeightedA, to: Int.self),
+                0,
+                &thrown
+            )
+        }
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(kk_bits_to_double(result), 3.25, accuracy: 0.000001)

@@ -2269,24 +2269,33 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
-        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
-        if !symbols.lookupAll(fqName: firstNotNullOfFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
+        func registerFirstNotNullOfLike(
+            named name: String,
+            fqName: [InternedString],
+            receiverType: TypeID,
+            externalLinkName: String,
+            returnsNullable: Bool
+        ) {
+            guard !symbols.lookupAll(fqName: fqName).contains(where: { symID in
+                guard let sig = symbols.functionSignature(for: symID) else {
+                    return false
+                }
+                return sig.receiverType == receiverType && sig.parameterTypes.count == 1
+            }) else {
+                return
             }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
+
             let rName = interner.intern("R")
             let rSymbol = symbols.define(
                 kind: .typeParameter,
                 name: rName,
-                fqName: firstNotNullOfFQName + [rName],
+                fqName: fqName + [rName],
                 declSite: nil,
                 visibility: .private,
                 flags: []
             )
             let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let returnType = returnsNullable ? types.makeNullable(rType) : rType
             let transformType = types.make(.functionType(FunctionType(
                 params: [charType],
                 returnType: types.makeNullable(rType),
@@ -2295,8 +2304,8 @@ extension DataFlowSemaPhase {
             )))
             let memberSymbol = symbols.define(
                 kind: .function,
-                name: interner.intern("firstNotNullOf"),
-                fqName: firstNotNullOfFQName,
+                name: interner.intern(name),
+                fqName: fqName,
                 declSite: nil,
                 visibility: .public,
                 flags: [.synthetic, .inlineFunction]
@@ -2304,13 +2313,13 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_firstNotNullOf", for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
 
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
                 kind: .valueParameter,
                 name: transformParamName,
-                fqName: firstNotNullOfFQName + [transformParamName],
+                fqName: fqName + [transformParamName],
                 declSite: nil,
                 visibility: .private,
                 flags: [.synthetic]
@@ -2319,9 +2328,9 @@ extension DataFlowSemaPhase {
 
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: charSequenceType,
+                    receiverType: receiverType,
                     parameterTypes: [transformType],
-                    returnType: rType,
+                    returnType: returnType,
                     valueParameterSymbols: [transformParamSymbol],
                     valueParameterHasDefaultValues: [false],
                     valueParameterIsVararg: [false],
@@ -2331,76 +2340,43 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
+
+        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
+        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
+        registerFirstNotNullOfLike(
+            named: "firstNotNullOf",
+            fqName: firstNotNullOfFQName,
+            receiverType: charSequenceType,
+            externalLinkName: "kk_string_firstNotNullOf",
+            returnsNullable: false
+        )
 
         // --- STDLIB-TEXT-HOF-002: CharSequence.firstNotNullOfOrNull(transform) ---
         let firstNotNullOfOrNullFQName = kotlinTextPkg + [interner.intern("firstNotNullOfOrNull")]
-        if !symbols.lookupAll(fqName: firstNotNullOfOrNullFQName).contains(where: { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
-        }) {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: firstNotNullOfOrNullFQName + [rName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let nullableRType = types.makeNullable(rType)
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: nullableRType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("firstNotNullOfOrNull"),
-                fqName: firstNotNullOfOrNullFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull", for: memberSymbol)
-
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: firstNotNullOfOrNullFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
-
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [transformType],
-                    returnType: nullableRType,
-                    valueParameterSymbols: [transformParamSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [rSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
+        registerFirstNotNullOfLike(
+            named: "firstNotNullOfOrNull",
+            fqName: firstNotNullOfOrNullFQName,
+            receiverType: charSequenceType,
+            externalLinkName: "kk_string_firstNotNullOfOrNull",
+            returnsNullable: true
+        )
 
         // --- STDLIB-TEXT-HOF-003: CharSequence.reduceRightIndexed(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexed",
             externalLinkName: "kk_string_reduceRightIndexed",
             receiverType: charSequenceType,
+            parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexed",
+            externalLinkName: "kk_string_reduceRightIndexed_flat",
+            receiverType: stringType,
             parameters: [("operation", intCharCharToCharType, false, false)],
             returnType: charType,
             flags: [.synthetic, .inlineFunction],
@@ -2421,6 +2397,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexedOrNull",
+            externalLinkName: "kk_string_reduceRightIndexedOrNull_flat",
+            receiverType: stringType,
+            parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-HOF-005: CharSequence.reduceRightOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
@@ -2434,12 +2421,34 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightOrNull",
+            externalLinkName: "kk_string_reduceRightOrNull_flat",
+            receiverType: stringType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
             externalLinkName: "kk_string_reduceOrNull",
             receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceOrNull",
+            externalLinkName: "kk_string_reduceOrNull_flat",
+            receiverType: stringType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
             flags: [.synthetic, .inlineFunction],
@@ -2469,12 +2478,52 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "sumBy",
+            externalLinkName: "kk_string_sumBy_flat",
+            receiverType: stringType,
+            parameters: [("selector", charToIntType, false, false)],
+            returnType: intType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use sumOf instead.\"",
+                        "replaceWith = ReplaceWith(\"sumOf(selector)\")",
+                    ]
+                ),
+            ],
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-HOF-007: CharSequence.sumByDouble(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
             named: "sumByDouble",
             externalLinkName: "kk_string_sumByDouble",
             receiverType: charSequenceType,
+            parameters: [("selector", charToDoubleType, false, false)],
+            returnType: doubleType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use sumOf instead.\"",
+                        "replaceWith = ReplaceWith(\"sumOf(selector)\")",
+                    ]
+                ),
+            ],
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "sumByDouble",
+            externalLinkName: "kk_string_sumByDouble_flat",
+            receiverType: stringType,
             parameters: [("selector", charToDoubleType, false, false)],
             returnType: doubleType,
             annotations: [

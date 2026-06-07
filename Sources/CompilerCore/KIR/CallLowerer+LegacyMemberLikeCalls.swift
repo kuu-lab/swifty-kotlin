@@ -1611,8 +1611,8 @@ extension CallLowerer {
                 || calleeStr == "reduceRightOrNull"
                 || calleeStr == "sumBy"
                 || calleeStr == "sumByDouble"
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
-                || (isCharSequenceTextHelper && isCharSequenceReceiver)
+            let usesStringFlatABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+            if usesStringFlatABI || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
                 if calleeStr == "firstNotNullOf"
                     || calleeStr == "firstNotNullOfOrNull"
@@ -1650,14 +1650,22 @@ extension CallLowerer {
                         instructions: &instructions
                     )
                     let runtimeCallee = switch calleeStr {
-                    case "firstNotNullOf": "kk_string_firstNotNullOf"
-                    case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
-                    case "reduceOrNull": "kk_string_reduceOrNull"
-                    case "reduceRightIndexed": "kk_string_reduceRightIndexed"
-                    case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
-                    case "sumBy": "kk_string_sumBy"
-                    case "sumByDouble": "kk_string_sumByDouble"
-                    default: "kk_string_reduceRightOrNull"
+                    case "firstNotNullOf":
+                        usesStringFlatABI ? "kk_string_firstNotNullOf_flat" : "kk_string_firstNotNullOf"
+                    case "firstNotNullOfOrNull":
+                        usesStringFlatABI ? "kk_string_firstNotNullOfOrNull_flat" : "kk_string_firstNotNullOfOrNull"
+                    case "reduceOrNull":
+                        usesStringFlatABI ? "kk_string_reduceOrNull_flat" : "kk_string_reduceOrNull"
+                    case "reduceRightIndexed":
+                        usesStringFlatABI ? "kk_string_reduceRightIndexed_flat" : "kk_string_reduceRightIndexed"
+                    case "reduceRightIndexedOrNull":
+                        usesStringFlatABI ? "kk_string_reduceRightIndexedOrNull_flat" : "kk_string_reduceRightIndexedOrNull"
+                    case "sumBy":
+                        usesStringFlatABI ? "kk_string_sumBy_flat" : "kk_string_sumBy"
+                    case "sumByDouble":
+                        usesStringFlatABI ? "kk_string_sumByDouble_flat" : "kk_string_sumByDouble"
+                    default:
+                        usesStringFlatABI ? "kk_string_reduceRightOrNull_flat" : "kk_string_reduceRightOrNull"
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -1769,9 +1777,15 @@ extension CallLowerer {
                 case "filterNot":
                     ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfFirst":
-                    ("kk_string_indexOfFirst", [loweredReceiverID] + normalizedArgIDs)
+                    (
+                        usesStringFlatABI ? "kk_string_indexOfFirst_flat" : "kk_string_indexOfFirst",
+                        [loweredReceiverID] + normalizedArgIDs
+                    )
                 case "indexOfLast":
-                    ("kk_string_indexOfLast", [loweredReceiverID] + normalizedArgIDs)
+                    (
+                        usesStringFlatABI ? "kk_string_indexOfLast_flat" : "kk_string_indexOfLast",
+                        [loweredReceiverID] + normalizedArgIDs
+                    )
                 case "takeWhile":
                     ("kk_string_takeWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "takeLastWhile":

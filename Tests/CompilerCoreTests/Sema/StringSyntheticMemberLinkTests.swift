@@ -337,6 +337,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             ("findLast", 1, "kk_string_findLast_flat"),
             ("indexOfFirst", 1, "kk_string_indexOfFirst_flat"),
             ("indexOfLast", 1, "kk_string_indexOfLast_flat"),
+            ("reduceOrNull", 1, "kk_string_reduceOrNull_flat"),
+            ("reduceRightIndexed", 1, "kk_string_reduceRightIndexed_flat"),
+            ("reduceRightIndexedOrNull", 1, "kk_string_reduceRightIndexedOrNull_flat"),
+            ("reduceRightOrNull", 1, "kk_string_reduceRightOrNull_flat"),
+            ("sumBy", 1, "kk_string_sumBy_flat"),
+            ("sumByDouble", 1, "kk_string_sumByDouble_flat"),
         ]
 
         for item in expected {
@@ -1826,10 +1832,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             )
 
             let sema = try XCTUnwrap(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexed"
+            let links = sema.bindings.callBindings.values.compactMap { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee)
+            }.filter { link in
+                link == "kk_string_reduceRightIndexed" || link == "kk_string_reduceRightIndexed_flat"
             }
-            XCTAssertEqual(bindings.count, 2)
+            XCTAssertEqual(links.count, 2)
+            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightIndexed", "kk_string_reduceRightIndexed_flat"]))
         }
     }
 
@@ -1854,10 +1863,16 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             )
 
             let sema = try XCTUnwrap(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightIndexedOrNull"
+            let links = sema.bindings.callBindings.values.compactMap { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee)
+            }.filter { link in
+                link == "kk_string_reduceRightIndexedOrNull" || link == "kk_string_reduceRightIndexedOrNull_flat"
             }
-            XCTAssertEqual(bindings.count, 2)
+            XCTAssertEqual(links.count, 2)
+            XCTAssertEqual(
+                Set(links),
+                Set(["kk_string_reduceRightIndexedOrNull", "kk_string_reduceRightIndexedOrNull_flat"])
+            )
         }
     }
 
@@ -1882,10 +1897,13 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             )
 
             let sema = try XCTUnwrap(ctx.sema)
-            let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_reduceRightOrNull"
+            let links = sema.bindings.callBindings.values.compactMap { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee)
+            }.filter { link in
+                link == "kk_string_reduceRightOrNull" || link == "kk_string_reduceRightOrNull_flat"
             }
-            XCTAssertEqual(bindings.count, 2)
+            XCTAssertEqual(links.count, 2)
+            XCTAssertEqual(Set(links), Set(["kk_string_reduceRightOrNull", "kk_string_reduceRightOrNull_flat"]))
         }
     }
 
@@ -1911,14 +1929,22 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumBy"
+                let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
+                return link == "kk_string_sumBy" || link == "kk_string_sumBy_flat"
             }
             XCTAssertEqual(bindings.count, 2)
-            let sumBySymbol = try XCTUnwrap(bindings.first?.chosenCallee)
-            XCTAssertTrue(
-                sema.symbols.annotations(for: sumBySymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "CharSequence.sumBy should carry Deprecated metadata"
+            XCTAssertEqual(
+                Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
+                Set(["kk_string_sumBy", "kk_string_sumBy_flat"])
             )
+            for binding in bindings {
+                XCTAssertTrue(
+                    sema.symbols.annotations(for: binding.chosenCallee).contains {
+                        $0.annotationFQName == "kotlin.Deprecated"
+                    },
+                    "sumBy overloads should carry Deprecated metadata"
+                )
+            }
         }
     }
 
@@ -1944,14 +1970,22 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let bindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_sumByDouble"
+                let link = sema.symbols.externalLinkName(for: binding.chosenCallee)
+                return link == "kk_string_sumByDouble" || link == "kk_string_sumByDouble_flat"
             }
             XCTAssertEqual(bindings.count, 2)
-            let sumByDoubleSymbol = try XCTUnwrap(bindings.first?.chosenCallee)
-            XCTAssertTrue(
-                sema.symbols.annotations(for: sumByDoubleSymbol).contains { $0.annotationFQName == "kotlin.Deprecated" },
-                "CharSequence.sumByDouble should carry Deprecated metadata"
+            XCTAssertEqual(
+                Set(bindings.compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }),
+                Set(["kk_string_sumByDouble", "kk_string_sumByDouble_flat"])
             )
+            for binding in bindings {
+                XCTAssertTrue(
+                    sema.symbols.annotations(for: binding.chosenCallee).contains {
+                        $0.annotationFQName == "kotlin.Deprecated"
+                    },
+                    "sumByDouble overloads should carry Deprecated metadata"
+                )
+            }
         }
     }
 
