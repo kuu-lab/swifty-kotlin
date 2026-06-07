@@ -1,4 +1,3 @@
-@testable import CompilerCore
 import Foundation
 
 #if canImport(Darwin)

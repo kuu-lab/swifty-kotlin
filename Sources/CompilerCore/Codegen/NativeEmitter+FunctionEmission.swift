@@ -1219,49 +1219,49 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_count": FlatScalarReturnCallSpec(
+                "kk_string_count_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_count_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_any": FlatScalarReturnCallSpec(
+                "kk_string_any_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_any_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_all": FlatScalarReturnCallSpec(
+                "kk_string_all_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_all_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_none": FlatScalarReturnCallSpec(
+                "kk_string_none_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_none_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_indexOfFirst": FlatScalarReturnCallSpec(
+                "kk_string_indexOfFirst_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOfFirst_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_indexOfLast": FlatScalarReturnCallSpec(
+                "kk_string_indexOfLast_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOfLast_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_find": FlatScalarReturnCallSpec(
+                "kk_string_find_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_find_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_findLast": FlatScalarReturnCallSpec(
+                "kk_string_findLast_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_findLast_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,

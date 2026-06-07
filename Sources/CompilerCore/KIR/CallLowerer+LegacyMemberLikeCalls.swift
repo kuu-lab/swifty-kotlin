@@ -1614,6 +1614,14 @@ extension CallLowerer {
             let isCharSequenceTextHelper = calleeStr == "ifBlank"
                 || calleeStr == "ifEmpty"
                 || calleeStr == "chunkedSequence"
+                || calleeStr == "count"
+                || calleeStr == "any"
+                || calleeStr == "all"
+                || calleeStr == "none"
+                || calleeStr == "indexOfFirst"
+                || calleeStr == "indexOfLast"
+                || calleeStr == "find"
+                || calleeStr == "findLast"
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
                 || calleeStr == "reduceOrNull"
@@ -1787,16 +1795,18 @@ extension CallLowerer {
                     ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
                 case "filterNot":
                     ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
+                case "count":
+                    ("kk_string_count_flat", [loweredReceiverID] + normalizedArgIDs)
+                case "any":
+                    ("kk_string_any_flat", [loweredReceiverID] + normalizedArgIDs)
+                case "all":
+                    ("kk_string_all_flat", [loweredReceiverID] + normalizedArgIDs)
+                case "none":
+                    ("kk_string_none_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfFirst":
-                    (
-                        usesStringFlatABI ? "kk_string_indexOfFirst_flat" : "kk_string_indexOfFirst",
-                        [loweredReceiverID] + normalizedArgIDs
-                    )
+                    ("kk_string_indexOfFirst_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
-                    (
-                        usesStringFlatABI ? "kk_string_indexOfLast_flat" : "kk_string_indexOfLast",
-                        [loweredReceiverID] + normalizedArgIDs
-                    )
+                    ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "takeWhile":
                     ("kk_string_takeWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "takeLastWhile":
@@ -1806,9 +1816,9 @@ extension CallLowerer {
                 case "splitToSequence":
                     ("kk_string_splitToSequence_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
-                    ("kk_string_find", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_find_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
-                    ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_findLast_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "partition":
                     ("kk_string_partition", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
@@ -1872,6 +1882,8 @@ extension CallLowerer {
                     let stringHOFCanThrow = calleeStr == "replaceFirstChar"
                         || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
+                        || calleeStr == "find"
+                        || calleeStr == "findLast"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"

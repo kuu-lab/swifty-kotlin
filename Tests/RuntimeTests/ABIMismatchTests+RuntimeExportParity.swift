@@ -1,5 +1,4 @@
 import RuntimeABI
-@testable import Runtime
 import XCTest
 
 // MARK: - Runtime Export / RuntimeABISpec Reconciliation

@@ -1,4 +1,3 @@
-@testable import CompilerCore
 import XCTest
 
 // MARK: - STDLIB-I18N-COMMON-001: kotlin.text / common formatting and locale inventory

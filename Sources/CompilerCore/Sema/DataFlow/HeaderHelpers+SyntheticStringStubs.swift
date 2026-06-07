@@ -2219,9 +2219,29 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
+            named: "count",
+            externalLinkName: "kk_string_count_flat",
+            receiverType: charSequenceType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
             named: "any",
             externalLinkName: "kk_string_any_flat",
             receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "any",
+            externalLinkName: "kk_string_any_flat",
+            receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -2239,9 +2259,29 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
+            named: "all",
+            externalLinkName: "kk_string_all_flat",
+            receiverType: charSequenceType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
             named: "none",
             externalLinkName: "kk_string_none_flat",
             receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: boolType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "none",
+            externalLinkName: "kk_string_none_flat",
+            receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
             packageFQName: kotlinTextPkg,
@@ -2657,9 +2697,29 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
+            named: "find",
+            externalLinkName: "kk_string_find_flat",
+            receiverType: charSequenceType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
             named: "findLast",
             externalLinkName: "kk_string_findLast_flat",
             receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: nullableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "findLast",
+            externalLinkName: "kk_string_findLast_flat",
+            receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
             packageFQName: kotlinTextPkg,
@@ -2701,7 +2761,7 @@ extension DataFlowSemaPhase {
         // CharSequence.indexOfFirst / indexOfLast — delegate to the same runtime functions.
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst",
+            externalLinkName: "kk_string_indexOfFirst_flat",
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
@@ -2711,7 +2771,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast",
+            externalLinkName: "kk_string_indexOfLast_flat",
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,

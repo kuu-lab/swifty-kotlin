@@ -1232,6 +1232,85 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testKotlinTextCharSequencePredicateTerminalEdgeCases() throws {
+        let source = """
+        fun countA(value: CharSequence): Int {
+            return value.count { it == 'a' }
+        }
+
+        fun hasDigit(value: CharSequence): Boolean {
+            return value.any { it == '0' || it == '1' || it == '2' || it == '3' }
+        }
+
+        fun allNonSpace(value: CharSequence): Boolean {
+            return value.all { it != ' ' }
+        }
+
+        fun noZ(value: CharSequence): Boolean {
+            return value.none { it == 'z' }
+        }
+
+        fun firstBIndex(value: CharSequence): Int {
+            return value.indexOfFirst { it == 'b' }
+        }
+
+        fun lastAIndex(value: CharSequence): Int {
+            return value.indexOfLast { it == 'a' }
+        }
+
+        fun findB(value: CharSequence): Char? {
+            return value.find { it == 'b' }
+        }
+
+        fun findLastA(value: CharSequence): Char? {
+            return value.findLast { it == 'a' }
+        }
+
+        fun main() {
+            println(countA("banana"))
+            println(hasDigit("ab3"))
+            println(allNonSpace("abc"))
+            println(allNonSpace("a c"))
+            println(noZ("abc"))
+            println(firstBIndex("abcba"))
+            println(lastAIndex("abcba"))
+            println(findB("abc") == 'b')
+            println(findB("aaa") == null)
+            println(findLastA("abcba") == 'a')
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextCharSequencePredicateTerminalEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                3
+                true
+                true
+                false
+                true
+                1
+                4
+                true
+                true
+                true
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - chunked / windowed
 
     func testKotlinTextChunkedEdgeCases() throws {

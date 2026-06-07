@@ -7,8 +7,7 @@ private typealias RuntimeFlowEmitterEntry = @convention(c) (UnsafeMutablePointer
 private typealias RuntimeFlowCollectorEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
 /// Map/filter ABI: (closureRaw, elem, outThrown)
 private typealias RuntimeFlowUnaryEntry = @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int
-/// Transform ABI: (value, outThrown)
-private typealias RuntimeFlowTransformEntry = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int
+
 
 private enum RuntimeFlowTag: Int {
     case emit = 0

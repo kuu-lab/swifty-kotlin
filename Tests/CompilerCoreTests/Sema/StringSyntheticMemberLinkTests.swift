@@ -360,6 +360,60 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testCharSequencePredicateTerminalMembersUseFlatExternalLinks() throws {
+        let source = """
+        fun countA(value: CharSequence): Int = value.count { it == 'a' }
+        fun anyA(value: CharSequence): Boolean = value.any { it == 'a' }
+        fun allA(value: CharSequence): Boolean = value.all { it == 'a' }
+        fun noneA(value: CharSequence): Boolean = value.none { it == 'a' }
+        fun firstA(value: CharSequence): Int = value.indexOfFirst { it == 'a' }
+        fun lastA(value: CharSequence): Int = value.indexOfLast { it == 'a' }
+        fun findA(value: CharSequence): Char? = value.find { it == 'a' }
+        fun findLastA(value: CharSequence): Char? = value.findLast { it == 'a' }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let expectedLinks = [
+                "count": "kk_string_count_flat",
+                "any": "kk_string_any_flat",
+                "all": "kk_string_all_flat",
+                "none": "kk_string_none_flat",
+                "indexOfFirst": "kk_string_indexOfFirst_flat",
+                "indexOfLast": "kk_string_indexOfLast_flat",
+                "find": "kk_string_find_flat",
+                "findLast": "kk_string_findLast_flat",
+            ]
+
+            let callExprs = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return expectedLinks.keys.contains(ctx.interner.resolve(callee))
+            }
+            XCTAssertEqual(callExprs.count, expectedLinks.count)
+
+            for callExpr in callExprs {
+                guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(callExpr) else {
+                    XCTFail("Expected member call")
+                    continue
+                }
+                let member = ctx.interner.resolve(callee)
+                let chosenCallee = try XCTUnwrap(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for \(member)"
+                )
+                XCTAssertEqual(
+                    sema.symbols.externalLinkName(for: chosenCallee),
+                    expectedLinks[member],
+                    "Expected CharSequence.\(member) to resolve to \(expectedLinks[member] ?? "<missing>")"
+                )
+            }
+        }
+    }
+
     func testStringListResultHOFStubsUseFlatExternalLinks() throws {
         let (sema, interner) = try makeSema()
 

@@ -1,5 +1,4 @@
 import RuntimeABI
-@testable import Runtime
 import XCTest
 
 // MARK: - Synthetic Stub / Runtime ABI Consistency (TOOL-046)

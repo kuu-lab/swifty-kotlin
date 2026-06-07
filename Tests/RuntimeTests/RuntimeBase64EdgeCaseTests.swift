@@ -1,5 +1,4 @@
 import Foundation
-@testable import Runtime
 import XCTest
 
 // STDLIB-031: Edge case coverage for kotlin.io.encoding.Base64.

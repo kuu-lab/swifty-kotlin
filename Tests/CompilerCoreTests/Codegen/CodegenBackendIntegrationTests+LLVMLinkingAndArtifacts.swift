@@ -866,14 +866,14 @@ extension CodegenBackendIntegrationTests {
             ))
         }
 
-        appendCallbackCall("kk_string_count", resultType: types.intType)
-        appendCallbackCall("kk_string_any", resultType: types.booleanType)
-        appendCallbackCall("kk_string_all", resultType: types.booleanType)
-        appendCallbackCall("kk_string_none", resultType: types.booleanType)
-        appendCallbackCall("kk_string_indexOfFirst", resultType: types.intType)
-        appendCallbackCall("kk_string_indexOfLast", resultType: types.intType)
-        appendCallbackCall("kk_string_find", resultType: types.intType)
-        appendCallbackCall("kk_string_findLast", resultType: types.intType)
+        appendCallbackCall("kk_string_count_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_any_flat", resultType: types.booleanType)
+        appendCallbackCall("kk_string_all_flat", resultType: types.booleanType)
+        appendCallbackCall("kk_string_none_flat", resultType: types.booleanType)
+        appendCallbackCall("kk_string_indexOfFirst_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_indexOfLast_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_find_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_mapIndexed", resultType: types.anyType)
         appendCallbackCall("kk_string_mapNotNull", resultType: types.anyType)
         appendCallbackCall("kk_string_firstNotNullOf", resultType: types.intType)
@@ -913,15 +913,23 @@ extension CodegenBackendIntegrationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
+        let flatNames = [
+            "kk_string_count_flat",
+            "kk_string_any_flat",
+            "kk_string_all_flat",
+            "kk_string_none_flat",
+            "kk_string_indexOfFirst_flat",
+            "kk_string_indexOfLast_flat",
+            "kk_string_find_flat",
+            "kk_string_findLast_flat",
+        ]
+        for flatName in flatNames {
+            let rawName = String(flatName.dropLast("_flat".count))
+            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
+            XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String callback scalar call: \(flatName)")
+        }
+
         let rawNames = [
-            "kk_string_count",
-            "kk_string_any",
-            "kk_string_all",
-            "kk_string_none",
-            "kk_string_indexOfFirst",
-            "kk_string_indexOfLast",
-            "kk_string_find",
-            "kk_string_findLast",
             "kk_string_mapIndexed",
             "kk_string_mapNotNull",
             "kk_string_firstNotNullOf",
