@@ -1017,18 +1017,6 @@ public func kk_string_filter(
     return runtimeMakeStringRaw(runtimeStringFromScalars(filtered))
 }
 
-@_cdecl("kk_string_map")
-public func kk_string_map(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringMap(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_map_flat")
 public func kk_string_map_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -5798,18 +5786,6 @@ public func kk_bignum_toString(_ numRaw: Int) -> Int {
 
 // MARK: - STDLIB-HOF-023: Advanced String Higher-Order Functions
 
-@_cdecl("kk_string_mapIndexed")
-public func kk_string_mapIndexed(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringMapIndexed(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
-
 @_cdecl("kk_string_mapIndexed_flat")
 public func kk_string_mapIndexed_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -5850,18 +5826,6 @@ private func runtimeStringMapIndexed(
         mappedElements.append(result)
     }
     return runtimeMakeListRaw(mappedElements)
-}
-
-@_cdecl("kk_string_mapNotNull")
-public func kk_string_mapNotNull(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringMapNotNull(
-        runtimeStringScalars(strRaw),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
 }
 
 @_cdecl("kk_string_mapNotNull_flat")
@@ -6563,20 +6527,6 @@ public func kk_string_findLast_flat(
 }
 
 // MARK: - STDLIB-partition: String.partition(predicate)
-
-@_cdecl("kk_string_partition")
-public func kk_string_partition(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringPartition(
-        source: source,
-        scalars: Array(source.unicodeScalars),
-        fnPtr: fnPtr,
-        closureRaw: closureRaw,
-        outThrown: outThrown
-    )
-}
 
 @_cdecl("kk_string_partition_flat")
 public func kk_string_partition_flat(

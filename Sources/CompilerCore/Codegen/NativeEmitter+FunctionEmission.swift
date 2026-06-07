@@ -1295,25 +1295,25 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_partition": FlatScalarReturnCallSpec(
+                "kk_string_partition_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_partition_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_map": FlatScalarReturnCallSpec(
+                "kk_string_map_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_map_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_mapIndexed": FlatScalarReturnCallSpec(
+                "kk_string_mapIndexed_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_mapIndexed_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_mapNotNull": FlatScalarReturnCallSpec(
+                "kk_string_mapNotNull_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_mapNotNull_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,

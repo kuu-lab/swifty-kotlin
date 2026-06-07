@@ -1053,12 +1053,6 @@ public extension RuntimeABISpec {
             p("strRaw", .intptr),
             p("formTagRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_partition", parameters: [
-            p("strRaw", .intptr),
-            p("fnPtr", .intptr),
-            p("closureRaw", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_string_partition_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),

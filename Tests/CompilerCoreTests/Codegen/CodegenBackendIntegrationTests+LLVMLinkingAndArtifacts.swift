@@ -908,10 +908,10 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_indexOfLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
-        appendCallbackCall("kk_string_partition", resultType: types.anyType)
-        appendCallbackCall("kk_string_map", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapIndexed", resultType: types.anyType)
-        appendCallbackCall("kk_string_mapNotNull", resultType: types.anyType)
+        appendCallbackCall("kk_string_partition_flat", resultType: types.anyType)
+        appendCallbackCall("kk_string_map_flat", resultType: types.anyType)
+        appendCallbackCall("kk_string_mapIndexed_flat", resultType: types.anyType)
+        appendCallbackCall("kk_string_mapNotNull_flat", resultType: types.anyType)
         appendCallbackCall("kk_string_firstNotNullOf_flat", resultType: types.intType)
         appendCallbackCall("kk_string_firstNotNullOfOrNull_flat", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull_flat", resultType: types.intType)
@@ -958,6 +958,10 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfLast_flat",
             "kk_string_find_flat",
             "kk_string_findLast_flat",
+            "kk_string_partition_flat",
+            "kk_string_map_flat",
+            "kk_string_mapIndexed_flat",
+            "kk_string_mapNotNull_flat",
             "kk_string_firstNotNullOf_flat",
             "kk_string_firstNotNullOfOrNull_flat",
             "kk_string_reduceOrNull_flat",
@@ -973,16 +977,6 @@ extension CodegenBackendIntegrationTests {
             XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String callback scalar call: \(flatName)")
         }
 
-        let rawNames = [
-            "kk_string_partition",
-            "kk_string_map",
-            "kk_string_mapIndexed",
-            "kk_string_mapNotNull",
-        ]
-        for rawName in rawNames {
-            XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String callback scalar call: \(rawName)")
-            XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String callback scalar call: \(rawName)_flat")
-        }
     }
 
     func testLLVMBackendEmitsFlatStringIndexOfAnyRuntimeCalls() throws {
