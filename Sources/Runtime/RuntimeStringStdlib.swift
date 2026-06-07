@@ -707,7 +707,7 @@ public func kk_string_toList_flat(
     runtimeStringToCharListRaw(runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash))
 }
 
-private func runtimeStringToCharListRaw(_ source: String) -> Int {
+func runtimeStringToCharListRaw(_ source: String) -> Int {
     runtimeMakeListRaw(source.unicodeScalars.map { kk_box_char(Int($0.value)) })
 }
 
@@ -747,12 +747,6 @@ public func kk_string_toCharArray_flat(
 /// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
 /// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
 /// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
-@_cdecl("kk_string_toTypedArray")
-public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
-}
-
 @_cdecl("kk_string_toTypedArray_flat")
 public func kk_string_toTypedArray_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -772,15 +766,6 @@ public func kk_string_toTypedArray_flat(
 /// callers can chain: `val result = "abc".toCollection(mutableListOf())`.
 ///
 /// Mirrors `kotlin.text.CharSequence.toCollection<C : MutableCollection<in Char>>`.
-@_cdecl("kk_string_toCollection")
-public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
-    runtimeStringToCollection(
-        runtimeStringScalars(strRaw),
-        destRaw: destRaw,
-        caller: #function
-    )
-}
-
 @_cdecl("kk_string_toCollection_flat")
 public func kk_string_toCollection_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -815,14 +800,6 @@ private func runtimeStringToCollection(
 /// Returns a `SortedSet<Char>` containing all unique UTF-16 code units of the string
 /// in their natural `Char` ascending order.
 /// Implements `kotlin.text.CharSequence.toSortedSet(): SortedSet<Char>`.
-@_cdecl("kk_string_toSortedSet")
-public func kk_string_toSortedSet(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { kk_box_char(Int($0)) }
-    let deduped = runtimeDeduplicatePreservingOrder(charRaws)
-    let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
-    return registerRuntimeObject(RuntimeSetBox(elements: sorted))
-}
-
 @_cdecl("kk_string_toSortedSet_flat")
 public func kk_string_toSortedSet_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -886,10 +863,10 @@ public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
         // Validate that the raw value is a valid string handle before falling
         // back, to avoid reinterpreting an unrelated object pointer as a string.
         if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-            return kk_string_toList(iterableRaw)
+            return runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(iterableRaw, caller: #function))
         }
         // Unrecognised input — return an empty list.
-        return kk_string_toList(runtimeMakeStringRaw(""))
+        return runtimeStringToCharListRaw("")
     }
     return runtimeStringToCharListRaw(box.source)
 }
@@ -933,18 +910,6 @@ private func runtimeStringAsSequenceRaw(_ source: String) -> Int {
 /// Returns an `Iterable<IndexedValue<Char>>` that wraps each UTF-16 code unit with its index.
 /// Each element is an `IndexedValue<Char>` represented as a `RuntimePairBox(index, boxedChar)`.
 /// The list is materialised eagerly (strings are immutable).
-@_cdecl("kk_string_withIndex")
-public func kk_string_withIndex(_ strRaw: Int) -> Int {
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    var elements: [Int] = []
-    elements.reserveCapacity(codeUnits.count)
-    for (idx, codeUnit) in codeUnits.enumerated() {
-        let charRaw = kk_box_char(Int(codeUnit))
-        elements.append(runtimeIndexedValueNew(index: idx, value: charRaw))
-    }
-    return runtimeMakeListRaw(elements)
-}
-
 @_cdecl("kk_string_withIndex_flat")
 public func kk_string_withIndex_flat(
     _ data: UnsafePointer<UInt8>?,

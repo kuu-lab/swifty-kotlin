@@ -2305,7 +2305,8 @@ public func kk_list_indexOf(_ listRaw: Int, _ element: Int) -> Int {
         {
             return runtimeStringIndexOfRaw(listRaw, element)
         }
-        return kk_list_indexOf(kk_string_toList(listRaw), element)
+        let stringListRaw = runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(listRaw, caller: #function))
+        return kk_list_indexOf(stringListRaw, element)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() where runtimeCompareValues(elem, element) == 0 {
@@ -2326,7 +2327,8 @@ public func kk_list_lastIndexOf(_ listRaw: Int, _ element: Int) -> Int {
         {
             return runtimeStringLastIndexOfRaw(listRaw, element)
         }
-        return kk_list_lastIndexOf(kk_string_toList(listRaw), element)
+        let stringListRaw = runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(listRaw, caller: #function))
+        return kk_list_lastIndexOf(stringListRaw, element)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1

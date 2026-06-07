@@ -1083,59 +1083,68 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
 
     func testStringToListAndToCharArrayReturnCharElements() {
-        let listRaw = kk_string_toList(rawFromRuntimeString("abc"))
-        let charArrayRaw = kk_string_toCharArray(rawFromRuntimeString("abc"))
+        withFlatString("abc") { data, length, byteCount, hash in
+            let listRaw = kk_string_toList_flat(data, length, byteCount, hash)
+            let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
 
-        let list = runtimeListBox(from: listRaw)
-        let charArray = runtimeArrayBox(from: charArrayRaw)
-        XCTAssertNotNil(list)
-        XCTAssertNotNil(charArray)
-        let expected = [97, 98, 99]
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
-        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+            let list = runtimeListBox(from: listRaw)
+            let charArray = runtimeArrayBox(from: charArrayRaw)
+            XCTAssertNotNil(list)
+            XCTAssertNotNil(charArray)
+            let expected = [97, 98, 99]
+            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+        }
     }
 
     // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray()
 
     func testStringToTypedArrayReturnsBoxedArrayOfChar() {
-        let arrayRaw = kk_string_toTypedArray(rawFromRuntimeString("abc"))
-        let array = runtimeArrayBox(from: arrayRaw)
-        XCTAssertNotNil(array, "toTypedArray should return a RuntimeArrayBox")
-        let expected = [97, 98, 99] // 'a', 'b', 'c'
-        XCTAssertEqual(array?.elements.count, 3)
-        XCTAssertEqual(array?.elements.map(kk_unbox_char), expected)
+        withFlatString("abc") { data, length, byteCount, hash in
+            let arrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
+            let array = runtimeArrayBox(from: arrayRaw)
+            XCTAssertNotNil(array, "toTypedArray should return a RuntimeArrayBox")
+            let expected = [97, 98, 99] // 'a', 'b', 'c'
+            XCTAssertEqual(array?.elements.count, 3)
+            XCTAssertEqual(array?.elements.map(kk_unbox_char), expected)
+        }
     }
 
     func testStringToTypedArrayEmptyStringReturnsEmptyArray() {
-        let arrayRaw = kk_string_toTypedArray(rawFromRuntimeString(""))
-        let array = runtimeArrayBox(from: arrayRaw)
-        XCTAssertNotNil(array, "toTypedArray on empty string should return a RuntimeArrayBox")
-        XCTAssertEqual(array?.elements.count, 0)
+        withFlatString("") { data, length, byteCount, hash in
+            let arrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
+            let array = runtimeArrayBox(from: arrayRaw)
+            XCTAssertNotNil(array, "toTypedArray on empty string should return a RuntimeArrayBox")
+            XCTAssertEqual(array?.elements.count, 0)
+        }
     }
 
     func testStringToTypedArrayIsDistinctFromToCharArray() {
-        let strRaw = rawFromRuntimeString("hi")
-        let typedArrayRaw = kk_string_toTypedArray(strRaw)
-        let charArrayRaw = kk_string_toCharArray(strRaw)
-        // Both should decode to the same char values but are distinct array objects
-        let typedArray = runtimeArrayBox(from: typedArrayRaw)
-        let charArray = runtimeArrayBox(from: charArrayRaw)
-        XCTAssertNotNil(typedArray)
-        XCTAssertNotNil(charArray)
-        let expected = [104, 105] // 'h', 'i'
-        XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
-        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
-        XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+        withFlatString("hi") { data, length, byteCount, hash in
+            let typedArrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
+            let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
+            // Both should decode to the same char values but are distinct array objects
+            let typedArray = runtimeArrayBox(from: typedArrayRaw)
+            let charArray = runtimeArrayBox(from: charArrayRaw)
+            XCTAssertNotNil(typedArray)
+            XCTAssertNotNil(charArray)
+            let expected = [104, 105] // 'h', 'i'
+            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+            XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+        }
     }
 
     // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
 
     func testStringToCollectionAppendsCharsToMutableList() {
-        let strRaw = rawFromRuntimeString("abc")
-        let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
-        let returnedRaw = kk_string_toCollection(strRaw, destRaw)
+        let returnedRaw = withFlatString("abc") { data, length, byteCount, hash in
+            let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+            let returnedRaw = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
 
-        XCTAssertEqual(returnedRaw, destRaw, "toCollection should return the destination collection")
+            XCTAssertEqual(returnedRaw, destRaw, "toCollection should return the destination collection")
+            return returnedRaw
+        }
         let list = runtimeListBox(from: returnedRaw)
         XCTAssertNotNil(list)
         let expected = [97, 98, 99] // 'a', 'b', 'c'
@@ -1143,9 +1152,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringToCollectionPreservesExistingElements() {
-        let strRaw = rawFromRuntimeString("de")
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(97)]))
-        _ = kk_string_toCollection(strRaw, destRaw)
+        withFlatString("de") { data, length, byteCount, hash in
+            _ = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
+        }
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 100, 101] // 'a', 'd', 'e'
@@ -1153,9 +1163,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringToCollectionEmptyStringLeavesDestinationUnchanged() {
-        let strRaw = rawFromRuntimeString("")
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
-        _ = kk_string_toCollection(strRaw, destRaw)
+        withFlatString("") { data, length, byteCount, hash in
+            _ = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
+        }
 
         let list = runtimeListBox(from: destRaw)
         XCTAssertNotNil(list)
@@ -1163,9 +1174,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringToCollectionWithNonASCII() {
-        let strRaw = rawFromRuntimeString("aé")
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
-        _ = kk_string_toCollection(strRaw, destRaw)
+        withFlatString("aé") { data, length, byteCount, hash in
+            _ = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
+        }
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 233] // 'a', 'é'
@@ -1184,11 +1196,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet tests
+    // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests
 
     func testStringToSortedSetReturnsSortedUniqueChars() {
         // "cba" should produce {a, b, c} sorted ascending
-        let setRaw = kk_string_toSortedSet(rawFromRuntimeString("cba"))
+        let setRaw = withFlatString("cba") { data, length, byteCount, hash in
+            kk_string_toSortedSet_flat(data, length, byteCount, hash)
+        }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98, 99]) // a, b, c
@@ -1196,28 +1210,36 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringToSortedSetDeduplicates() {
         // "aabba" — unique chars are 'a'(97) and 'b'(98) in ascending order
-        let setRaw = kk_string_toSortedSet(rawFromRuntimeString("aabba"))
+        let setRaw = withFlatString("aabba") { data, length, byteCount, hash in
+            kk_string_toSortedSet_flat(data, length, byteCount, hash)
+        }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98]) // a, b
     }
 
     func testStringToSortedSetEmptyString() {
-        let setRaw = kk_string_toSortedSet(rawFromRuntimeString(""))
+        let setRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_string_toSortedSet_flat(data, length, byteCount, hash)
+        }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
         XCTAssertEqual(setBox?.elements.count, 0)
     }
 
     func testStringToSortedSetSingleChar() {
-        let setRaw = kk_string_toSortedSet(rawFromRuntimeString("z"))
+        let setRaw = withFlatString("z") { data, length, byteCount, hash in
+            kk_string_toSortedSet_flat(data, length, byteCount, hash)
+        }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [122]) // 'z'
     }
 
     func testStringToSortedSetUsesUTF16CodeUnits() {
-        let setRaw = kk_string_toSortedSet(rawFromRuntimeString("a🐻a"))
+        let setRaw = withFlatString("a🐻a") { data, length, byteCount, hash in
+            kk_string_toSortedSet_flat(data, length, byteCount, hash)
+        }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
@@ -2429,16 +2451,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // MARK: - STDLIB-TEXT-FN-115: String.withIndex()
 
     func testStringWithIndexReturnsListOfIndexedValues() {
-        let strRaw = rawFromRuntimeString("abc")
-        let resultRaw = kk_string_withIndex(strRaw)
+        let resultRaw = withFlatString("abc") { data, length, byteCount, hash in
+            kk_string_withIndex_flat(data, length, byteCount, hash)
+        }
         let list = runtimeListBox(from: resultRaw)
         XCTAssertNotNil(list, "withIndex should return a list")
         XCTAssertEqual(list?.elements.count, 3)
     }
 
     func testStringWithIndexElementsAreIndexedValuePairs() {
-        let strRaw = rawFromRuntimeString("ab")
-        let resultRaw = kk_string_withIndex(strRaw)
+        let resultRaw = withFlatString("ab") { data, length, byteCount, hash in
+            kk_string_withIndex_flat(data, length, byteCount, hash)
+        }
         let list = runtimeListBox(from: resultRaw)
         XCTAssertNotNil(list)
 
@@ -2455,16 +2479,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringWithIndexEmptyStringReturnsEmptyList() {
-        let strRaw = rawFromRuntimeString("")
-        let resultRaw = kk_string_withIndex(strRaw)
+        let resultRaw = withFlatString("") { data, length, byteCount, hash in
+            kk_string_withIndex_flat(data, length, byteCount, hash)
+        }
         let list = runtimeListBox(from: resultRaw)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 0)
     }
 
     func testStringWithIndexNonASCIICharsGetCorrectIndices() {
-        let strRaw = rawFromRuntimeString("aé🐻")
-        let resultRaw = kk_string_withIndex(strRaw)
+        let resultRaw = withFlatString("aé🐻") { data, length, byteCount, hash in
+            kk_string_withIndex_flat(data, length, byteCount, hash)
+        }
         let list = runtimeListBox(from: resultRaw)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 4)

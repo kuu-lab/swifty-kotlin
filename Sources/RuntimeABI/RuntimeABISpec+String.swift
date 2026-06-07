@@ -2187,14 +2187,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toCharArray",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_toCharArray_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2206,14 +2198,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toTypedArray",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toTypedArray_flat",
             parameters: [
@@ -2227,15 +2211,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
         RuntimeABIFunctionSpec(
-            name: "kk_string_toCollection",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_toCollection_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2248,14 +2223,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toSortedSet",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toSortedSet_flat",
             parameters: [
@@ -2289,14 +2256,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_withIndex",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_withIndex_flat",
             parameters: [
