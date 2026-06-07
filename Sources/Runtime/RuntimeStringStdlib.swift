@@ -509,6 +509,62 @@ public func kk_string_substring_flat(
     _ outHash: UnsafeMutablePointer<Int>?,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
+    runtimeStringSubstringFlat(
+        data,
+        length,
+        byteCount,
+        hash,
+        startRaw,
+        endRaw,
+        hasEndRaw,
+        outLength,
+        outByteCount,
+        outHash,
+        outThrown
+    )
+}
+
+@_cdecl("kk_string_subSequence_flat")
+public func kk_string_subSequence_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startRaw: Int,
+    _ endRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    runtimeStringSubstringFlat(
+        data,
+        length,
+        byteCount,
+        hash,
+        startRaw,
+        endRaw,
+        1,
+        outLength,
+        outByteCount,
+        outHash,
+        outThrown
+    )
+}
+
+private func runtimeStringSubstringFlat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ startRaw: Int,
+    _ endRaw: Int,
+    _ hasEndRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
     outThrown?.pointee = 0
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let scalars = Array(source.unicodeScalars)
@@ -532,16 +588,6 @@ public func kk_string_substring_flat(
         outByteCount: outByteCount,
         outHash: outHash
     )
-}
-
-@_cdecl("kk_string_subSequence")
-public func kk_string_subSequence(
-    _ strRaw: Int,
-    _ startRaw: Int,
-    _ endRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    runtimeStringSubstringRaw(strRaw, startRaw, endRaw, 1, outThrown)
 }
 
 /// Unicode code point for space (U+0020), the default pad character in Kotlin.

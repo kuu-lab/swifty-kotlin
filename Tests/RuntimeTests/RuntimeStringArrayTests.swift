@@ -471,6 +471,66 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringSubSequenceReturnsFlattenedStringFields() {
+        withFlatString("aé🐻z") { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = kk_string_subSequence_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                1,
+                3,
+                &outLength,
+                &outByteCount,
+                &outHash,
+                nil
+            )
+            XCTAssertEqual(
+                flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                ),
+                "é🐻"
+            )
+        }
+    }
+
+    func testFlatStringSubSequenceReportsThrownSlot() {
+        withFlatString("abc") { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            var thrown = 0
+            let outData = kk_string_subSequence_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                3,
+                1,
+                &outLength,
+                &outByteCount,
+                &outHash,
+                &thrown
+            )
+            XCTAssertNotEqual(thrown, 0)
+            XCTAssertEqual(
+                flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                ),
+                ""
+            )
+        }
+    }
+
     func testFlatStringScalarRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             withFlatString("KSw") { prefixData, prefixLength, prefixByteCount, prefixHash in

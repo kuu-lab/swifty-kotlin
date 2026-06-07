@@ -62,6 +62,8 @@ extension CodegenBackendIntegrationTests {
         let substringHasEnd = arena.appendExpr(.intLiteral(1), type: types.intType)
         let substringResult = arena.appendExpr(.temporary(34), type: types.stringType)
         let substringThrown = arena.appendExpr(.temporary(35), type: types.intType)
+        let subSequenceResult = arena.appendExpr(.temporary(45), type: types.stringType)
+        let subSequenceThrown = arena.appendExpr(.temporary(46), type: types.intType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
         let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
@@ -132,6 +134,14 @@ extension CodegenBackendIntegrationTests {
                     result: substringResult,
                     canThrow: true,
                     thrownResult: substringThrown
+                ),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_subSequence_flat"),
+                    arguments: [trimResult, substringStart, substringEnd],
+                    result: subSequenceResult,
+                    canThrow: true,
+                    thrownResult: subSequenceThrown
                 ),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_take_flat"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
@@ -261,6 +271,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_uppercase("))
         XCTAssertFalse(ir.contains("@kk_string_reversed("))
         XCTAssertFalse(ir.contains("@kk_string_substring("))
+        XCTAssertFalse(ir.contains("@kk_string_subSequence("))
         XCTAssertFalse(ir.contains("@kk_string_take("))
         XCTAssertFalse(ir.contains("@kk_string_repeat("))
         XCTAssertFalse(ir.contains("@kk_string_takeLast("))
@@ -276,6 +287,7 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
         XCTAssertTrue(ir.contains("@kk_string_substring_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_subSequence_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
         XCTAssertTrue(ir.contains("@kk_string_repeat_flat"))
         XCTAssertTrue(ir.contains("@kk_string_takeLast_flat"))

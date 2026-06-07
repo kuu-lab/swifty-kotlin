@@ -545,6 +545,7 @@ extension BuildKIRRegressionTests {
             val maybe: String? = null
             "  hi  ".trim()
             "1,2,3".split(",")
+            "abcd".subSequence(1, 3)
             maybe.isNullOrEmpty()
             maybe.isNullOrBlank()
             "ab".repeat(2)
@@ -563,6 +564,8 @@ extension BuildKIRRegressionTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             XCTAssertEqual(throwFlags["kk_string_trim_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_split_flat"]?.allSatisfy { $0 == false }, true)
+            XCTAssertEqual(throwFlags["kk_string_subSequence_flat"]?.allSatisfy { $0 == true }, true)
+            XCTAssertNil(throwFlags["kk_string_subSequence"])
             XCTAssertEqual(throwFlags["kk_string_isNullOrEmpty_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_isNullOrBlank_flat"]?.allSatisfy { $0 == false }, true)
             XCTAssertEqual(throwFlags["kk_string_repeat_flat"]?.allSatisfy { $0 == true }, true)
