@@ -4586,12 +4586,6 @@ private func runtimeStringZipWithNextTransform(
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
-@_cdecl("kk_string_zipWithNext")
-public func kk_string_zipWithNext(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRaw(strRaw) ?? ""
-    return runtimeStringZipWithNext(source)
-}
-
 @_cdecl("kk_string_zipWithNext_flat")
 public func kk_string_zipWithNext_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -4601,12 +4595,6 @@ public func kk_string_zipWithNext_flat(
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     return runtimeStringZipWithNext(source)
-}
-
-@_cdecl("kk_string_zipWithNextTransform")
-public func kk_string_zipWithNextTransform(_ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRaw(strRaw) ?? ""
-    return runtimeStringZipWithNextTransform(source, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
 }
 
 @_cdecl("kk_string_zipWithNextTransform_flat")
@@ -4670,13 +4658,6 @@ private func runtimeStringZipTransform(
     return registerRuntimeObject(RuntimeListBox(elements: results))
 }
 
-@_cdecl("kk_string_zip")
-public func kk_string_zip(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    return runtimeStringZip(source, other)
-}
-
 @_cdecl("kk_string_zip_flat")
 public func kk_string_zip_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -4696,19 +4677,6 @@ public func kk_string_zip_flat(
         hash: otherHash
     )
     return runtimeStringZip(source, other)
-}
-
-@_cdecl("kk_string_zipTransform")
-public func kk_string_zipTransform(
-    _ strRaw: Int,
-    _ otherRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    return runtimeStringZipTransform(source, other, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
 }
 
 @_cdecl("kk_string_zipTransform_flat")

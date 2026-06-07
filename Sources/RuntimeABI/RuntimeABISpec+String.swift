@@ -2935,15 +2935,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform)
         RuntimeABIFunctionSpec(
-            name: "kk_string_zip",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_zip_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2954,18 +2945,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherLength", type: .intptr),
                 RuntimeABIParameter(name: "otherByteCount", type: .intptr),
                 RuntimeABIParameter(name: "otherHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_zipTransform",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "otherRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "String"
