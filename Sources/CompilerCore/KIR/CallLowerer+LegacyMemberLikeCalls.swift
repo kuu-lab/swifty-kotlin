@@ -1302,7 +1302,7 @@ extension CallLowerer {
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toInt"),
+                        callee: interner.intern("kk_string_toInt_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -1313,7 +1313,7 @@ extension CallLowerer {
                 if calleeStr == "toIntOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toIntOrNull"),
+                        callee: interner.intern("kk_string_toIntOrNull_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1324,7 +1324,7 @@ extension CallLowerer {
                 if calleeStr == "toDouble" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDouble"),
+                        callee: interner.intern("kk_string_toDouble_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: true,
@@ -1335,7 +1335,7 @@ extension CallLowerer {
                 if calleeStr == "toDoubleOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toDoubleOrNull"),
+                        callee: interner.intern("kk_string_toDoubleOrNull_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1670,7 +1670,7 @@ extension CallLowerer {
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toInt_radix"),
+                        callee: interner.intern("kk_string_toInt_radix_flat"),
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
                         canThrow: true,
