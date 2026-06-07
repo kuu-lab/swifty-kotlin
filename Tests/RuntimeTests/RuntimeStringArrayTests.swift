@@ -1539,71 +1539,138 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringStartsWithEndsWithContains() {
-        let source = rawFromRuntimeString("HelloWorld")
-        XCTAssertEqual(kk_unbox_bool(kk_string_startsWith(source, rawFromRuntimeString("Hello"))), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_endsWith(source, rawFromRuntimeString("World"))), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_contains_str(source, rawFromRuntimeString("World"))), 1)
-        XCTAssertEqual(kk_unbox_bool(kk_string_contains_str(source, rawFromRuntimeString(""))), 1)
+        withFlatString("HelloWorld") { data, length, byteCount, hash in
+            withFlatString("Hello") { prefixData, prefixLength, prefixByteCount, prefixHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(kk_string_startsWith_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        prefixData,
+                        prefixLength,
+                        prefixByteCount,
+                        prefixHash
+                    )),
+                    1
+                )
+            }
+            withFlatString("World") { suffixData, suffixLength, suffixByteCount, suffixHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(kk_string_endsWith_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        suffixData,
+                        suffixLength,
+                        suffixByteCount,
+                        suffixHash
+                    )),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_unbox_bool(kk_string_contains_str_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        suffixData,
+                        suffixLength,
+                        suffixByteCount,
+                        suffixHash
+                    )),
+                    1
+                )
+            }
+            withFlatString("") { emptyData, emptyLength, emptyByteCount, emptyHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(kk_string_contains_str_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        emptyData,
+                        emptyLength,
+                        emptyByteCount,
+                        emptyHash
+                    )),
+                    1
+                )
+            }
+        }
     }
 
     // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase
     //
-    // Asserts the boxed Boolean returned by `kk_string_contains_ignoreCase`
+    // Asserts the boxed Boolean returned by `kk_string_contains_ignoreCase_flat`
     // matches Kotlin's `CharSequence.contains(other, ignoreCase)` semantics:
     // - empty needle always matches (mirroring `String.contains("")`)
-    // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str`
+    // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str_flat`
     // - case-insensitive mode matches across mixed-case ASCII without copying
     //   into a normalized scratch buffer.
     func testStringContainsIgnoreCase() {
-        let source = rawFromRuntimeString("HelloWorld")
+        func contains(_ source: String, _ other: String, ignoreCase: Int) -> Int {
+            withFlatString(source) { data, length, byteCount, hash in
+                withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
+                    kk_unbox_bool(kk_string_contains_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash,
+                        ignoreCase
+                    ))
+                }
+            }
+        }
 
-        // ignoreCase = false → identical to kk_string_contains_str
+        // ignoreCase = false: identical to kk_string_contains_str_flat.
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString("World"), 0)),
+            contains("HelloWorld", "World", ignoreCase: 0),
             1,
             "case-sensitive hit should box `true`"
         )
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString("world"), 0)),
+            contains("HelloWorld", "world", ignoreCase: 0),
             0,
             "case-sensitive miss should box `false`"
         )
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString(""), 0)),
+            contains("HelloWorld", "", ignoreCase: 0),
             1,
             "empty needle should always match"
         )
 
-        // ignoreCase = true → case-insensitive substring match
+        // ignoreCase = true: case-insensitive substring match.
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString("world"), 1)),
+            contains("HelloWorld", "world", ignoreCase: 1),
             1,
             "case-insensitive hit should box `true`"
         )
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString("WORLD"), 1)),
+            contains("HelloWorld", "WORLD", ignoreCase: 1),
             1,
             "fully uppercased needle should box `true` when ignoreCase=true"
         )
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString(""), 1)),
+            contains("HelloWorld", "", ignoreCase: 1),
             1,
             "empty needle should always match even when ignoreCase=true"
         )
 
         // Needle longer than source must return false without indexing OOB.
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(
-                rawFromRuntimeString("hi"),
-                rawFromRuntimeString("there"),
-                1
-            )),
+            contains("hi", "there", ignoreCase: 1),
             0
         )
 
         // Truly absent needle returns false even with ignoreCase=true.
         XCTAssertEqual(
-            kk_unbox_bool(kk_string_contains_ignoreCase(source, rawFromRuntimeString("zzz"), 1)),
+            contains("HelloWorld", "zzz", ignoreCase: 1),
             0
         )
     }

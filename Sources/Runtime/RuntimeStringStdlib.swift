@@ -1330,13 +1330,6 @@ public func kk_string_dropLast_flat(
     )
 }
 
-@_cdecl("kk_string_startsWith")
-public func kk_string_startsWith(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let prefix = runtimeStringFromRawOrPanic(prefixRaw, caller: #function)
-    return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
-}
-
 @_cdecl("kk_string_startsWith_flat")
 public func kk_string_startsWith_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1358,13 +1351,6 @@ public func kk_string_startsWith_flat(
     return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
 }
 
-@_cdecl("kk_string_endsWith")
-public func kk_string_endsWith(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let suffix = runtimeStringFromRawOrPanic(suffixRaw, caller: #function)
-    return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
-}
-
 @_cdecl("kk_string_endsWith_flat")
 public func kk_string_endsWith_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1384,16 +1370,6 @@ public func kk_string_endsWith_flat(
         hash: suffixHash
     )
     return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
-}
-
-@_cdecl("kk_string_contains_str")
-public func kk_string_contains_str(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    if other.isEmpty {
-        return kk_box_bool(1)
-    }
-    return kk_box_bool(source.contains(other) ? 1 : 0)
 }
 
 @_cdecl("kk_string_contains_str_flat")
@@ -1423,40 +1399,10 @@ public func kk_string_contains_str_flat(
 // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
 //
 // Adds the case-insensitive overload. When `ignoreCase` is false this matches
-// `kk_string_contains_str` exactly. When true, comparison is performed scalar
-// by scalar using Foundation's `caseInsensitiveCompare`, mirroring how
-// `kk_string_indexOf_ignoreCase` walks Unicode scalar arrays so behaviour stays
-// consistent across the `contains` / `indexOf` family.
-@_cdecl("kk_string_contains_ignoreCase")
-public func kk_string_contains_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let other = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
-    let ignoreCase = ignoreCaseRaw != 0
-
-    if other.isEmpty {
-        return kk_box_bool(1)
-    }
-    if !ignoreCase {
-        return kk_box_bool(source.contains(other) ? 1 : 0)
-    }
-
-    let sourceScalars = Array(source.unicodeScalars)
-    let otherScalars = Array(other.unicodeScalars)
-    if otherScalars.count > sourceScalars.count {
-        return kk_box_bool(0)
-    }
-    for offset in 0 ... (sourceScalars.count - otherScalars.count) {
-        let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
-        let matches = zip(slice, otherScalars).allSatisfy {
-            String($0).caseInsensitiveCompare(String($1)) == .orderedSame
-        }
-        if matches {
-            return kk_box_bool(1)
-        }
-    }
-    return kk_box_bool(0)
-}
-
+// the case-sensitive contains helper exactly. When true, comparison is performed
+// scalar by scalar using Foundation's `caseInsensitiveCompare`, mirroring how
+// `kk_string_indexOf_ignoreCase_flat` walks Unicode scalar arrays so behaviour
+// stays consistent across the `contains` / `indexOf` family.
 @_cdecl("kk_string_contains_ignoreCase_flat")
 public func kk_string_contains_ignoreCase_flat(
     _ data: UnsafePointer<UInt8>?,
