@@ -1434,7 +1434,7 @@ extension CallLowerer {
                     }
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toRegex"),
+                        callee: interner.intern("kk_string_toRegex_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1738,7 +1738,7 @@ extension CallLowerer {
                 let runtimeCall: (callee: String, arguments: [KIRExprID])? = switch calleeStr {
                 case "split":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("kk_string_split_regex", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_split_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         ("kk_string_split_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
@@ -1748,7 +1748,7 @@ extension CallLowerer {
                     ("kk_string_endsWith", [loweredReceiverID, loweredArgIDs[0]])
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
-                        ("kk_string_contains_regex", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         ("kk_string_contains_str", [loweredReceiverID, loweredArgIDs[0]])
                     }

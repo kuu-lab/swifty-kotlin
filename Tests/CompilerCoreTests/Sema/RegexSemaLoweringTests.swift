@@ -10,7 +10,7 @@ import XCTest
 //   3. Method dispatch for every Regex member (matches / containsMatchIn / find /
 //      findAll / matchEntire / replace)
 //   4. Named-capture-group access chains produce no sema errors and lower to KIR
-//   5. toRegex() String extension lowers to kk_string_toRegex
+//   5. toRegex() String extension lowers to kk_string_toRegex_flat
 //   6. String.split(Regex) and String.contains(Regex) lower to the correct KIR callees
 //   7. Regex.replace with lambda lowers to kk_regex_replace_lambda
 //   8. Regex.fromLiteral (companion) lowers to kk_regex_from_literal in KIR
@@ -424,7 +424,7 @@ final class RegexSemaLoweringTests: XCTestCase {
 
     // MARK: - 7. KIR lowering: String.toRegex()
 
-    func testStringToRegexLowersToKkStringToRegex() throws {
+    func testStringToRegexLowersToFlatRuntimeCall() throws {
         let source = """
         fun test() {
             val r = "[a-z]+".toRegex()
@@ -436,7 +436,10 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_string_toRegex"), "KIR must contain kk_string_toRegex; found: \(callees)")
+            XCTAssertTrue(
+                callees.contains("kk_string_toRegex_flat"),
+                "KIR must contain kk_string_toRegex_flat; found: \(callees)"
+            )
         }
     }
 
@@ -482,7 +485,7 @@ final class RegexSemaLoweringTests: XCTestCase {
 
     // MARK: - 9. KIR lowering: String.split(Regex) and String.contains(Regex)
 
-    func testStringSplitWithRegexLowersToKkStringSplitRegex() throws {
+    func testStringSplitWithRegexLowersToFlatRuntimeCall() throws {
         let source = """
         fun test() {
             val r = Regex("\\\\s+")
@@ -495,11 +498,14 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_string_split_regex"), "KIR must contain kk_string_split_regex; found: \(callees)")
+            XCTAssertTrue(
+                callees.contains("kk_string_split_regex_flat"),
+                "KIR must contain kk_string_split_regex_flat; found: \(callees)"
+            )
         }
     }
 
-    func testStringContainsWithRegexLowersToKkStringContainsRegex() throws {
+    func testStringContainsWithRegexLowersToFlatRuntimeCall() throws {
         let source = """
         fun test() {
             val r = Regex("\\\\d+")
@@ -511,7 +517,29 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_string_contains_regex"), "KIR must contain kk_string_contains_regex; found: \(callees)")
+            XCTAssertTrue(
+                callees.contains("kk_string_contains_regex_flat"),
+                "KIR must contain kk_string_contains_regex_flat; found: \(callees)"
+            )
+        }
+    }
+
+    func testStringMatchesWithRegexLowersToFlatRuntimeCall() throws {
+        let source = """
+        fun test() {
+            val r = Regex("[a-z]+")
+            println("abc".matches(r))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try XCTUnwrap(ctx.kir)
+            let callees = allCalleesInModule(module, interner: ctx.interner)
+            XCTAssertTrue(
+                callees.contains("kk_string_matches_regex_flat"),
+                "KIR must contain kk_string_matches_regex_flat; found: \(callees)"
+            )
         }
     }
 

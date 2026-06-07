@@ -421,13 +421,13 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
     func testStringSplitWithRegexIsRegistered() throws {
         let (sema, interner) = try makeSema()
         // String.split(Regex) is registered in HeaderHelpers+SyntheticStringStubs
-        // as kotlin.text.split with externalLinkName kk_string_split_regex.
+        // as kotlin.text.split with externalLinkName kk_string_split_regex_flat.
         let fq = ["kotlin", "text", "split"].map { interner.intern($0) }
         let syms = sema.symbols.lookupAll(fqName: fq)
         let links = Set(syms.compactMap { sema.symbols.externalLinkName(for: $0) })
         XCTAssertTrue(
-            links.contains("kk_string_split_regex"),
-            "kotlin.text.split(Regex) must link to kk_string_split_regex; found: \(links)"
+            links.contains("kk_string_split_regex_flat"),
+            "kotlin.text.split(Regex) must link to kk_string_split_regex_flat; found: \(links)"
         )
     }
 
@@ -747,8 +747,11 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get"),
             (["kotlin", "text", "MatchGroupCollection", "get"], "kk_match_group_collection_get_at"),
             // String extensions
+            (["kotlin", "text", "matches"], "kk_string_matches_regex_flat"),
+            (["kotlin", "text", "contains"], "kk_string_contains_regex_flat"),
             (["kotlin", "text", "replaceFirst"], "kk_string_replaceFirst_regex"),
-            (["kotlin", "text", "split"], "kk_string_split_regex"),
+            (["kotlin", "text", "split"], "kk_string_split_regex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
         ]
 
         for (fqPath, expectedLink) in mandatoryLinks {

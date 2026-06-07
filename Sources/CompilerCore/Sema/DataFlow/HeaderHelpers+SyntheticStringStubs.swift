@@ -1682,7 +1682,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "matches",
-            externalLinkName: "kk_string_matches_regex",
+            externalLinkName: "kk_string_matches_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1695,7 +1695,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_regex",
+            externalLinkName: "kk_string_contains_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1722,7 +1722,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_regex",
+            externalLinkName: "kk_string_split_regex_flat",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1735,7 +1735,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toRegex",
-            externalLinkName: "kk_string_toRegex",
+            externalLinkName: "kk_string_toRegex_flat",
             receiverType: stringType,
             parameters: [],
             returnType: regexType,

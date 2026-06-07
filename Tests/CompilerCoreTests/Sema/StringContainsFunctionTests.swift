@@ -7,7 +7,7 @@ import XCTest
 /// - `contains(other: String)` → `kk_string_contains_str_flat` (also acts as the
 ///   `in` operator on strings).
 /// - `contains(other: String, ignoreCase: Boolean)` → `kk_string_contains_ignoreCase_flat`
-/// - `contains(regex: Regex)` → `kk_string_contains_regex`
+/// - `contains(regex: Regex)` -> `kk_string_contains_regex_flat`
 final class StringContainsFunctionTests: XCTestCase {
     func testContainsWithStringResolvesInSource() throws {
         let ctx = makeContextFromSource("""
