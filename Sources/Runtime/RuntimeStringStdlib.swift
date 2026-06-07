@@ -4789,6 +4789,30 @@ public func kk_string_zipTransform_flat(
 
 // MARK: - STDLIB-192: equals(other, ignoreCase)
 
+@_cdecl("kk_string_equals_flat")
+public func kk_string_equals_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int
+) -> Int {
+    guard otherData != nil else {
+        return kk_box_bool(0)
+    }
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let other = runtimeStringFromFlat(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash
+    )
+    return kk_box_bool(source == other ? 1 : 0)
+}
+
 @_cdecl("kk_string_equalsIgnoreCase_flat")
 public func kk_string_equalsIgnoreCase_flat(
     _ data: UnsafePointer<UInt8>?,

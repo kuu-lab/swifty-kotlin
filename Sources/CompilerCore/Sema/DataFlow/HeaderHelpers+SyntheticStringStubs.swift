@@ -2027,7 +2027,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
-            externalLinkName: "kk_string_equals",
+            externalLinkName: "kk_string_equals_flat",
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),

@@ -825,6 +825,33 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testStringEqualsNullableOtherResolvesToFlatABI() throws {
+        let source = """
+        fun same(lhs: String, rhs: String?): Boolean {
+            return lhs.equals(rhs)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "equals"
+            }, "Expected member call to equals in AST")
+            let chosenCallee = try XCTUnwrap(
+                sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                "Expected call binding for equals"
+            )
+            XCTAssertEqual(
+                sema.symbols.externalLinkName(for: chosenCallee),
+                "kk_string_equals_flat"
+            )
+        }
+    }
+
     func testStringNormalizationMembersResolveInCallExpressions() throws {
         let source = """
         fun normalizeText(s: String): String {

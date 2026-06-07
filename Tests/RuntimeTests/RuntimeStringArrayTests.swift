@@ -724,10 +724,29 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         withFlatString("KSwiftK") { data, length, byteCount, hash in
             XCTAssertEqual(kk_unbox_bool(kk_string_isNullOrBlank_flat(data, length, byteCount, hash)), 0)
             XCTAssertEqual(
+                kk_unbox_bool(kk_string_equals_flat(data, length, byteCount, hash, nil, 0, 0, 0)),
+                0
+            )
+            XCTAssertEqual(
                 kk_unbox_bool(kk_string_equalsIgnoreCase_flat(data, length, byteCount, hash, nil, 0, 0, 0, 1)),
                 0
             )
             withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_equals_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            otherData,
+                            otherLength,
+                            otherByteCount,
+                            otherHash
+                        )
+                    ),
+                    0
+                )
                 XCTAssertEqual(
                     kk_unbox_bool(
                         kk_string_contentEquals_ignoreCase_flat(
@@ -756,6 +775,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                             otherByteCount,
                             otherHash,
                             1
+                        )
+                    ),
+                    1
+                )
+            }
+            withFlatString("KSwiftK") { sameData, sameLength, sameByteCount, sameHash in
+                XCTAssertEqual(
+                    kk_unbox_bool(
+                        kk_string_equals_flat(
+                            data,
+                            length,
+                            byteCount,
+                            hash,
+                            sameData,
+                            sameLength,
+                            sameByteCount,
+                            sameHash
                         )
                     ),
                     1

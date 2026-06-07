@@ -88,6 +88,7 @@ extension CodegenBackendIntegrationTests {
         let contentEqualsResult = arena.appendExpr(.temporary(25), type: types.booleanType)
         let contentEqualsIgnoreCaseResult = arena.appendExpr(.temporary(26), type: types.booleanType)
         let equalsIgnoreCaseResult = arena.appendExpr(.temporary(27), type: types.booleanType)
+        let equalsResult = arena.appendExpr(.temporary(42), type: types.booleanType)
         let suspendedResult = arena.appendExpr(.temporary(1), type: types.anyType)
         let labelValue = arena.appendExpr(.intLiteral(7), type: types.intType)
         let labelResult = arena.appendExpr(.temporary(2), type: types.intType)
@@ -153,6 +154,7 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_isNullOrBlank_flat"), arguments: [nullStringExpr], result: isNullOrBlankResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_flat"), arguments: [trimResult, nullStringExpr], result: contentEqualsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contentEquals_ignoreCase_flat"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: contentEqualsIgnoreCaseResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_equals_flat"), arguments: [trimResult, nullStringExpr], result: equalsResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_equalsIgnoreCase_flat"), arguments: [trimResult, nullStringExpr, ignoreCaseTrue], result: equalsIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("println"), arguments: [concatResult], result: nil, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_coroutine_suspended"), arguments: [], result: suspendedResult, canThrow: false, thrownResult: nil),
@@ -287,6 +289,8 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_isNullOrBlank_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contentEquals_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contentEquals_ignoreCase_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_equals_flat"))
+        XCTAssertFalse(ir.contains("@kk_string_equals("))
         XCTAssertTrue(ir.contains("@kk_string_equalsIgnoreCase_flat"))
         XCTAssertTrue(ir.contains("@kk_println_string_flat"))
         XCTAssertTrue(ir.contains("{ ptr, i64, i64, i64 }"))

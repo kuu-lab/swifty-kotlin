@@ -343,6 +343,35 @@ extension BuildKIRRegressionTests {
         XCTAssertTrue(callees.contains(interner.intern("kk_string_byteInputStream_charset_flat")))
     }
 
+    func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {
+        let source = """
+        fun main(lhs: String, rhs: String?) {
+            lhs.equals(rhs)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callNames.contains("kk_string_equals_flat"))
+            XCTAssertFalse(callNames.contains("kk_string_equals"))
+        }
+    }
+
+    func testABILoweringMarksStringEqualsFlatHelperAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        XCTAssertTrue(callees.contains(interner.intern("kk_string_equals_flat")))
+        XCTAssertTrue(callees.contains(interner.intern("kk_string_equals")))
+    }
+
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {
         let source = """
         fun main(values: Map<Int, Int>) {
