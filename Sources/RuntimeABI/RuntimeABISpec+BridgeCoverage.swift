@@ -424,7 +424,6 @@ public extension RuntimeABISpec {
     ]
 
     static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
-        bridgeSpec("kk_string_singleOrNull", section: "String", params: ["strRaw"]),
         bridgeSpec(
             "kk_string_substringAfter",
             section: "String",

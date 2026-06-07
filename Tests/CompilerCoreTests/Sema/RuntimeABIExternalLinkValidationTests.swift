@@ -47,6 +47,13 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
     private var loweredRuntimeLinkAlias: [String: String] {
         [
             // KIR keeps semantic String callee names; LLVM emission lowers these to flattened runtime ABI symbols.
+            "kk_string_first": "kk_string_first_flat",
+            "kk_string_firstOrNull": "kk_string_firstOrNull_flat",
+            "kk_string_getOrNull": "kk_string_getOrNull_flat",
+            "kk_string_last": "kk_string_last_flat",
+            "kk_string_lastOrNull": "kk_string_lastOrNull_flat",
+            "kk_string_single": "kk_string_single_flat",
+            "kk_string_singleOrNull": "kk_string_singleOrNull_flat",
             "kk_string_toBoolean": "kk_string_toBoolean_flat",
             "kk_string_toBooleanStrict": "kk_string_toBooleanStrict_flat",
             "kk_string_toBooleanStrictOrNull": "kk_string_toBooleanStrictOrNull_flat",
