@@ -2200,7 +2200,7 @@ extension DataFlowSemaPhase {
         // and Any return type to allow arbitrary mapping.
         registerSyntheticStringExtensionFunction(
             named: "map",
-            externalLinkName: "kk_string_map",
+            externalLinkName: "kk_string_map_flat",
             receiverType: stringType,
             parameters: [("transform", charToAnyType, false, false)],
             returnType: types.anyType,

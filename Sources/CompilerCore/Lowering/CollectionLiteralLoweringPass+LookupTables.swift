@@ -899,7 +899,7 @@ struct CollectionLiteralLookupTables {
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
         kkStringFilterName = interner.intern("kk_string_filter")
-        kkStringMapName = interner.intern("kk_string_map")
+        kkStringMapName = interner.intern("kk_string_map_flat")
         kkStringCountName = interner.intern("kk_string_count_flat")
         kkStringAnyName = interner.intern("kk_string_any_flat")
         kkStringAllName = interner.intern("kk_string_all_flat")

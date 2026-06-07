@@ -421,6 +421,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [(member: String, parameterCount: Int, link: String)] = [
+            ("map", 1, "kk_string_map_flat"),
             ("mapIndexed", 1, "kk_string_mapIndexed_flat"),
             ("mapNotNull", 1, "kk_string_mapNotNull_flat"),
         ]

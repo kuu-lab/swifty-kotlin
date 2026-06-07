@@ -958,15 +958,50 @@ public func kk_string_filter(
 public func kk_string_map(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringMap(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_map_flat")
+public func kk_string_map_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringMap(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringMap(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    guard fnPtr != 0 else { return runtimeMakeListRaw([]) }
     var mappedElements: [Int] = []
     for scalar in scalars {
         var thrown = 0
-        let result = lambda(closureRaw, Int(scalar.value), &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
+        let result = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr,
+            closureRaw: closureRaw,
+            value: Int(scalar.value),
+            outThrown: &thrown
+        )
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeListRaw([]) }
         mappedElements.append(result)
     }
     return runtimeMakeListRaw(mappedElements)

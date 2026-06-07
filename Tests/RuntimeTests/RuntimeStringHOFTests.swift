@@ -65,6 +65,10 @@ private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
 
+private let mapBoxCharValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    kk_box_char(charRaw)
+}
+
 private let mapIndexedBoxIndexPlusChar: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     _, index, charRaw, _ in
     kk_box_int(index + charRaw)
@@ -105,6 +109,30 @@ final class RuntimeStringHOFTests: XCTestCase {
     override func tearDown() {
         kk_runtime_force_reset()
         super.tearDown()
+    }
+
+    func testStringMapFlatReturnsMappedList() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_map_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(mapBoxCharValue, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_map_flat")
+                return
+            }
+            XCTAssertEqual(list.elements.count, 2)
+            XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("a").value))
+            XCTAssertEqual(kk_unbox_char(list.elements[1]), Int(Unicode.Scalar("b").value))
+        }
     }
 
     func testStringMapIndexedFlatReturnsMappedList() {
