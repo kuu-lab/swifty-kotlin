@@ -2379,27 +2379,15 @@ public func kk_string_findLastAnyOf_flat(
     )
 }
 
-@_cdecl("kk_string_indexOfFirst")
-public func kk_string_indexOfFirst(
+func runtimeStringIndexOfFirstFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return -1 }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
-        var thrown = 0
-        let result = lambda(closureRaw, charRaw, &thrown)
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfFirst predicate")
-            return -1
-        }
-        if maybeUnbox(result) != 0 {
-            return index
-        }
-    }
-    return -1
+    runtimeStringIndexOfFirst(
+        scalars: runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_string_indexOfFirst_flat")
@@ -2412,8 +2400,21 @@ public func kk_string_indexOfFirst_flat(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringIndexOfFirst(
+        scalars: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringIndexOfFirst(
+    scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     for (index, scalar) in scalars.enumerated() {
@@ -2431,28 +2432,15 @@ public func kk_string_indexOfFirst_flat(
     return -1
 }
 
-@_cdecl("kk_string_indexOfLast")
-public func kk_string_indexOfLast(
+func runtimeStringIndexOfLastFromRaw(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return -1 }
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var lastIndex = -1
-    for (index, scalar) in scalars.enumerated() {
-        let charRaw = Int(scalar.value)
-        var thrown = 0
-        let result = lambda(closureRaw, charRaw, &thrown)
-        if thrown != 0 {
-            runtimePropagateThrownOrTrap(thrown, outThrown: outThrown, context: "indexOfLast predicate")
-            return -1
-        }
-        if maybeUnbox(result) != 0 {
-            lastIndex = index
-        }
-    }
-    return lastIndex
+    runtimeStringIndexOfLast(
+        scalars: runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_string_indexOfLast_flat")
@@ -2465,8 +2453,21 @@ public func kk_string_indexOfLast_flat(
     _ closureRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringIndexOfLast(
+        scalars: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringIndexOfLast(
+    scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     guard fnPtr != 0 else { return -1 }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var lastIndex = -1

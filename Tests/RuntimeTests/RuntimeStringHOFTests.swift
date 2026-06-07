@@ -213,81 +213,96 @@ final class RuntimeStringHOFTests: XCTestCase {
         }
     }
 
-    // MARK: - kk_string_indexOfFirst (STDLIB-TEXT-FN-022)
+    // MARK: - kk_string_indexOfFirst_flat (STDLIB-TEXT-FN-022)
 
     func testIndexOfFirstReturnsIndexOfFirstMatchingChar() {
-        let source = registerRuntimeObject(RuntimeStringBox("hello3world"))
-        var thrown = 0
+        withFlatStringForHOF("hello3world") { data, length, byteCount, hash in
+            var thrown = 0
+            let result = kk_string_indexOfFirst_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
+                0,
+                &thrown
+            )
 
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 5)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(result, 5)
+        }
     }
 
     func testIndexOfFirstReturnsMinusOneWhenNoCharMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("hello"))
-        var thrown = 0
+        withFlatStringForHOF("hello") { data, length, byteCount, hash in
+            var thrown = 0
+            let result = kk_string_indexOfFirst_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
+                0,
+                &thrown
+            )
 
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, -1)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(result, -1)
+        }
     }
 
     func testIndexOfFirstOnEmptyStringReturnsMinusOne() {
-        let source = registerRuntimeObject(RuntimeStringBox(""))
-        var thrown = 0
+        withFlatStringForHOF("") { data, length, byteCount, hash in
+            var thrown = 0
+            let result = kk_string_indexOfFirst_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
+                0,
+                &thrown
+            )
 
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, -1)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(result, -1)
+        }
     }
 
     func testIndexOfFirstReturnsZeroWhenFirstCharMatches() {
-        let source = registerRuntimeObject(RuntimeStringBox("xabc"))
-        var thrown = 0
+        withFlatStringForHOF("xabc") { data, length, byteCount, hash in
+            var thrown = 0
+            let result = kk_string_indexOfFirst_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
+                0,
+                &thrown
+            )
 
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 0)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(result, 0)
+        }
     }
 
     func testIndexOfFirstStopsAtFirstMatchNotLast() {
-        let source = registerRuntimeObject(RuntimeStringBox("axbxc"))
-        var thrown = 0
+        withFlatStringForHOF("axbxc") { data, length, byteCount, hash in
+            var thrown = 0
+            let result = kk_string_indexOfFirst_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
+                0,
+                &thrown
+            )
 
-        let result = kk_string_indexOfFirst(
-            source,
-            unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self),
-            0,
-            &thrown
-        )
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(result, 1)
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(result, 1)
+        }
     }
 
     func testFirstNotNullOfReturnsFirstNonNullResult() {

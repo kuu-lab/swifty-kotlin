@@ -2342,7 +2342,7 @@ public func kk_list_indexOfFirst(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
        tryCast(ptr, to: RuntimeStringBox.self) != nil
     {
-        return kk_string_indexOfFirst(listRaw, fnPtr, closureRaw, outThrown)
+        return runtimeStringIndexOfFirstFromRaw(listRaw, fnPtr, closureRaw, outThrown)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     for (index, elem) in list.elements.enumerated() {
@@ -2360,7 +2360,7 @@ public func kk_list_indexOfLast(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
        runtimeStorage.withGCLock({ $0.objectPointers.contains(UInt(bitPattern: ptr)) }),
        tryCast(ptr, to: RuntimeStringBox.self) != nil
     {
-        return kk_string_indexOfLast(listRaw, fnPtr, closureRaw, outThrown)
+        return runtimeStringIndexOfLastFromRaw(listRaw, fnPtr, closureRaw, outThrown)
     }
     guard let list = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
     var lastIdx = -1
