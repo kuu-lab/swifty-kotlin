@@ -3312,23 +3312,6 @@ public func kk_string_compareToIgnoreCase_flat(
 
 // MARK: - STDLIB-TEXT-EDGE-009: CharSequence?.contentEquals
 
-@_cdecl("kk_string_contentEquals")
-public func kk_string_contentEquals(_ receiverRaw: Int, _ otherRaw: Int) -> Int {
-    let receiverIsNull = (receiverRaw == runtimeNullSentinelInt)
-    let otherIsNull = (otherRaw == runtimeNullSentinelInt)
-    if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
-    }
-    if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
-    }
-    guard let receiverStr = runtimeStringFromRaw(receiverRaw),
-          let otherStr = runtimeStringFromRaw(otherRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(receiverStr == otherStr ? 1 : 0)
-}
-
 @_cdecl("kk_string_contentEquals_flat")
 public func kk_string_contentEquals_flat(
     _ receiverData: UnsafePointer<UInt8>?,
@@ -3361,26 +3344,6 @@ public func kk_string_contentEquals_flat(
         hash: otherHash
     )
     return kk_box_bool(receiverStr == otherStr ? 1 : 0)
-}
-
-@_cdecl("kk_string_contentEquals_ignoreCase")
-public func kk_string_contentEquals_ignoreCase(_ receiverRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let receiverIsNull = (receiverRaw == runtimeNullSentinelInt)
-    let otherIsNull = (otherRaw == runtimeNullSentinelInt)
-    if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
-    }
-    if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
-    }
-    guard let receiverStr = runtimeStringFromRaw(receiverRaw),
-          let otherStr = runtimeStringFromRaw(otherRaw) else {
-        return kk_box_bool(0)
-    }
-    if ignoreCaseRaw == 0 {
-        return kk_box_bool(receiverStr == otherStr ? 1 : 0)
-    }
-    return kk_box_bool(receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0)
 }
 
 @_cdecl("kk_string_contentEquals_ignoreCase_flat")
@@ -4777,15 +4740,6 @@ public func kk_string_zipTransform_flat(
 }
 
 // MARK: - STDLIB-192: equals(other, ignoreCase)
-
-@_cdecl("kk_string_equalsIgnoreCase")
-public func kk_string_equalsIgnoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    if otherRaw == runtimeNullSentinelInt {
-        return kk_box_bool(0)
-    }
-    let cmp = runtimeStringCompareToIgnoreCaseRaw(strRaw, otherRaw, ignoreCaseRaw)
-    return kk_box_bool(cmp == 0 ? 1 : 0)
-}
 
 @_cdecl("kk_string_equalsIgnoreCase_flat")
 public func kk_string_equalsIgnoreCase_flat(

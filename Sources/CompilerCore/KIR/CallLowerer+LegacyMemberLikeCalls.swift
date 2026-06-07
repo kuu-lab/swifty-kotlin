@@ -1754,23 +1754,23 @@ extension CallLowerer {
                         ("kk_string_split_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "startsWith":
-                    ("kk_string_startsWith", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_startsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "endsWith":
-                    ("kk_string_endsWith", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_endsWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "contains":
                     if isRegexLikeType(sema.bindings.exprTypes[args[0].expr] ?? sema.types.anyType, sema: sema, interner: interner) {
                         ("kk_string_contains_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
-                        ("kk_string_contains_str", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_contains_str_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "indexOf":
                     if loweredArgIDs.count >= 2 {
-                        ("kk_string_indexOf_from", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                        ("kk_string_indexOf_from_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     } else {
-                        ("kk_string_indexOf", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_indexOf_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "lastIndexOf":
-                    ("kk_string_lastIndexOf", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_lastIndexOf_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "get":
                     ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "compareTo":
@@ -2051,7 +2051,7 @@ extension CallLowerer {
             {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_indexOf_from"),
+                    callee: interner.intern("kk_string_indexOf_from_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
@@ -2164,7 +2164,7 @@ extension CallLowerer {
             {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_compareToIgnoreCase"),
+                    callee: interner.intern("kk_string_compareToIgnoreCase_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,

@@ -1016,42 +1016,42 @@ extension NativeEmitter {
                     extraArgumentCount: 3,
                     stringArgumentPositions: [3]
                 ),
-                "kk_string_startsWith": FlatScalarReturnCallSpec(
+                "kk_string_startsWith_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_startsWith_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_endsWith": FlatScalarReturnCallSpec(
+                "kk_string_endsWith_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_endsWith_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_contains_str": FlatScalarReturnCallSpec(
+                "kk_string_contains_str_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contains_str_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_contains_ignoreCase": FlatScalarReturnCallSpec(
+                "kk_string_contains_ignoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contains_ignoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
-                "kk_string_indexOf": FlatScalarReturnCallSpec(
+                "kk_string_indexOf_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOf_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_indexOf_from": FlatScalarReturnCallSpec(
+                "kk_string_indexOf_from_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOf_from_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
-                "kk_string_lastIndexOf": FlatScalarReturnCallSpec(
+                "kk_string_lastIndexOf_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastIndexOf_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_indexOf_ignoreCase": FlatScalarReturnCallSpec(
+                "kk_string_indexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOf_ignoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 2
@@ -1061,7 +1061,7 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_lastIndexOf_ignoreCase": FlatScalarReturnCallSpec(
+                "kk_string_lastIndexOf_ignoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastIndexOf_ignoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 2
@@ -1101,7 +1101,7 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_compareToIgnoreCase": FlatScalarReturnCallSpec(
+                "kk_string_compareToIgnoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareToIgnoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
@@ -1116,17 +1116,17 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
-                "kk_string_contentEquals": FlatScalarReturnCallSpec(
+                "kk_string_contentEquals_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contentEquals_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_contentEquals_ignoreCase": FlatScalarReturnCallSpec(
+                "kk_string_contentEquals_ignoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_contentEquals_ignoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
                 ),
-                "kk_string_equalsIgnoreCase": FlatScalarReturnCallSpec(
+                "kk_string_equalsIgnoreCase_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_equalsIgnoreCase_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1

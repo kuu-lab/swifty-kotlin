@@ -1656,7 +1656,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase
+    // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase_flat
     //
     // Asserts the boxed Boolean returned by `kk_string_contains_ignoreCase_flat`
     // matches Kotlin's `CharSequence.contains(other, ignoreCase)` semantics:

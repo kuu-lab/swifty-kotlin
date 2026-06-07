@@ -1021,10 +1021,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_state_flow_value", parameters: [
             p("handle", .intptr),
         ]),
-        abiParitySpec("kk_string_contentEquals", parameters: [
-            p("receiverRaw", .intptr),
-            p("otherRaw", .intptr),
-        ]),
         abiParitySpec("kk_string_contentEquals_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
@@ -1034,11 +1030,6 @@ public extension RuntimeABISpec {
             p("otherLength", .intptr),
             p("otherByteCount", .intptr),
             p("otherHash", .intptr),
-        ]),
-        abiParitySpec("kk_string_contentEquals_ignoreCase", parameters: [
-            p("receiverRaw", .intptr),
-            p("otherRaw", .intptr),
-            p("ignoreCaseRaw", .intptr),
         ]),
         abiParitySpec("kk_string_contentEquals_ignoreCase_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
