@@ -55,9 +55,20 @@ extension CodegenBackendIntegrationTests {
         let lowercaseResult = arena.appendExpr(.temporary(31), type: types.stringType)
         let uppercaseResult = arena.appendExpr(.temporary(32), type: types.stringType)
         let reversedResult = arena.appendExpr(.temporary(33), type: types.stringType)
+        let substringStart = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let substringEnd = arena.appendExpr(.intLiteral(3), type: types.intType)
+        let substringHasEnd = arena.appendExpr(.intLiteral(1), type: types.intType)
+        let substringResult = arena.appendExpr(.temporary(34), type: types.stringType)
+        let substringThrown = arena.appendExpr(.temporary(35), type: types.intType)
         let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let takeResult = arena.appendExpr(.temporary(13), type: types.stringType)
         let takeThrown = arena.appendExpr(.temporary(14), type: types.intType)
+        let takeLastResult = arena.appendExpr(.temporary(36), type: types.stringType)
+        let takeLastThrown = arena.appendExpr(.temporary(37), type: types.intType)
+        let dropResult = arena.appendExpr(.temporary(38), type: types.stringType)
+        let dropThrown = arena.appendExpr(.temporary(39), type: types.intType)
+        let dropLastResult = arena.appendExpr(.temporary(40), type: types.stringType)
+        let dropLastThrown = arena.appendExpr(.temporary(41), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
         let startsWithResult = arena.appendExpr(.temporary(15), type: types.booleanType)
         let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
@@ -108,8 +119,22 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_lowercase"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_uppercase"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_reversed"), arguments: [paddedExpr], result: reversedResult, canThrow: false, thrownResult: nil),
+                .constValue(result: substringStart, value: .intLiteral(1)),
+                .constValue(result: substringEnd, value: .intLiteral(3)),
+                .constValue(result: substringHasEnd, value: .intLiteral(1)),
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_substring"),
+                    arguments: [trimResult, substringStart, substringEnd, substringHasEnd],
+                    result: substringResult,
+                    canThrow: true,
+                    thrownResult: substringThrown
+                ),
                 .constValue(result: takeCount, value: .intLiteral(3)),
                 .call(symbol: nil, callee: interner.intern("kk_string_take"), arguments: [trimResult, takeCount], result: takeResult, canThrow: true, thrownResult: takeThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_takeLast"), arguments: [trimResult, takeCount], result: takeLastResult, canThrow: true, thrownResult: takeLastThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_drop"), arguments: [trimResult, takeCount], result: dropResult, canThrow: true, thrownResult: dropThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_dropLast"), arguments: [trimResult, takeCount], result: dropLastResult, canThrow: true, thrownResult: dropLastThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
                 .call(symbol: nil, callee: interner.intern("kk_string_startsWith"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
@@ -230,7 +255,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_lowercase("))
         XCTAssertFalse(ir.contains("@kk_string_uppercase("))
         XCTAssertFalse(ir.contains("@kk_string_reversed("))
+        XCTAssertFalse(ir.contains("@kk_string_substring("))
         XCTAssertFalse(ir.contains("@kk_string_take("))
+        XCTAssertFalse(ir.contains("@kk_string_takeLast("))
+        XCTAssertFalse(ir.contains("@kk_string_drop("))
+        XCTAssertFalse(ir.contains("@kk_string_dropLast("))
         XCTAssertFalse(ir.contains("@kk_string_startsWith("))
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf("))
@@ -249,7 +278,11 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_lowercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_uppercase_flat"))
         XCTAssertTrue(ir.contains("@kk_string_reversed_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_substring_flat"))
         XCTAssertTrue(ir.contains("@kk_string_take_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_takeLast_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_drop_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_dropLast_flat"))
         XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))

@@ -462,8 +462,7 @@ public func kk_string_replace_flat(
     )
 }
 
-@_cdecl("kk_string_substring")
-public func kk_string_substring(
+private func runtimeStringSubstringRaw(
     _ strRaw: Int,
     _ startRaw: Int,
     _ endRaw: Int,
@@ -536,7 +535,7 @@ public func kk_string_subSequence(
     _ endRaw: Int,
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
+    runtimeStringSubstringRaw(strRaw, startRaw, endRaw, 1, outThrown)
 }
 
 /// Unicode code point for space (U+0020), the default pad character in Kotlin.
@@ -1145,24 +1144,6 @@ public func kk_string_replaceFirstChar(
     return runtimeMakeStringRaw(String(rebuilt))
 }
 
-@_cdecl("kk_string_take")
-public func kk_string_take(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw("")
-    }
-    guard nRaw < scalars.count else {
-        return runtimeMakeStringRaw(source)
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< nRaw]))
-}
-
 @_cdecl("kk_string_take_flat")
 public func kk_string_take_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1254,21 +1235,6 @@ public func kk_string_removeSurrounding_pair(
     return runtimeMakeStringRaw(String(source[start ..< end]))
 }
 
-@_cdecl("kk_string_takeLast")
-public func kk_string_takeLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw("")
-    }
-    let start = max(0, scalars.count - nRaw)
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[start ..< scalars.count]))
-}
-
 @_cdecl("kk_string_takeLast_flat")
 public func kk_string_takeLast_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -1298,24 +1264,6 @@ public func kk_string_takeLast_flat(
         outByteCount: outByteCount,
         outHash: outHash
     )
-}
-
-@_cdecl("kk_string_drop")
-public func kk_string_drop(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw(source)
-    }
-    if nRaw >= scalars.count {
-        return runtimeMakeStringRaw("")
-    }
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[nRaw ..< scalars.count]))
 }
 
 @_cdecl("kk_string_drop_flat")
@@ -1349,22 +1297,6 @@ public func kk_string_drop_flat(
         outByteCount: outByteCount,
         outHash: outHash
     )
-}
-
-@_cdecl("kk_string_dropLast")
-public func kk_string_dropLast(_ strRaw: Int, _ nRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if nRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Requested element count \(nRaw) is less than zero.")
-        return runtimeMakeStringRaw("")
-    }
-    let scalars = runtimeStringScalars(strRaw)
-    guard nRaw > 0 else {
-        return runtimeMakeStringRaw(source)
-    }
-    let end = max(0, scalars.count - nRaw)
-    return runtimeMakeStringRaw(runtimeStringFromScalars(scalars[0 ..< end]))
 }
 
 @_cdecl("kk_string_dropLast_flat")

@@ -17,6 +17,17 @@ private typealias RuntimeFlatStringReturnEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithIntEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 
 private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
     kk_box_char(Int(Character("B").unicodeScalars.first!.value))
@@ -121,6 +132,59 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             var outByteCount = 0
             var outHash = 0
             let outData = call(data, length, byteCount, hash, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        intArg: Int,
+        using call: RuntimeFlatStringReturnWithIntEntry,
+        outThrown: UnsafeMutablePointer<Int>? = nil
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash, outThrown)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringSubstringValue(
+        _ value: String,
+        start: Int,
+        end: Int,
+        hasEnd: Int = 1,
+        outThrown: UnsafeMutablePointer<Int>? = nil
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = kk_string_substring_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                start,
+                end,
+                hasEnd,
+                &outLength,
+                &outByteCount,
+                &outHash,
+                outThrown
+            )
             return flatStringValue(
                 data: outData.map { UnsafePointer($0) },
                 length: outLength,
@@ -1288,8 +1352,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let expectedScalars: [Int] = [97, 233, 128_059] // 'a', 'é', '🐻'
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedScalars)
 
-        XCTAssertEqual(runtimeStringValue(kk_string_take(rawFromRuntimeString(text), 2, nil)), "aé")
-        XCTAssertEqual(runtimeStringValue(kk_string_drop(rawFromRuntimeString(text), 1, nil)), "é🐻")
+        XCTAssertEqual(flatStringReturnValue(text, intArg: 2, using: kk_string_take_flat), "aé")
+        XCTAssertEqual(flatStringReturnValue(text, intArg: 1, using: kk_string_drop_flat), "é🐻")
     }
 
     func testStringScalarIndexedOperationsWithNonASCII() {
@@ -1314,43 +1378,43 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringTakeDropFunctions() {
-        XCTAssertEqual(runtimeStringValue(kk_string_take(rawFromRuntimeString("abcde"), 0, nil)), "")
-        XCTAssertEqual(runtimeStringValue(kk_string_take(rawFromRuntimeString("abcde"), 2, nil)), "ab")
-        XCTAssertEqual(runtimeStringValue(kk_string_take(rawFromRuntimeString("abcde"), 10, nil)), "abcde")
-        XCTAssertEqual(runtimeStringValue(kk_string_drop(rawFromRuntimeString("abcde"), 0, nil)), "abcde")
-        XCTAssertEqual(runtimeStringValue(kk_string_drop(rawFromRuntimeString("abcde"), 2, nil)), "cde")
-        XCTAssertEqual(runtimeStringValue(kk_string_drop(rawFromRuntimeString("abcde"), 10, nil)), "")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_take_flat), "")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_take_flat), "ab")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_take_flat), "abcde")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_drop_flat), "abcde")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_drop_flat), "cde")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_drop_flat), "")
     }
 
     func testStringTakeNegativeThrowsIllegalArgumentException() {
         // STDLIB-005-BUG-01: negative count must throw, not silently return empty/full.
         var thrown = 0
-        _ = kk_string_take(rawFromRuntimeString("hello"), -1, &thrown)
-        XCTAssertNotEqual(thrown, 0, "kk_string_take(-1) should set outThrown")
+        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_take_flat, outThrown: &thrown)
+        XCTAssertNotEqual(thrown, 0, "kk_string_take_flat(-1) should set outThrown")
 
         var thrown2 = 0
-        _ = kk_string_drop(rawFromRuntimeString("hello"), -1, &thrown2)
-        XCTAssertNotEqual(thrown2, 0, "kk_string_drop(-1) should set outThrown")
+        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_drop_flat, outThrown: &thrown2)
+        XCTAssertNotEqual(thrown2, 0, "kk_string_drop_flat(-1) should set outThrown")
     }
 
     func testStringTakeLastDropLastFunctions() {
-        XCTAssertEqual(runtimeStringValue(kk_string_takeLast(rawFromRuntimeString("abcde"), 0, nil)), "")
-        XCTAssertEqual(runtimeStringValue(kk_string_takeLast(rawFromRuntimeString("abcde"), 2, nil)), "de")
-        XCTAssertEqual(runtimeStringValue(kk_string_takeLast(rawFromRuntimeString("abcde"), 10, nil)), "abcde")
-        XCTAssertEqual(runtimeStringValue(kk_string_dropLast(rawFromRuntimeString("abcde"), 0, nil)), "abcde")
-        XCTAssertEqual(runtimeStringValue(kk_string_dropLast(rawFromRuntimeString("abcde"), 2, nil)), "abc")
-        XCTAssertEqual(runtimeStringValue(kk_string_dropLast(rawFromRuntimeString("abcde"), 10, nil)), "")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_takeLast_flat), "")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_takeLast_flat), "de")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_takeLast_flat), "abcde")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 0, using: kk_string_dropLast_flat), "abcde")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 2, using: kk_string_dropLast_flat), "abc")
+        XCTAssertEqual(flatStringReturnValue("abcde", intArg: 10, using: kk_string_dropLast_flat), "")
     }
 
     func testStringTakeLastDropLastNegativeThrowsIllegalArgumentException() {
         // STDLIB-005-BUG-01: negative count must throw, not silently return empty/full.
         var thrown = 0
-        _ = kk_string_takeLast(rawFromRuntimeString("hello"), -1, &thrown)
-        XCTAssertNotEqual(thrown, 0, "kk_string_takeLast(-1) should set outThrown")
+        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_takeLast_flat, outThrown: &thrown)
+        XCTAssertNotEqual(thrown, 0, "kk_string_takeLast_flat(-1) should set outThrown")
 
         var thrown2 = 0
-        _ = kk_string_dropLast(rawFromRuntimeString("hello"), -1, &thrown2)
-        XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast(-1) should set outThrown")
+        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_dropLast_flat, outThrown: &thrown2)
+        XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast_flat(-1) should set outThrown")
     }
 
     func testStringReplaceIndentByMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
