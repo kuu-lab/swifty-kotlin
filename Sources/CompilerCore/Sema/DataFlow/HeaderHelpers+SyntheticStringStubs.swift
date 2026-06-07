@@ -3895,7 +3895,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "partition",
-            externalLinkName: "kk_string_partition",
+            externalLinkName: "kk_string_partition_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: pairStringStringType,

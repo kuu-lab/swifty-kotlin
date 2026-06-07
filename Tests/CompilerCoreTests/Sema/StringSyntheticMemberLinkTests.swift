@@ -229,6 +229,22 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
     }
 
+    func testStringPartitionStubUsesFlatExternalLink() throws {
+        let (sema, interner) = try makeSema()
+
+        XCTAssertEqual(
+            externalLink(
+                for: "partition",
+                receiverType: sema.types.stringType,
+                parameterCount: 1,
+                sema: sema,
+                interner: interner
+            ),
+            "kk_string_partition_flat",
+            "String.partition should link to kk_string_partition_flat"
+        )
+    }
+
     func testChunkedSequenceStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 

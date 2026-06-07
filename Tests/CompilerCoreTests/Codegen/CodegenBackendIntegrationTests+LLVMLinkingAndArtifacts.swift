@@ -877,6 +877,7 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_indexOfLast_flat", resultType: types.intType)
         appendCallbackCall("kk_string_find_flat", resultType: types.intType)
         appendCallbackCall("kk_string_findLast_flat", resultType: types.intType)
+        appendCallbackCall("kk_string_partition", resultType: types.anyType)
         appendCallbackCall("kk_string_map", resultType: types.anyType)
         appendCallbackCall("kk_string_mapIndexed", resultType: types.anyType)
         appendCallbackCall("kk_string_mapNotNull", resultType: types.anyType)
@@ -934,6 +935,7 @@ extension CodegenBackendIntegrationTests {
         }
 
         let rawNames = [
+            "kk_string_partition",
             "kk_string_map",
             "kk_string_mapIndexed",
             "kk_string_mapNotNull",

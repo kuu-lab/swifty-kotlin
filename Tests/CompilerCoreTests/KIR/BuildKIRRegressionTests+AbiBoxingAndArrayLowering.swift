@@ -270,6 +270,7 @@ extension BuildKIRRegressionTests {
             value.indexOfLast { it == 'b' }
             value.mapIndexed { index, _ -> index }
             value.mapNotNull { ch -> if (ch == 'a') 1 else null }
+            value.partition { ch -> ch == 'b' }
         }
         """
 
@@ -295,6 +296,7 @@ extension BuildKIRRegressionTests {
                 "kk_string_indexOfLast_flat",
                 "kk_string_mapIndexed_flat",
                 "kk_string_mapNotNull_flat",
+                "kk_string_partition_flat",
             ]
             for flatName in flatNames {
                 XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")

@@ -78,6 +78,10 @@ private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<I
     charRaw == Int(Unicode.Scalar("b").value) ? kk_box_char(charRaw) : runtimeNullSentinelInt
 }
 
+private let partitionMatchesB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    charRaw == Int(Unicode.Scalar("b").value) ? 1 : 0
+}
+
 private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     _, charRaw, _ in
     (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
@@ -98,6 +102,14 @@ private func withFlatStringForHOF<T>(
     )
     let constData = data.map { UnsafePointer($0) }
     return body(constData, length, byteCount, hash)
+}
+
+private func runtimeStringValueForHOF(_ raw: Int) -> String {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+          let box = tryCast(pointer, to: RuntimeStringBox.self) else {
+        return ""
+    }
+    return box.value
 }
 
 final class RuntimeStringHOFTests: XCTestCase {
@@ -179,6 +191,25 @@ final class RuntimeStringHOFTests: XCTestCase {
             }
             XCTAssertEqual(list.elements.count, 1)
             XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("b").value))
+        }
+    }
+
+    func testStringPartitionFlatSplitsIntoPair() {
+        withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_partition_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(partitionMatchesB, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            XCTAssertEqual(runtimeStringValueForHOF(kk_pair_first(result)), "b")
+            XCTAssertEqual(runtimeStringValueForHOF(kk_pair_second(result)), "ac")
         }
     }
 

@@ -6669,10 +6669,46 @@ public func kk_string_findLast_flat(
 public func kk_string_partition(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringPartition(
+        source: source,
+        scalars: Array(source.unicodeScalars),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_partition_flat")
+public func kk_string_partition_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    return runtimeStringPartition(
+        source: source,
+        scalars: Array(source.unicodeScalars),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringPartition(
+    source: String,
+    scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
     guard fnPtr != 0 else {
-        let first = runtimeMakeStringRaw(runtimeStringFromRawOrPanic(strRaw, caller: #function))
+        let first = runtimeMakeStringRaw(source)
         let second = runtimeMakeStringRaw("")
         return kk_pair_new(first, second)
     }
