@@ -1039,6 +1039,7 @@ extension CodegenBackendIntegrationTests {
 
         let text = interner.intern("abc")
         let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
+        let destinationExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
 
         var nextTemp: Int32 = 500
         func temporary(_ type: TypeID) -> KIRExprID {
@@ -1048,13 +1049,14 @@ extension CodegenBackendIntegrationTests {
 
         var body: [KIRInstruction] = [
             .constValue(result: textExpr, value: .stringLiteral(text)),
+            .constValue(result: destinationExpr, value: .intLiteral(0)),
         ]
 
-        func appendMaterializationCall(_ calleeName: String) {
+        func appendMaterializationCall(_ calleeName: String, extraArguments: [KIRExprID] = []) {
             body.append(.call(
                 symbol: nil,
                 callee: interner.intern(calleeName),
-                arguments: [textExpr],
+                arguments: [textExpr] + extraArguments,
                 result: temporary(types.intType),
                 canThrow: false,
                 thrownResult: nil
@@ -1065,6 +1067,7 @@ extension CodegenBackendIntegrationTests {
         appendMaterializationCall("kk_string_toCharArray_flat")
         appendMaterializationCall("kk_string_toTypedArray_flat")
         appendMaterializationCall("kk_string_toSortedSet_flat")
+        appendMaterializationCall("kk_string_toCollection", extraArguments: [destinationExpr])
         appendMaterializationCall("kk_string_withIndex_flat")
         appendMaterializationCall("kk_string_iterator")
         body.append(.returnUnit)
@@ -1101,6 +1104,7 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toCharArray",
             "kk_string_toTypedArray",
             "kk_string_toSortedSet",
+            "kk_string_toCollection",
             "kk_string_withIndex",
             "kk_string_iterator",
         ]

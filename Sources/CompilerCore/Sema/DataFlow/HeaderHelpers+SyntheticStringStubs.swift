@@ -1230,7 +1230,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection",
+            externalLinkName: "kk_string_toCollection_flat",
             receiverType: stringType,
             parameters: [
                 ("destination", types.anyType, false, false),

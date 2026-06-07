@@ -1387,6 +1387,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toCollection" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toCollection_flat"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "asIterable" {
                     instructions.append(.call(
                         symbol: nil,

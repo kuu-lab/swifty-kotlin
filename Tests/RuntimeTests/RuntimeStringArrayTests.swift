@@ -1026,6 +1026,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
+    func testStringToCollectionFlatAppendsCharsToMutableList() {
+        withFlatString("az") { data, length, byteCount, hash in
+            let destRaw = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(48)]))
+            let returnedRaw = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
+
+            XCTAssertEqual(returnedRaw, destRaw, "flat toCollection should return the destination collection")
+            let list = runtimeListBox(from: returnedRaw)
+            let expected = [48, 97, 122] // '0', 'a', 'z'
+            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+        }
+    }
+
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet tests
 
     func testStringToSortedSetReturnsSortedUniqueChars() {

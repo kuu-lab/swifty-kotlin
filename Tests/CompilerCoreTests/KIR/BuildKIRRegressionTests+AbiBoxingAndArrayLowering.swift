@@ -198,6 +198,7 @@ extension BuildKIRRegressionTests {
         fun main(value: String) {
             value.firstNotNullOf<Int> { ch -> if (ch == 'a') 1 else null }
             value.firstNotNullOfOrNull<Int> { ch -> if (ch == 'b') 2 else null }
+            value.toCollection(mutableListOf<Char>())
             value.reduceOrNull { acc, _ -> acc }
             value.reduceRightIndexed { _, ch, _ -> ch }
             value.reduceRightIndexedOrNull { _, ch, _ -> ch }
@@ -222,6 +223,7 @@ extension BuildKIRRegressionTests {
             let flatNames = [
                 "kk_string_firstNotNullOf_flat",
                 "kk_string_firstNotNullOfOrNull_flat",
+                "kk_string_toCollection_flat",
                 "kk_string_reduceOrNull_flat",
                 "kk_string_reduceRightIndexed_flat",
                 "kk_string_reduceRightIndexedOrNull_flat",

@@ -700,12 +700,38 @@ public func kk_string_toTypedArray_flat(
 /// Mirrors `kotlin.text.CharSequence.toCollection<C : MutableCollection<in Char>>`.
 @_cdecl("kk_string_toCollection")
 public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
-    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    runtimeStringToCollection(
+        runtimeStringScalars(strRaw),
+        destRaw: destRaw,
+        caller: #function
+    )
+}
+
+@_cdecl("kk_string_toCollection_flat")
+public func kk_string_toCollection_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ destRaw: Int
+) -> Int {
+    runtimeStringToCollection(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        destRaw: destRaw,
+        caller: #function
+    )
+}
+
+private func runtimeStringToCollection(
+    _ scalars: [UnicodeScalar],
+    destRaw: Int,
+    caller: StaticString
+) -> Int {
     guard runtimeMutableCollectionExists(destRaw) else {
-        invalidContainerPanic(#function, "mutable collection")
+        invalidContainerPanic(caller, "mutable collection")
     }
-    for charRaw in charRaws {
-        runtimeAppendToMutableCollection(destRaw, charRaw)
+    for scalar in scalars {
+        runtimeAppendToMutableCollection(destRaw, kk_box_char(Int(scalar.value)))
     }
     return destRaw
 }

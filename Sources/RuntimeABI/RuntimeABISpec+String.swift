@@ -2260,6 +2260,18 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toCollection_flat",
+            parameters: [
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "destRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         // STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
         RuntimeABIFunctionSpec(
             name: "kk_string_toSortedSet",

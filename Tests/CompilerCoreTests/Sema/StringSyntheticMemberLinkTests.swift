@@ -437,6 +437,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         let expected: [(member: String, parameterCount: Int, link: String)] = [
             ("toSortedSet", 0, "kk_string_toSortedSet_flat"),
+            ("toCollection", 1, "kk_string_toCollection_flat"),
             ("asIterable", 0, "kk_string_asIterable_flat"),
             ("lines", 0, "kk_string_lines_flat"),
             ("lineSequence", 0, "kk_string_lineSequence_flat"),
