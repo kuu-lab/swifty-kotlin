@@ -186,7 +186,6 @@ extension ABILoweringPass {
             interner.intern("kk_string_toULongOrNull"),
             interner.intern("kk_string_lines"),
             interner.intern("kk_string_lines_flat"),
-            interner.intern("kk_string_lineSequence"),
             interner.intern("kk_string_lineSequence_flat"),
             interner.intern("kk_string_trimStart_flat"),
             interner.intern("kk_string_trimEnd_flat"),

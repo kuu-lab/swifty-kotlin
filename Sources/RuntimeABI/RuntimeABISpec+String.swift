@@ -1762,14 +1762,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-143: String.lines
         RuntimeABIFunctionSpec(
-            name: "kk_string_lines",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_lines_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -1781,14 +1773,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         // STDLIB-666: String.lineSequence
-        RuntimeABIFunctionSpec(
-            name: "kk_string_lineSequence",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_lineSequence_flat",
             parameters: [

@@ -3630,12 +3630,6 @@ public func kk_string_toByteOrNull_flat(
     return Int(value)
 }
 
-@_cdecl("kk_string_lines")
-public func kk_string_lines(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringLinesRaw(source)
-}
-
 @_cdecl("kk_string_lines_flat")
 public func kk_string_lines_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -3649,12 +3643,6 @@ public func kk_string_lines_flat(
 
 private func runtimeStringLinesRaw(_ source: String) -> Int {
     runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
-}
-
-@_cdecl("kk_string_lineSequence")
-public func kk_string_lineSequence(_ strRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    return runtimeStringLineSequenceRaw(source)
 }
 
 @_cdecl("kk_string_lineSequence_flat")

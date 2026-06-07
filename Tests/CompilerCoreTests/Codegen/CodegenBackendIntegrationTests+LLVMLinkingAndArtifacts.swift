@@ -1231,14 +1231,14 @@ extension CodegenBackendIntegrationTests {
         let flatOnlyNames = [
             "kk_string_asIterable_flat",
             "kk_string_asSequence_flat",
+            "kk_string_lines_flat",
+            "kk_string_lineSequence_flat",
         ]
         for flatName in flatOnlyNames {
             XCTAssertTrue(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")
         }
 
         let rawNames = [
-            "kk_string_lines",
-            "kk_string_lineSequence",
             "kk_string_split",
             "kk_string_split_limit",
             "kk_string_splitToSequence",
