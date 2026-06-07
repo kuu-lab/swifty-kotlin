@@ -360,6 +360,29 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testStringListResultHOFStubsUseFlatExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(member: String, parameterCount: Int, link: String)] = [
+            ("mapIndexed", 1, "kk_string_mapIndexed_flat"),
+            ("mapNotNull", 1, "kk_string_mapNotNull_flat"),
+        ]
+
+        for item in expected {
+            XCTAssertEqual(
+                externalLink(
+                    for: item.member,
+                    receiverType: sema.types.stringType,
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner
+                ),
+                item.link,
+                "String.\(item.member) should link to \(item.link)"
+            )
+        }
+    }
+
     func testNewSubstringAndSearchStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 

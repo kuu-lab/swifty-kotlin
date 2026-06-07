@@ -206,6 +206,8 @@ extension BuildKIRRegressionTests {
             value.sumByDouble { 1.0 }
             value.indexOfFirst { it == 'a' }
             value.indexOfLast { it == 'b' }
+            value.mapIndexed { index, _ -> index }
+            value.mapNotNull { ch -> if (ch == 'a') 1 else null }
         }
         """
 
@@ -228,6 +230,8 @@ extension BuildKIRRegressionTests {
                 "kk_string_sumByDouble_flat",
                 "kk_string_indexOfFirst_flat",
                 "kk_string_indexOfLast_flat",
+                "kk_string_mapIndexed_flat",
+                "kk_string_mapNotNull_flat",
             ]
             for flatName in flatNames {
                 XCTAssertTrue(callNames.contains(flatName), "Missing \(flatName)")

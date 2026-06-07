@@ -65,7 +65,17 @@ private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
 
-private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+private let mapIndexedBoxIndexPlusChar: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, index, charRaw, _ in
+    kk_box_int(index + charRaw)
+}
+
+private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    charRaw == Int(Unicode.Scalar("b").value) ? kk_box_char(charRaw) : runtimeNullSentinelInt
+}
+
+private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, charRaw, _ in
     (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
 }
 
@@ -95,6 +105,53 @@ final class RuntimeStringHOFTests: XCTestCase {
     override func tearDown() {
         kk_runtime_force_reset()
         super.tearDown()
+    }
+
+    func testStringMapIndexedFlatReturnsMappedList() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_mapIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(mapIndexedBoxIndexPlusChar, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_mapIndexed_flat")
+                return
+            }
+            XCTAssertEqual(list.elements.count, 2)
+            XCTAssertEqual(kk_unbox_int(list.elements[0]), 97)
+            XCTAssertEqual(kk_unbox_int(list.elements[1]), 99)
+        }
+    }
+
+    func testStringMapNotNullFlatFiltersNullResults() {
+        withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_mapNotNull_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(mapNotNullBoxOnlyB, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_mapNotNull_flat")
+                return
+            }
+            XCTAssertEqual(list.elements.count, 1)
+            XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("b").value))
+        }
     }
 
     // MARK: - kk_string_indexOfFirst (STDLIB-TEXT-FN-022)

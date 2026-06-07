@@ -5786,9 +5786,40 @@ public func kk_bignum_toString(_ numRaw: Int) -> Int {
 public func kk_string_mapIndexed(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringMapIndexed(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_mapIndexed_flat")
+public func kk_string_mapIndexed_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringMapIndexed(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringMapIndexed(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
+    guard fnPtr != 0 else { return runtimeMakeListRaw([]) }
     var mappedElements: [Int] = []
     for (index, scalar) in scalars.enumerated() {
         var thrown = 0
@@ -5799,7 +5830,7 @@ public func kk_string_mapIndexed(
             rhs: Int(scalar.value),
             outThrown: &thrown
         )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeListRaw([]) }
         mappedElements.append(result)
     }
     return runtimeMakeListRaw(mappedElements)
@@ -5809,9 +5840,40 @@ public func kk_string_mapIndexed(
 public func kk_string_mapNotNull(
     _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    runtimeStringMapNotNull(
+        runtimeStringScalars(strRaw),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_mapNotNull_flat")
+public func kk_string_mapNotNull_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringMapNotNull(
+        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
+private func runtimeStringMapNotNull(
+    _ scalars: [UnicodeScalar],
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return strRaw }
+    guard fnPtr != 0 else { return runtimeMakeListRaw([]) }
     var mappedElements: [Int] = []
     for scalar in scalars {
         var thrown = 0
@@ -5821,7 +5883,7 @@ public func kk_string_mapNotNull(
             value: Int(scalar.value),
             outThrown: &thrown
         )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeStringRaw("") }
+        if thrown != 0 { outThrown?.pointee = thrown; return runtimeMakeListRaw([]) }
         if result != runtimeNullSentinelInt {
             mappedElements.append(result)
         }

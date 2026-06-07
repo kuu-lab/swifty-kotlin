@@ -2250,7 +2250,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "mapIndexed",
-            externalLinkName: "kk_string_mapIndexed",
+            externalLinkName: "kk_string_mapIndexed_flat",
             receiverType: stringType,
             parameters: [("transform", intCharToAnyType, false, false)],
             returnType: listAnyType,
@@ -2260,7 +2260,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "mapNotNull",
-            externalLinkName: "kk_string_mapNotNull",
+            externalLinkName: "kk_string_mapNotNull_flat",
             receiverType: stringType,
             parameters: [("transform", charToNullableAnyType, false, false)],
             returnType: listAnyType,

@@ -1235,6 +1235,18 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_string_mapIndexed": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_mapIndexed_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_mapNotNull": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_mapNotNull_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_firstNotNullOf": FlatScalarReturnCallSpec(
                     flatName: "kk_string_firstNotNullOf_flat",
                     stringArgumentCount: 1,

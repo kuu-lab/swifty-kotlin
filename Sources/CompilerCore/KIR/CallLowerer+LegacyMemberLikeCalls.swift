@@ -1769,9 +1769,9 @@ extension CallLowerer {
                 case "replaceFirstChar":
                     ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
-                    ("kk_string_mapIndexed", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_mapIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
-                    ("kk_string_mapNotNull", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_mapNotNull_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "filterIndexed":
                     ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
                 case "filterNot":

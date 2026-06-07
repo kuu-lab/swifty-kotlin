@@ -881,6 +881,8 @@ extension CodegenBackendIntegrationTests {
         appendCallbackCall("kk_string_indexOfLast", resultType: types.intType)
         appendCallbackCall("kk_string_find", resultType: types.intType)
         appendCallbackCall("kk_string_findLast", resultType: types.intType)
+        appendCallbackCall("kk_string_mapIndexed", resultType: types.anyType)
+        appendCallbackCall("kk_string_mapNotNull", resultType: types.anyType)
         appendCallbackCall("kk_string_firstNotNullOf", resultType: types.intType)
         appendCallbackCall("kk_string_firstNotNullOfOrNull", resultType: types.intType)
         appendCallbackCall("kk_string_reduceOrNull", resultType: types.intType)
@@ -927,6 +929,8 @@ extension CodegenBackendIntegrationTests {
             "kk_string_indexOfLast",
             "kk_string_find",
             "kk_string_findLast",
+            "kk_string_mapIndexed",
+            "kk_string_mapNotNull",
             "kk_string_firstNotNullOf",
             "kk_string_firstNotNullOfOrNull",
             "kk_string_reduceOrNull",
