@@ -635,37 +635,37 @@ extension NativeEmitter {
             }
 
             var flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
-                "kk_string_trim": FlatStringReturnCallSpec(
+                "kk_string_trim_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trim_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_trimStart": FlatStringReturnCallSpec(
+                "kk_string_trimStart_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trimStart_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_trimEnd": FlatStringReturnCallSpec(
+                "kk_string_trimEnd_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trimEnd_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_lowercase": FlatStringReturnCallSpec(
+                "kk_string_lowercase_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_lowercase_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_uppercase": FlatStringReturnCallSpec(
+                "kk_string_uppercase_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_uppercase_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_reversed": FlatStringReturnCallSpec(
+                "kk_string_reversed_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_reversed_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
@@ -677,31 +677,31 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substring": FlatStringReturnCallSpec(
+                "kk_string_substring_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substring_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
                     canThrow: true
                 ),
-                "kk_string_take": FlatStringReturnCallSpec(
+                "kk_string_take_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_take_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_takeLast": FlatStringReturnCallSpec(
+                "kk_string_takeLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_takeLast_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_drop": FlatStringReturnCallSpec(
+                "kk_string_drop_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_drop_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_dropLast": FlatStringReturnCallSpec(
+                "kk_string_dropLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_dropLast_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
@@ -1028,7 +1028,7 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 2
                 ),
-                "kk_string_indexOf_char": FlatScalarReturnCallSpec(
+                "kk_string_indexOf_char_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_indexOf_char_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
@@ -1038,7 +1038,7 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 2
                 ),
-                "kk_string_lastIndexOf_char": FlatScalarReturnCallSpec(
+                "kk_string_lastIndexOf_char_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_lastIndexOf_char_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
