@@ -957,7 +957,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_chars",
+            externalLinkName: "kk_string_indexOfAny_chars_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
@@ -974,7 +974,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_strings",
+            externalLinkName: "kk_string_indexOfAny_strings_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -991,7 +991,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_chars",
+            externalLinkName: "kk_string_lastIndexOfAny_chars_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
@@ -1008,7 +1008,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_strings",
+            externalLinkName: "kk_string_lastIndexOfAny_strings_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1025,7 +1025,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "findAnyOf",
-            externalLinkName: "kk_string_findAnyOf",
+            externalLinkName: "kk_string_findAnyOf_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1042,7 +1042,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "findLastAnyOf",
-            externalLinkName: "kk_string_findLastAnyOf",
+            externalLinkName: "kk_string_findLastAnyOf_flat",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),

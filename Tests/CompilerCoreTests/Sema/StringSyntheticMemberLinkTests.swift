@@ -91,33 +91,33 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
         XCTAssertTrue(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_chars"),
-            "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars"
+                .contains("kk_string_indexOfAny_chars_flat"),
+            "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_indexOfAny_strings"),
-            "CharSequence.indexOfAny(strings, startIndex, ignoreCase) should link to kk_string_indexOfAny_strings"
+                .contains("kk_string_indexOfAny_strings_flat"),
+            "CharSequence.indexOfAny(strings, startIndex, ignoreCase) should link to kk_string_indexOfAny_strings_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_chars"),
-            "CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_chars"
+                .contains("kk_string_lastIndexOfAny_chars_flat"),
+            "CharSequence.lastIndexOfAny(chars, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_chars_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "lastIndexOfAny", sema: sema, interner: interner)
-                .contains("kk_string_lastIndexOfAny_strings"),
-            "CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_strings"
+                .contains("kk_string_lastIndexOfAny_strings_flat"),
+            "CharSequence.lastIndexOfAny(strings, startIndex, ignoreCase) should link to kk_string_lastIndexOfAny_strings_flat"
         )
         XCTAssertEqual(
             externalLink(for: "findAnyOf", sema: sema, interner: interner),
-            "kk_string_findAnyOf",
-            "CharSequence.findAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findAnyOf"
+            "kk_string_findAnyOf_flat",
+            "CharSequence.findAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findAnyOf_flat"
         )
         XCTAssertEqual(
             externalLink(for: "findLastAnyOf", sema: sema, interner: interner),
-            "kk_string_findLastAnyOf",
-            "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf"
+            "kk_string_findLastAnyOf_flat",
+            "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
@@ -899,8 +899,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_indexOfAny_chars",
-                    "Expected indexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_chars"
+                    "kk_string_indexOfAny_chars_flat",
+                    "Expected indexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_chars_flat"
                 )
             }
         }
@@ -934,8 +934,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_indexOfAny_strings",
-                    "Expected indexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_strings"
+                    "kk_string_indexOfAny_strings_flat",
+                    "Expected indexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_indexOfAny_strings_flat"
                 )
             }
         }
@@ -969,8 +969,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_lastIndexOfAny_chars",
-                    "Expected lastIndexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_chars"
+                    "kk_string_lastIndexOfAny_chars_flat",
+                    "Expected lastIndexOfAny(chars, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_chars_flat"
                 )
             }
         }
@@ -1004,8 +1004,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_lastIndexOfAny_strings",
-                    "Expected lastIndexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_strings"
+                    "kk_string_lastIndexOfAny_strings_flat",
+                    "Expected lastIndexOfAny(strings, startIndex, ignoreCase) to resolve to kk_string_lastIndexOfAny_strings_flat"
                 )
             }
         }
@@ -1039,8 +1039,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_findAnyOf",
-                    "Expected findAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findAnyOf"
+                    "kk_string_findAnyOf_flat",
+                    "Expected findAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findAnyOf_flat"
                 )
             }
         }
@@ -1074,8 +1074,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "kk_string_findLastAnyOf",
-                    "Expected findLastAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findLastAnyOf"
+                    "kk_string_findLastAnyOf_flat",
+                    "Expected findLastAnyOf(strings, startIndex, ignoreCase) to resolve to kk_string_findLastAnyOf_flat"
                 )
             }
         }
