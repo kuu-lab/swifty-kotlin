@@ -1463,54 +1463,54 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: true
                 ),
-                "kk_string_hexToInt": FlatScalarReturnCallSpec(
+                "kk_string_hexToInt_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToInt_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToShort": FlatScalarReturnCallSpec(
+                "kk_string_hexToShort_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToShort_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToUByte": FlatScalarReturnCallSpec(
+                "kk_string_hexToUByte_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToUByte_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToUShort": FlatScalarReturnCallSpec(
+                "kk_string_hexToUShort_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToUShort_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToUInt": FlatScalarReturnCallSpec(
+                "kk_string_hexToUInt_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToUInt_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToULong": FlatScalarReturnCallSpec(
+                "kk_string_hexToULong_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToULong_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToLong": FlatScalarReturnCallSpec(
+                "kk_string_hexToLong_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToLong_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
-                "kk_string_hexToByteArray": FlatScalarReturnCallSpec(
+                "kk_string_hexToByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToByteArray_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_hexToUByteArray": FlatScalarReturnCallSpec(
+                "kk_string_hexToUByteArray_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_hexToUByteArray_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
