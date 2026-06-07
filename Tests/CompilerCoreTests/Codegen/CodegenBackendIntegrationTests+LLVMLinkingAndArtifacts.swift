@@ -144,7 +144,7 @@ extension CodegenBackendIntegrationTests {
                 .constValue(result: charNeedle, value: .charLiteral(UInt32(UnicodeScalar("d").value))),
                 .call(symbol: nil, callee: interner.intern("kk_string_compareToIgnoreCase"), arguments: [trimResult, needleExpr, ignoreCaseTrue], result: compareIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .constValue(result: localeRaw, value: .intLiteral(0)),
-                .call(symbol: nil, callee: interner.intern("kk_string_compareTo_locale"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_compareTo_locale_flat"), arguments: [trimResult, needleExpr, localeRaw], result: compareLocaleResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_ignoreCase"), arguments: [trimResult, needleExpr, takeCount, ignoreCaseTrue], result: lastIndexIgnoreCaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_indexOf_char_flat"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: indexOfCharResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_lastIndexOf_char_flat"), arguments: [trimResult, charNeedle, takeCount, ignoreCaseTrue], result: lastIndexOfCharResult, canThrow: false, thrownResult: nil),
@@ -264,7 +264,6 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_contains_str("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf("))
         XCTAssertFalse(ir.contains("@kk_string_compareToIgnoreCase("))
-        XCTAssertFalse(ir.contains("@kk_string_compareTo_locale("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_ignoreCase("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))

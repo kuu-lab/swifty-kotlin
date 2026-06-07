@@ -11,7 +11,7 @@ import XCTest
 //   - String.uppercase()                   → kk_string_uppercase_flat
 //   - String.lowercase(Locale)             → kk_string_lowercase_locale
 //   - String.uppercase(Locale)             → kk_string_uppercase_locale
-//   - String.compareTo(String, Locale)     → kk_string_compareTo_locale
+//   - String.compareTo(String, Locale)     → kk_string_compareTo_locale_flat
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
 //   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix

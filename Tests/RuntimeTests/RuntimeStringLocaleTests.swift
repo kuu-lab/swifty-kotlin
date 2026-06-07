@@ -59,15 +59,6 @@ final class RuntimeStringLocaleTests: XCTestCase {
         XCTAssertEqual(stringValue(result), "İ")
     }
 
-    func testLocaleCompareToMatchesBasicOrdering() {
-        let result = kk_string_compareTo_locale(
-            runtimeString("abc"),
-            runtimeString("abd"),
-            kk_locale_new(runtimeString("en_US"))
-        )
-        XCTAssertEqual(result, -1)
-    }
-
     func testLocaleCompareToFlatMatchesBasicOrdering() {
         let locale = kk_locale_new(runtimeString("en_US"))
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in

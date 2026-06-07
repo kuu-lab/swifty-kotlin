@@ -25,15 +25,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_compareTo",
-            parameters: [
-                RuntimeABIParameter(name: "a", type: .nullableOpaquePointer),
-                RuntimeABIParameter(name: "b", type: .nullableOpaquePointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_println_string_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -875,16 +866,6 @@ public extension RuntimeABISpec {
             name: "kk_string_uppercase_locale",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "localeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_compareTo_locale",
-            parameters: [
-                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
-                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,

@@ -1111,7 +1111,7 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_compareTo_locale": FlatScalarReturnCallSpec(
+                "kk_string_compareTo_locale_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_compareTo_locale_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1
@@ -1784,35 +1784,6 @@ extension NativeEmitter {
                     name: "string_concat_\(instructionIndex)"
                 )
                 storeResult(result, aggregate)
-                if usesThrownChannel {
-                    storeThrownResultZero(thrownResult)
-                }
-                return true
-
-            case "kk_string_compareTo":
-                guard let flattenedArgs = flattenedStringArguments(
-                    values: argumentValues,
-                    types: argumentTypes,
-                    stringArgumentCount: 2,
-                    suffix: "compare_\(instructionIndex)"
-                ),
-                    let parameterTypes = flattenedStringParameterTypes(argumentCount: 2),
-                    let compareFunction = declareExternalFunction(
-                        named: "kk_string_compareTo_flat",
-                        parameterTypes: parameterTypes,
-                        returnType: int64Type
-                    )
-                else {
-                    return false
-                }
-                let compared = bindings.buildCall(
-                    builder,
-                    functionType: compareFunction.type,
-                    callee: compareFunction.value,
-                    arguments: flattenedArgs,
-                    name: "string_compare_\(instructionIndex)"
-                )
-                storeResult(result, compared)
                 if usesThrownChannel {
                     storeThrownResultZero(thrownResult)
                 }

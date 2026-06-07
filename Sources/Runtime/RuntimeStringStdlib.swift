@@ -221,13 +221,6 @@ public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased(with: box.locale))
 }
 
-@_cdecl("kk_string_compareTo_locale")
-public func kk_string_compareTo_locale(_ lhsRaw: Int, _ rhsRaw: Int, _ localeRaw: Int) -> Int {
-    let lhs = runtimeStringFromRawOrPanic(lhsRaw, caller: #function)
-    let rhs = runtimeStringFromRawOrPanic(rhsRaw, caller: #function)
-    return runtimeStringCompareToLocale(lhs, rhs, localeRaw: localeRaw)
-}
-
 @_cdecl("kk_string_compareTo_locale_flat")
 public func kk_string_compareTo_locale_flat(
     _ lhsData: UnsafePointer<UInt8>?,

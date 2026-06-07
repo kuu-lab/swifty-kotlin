@@ -257,29 +257,73 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(output, "")
     }
 
-    // MARK: - kk_string_compareTo
+    // MARK: - kk_string_compareTo_flat
 
-    func testStringCompareToEqual() {
-        let firstStr = makeRuntimeString("abc")
-        let secondStr = makeRuntimeString("abc")
-        XCTAssertEqual(kk_string_compareTo(firstStr, secondStr), 0)
+    func testStringCompareToFlatEqual() {
+        withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
+            withFlatString("abc") { rhsData, rhsLength, rhsByteCount, rhsHash in
+                XCTAssertEqual(
+                    kk_string_compareTo_flat(
+                        lhsData,
+                        lhsLength,
+                        lhsByteCount,
+                        lhsHash,
+                        rhsData,
+                        rhsLength,
+                        rhsByteCount,
+                        rhsHash
+                    ),
+                    0
+                )
+            }
+        }
     }
 
-    func testStringCompareToLessThan() {
-        let firstStr = makeRuntimeString("abc")
-        let secondStr = makeRuntimeString("xyz")
-        XCTAssertEqual(kk_string_compareTo(firstStr, secondStr), -1)
+    func testStringCompareToFlatLessThan() {
+        withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
+            withFlatString("xyz") { rhsData, rhsLength, rhsByteCount, rhsHash in
+                XCTAssertEqual(
+                    kk_string_compareTo_flat(
+                        lhsData,
+                        lhsLength,
+                        lhsByteCount,
+                        lhsHash,
+                        rhsData,
+                        rhsLength,
+                        rhsByteCount,
+                        rhsHash
+                    ),
+                    -1
+                )
+            }
+        }
     }
 
-    func testStringCompareToGreaterThan() {
-        let firstStr = makeRuntimeString("xyz")
-        let secondStr = makeRuntimeString("abc")
-        XCTAssertEqual(kk_string_compareTo(firstStr, secondStr), 1)
+    func testStringCompareToFlatGreaterThan() {
+        withFlatString("xyz") { lhsData, lhsLength, lhsByteCount, lhsHash in
+            withFlatString("abc") { rhsData, rhsLength, rhsByteCount, rhsHash in
+                XCTAssertEqual(
+                    kk_string_compareTo_flat(
+                        lhsData,
+                        lhsLength,
+                        lhsByteCount,
+                        lhsHash,
+                        rhsData,
+                        rhsLength,
+                        rhsByteCount,
+                        rhsHash
+                    ),
+                    1
+                )
+            }
+        }
     }
 
-    func testStringCompareToNils() {
-        // Both nil -> equal empty strings
-        XCTAssertEqual(kk_string_compareTo(nil, nil), 0)
+    func testStringCompareToFlatNullDataAsEmpty() {
+        XCTAssertEqual(
+            kk_string_compareTo_flat(nil, 0, 0, 0, nil, 0, 0, 0),
+            0
+        )
     }
 
     func testCompareAnyDecodesBoxedDoubleValues() {
