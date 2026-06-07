@@ -291,13 +291,6 @@ public func kk_string_normalize(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     return runtimeMakeStringRaw(runtimeNormalizedString(source, formTagRaw: formTagRaw))
 }
 
-@_cdecl("kk_string_isNormalized")
-public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let normalized = runtimeNormalizedString(source, formTagRaw: formTagRaw)
-    return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
-}
-
 @_cdecl("kk_string_isNormalized_flat")
 public func kk_string_isNormalized_flat(
     _ data: UnsafePointer<UInt8>?,

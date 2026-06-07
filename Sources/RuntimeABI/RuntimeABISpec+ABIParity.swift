@@ -1042,10 +1042,6 @@ public extension RuntimeABISpec {
             p("otherHash", .intptr),
             p("ignoreCaseRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_isNormalized", parameters: [
-            p("strRaw", .intptr),
-            p("formTagRaw", .intptr),
-        ]),
         abiParitySpec("kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),

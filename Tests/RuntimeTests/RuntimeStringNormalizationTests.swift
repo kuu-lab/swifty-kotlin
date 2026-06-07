@@ -44,14 +44,6 @@ final class RuntimeStringNormalizationTests: XCTestCase {
         XCTAssertEqual(stringValue(result), "fi")
     }
 
-    func testIsNormalizedDetectsCanonicalForm() {
-        let decomposed = runtimeString("e\u{0301}")
-        XCTAssertEqual(kk_string_isNormalized(decomposed, kk_normalization_form_nfc()), 0)
-
-        let normalized = kk_string_normalize(decomposed, kk_normalization_form_nfc())
-        XCTAssertEqual(kk_string_isNormalized(normalized, kk_normalization_form_nfc()), 1)
-    }
-
     func testFlatIsNormalizedDetectsCanonicalForm() {
         withFlatString("e\u{0301}") { data, length, byteCount, hash in
             XCTAssertEqual(
