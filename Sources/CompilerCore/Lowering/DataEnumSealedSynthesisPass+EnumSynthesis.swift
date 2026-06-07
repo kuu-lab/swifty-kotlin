@@ -17,12 +17,6 @@ extension DataEnumSealedSynthesisPass {
     ) {
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // Compute the enum entry type from the owner symbol
-        let entryType = sema.types.make(.classType(ClassType(
-            classSymbol: owner.id,
-            args: [],
-            nullability: .nonNull
-        )))
         // values() returns Array<T>, represented as anyType at the erased level
         let returnType = sema.types.anyType
 
@@ -31,7 +25,6 @@ extension DataEnumSealedSynthesisPass {
         var body: [KIRInstruction] = []
         let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
             entries: entries,
-            entryType: entryType,
             intType: intType,
             body: &body,
             module: module,
@@ -81,12 +74,6 @@ extension DataEnumSealedSynthesisPass {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let getterName = interner.intern("entries$get")
 
-        // Compute correct types from enumSymbol, matching CallLowerer+EnumStdlib pattern
-        let entryType = sema.types.make(.classType(ClassType(
-            classSymbol: enumSymbol.id,
-            args: [],
-            nullability: .nonNull
-        )))
         // entries getter returns EnumEntries<T> (List), represented as anyType at the erased level
         let returnType = sema.types.anyType
 
@@ -95,7 +82,6 @@ extension DataEnumSealedSynthesisPass {
         var body: [KIRInstruction] = []
         let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
             entries: entries,
-            entryType: entryType,
             intType: intType,
             body: &body,
             module: module,
@@ -132,7 +118,6 @@ extension DataEnumSealedSynthesisPass {
 
     private func appendEnumOrdinalArrayCreation(
         entries: [SemanticSymbol],
-        entryType: TypeID,
         intType: TypeID,
         body: inout [KIRInstruction],
         module: KIRModule,

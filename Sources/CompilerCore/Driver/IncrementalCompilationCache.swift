@@ -422,7 +422,7 @@ enum CachedOutputArtifactKind: String, Codable {
     case directory
 }
 
-private struct IncrementalBuildConfiguration: Encodable {
+struct IncrementalBuildConfiguration: Encodable {
     let schemaVersion: Int
     let moduleName: String
     let inputPaths: [String]
@@ -440,7 +440,7 @@ private struct IncrementalBuildConfiguration: Encodable {
     let runtimeFlags: [String]
 }
 
-private struct IncrementalTargetTriple: Encodable {
+struct IncrementalTargetTriple: Encodable {
     let arch: String
     let vendor: String
     let os: String

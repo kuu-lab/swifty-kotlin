@@ -1689,8 +1689,12 @@ struct CollectionLiteralLookupTables {
 
 // swiftformat:enable redundantMemberwiseInit
 
-private struct CollectionHOFRuntimeKey: Hashable {
+private struct CollectionHOFRuntimeKey: Hashable, CustomStringConvertible {
     let ownerKind: StdlibSurfaceOwnerKind
     let memberName: InternedString
     let arity: Int
+
+    var description: String {
+        return "\(ownerKind) \(memberName) \(arity)"
+    }
 }

@@ -147,11 +147,15 @@ public final class PhaseTimer {
     // MARK: - Typed report model
 
     /// A single entry in the exported timing report.
-    public struct PhaseReportEntry: Codable, Equatable {
+    public struct PhaseReportEntry: Codable, Equatable, CustomStringConvertible {
         public let phase: String
         public let durationMs: Double
         public let percent: Double
         public let subPhases: [PhaseReportEntry]?
+
+        public var description: String {
+            return "\(phase): \(durationMs)ms (\(percent)%)"
+        }
 
         // swiftlint:disable:next nesting
         enum CodingKeys: String, CodingKey {

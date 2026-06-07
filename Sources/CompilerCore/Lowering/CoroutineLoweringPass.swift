@@ -5,9 +5,13 @@ final class CoroutineLoweringPass: LoweringPass {
 
     typealias LoweredSuspendFunction = (name: InternedString, symbol: SymbolID)
 
-    struct SuspendCallLookupKey: Hashable {
+    struct SuspendCallLookupKey: Hashable, CustomStringConvertible {
         let name: InternedString
         let arity: Int
+
+        var description: String {
+            return "\(name):\(arity)"
+        }
     }
 
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {

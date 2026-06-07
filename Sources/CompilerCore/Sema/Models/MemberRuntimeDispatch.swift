@@ -40,7 +40,7 @@ enum MemberDispatchLambdaShape: String, Equatable, Hashable {
     case hofLambda
 }
 
-struct MemberDispatchKey: Equatable, Hashable {
+struct MemberDispatchKey: Equatable, Hashable, CustomStringConvertible {
     let receiverKind: MemberDispatchReceiverKind
     let memberName: String
     let arity: Int
@@ -56,6 +56,10 @@ struct MemberDispatchKey: Equatable, Hashable {
         self.memberName = memberName
         self.arity = arity
         self.lambdaShape = lambdaShape
+    }
+
+    var description: String {
+        return "\(receiverKind).\(memberName):\(arity) \(lambdaShape)"
     }
 }
 

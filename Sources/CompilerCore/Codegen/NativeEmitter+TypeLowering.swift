@@ -3,7 +3,6 @@ extension NativeEmitter {
         let int64Type: LLVMCAPIBindings.LLVMTypeRef
         let dataPointerType: LLVMCAPIBindings.LLVMTypeRef
         let stringStructType: LLVMCAPIBindings.LLVMTypeRef
-        let kswiftValueType: LLVMCAPIBindings.LLVMTypeRef
     }
 
     func makeLLVMTypeLowering(
@@ -15,10 +14,6 @@ extension NativeEmitter {
               let stringStructType = bindings.structType(
                   context: context,
                   elements: [dataPointerType, int64Type, int64Type, int64Type]
-              ),
-              let kswiftValueType = bindings.structType(
-                  context: context,
-                  elements: [int64Type, int64Type, int64Type, int64Type, int64Type]
               )
         else {
             return nil
@@ -26,8 +21,7 @@ extension NativeEmitter {
         return LLVMTypeLowering(
             int64Type: int64Type,
             dataPointerType: dataPointerType,
-            stringStructType: stringStructType,
-            kswiftValueType: kswiftValueType
+            stringStructType: stringStructType
         )
     }
 

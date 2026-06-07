@@ -1,9 +1,13 @@
 
 extension TypeCheckHelpers {
-    private struct MemberDispatchKey: Hashable {
+    private struct MemberDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
         let parameterTypes: [TypeID]
         let isSuspend: Bool
+
+        var description: String {
+            return "\(name):\(parameterTypes.count)"
+        }
     }
 
     func substituteAliasArg(

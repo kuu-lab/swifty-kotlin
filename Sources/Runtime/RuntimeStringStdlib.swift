@@ -6527,7 +6527,7 @@ public func kk_string_find(
             outThrown: &thrown
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
-        if result != 0 { return kk_box_char(Int(scalar.value)) }
+        if result != 0 { return Int(scalar.value) }
     }
     return runtimeNullSentinelInt
 }
@@ -6554,7 +6554,7 @@ public func kk_string_find_flat(
             outThrown: &thrown
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
-        if result != 0 { return kk_box_char(Int(scalar.value)) }
+        if result != 0 { return Int(scalar.value) }
     }
     return runtimeNullSentinelInt
 }
@@ -6579,7 +6579,7 @@ public func kk_string_findLast(
         if result != 0 { foundChar = scalar }
     }
     if let char = foundChar {
-        return kk_box_char(Int(char.value))
+        return Int(char.value)
     }
     return runtimeNullSentinelInt
 }
@@ -6610,7 +6610,7 @@ public func kk_string_findLast_flat(
         if result != 0 { foundChar = scalar }
     }
     if let char = foundChar {
-        return kk_box_char(Int(char.value))
+        return Int(char.value)
     }
     return runtimeNullSentinelInt
 }

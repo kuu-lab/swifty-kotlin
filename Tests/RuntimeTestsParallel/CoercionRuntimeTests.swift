@@ -5,8 +5,6 @@ final class CoercionRuntimeTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func intToBits(_ value: Int) -> Int { value }
-    private func longToBits(_ value: Int) -> Int { value }
     private func doubleToBits(_ value: Double) -> Int { kk_double_to_bits(value) }
     private func floatToBits(_ value: Float) -> Int { kk_float_to_bits(value) }
     private func bitsToDouble(_ bits: Int) -> Double { kk_bits_to_double(bits) }

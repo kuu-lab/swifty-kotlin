@@ -91,7 +91,7 @@ public struct TypeParamType: Hashable, Sendable {
     }
 }
 
-public struct FunctionType: Hashable, Sendable {
+public struct FunctionType: Hashable, Sendable, CustomStringConvertible {
     public let contextReceivers: [TypeID]
     public let receiver: TypeID?
     public let params: [TypeID]
@@ -116,6 +116,10 @@ public struct FunctionType: Hashable, Sendable {
         self.isSuspend = isSuspend
         self.nullability = nullability
         self.`throws` = `throws`
+    }
+
+    public var description: String {
+        return "(\(params.count)) -> \(returnType.rawValue) throws: \(`throws`.count)"
     }
 }
 
