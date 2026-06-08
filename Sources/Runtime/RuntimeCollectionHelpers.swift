@@ -144,7 +144,7 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
         return arrayBox.values
     }
     if runtimeSequenceBox(from: rawValue) != nil {
-        return runtimeSequenceSourceElements(from: rawValue)?.map { RuntimeValue(raw: $0) }
+        return runtimeSequenceSourceValues(from: rawValue)
     }
     return nil
 }

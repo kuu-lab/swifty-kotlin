@@ -1712,7 +1712,52 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 runtimeSequenceSourceElements(from: sequenceRaw)?.map(kk_unbox_char),
                 [97, 0xD83D, 0xDC3B]
             )
+
+            let list = runtimeListBox(from: kk_sequence_to_list(sequenceRaw, nil))
+            XCTAssertEqual(list?.values.map(\.tag), [
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+            ])
+            XCTAssertEqual(list?.elements, [97, 0xD83D, 0xDC3B])
+
+            let mutableList = runtimeListBox(from: kk_sequence_toMutableList(sequenceRaw))
+            XCTAssertEqual(mutableList?.values.map(\.tag), [
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+            ])
+            XCTAssertEqual(mutableList?.elements, [97, 0xD83D, 0xDC3B])
         }
+    }
+
+    func testStringAsSequenceGenericConversionsPreserveTaggedUTF16Chars() {
+        let sequenceRaw = withFlatString("aba") { data, length, byteCount, hash in
+            kk_string_asSequence_flat(data, length, byteCount, hash)
+        }
+
+        let set = runtimeSetBox(from: kk_sequence_toSet(sequenceRaw))
+        let mutableSet = runtimeSetBox(from: kk_sequence_toMutableSet(sequenceRaw))
+        let hashSet = runtimeSetBox(from: kk_sequence_toHashSet(sequenceRaw))
+        let sortedSet = runtimeSetBox(from: kk_sequence_toSortedSet(sequenceRaw))
+        let destinationRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+        _ = kk_sequence_toCollection(sequenceRaw, destinationRaw)
+        let destination = runtimeListBox(from: destinationRaw)
+
+        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(sortedSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(destination?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
+        XCTAssertEqual(set?.elements, [97, 98])
+        XCTAssertEqual(mutableSet?.elements, [97, 98])
+        XCTAssertEqual(hashSet?.elements, [97, 98])
+        XCTAssertEqual(sortedSet?.elements, [97, 98])
+        XCTAssertEqual(destination?.elements, [97, 98, 97])
     }
 
     func testFlatStringChunkedWindowedRuntimeAPIsUseFlattenedStringFields() {
