@@ -352,6 +352,18 @@ extension CallLowerer {
                 return interner.intern("kk_array_none")
             case "count":
                 return interner.intern("kk_array_count")
+            case "reduce":
+                return interner.intern("kk_array_reduce")
+            case "reduceOrNull":
+                return interner.intern("kk_array_reduceOrNull")
+            case "reduceIndexed":
+                return interner.intern("kk_array_reduceIndexed")
+            case "fold":
+                return interner.intern("kk_array_fold")
+            case "foldIndexed":
+                return interner.intern("kk_array_foldIndexed")
+            case "flatMap":
+                return interner.intern("kk_array_flatMap")
             case "copyOf":
                 switch argumentCount {
                 case 0:

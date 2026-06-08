@@ -270,8 +270,7 @@ public func kk_array_reduceIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: 
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {
         var thrown = 0
-        let indexedValue = runtimeIndexedValueNew(index: idx, value: array.elements[idx])
-        acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: indexedValue, outThrown: &thrown))
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(fnPtr: fnPtr, closureRaw: closureRaw, arg1: idx, arg2: acc, arg3: array.elements[idx], outThrown: &thrown))
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     }
     return acc
@@ -318,8 +317,7 @@ public func kk_array_foldIndexed(
     var acc = initial
     for (index, elem) in array.elements.enumerated() {
         var thrown = 0
-        let indexedValue = runtimeIndexedValueNew(index: index, value: elem)
-        acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: indexedValue, outThrown: &thrown))
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(fnPtr: fnPtr, closureRaw: closureRaw, arg1: index, arg2: acc, arg3: elem, outThrown: &thrown))
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     }
     return acc
@@ -451,4 +449,23 @@ public func kk_array_count(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
         if maybeUnbox(result) != 0 { count += 1 }
     }
     return count
+}
+
+@_cdecl("kk_array_joinToString")
+public func kk_array_joinToString(
+    _ arrayRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int
+) -> UnsafeMutableRawPointer {
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeArrayBox(from: arrayRaw)?.elements ?? []
+    let rendered = elements.map(runtimeElementToString).joined(separator: separator)
+    let stringValue = prefix + rendered + postfix
+    let utf8 = Array(stringValue.utf8)
+    return (utf8.isEmpty ? [0] : utf8).withUnsafeBufferPointer { buf in
+        kk_string_from_utf8(buf.baseAddress!, Int32(utf8.count))
+    }
 }

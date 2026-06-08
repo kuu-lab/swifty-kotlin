@@ -379,6 +379,12 @@ struct CollectionLiteralLookupTables {
     let kkArrayCopyOfNewSizeInitName: InternedString
     let kkArrayCopyOfRangeName: InternedString
     let kkArrayFillName: InternedString
+    let kkArrayReduceName: InternedString
+    let kkArrayReduceOrNullName: InternedString
+    let kkArrayReduceIndexedName: InternedString
+    let kkArrayFoldName: InternedString
+    let kkArrayFoldIndexedName: InternedString
+    let kkArrayFlatMapName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
 
@@ -1163,6 +1169,12 @@ struct CollectionLiteralLookupTables {
         kkArrayCopyOfNewSizeInitName = interner.intern("kk_array_copyOf_newSize_init")
         kkArrayCopyOfRangeName = interner.intern("kk_array_copyOfRange")
         kkArrayFillName = interner.intern("kk_array_fill")
+        kkArrayReduceName = interner.intern("kk_array_reduce")
+        kkArrayReduceOrNullName = interner.intern("kk_array_reduceOrNull")
+        kkArrayReduceIndexedName = interner.intern("kk_array_reduceIndexed")
+        kkArrayFoldName = interner.intern("kk_array_fold")
+        kkArrayFoldIndexedName = interner.intern("kk_array_foldIndexed")
+        kkArrayFlatMapName = interner.intern("kk_array_flatMap")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
 

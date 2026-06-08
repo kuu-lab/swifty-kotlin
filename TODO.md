@@ -39,7 +39,7 @@
 
 ### Phase 1: プリミティブ・演算子・配列・String コア
 - [ ] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
-- [ ] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
+- [x] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
 
 ### Phase 2: コレクション・Sequence・Range
 - [~] STDLIB-022: range / progression / unsigned range の網羅性を上げる（LongRange `firstOrNull` / `lastOrNull` runtime 済み）
@@ -158,7 +158,7 @@
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
-- [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
+- [x] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装

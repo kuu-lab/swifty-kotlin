@@ -154,6 +154,11 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "kk_string_uppercase",
             "String.uppercase should link to kk_string_uppercase"
         )
+        XCTAssertEqual(
+            externalLink(for: "capitalize", sema: sema, interner: interner),
+            "kk_string_capitalize",
+            "String.capitalize should link to kk_string_capitalize"
+        )
 
         let lowercaseFQ = ["kotlin", "text", "lowercase"].map { interner.intern($0) }
         let lowercaseLinks = Set(
@@ -511,9 +516,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         fun process(s: String): String {
             val lower = s.lowercase()
             val upper = s.uppercase()
+            val cap = s.capitalize()
             val rep = s.repeat(3)
             val rev = s.reversed()
-            return lower + upper + rep + rev
+            return lower + upper + cap + rep + rev
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -526,6 +532,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let expectedLinks: [String: String] = [
                 "lowercase": "kk_string_lowercase",
                 "uppercase": "kk_string_uppercase",
+                "capitalize": "kk_string_capitalize",
                 "repeat": "kk_string_repeat",
                 "reversed": "kk_string_reversed",
             ]

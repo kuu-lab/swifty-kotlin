@@ -161,6 +161,7 @@ extension CallLowerer {
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
            externalLinkName == "kk_list_joinToString"
+            || externalLinkName == "kk_array_joinToString"
             || externalLinkName == "kk_iterable_joinTo"
             || externalLinkName == "kk_iterable_joinToString"
         {
