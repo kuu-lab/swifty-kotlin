@@ -579,13 +579,15 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // File.walk() returns FileTreeWalk (lazy walk); registered after FileTreeWalk stub
+        let fileTreeWalkType = resolveFileTreeWalkType(symbols: symbols, types: types, interner: interner) ?? listOfFileType
         registerFileMemberFunction(
             named: "walk",
             externalLinkName: "kk_file_walk",
             ownerSymbol: fileSymbol,
             ownerType: fileType,
             parameters: [],
-            returnType: listOfFileType,
+            returnType: fileTreeWalkType,
             symbols: symbols,
             interner: interner
         )
@@ -1813,7 +1815,7 @@ extension DataFlowSemaPhase {
 
     // MARK: - Private Helpers
 
-    private func resolveListSymbol(
+    func resolveListSymbol(
         symbols: SymbolTable,
         interner: StringInterner
     ) -> SymbolID? {

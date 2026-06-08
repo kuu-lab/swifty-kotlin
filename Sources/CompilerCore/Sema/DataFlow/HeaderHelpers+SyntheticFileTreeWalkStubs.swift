@@ -5,6 +5,7 @@
 /// - `File.walkTopDown(): FileTreeWalk`
 /// - `File.walkBottomUp(): FileTreeWalk`
 /// - `File.walk(direction: FileWalkDirection): FileTreeWalk`
+/// - `File.walk(): FileTreeWalk`
 ///
 /// This stub registers the class and its key members in the symbol table so
 /// that name resolution and type checking succeed for code that calls
@@ -15,11 +16,6 @@
 /// Registration runs after `registerSyntheticFileWalkDirectionStubs` (which
 /// ensures `FileWalkDirection` exists) and after `registerSyntheticFileIOStubs`
 /// (which ensures `java.io.File` and `kotlin.io` package exist).
-///
-/// NOTE: The zero-argument `File.walk()` overload registered in
-/// `HeaderHelpers+SyntheticFileIOStubs.swift` intentionally returns `List<File>`
-/// to preserve existing golden test output. Only the new overloads added here
-/// return `FileTreeWalk`.
 extension DataFlowSemaPhase {
     func registerSyntheticFileTreeWalkStubs(
         symbols: SymbolTable,
@@ -32,14 +28,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Look up java.io.File (registered by registerSyntheticFileIOStubs)
+        // Look up java.io.File (registered by registerSyntheticFileIOStubs).
+        // Returns early if File is not available — File.walkTopDown/walkBottomUp/walk(direction:)
+        // members cannot be registered without it, but the FileTreeWalk class itself is still valid.
         let javaIOFileFQName = ["java", "io", "File"].map { interner.intern($0) }
         guard let fileSymbol = symbols.lookup(fqName: javaIOFileFQName),
               let fileType = symbols.propertyType(for: fileSymbol)
-        else {
-            assertionFailure("java.io.File not found; FileTreeWalk stubs require FileIO stubs to run first")
-            return
-        }
+        else { return }
 
         // Build List<File> type for toList() return
         let listSymbol = resolveListSymbolForFileTreeWalk(symbols: symbols, interner: interner)
@@ -177,6 +172,20 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // Re-register File.walk() (zero-arg) with FileTreeWalk return type.
+        // FileIOStubs registered it first (potentially with a listOfFile fallback); this updates it.
+        registerFileMemberFunction(
+            named: "walk",
+            externalLinkName: "kk_file_walk",
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [],
+            returnType: fileTreeWalkType,
+            symbols: symbols,
+            interner: interner
+        )
+
+
         // File.walkTopDown(): FileTreeWalk
         registerFileMemberFunction(
             named: "walkTopDown",
@@ -254,5 +263,13 @@ extension DataFlowSemaPhase {
             interner.intern("List"),
         ]
         return symbols.lookup(fqName: listFQName)
+    }
+
+    /// Called by HeaderHelpers+SyntheticFileIOStubs to look up the FileTreeWalk type ID.
+    func resolveFileTreeWalkType(symbols: SymbolTable, types: TypeSystem, interner: StringInterner) -> TypeID? {
+        let kotlinIOPkg = ensurePackage(path: ["kotlin", "io"], symbols: symbols, interner: interner)
+        let fqName = kotlinIOPkg + [interner.intern("FileTreeWalk")]
+        guard let sym = symbols.lookup(fqName: fqName) else { return nil }
+        return types.make(.classType(ClassType(classSymbol: sym, args: [], nullability: .nonNull)))
     }
 }

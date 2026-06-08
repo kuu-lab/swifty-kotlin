@@ -201,10 +201,11 @@ extension CollectionLiteralLoweringPass {
                     canThrow: canThrow,
                     thrownResult: thrownResult
                 ))
-                // Track walk()/listFiles()/readLines() results as lists
-                // so chained operations (forEach, sortedBy, etc.) are rewritten correctly
-                if let result,
-                   callee == lookup.walkName || callee == lookup.listFilesName || callee == lookup.readLinesName || callee == lookup.readBytesName
+                // Track walk() result as FileTreeWalk; other collection results as lists
+                if let result, callee == lookup.walkName {
+                    state.fileTreeWalkExprIDs.insert(result.rawValue)
+                } else if let result,
+                   callee == lookup.listFilesName || callee == lookup.readLinesName || callee == lookup.readBytesName
                 {
                     state.listExprIDs.insert(result.rawValue)
                 }
@@ -312,6 +313,45 @@ extension CollectionLiteralLoweringPass {
                 thrownResult: thrownResult
             ))
             return true
+        }
+
+        // --- FileTreeWalk HOF rewrites ---
+        // walk().forEach { ... }  →  kk_file_tree_walk_forEach(walkRaw, fnPtr, closureRaw=0, outThrown)
+        // walk().toList()         →  kk_file_tree_walk_to_list(walkRaw) → tagged as list
+        if arguments.count >= 1, state.fileTreeWalkExprIDs.contains(arguments[0].rawValue) {
+            let receiverID = arguments[0]
+            if callee == lookup.forEachName, arguments.count >= 2 {
+                let lambdaID = arguments[1]
+                let closureRawID: KIRExprID
+                if arguments.count >= 3 {
+                    closureRawID = arguments[2]
+                } else {
+                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawID = zeroExpr
+                }
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: lookup.kkFileTreeWalkForEachName,
+                    arguments: [receiverID, lambdaID, closureRawID],
+                    result: result,
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
+                ))
+                return true
+            }
+            if callee == lookup.toListName {
+                loweredBody.append(.call(
+                    symbol: nil,
+                    callee: lookup.kkFileTreeWalkToListName,
+                    arguments: [receiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                if let result { state.listExprIDs.insert(result.rawValue) }
+                return true
+            }
         }
 
         return false
