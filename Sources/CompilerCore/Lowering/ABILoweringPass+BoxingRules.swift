@@ -221,7 +221,7 @@ extension ABILoweringPass {
             return true
         }
 
-        if case let .primitive(sourcePrimitive, _) = sourceKind,
+        if case let .primitive(sourcePrimitive, .nullable) = sourceKind,
            case let .primitive(targetPrimitive, .nonNull) = targetKind,
            sourcePrimitive == targetPrimitive
         {
