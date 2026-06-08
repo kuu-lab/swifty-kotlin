@@ -2409,6 +2409,10 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        flatStringReturnSpec(
+            name: "kk_string_removePrefix_flat",
+            trailingStringPrefixes: ["prefix"]
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSuffix",
             parameters: [
@@ -2417,6 +2421,10 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "String"
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_removeSuffix_flat",
+            trailingStringPrefixes: ["suffix"]
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSurrounding",
@@ -2427,6 +2435,10 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        flatStringReturnSpec(
+            name: "kk_string_removeSurrounding_flat",
+            trailingStringPrefixes: ["delimiter"]
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSurrounding_pair",
             parameters: [
@@ -2436,6 +2448,10 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "String"
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_removeSurrounding_pair_flat",
+            trailingStringPrefixes: ["prefix", "suffix"]
         ),
         // STDLIB-191
         RuntimeABIFunctionSpec(

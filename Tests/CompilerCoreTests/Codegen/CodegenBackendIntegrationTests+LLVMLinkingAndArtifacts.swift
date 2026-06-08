@@ -63,6 +63,43 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            val value = "foo-body-bar"
+            println(value.removePrefix("foo-"))
+            println(value.removeSuffix("-bar"))
+            println(value.removeSurrounding("foo-"))
+            println(value.removeSurrounding("foo-", "-bar"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringRemoveFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            let rawNames = [
+                "kk_string_removePrefix",
+                "kk_string_removeSuffix",
+                "kk_string_removeSurrounding",
+                "kk_string_removeSurrounding_pair",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String remove call: \(rawName)")
+                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String remove call: \(rawName)_flat")
+            }
+        }
+    }
+
     func testLLVMBackendEmitsRuntimeStringAndCoroutineHelpersInLLVMIR() throws {
         let interner = StringInterner()
         let types = TypeSystem()

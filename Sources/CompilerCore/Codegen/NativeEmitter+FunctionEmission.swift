@@ -858,6 +858,30 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     canThrow: true
                 ),
+                "kk_string_removePrefix_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removePrefix_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_removeSuffix_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removeSuffix_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_removeSurrounding_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removeSurrounding_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_removeSurrounding_pair_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removeSurrounding_pair_flat",
+                    stringArgumentCount: 3,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
                 "kk_string_substringBefore": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBefore_flat",
                     stringArgumentCount: 3,

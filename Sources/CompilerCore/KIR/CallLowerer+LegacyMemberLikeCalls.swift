@@ -1856,9 +1856,9 @@ extension CallLowerer {
                         ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "removePrefix":
-                    ("kk_string_removePrefix", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
-                    ("kk_string_removeSuffix", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding", [loweredReceiverID, loweredArgIDs[0]])
                 case "trim":
@@ -2225,7 +2225,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_removeSurrounding_pair"),
+                    callee: interner.intern("kk_string_removeSurrounding_pair_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,

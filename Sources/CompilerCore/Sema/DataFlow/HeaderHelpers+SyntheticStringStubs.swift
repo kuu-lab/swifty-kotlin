@@ -1338,6 +1338,61 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-185: removePrefix / removeSuffix / removeSurrounding ---
 
+        // Register exact String overloads before CharSequence fallbacks so
+        // String receivers take the flattened aggregate ABI path.
+        registerSyntheticStringExtensionFunction(
+            named: "removePrefix",
+            externalLinkName: "kk_string_removePrefix_flat",
+            receiverType: stringType,
+            parameters: [
+                ("prefix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSuffix",
+            externalLinkName: "kk_string_removeSuffix_flat",
+            receiverType: stringType,
+            parameters: [
+                ("suffix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding_flat",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding_pair_flat",
+            receiverType: stringType,
+            parameters: [
+                ("prefix", stringType, false, false),
+                ("suffix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "removePrefix",
             externalLinkName: "kk_string_removePrefix",
@@ -1384,59 +1439,6 @@ extension DataFlowSemaPhase {
             parameters: [
                 ("prefix", charSequenceType, false, false),
                 ("suffix", charSequenceType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix",
-            receiverType: stringType,
-            parameters: [
-                ("suffix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-                ("suffix", stringType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
