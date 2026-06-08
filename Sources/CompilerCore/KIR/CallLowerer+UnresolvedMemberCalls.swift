@@ -66,7 +66,9 @@ extension CallLowerer {
             case "lineSequence":
                 return interner.intern("kk_string_lineSequence")
             case "toRegex":
-                return interner.intern("kk_string_toRegex")
+                return argumentCount == 0
+                    ? interner.intern("kk_string_toRegex")
+                    : interner.intern("kk_string_toRegex_with_option")
             default:
                 break
             }

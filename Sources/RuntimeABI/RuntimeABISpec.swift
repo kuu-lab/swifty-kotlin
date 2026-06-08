@@ -2417,6 +2417,25 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Regex"
         ),
+        // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toRegex_with_option",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "option", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toRegex_with_options",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "options", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_pattern",
             parameters: [
