@@ -146,7 +146,7 @@ final class RegexSemaLoweringTests: XCTestCase {
                 "Expected .matches(...) member call"
             )
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(sema.symbols.externalLinkName(for: binding.chosenCallee), "kk_regex_matches")
+            XCTAssertEqual(sema.symbols.externalLinkName(for: binding.chosenCallee), "kk_regex_matches_flat")
         }
     }
 
@@ -335,7 +335,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_matches"), "KIR must contain kk_regex_matches; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_matches_flat"), "KIR must contain kk_regex_matches_flat; found: \(callees)")
         }
     }
 

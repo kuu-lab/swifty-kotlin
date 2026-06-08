@@ -609,7 +609,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_containsMatchIn", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal", arguments: [optionExpr, patternExpr])
         appendRegexCall("kk_match_group_collection_get", arguments: [matchGroupCollectionExpr, patternExpr])
-        appendRegexCall("kk_regex_matches", arguments: [regexExpr, inputExpr])
+        appendRegexCall("kk_regex_matches_flat", arguments: [regexExpr, inputExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(

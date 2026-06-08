@@ -1009,11 +1009,6 @@ public func kk_regex_group_names(_ regexRaw: Int) -> Int {
 ///   directly. `.ignoreMetacharacters` is stripped from the anchored options
 ///   (it is never set in practice, but removing it defensively ensures the
 ///   `\A(?:...)\z` wrapper is always parsed as regex syntax, not literal text.
-@_cdecl("kk_regex_matches")
-public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    runtimeRegexMatches(regexRaw, input: regexStringFromRaw(inputRaw) ?? "")
-}
-
 @_cdecl("kk_regex_matches_flat")
 public func kk_regex_matches_flat(
     _ regexRaw: Int,

@@ -151,7 +151,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             sema: sema,
             interner: interner
         )
-        XCTAssertEqual(link, "kk_regex_matches", "Regex.matches must link to kk_regex_matches")
+        XCTAssertEqual(link, "kk_regex_matches_flat", "Regex.matches must link to kk_regex_matches_flat")
     }
 
     func testRegexContainsMatchInIsRegistered() throws {
@@ -510,7 +510,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: binding.chosenCallee),
-                "kk_regex_matches"
+                "kk_regex_matches_flat"
             )
         }
     }
@@ -720,7 +720,7 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             (["kotlin", "text", "Regex"], "kk_regex_create_with_option"),
             (["kotlin", "text", "Regex"], "kk_regex_create_with_options"),
             // Member functions
-            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches"),
+            (["kotlin", "text", "Regex", "matches"], "kk_regex_matches_flat"),
             (["kotlin", "text", "Regex", "containsMatchIn"], "kk_regex_containsMatchIn"),
             (["kotlin", "text", "Regex", "find"], "kk_regex_find"),
             (["kotlin", "text", "Regex", "findAll"], "kk_regex_findAll"),

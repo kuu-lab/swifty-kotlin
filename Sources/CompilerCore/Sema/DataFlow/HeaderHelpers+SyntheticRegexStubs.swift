@@ -355,7 +355,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-REGEX-098: Regex.matches(input) ---
         registerRegexMemberFunction(
             named: "matches",
-            externalLinkName: "kk_regex_matches",
+            externalLinkName: "kk_regex_matches_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
@@ -387,7 +387,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-REGEX-094: Regex.matches(input: String) -> Boolean ---
         registerRegexMemberFunction(
             named: "matches",
-            externalLinkName: "kk_regex_matches",
+            externalLinkName: "kk_regex_matches_flat",
             ownerSymbol: regexSymbol,
             ownerType: regexType,
             parameters: [("input", stringType, false, false)],
