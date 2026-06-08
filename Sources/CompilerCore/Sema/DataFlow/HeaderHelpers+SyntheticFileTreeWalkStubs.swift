@@ -172,6 +172,25 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // FileTreeWalk.sortedBy((File) -> Comparable<*>?): List<File>
+        // FileTreeWalk implements Sequence<File>; sortedBy collects and sorts by selector.
+        let fileToAnyType = types.make(.functionType(FunctionType(
+            params: [fileType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerFileMemberFunction(
+            named: "sortedBy",
+            externalLinkName: "kk_file_tree_walk_sortedBy",
+            ownerSymbol: fileTreeWalkSymbol,
+            ownerType: fileTreeWalkType,
+            parameters: [("selector", fileToAnyType)],
+            returnType: listOfFileType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // Re-register File.walk() (zero-arg) with FileTreeWalk return type.
         // FileIOStubs registered it first (potentially with a listOfFile fallback); this updates it.
         registerFileMemberFunction(

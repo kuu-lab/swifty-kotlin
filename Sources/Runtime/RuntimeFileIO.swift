@@ -981,6 +981,45 @@ public func kk_file_walk(_ fileRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path))
 }
 
+@_cdecl("kk_file_tree_walk_sortedBy")
+public func kk_file_tree_walk_sortedBy(
+    _ walkRaw: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_sortedBy received invalid FileTreeWalk handle")
+    }
+    var results: [Int] = []
+    fileTreeWalkCollect(at: walk.root, walk: walk, depth: 0, results: &results)
+    let filtered: [Int]
+    if walk.filterFnPtr != 0 {
+        filtered = results.filter { handle in
+            var thrown = 0
+            let r = runtimeInvokeCollectionLambda1(
+                fnPtr: walk.filterFnPtr, closureRaw: walk.filterClosureRaw,
+                value: handle, outThrown: &thrown
+            )
+            return thrown == 0 && kk_unbox_bool(r) != 0
+        }
+    } else {
+        filtered = results
+    }
+    guard let sorted = runtimeSortByElements(
+        filtered,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        descending: false,
+        primitiveKind: nil,
+        outThrown: outThrown
+    ) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: sorted.map(\.element)))
+}
+
 // MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk runtime
 
 /// Postorder (BOTTOM_UP) or preorder (TOP_DOWN) DFS traversal of the file tree

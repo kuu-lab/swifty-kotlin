@@ -242,6 +242,17 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_sortedBy",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_file_tree_walk_create",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
