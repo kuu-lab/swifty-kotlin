@@ -191,6 +191,28 @@ final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(readString(kk_file_extension(fileRaw)), "")
     }
 
+    // MARK: - STDLIB-IO-PROP-003: File.invariantSeparatorsPath property
+
+    func testInvariantSeparatorsPath_unixPathUnchanged() {
+        let fileRaw = runtimeTestFileHandle("/tmp/foo/bar.kt")
+        XCTAssertEqual(readString(kk_file_invariantSeparatorsPath(fileRaw)), "/tmp/foo/bar.kt")
+    }
+
+    func testInvariantSeparatorsPath_backslashesReplaced() {
+        let fileRaw = runtimeTestFileHandle("C:\\Users\\kuu\\file.kt")
+        XCTAssertEqual(readString(kk_file_invariantSeparatorsPath(fileRaw)), "C:/Users/kuu/file.kt")
+    }
+
+    func testInvariantSeparatorsPath_mixedSeparatorsAllReplaced() {
+        let fileRaw = runtimeTestFileHandle("a\\b/c\\d")
+        XCTAssertEqual(readString(kk_file_invariantSeparatorsPath(fileRaw)), "a/b/c/d")
+    }
+
+    func testInvariantSeparatorsPath_noSeparatorUnchanged() {
+        let fileRaw = runtimeTestFileHandle("justname")
+        XCTAssertEqual(readString(kk_file_invariantSeparatorsPath(fileRaw)), "justname")
+    }
+
     // STDLIB-IO-PROP-005: File.nameWithoutExtension extension property
     func testNameWithoutExtensionStripsTrailingExtension() {
         let cases: [(path: String, expected: String)] = [
