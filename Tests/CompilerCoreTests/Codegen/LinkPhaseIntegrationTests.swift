@@ -628,6 +628,46 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 stdlibSearchPaths: [stdlibBase + ".kklib"]
             )
             try runToKIR(appCtx)
+            let sema = try XCTUnwrap(appCtx.sema)
+            func nonImportedLinks(_ fqName: [String]) -> Set<String> {
+                let interned = fqName.map { appCtx.interner.intern($0) }
+                return Set(sema.symbols.lookupAll(fqName: interned).compactMap { symbolID in
+                    guard sema.symbols.symbol(symbolID)?.flags.contains(.importedLibrary) != true else {
+                        return nil
+                    }
+                    return sema.symbols.externalLinkName(for: symbolID)
+                })
+            }
+            let conversionRuntimeLinks: [String: [String]] = [
+                "toInt": ["kk_string_toInt_flat", "kk_string_toInt_radix_flat"],
+                "toIntOrNull": ["kk_string_toIntOrNull_flat", "kk_string_toIntOrNull_radix_flat"],
+                "toLong": ["kk_string_toLong_flat"],
+                "toLongOrNull": ["kk_string_toLongOrNull_flat"],
+                "toFloat": ["kk_string_toFloat_flat"],
+                "toFloatOrNull": ["kk_string_toFloatOrNull_flat"],
+                "toDouble": ["kk_string_toDouble_flat"],
+                "toDoubleOrNull": ["kk_string_toDoubleOrNull_flat"],
+                "toShort": ["kk_string_toShort_flat"],
+                "toShortOrNull": ["kk_string_toShortOrNull_flat"],
+                "toByte": ["kk_string_toByte_flat", "kk_string_toByte_radix_flat"],
+                "toByteOrNull": ["kk_string_toByteOrNull_flat"],
+                "toUByteOrNull": ["kk_string_toUByteOrNull_radix_flat"],
+                "toUShortOrNull": ["kk_string_toUShortOrNull_radix_flat"],
+                "toUIntOrNull": ["kk_string_toUIntOrNull_radix_flat"],
+                "toULongOrNull": ["kk_string_toULongOrNull_radix_flat"],
+                "toBoolean": ["kk_string_toBoolean_flat"],
+                "toBooleanStrict": ["kk_string_toBooleanStrict_flat"],
+                "toBooleanStrictOrNull": ["kk_string_toBooleanStrictOrNull_flat"],
+            ]
+            for (name, links) in conversionRuntimeLinks {
+                let localLinks = nonImportedLinks(["kotlin", "text", name])
+                for link in links {
+                    XCTAssertFalse(
+                        localLinks.contains(link),
+                        "Source stdlib import should suppress the synthetic public \(name) runtime fallback"
+                    )
+                }
+            }
             try LoweringPhase().run(appCtx)
             try CodegenPhase().run(appCtx)
             assertLinkSucceeds(appCtx)
