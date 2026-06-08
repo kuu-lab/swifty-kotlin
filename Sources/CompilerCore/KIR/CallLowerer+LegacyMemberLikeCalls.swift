@@ -1346,6 +1346,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toFloatOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toFloatOrNull"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "reversed" {
                     instructions.append(.call(
                         symbol: nil,

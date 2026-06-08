@@ -388,6 +388,10 @@ extension CallTypeChecker {
                     sema.types.intType
                 case "toIntOrNull":
                     sema.types.make(.primitive(.int, .nullable))
+                case "toFloat":
+                    sema.types.make(.primitive(.float, .nonNull))
+                case "toFloatOrNull":
+                    sema.types.make(.primitive(.float, .nullable))
                 case "toDouble":
                     sema.types.make(.primitive(.double, .nonNull))
                 case "toDoubleOrNull":
