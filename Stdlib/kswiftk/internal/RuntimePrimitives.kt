@@ -535,6 +535,42 @@ external fun __string_contentEquals_flat(s: String?, other: String?): Boolean
 @KSwiftKRuntimeName("kk_string_contentEquals_ignoreCase_flat")
 external fun __string_contentEquals_ignoreCase_flat(s: String?, other: String?, ignoreCase: Boolean): Boolean
 
+@KSwiftKRuntimeName("kk_string_count_flat")
+external fun __string_count_flat(s: String, predicate: (Char) -> Boolean): Int
+
+@KSwiftKRuntimeName("kk_string_count_flat")
+external fun __string_count_flat(s: CharSequence, predicate: (Char) -> Boolean): Int
+
+@KSwiftKRuntimeName("kk_string_any_flat")
+external fun __string_any_flat(s: String, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_any_flat")
+external fun __string_any_flat(s: CharSequence, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_all_flat")
+external fun __string_all_flat(s: String, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_all_flat")
+external fun __string_all_flat(s: CharSequence, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_none_flat")
+external fun __string_none_flat(s: String, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_none_flat")
+external fun __string_none_flat(s: CharSequence, predicate: (Char) -> Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_indexOfFirst_flat")
+external fun __string_indexOfFirst_flat(s: String, predicate: (Char) -> Boolean): Int
+
+@KSwiftKRuntimeName("kk_string_indexOfFirst_flat")
+external fun __string_indexOfFirst_flat(s: CharSequence, predicate: (Char) -> Boolean): Int
+
+@KSwiftKRuntimeName("kk_string_indexOfLast_flat")
+external fun __string_indexOfLast_flat(s: String, predicate: (Char) -> Boolean): Int
+
+@KSwiftKRuntimeName("kk_string_indexOfLast_flat")
+external fun __string_indexOfLast_flat(s: CharSequence, predicate: (Char) -> Boolean): Int
+
 @KSwiftKRuntimeName("kk_string_toInt_flat")
 external fun __string_toInt_flat(s: String): Int
 

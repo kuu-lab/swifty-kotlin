@@ -238,9 +238,11 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             .path
         let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
         let records = MetadataDecoder().decode(metadata)
+        func functionRecords(for fqName: String) -> [MetadataRecord] {
+            records.filter { $0.kind == .function && $0.fqName == fqName }
+        }
         func sourceLinks(for fqName: String) -> Set<String> {
-            Set(records.filter { $0.kind == .function && $0.fqName == fqName }
-                .compactMap(\.externalLinkName))
+            Set(functionRecords(for: fqName).compactMap(\.externalLinkName))
         }
 
         for name in ["isEmpty", "isNotEmpty", "isBlank", "isNotBlank", "isNullOrEmpty", "isNullOrBlank"] {
@@ -294,12 +296,41 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             sourceLinks(for: "kswiftk.internal.__string_contentEquals_ignoreCase_flat"),
             ["kk_string_contentEquals_ignoreCase_flat"]
         )
+        for name in ["count", "any", "all", "none", "indexOfFirst", "indexOfLast"] {
+            let publicRecords = functionRecords(for: "kotlin.text.\(name)")
+            XCTAssertEqual(
+                publicRecords.count,
+                2,
+                "Expected source stdlib to export both String and CharSequence kotlin.text.\(name) overloads"
+            )
+            XCTAssertTrue(
+                publicRecords.allSatisfy(\.isInline),
+                "Public kotlin.text.\(name) HOF wrappers should be imported as inline source KIR"
+            )
+            XCTAssertFalse(
+                publicRecords.contains { ($0.externalLinkName ?? "").hasPrefix("kk_") },
+                "Public kotlin.text.\(name) should not expose the runtime bridge directly"
+            )
+        }
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_count_flat"), ["kk_string_count_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_any_flat"), ["kk_string_any_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_all_flat"), ["kk_string_all_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_none_flat"), ["kk_string_none_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_indexOfFirst_flat"),
+            ["kk_string_indexOfFirst_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_indexOfLast_flat"),
+            ["kk_string_indexOfLast_flat"]
+        )
 
         let appSource = """
         fun main(): Int {
             val empty = ""
             val blank = "   "
             val text = "abc"
+            val charSequence: CharSequence = text
             val nullableNull: String? = null
             val nullableEmpty: String? = ""
             val nullableBlank: String? = "   "
@@ -329,6 +360,14 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             if (nullableText.contentEquals(nullableUpper)) return 21
             if (!nullableText.contentEquals(nullableUpper, true)) return 22
             if (nullableText.contentEquals(nullableUpper, false)) return 23
+            if (text.count { it == 'a' } != 1) return 24
+            if (charSequence.count { it > 'a' } != 2) return 25
+            if (!text.any { it == 'b' }) return 26
+            if (charSequence.any { it == 'z' }) return 27
+            if (!text.all { it >= 'a' && it <= 'z' }) return 28
+            if (!charSequence.none { it == 'z' }) return 29
+            if (text.indexOfFirst { it == 'c' } != 2) return 30
+            if (charSequence.indexOfLast { it == 'a' } != 0) return 31
             return 42
         }
         """
@@ -344,6 +383,43 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 stdlibSearchPaths: [stdlibBase + ".kklib"]
             )
             try runToKIR(appCtx)
+            let sema = try XCTUnwrap(appCtx.sema)
+            func importedInlineCount(_ fqName: [String]) -> Int {
+                let interned = fqName.map { appCtx.interner.intern($0) }
+                return sema.symbols.lookupAll(fqName: interned).filter {
+                    sema.importedInlineFunctions[$0] != nil
+                }.count
+            }
+            func nonImportedLinks(_ fqName: [String]) -> Set<String> {
+                let interned = fqName.map { appCtx.interner.intern($0) }
+                return Set(sema.symbols.lookupAll(fqName: interned).compactMap { symbolID in
+                    guard sema.symbols.symbol(symbolID)?.flags.contains(.importedLibrary) != true else {
+                        return nil
+                    }
+                    return sema.symbols.externalLinkName(for: symbolID)
+                })
+            }
+            for name in ["count", "any", "all", "none", "indexOfFirst", "indexOfLast"] {
+                XCTAssertEqual(
+                    importedInlineCount(["kotlin", "text", name]),
+                    2,
+                    "Expected both String and CharSequence kotlin.text.\(name) overloads to load from inline KIR"
+                )
+            }
+            let hofRuntimeLinks = [
+                "count": "kk_string_count_flat",
+                "any": "kk_string_any_flat",
+                "all": "kk_string_all_flat",
+                "none": "kk_string_none_flat",
+                "indexOfFirst": "kk_string_indexOfFirst_flat",
+                "indexOfLast": "kk_string_indexOfLast_flat",
+            ]
+            for (name, link) in hofRuntimeLinks {
+                XCTAssertFalse(
+                    nonImportedLinks(["kotlin", "text", name]).contains(link),
+                    "Source stdlib import should suppress the synthetic public \(name) runtime fallback"
+                )
+            }
             try LoweringPhase().run(appCtx)
             try CodegenPhase().run(appCtx)
             assertLinkSucceeds(appCtx)

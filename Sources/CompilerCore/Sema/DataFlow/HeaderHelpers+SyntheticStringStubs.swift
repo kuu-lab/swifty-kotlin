@@ -2214,6 +2214,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2224,6 +2225,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2234,6 +2236,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2244,6 +2247,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2254,6 +2258,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2264,6 +2269,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2274,6 +2280,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2284,6 +2291,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2744,6 +2752,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2754,6 +2763,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2765,6 +2775,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2775,6 +2786,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4513,12 +4525,18 @@ extension DataFlowSemaPhase {
         returnType: TypeID,
         annotations: [MetadataAnnotationRecord] = [],
         flags: SymbolFlags = [.synthetic],
+        skipWhenImportedLibraryFunctionExists: Bool = false,
         packageFQName: [InternedString],
         symbols: SymbolTable,
         interner: StringInterner
     ) {
         let functionName = interner.intern(name)
         let functionFQName = packageFQName + [functionName]
+        if skipWhenImportedLibraryFunctionExists,
+           hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols)
+        {
+            return
+        }
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
