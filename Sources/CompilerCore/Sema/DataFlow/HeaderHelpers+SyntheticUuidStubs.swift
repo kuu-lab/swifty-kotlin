@@ -333,6 +333,37 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- ByteArray extension functions in kotlin.uuid ---
+
+        // ByteArray.putUuid(at: Int, uuid: Uuid): Unit
+        registerUuidExtensionFunction(
+            named: "putUuid",
+            externalLinkName: "kk_byteArray_putUuid",
+            receiverType: byteArrayType,
+            parameters: [
+                (name: "at", type: types.intType),
+                (name: "uuid", type: uuidType),
+            ],
+            returnType: types.unitType,
+            packageFQName: kotlinUuidPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // ByteArray.uuid(at: Int): Uuid
+        registerUuidExtensionFunction(
+            named: "uuid",
+            externalLinkName: "kk_byteArray_uuid",
+            receiverType: byteArrayType,
+            parameters: [
+                (name: "at", type: types.intType),
+            ],
+            returnType: uuidType,
+            packageFQName: kotlinUuidPkg,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Uuid Helpers
@@ -691,6 +722,72 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: []
+            ),
+            for: functionSymbol
+        )
+    }
+
+    private func registerUuidExtensionFunction(
+        named name: String,
+        externalLinkName: String,
+        receiverType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        packageFQName: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern(name)
+        let functionFQName = packageFQName + [functionName]
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
+                return false
+            }
+            return existingSignature.receiverType == receiverType
+                && existingSignature.parameterTypes == parameters.map(\.type)
+        }) {
+            attachExperimentalUuidApiAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        attachExperimentalUuidApiAnnotation(to: functionSymbol, symbols: symbols)
+
+        var valueParameterSymbols: [SymbolID] = []
+        for parameter in parameters {
+            let parameterName = interner.intern(parameter.name)
+            let paramSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: functionFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
+            valueParameterSymbols.append(paramSymbol)
+        }
+
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: parameters.map(\.type),
+                returnType: returnType,
+                isSuspend: false,
+                valueParameterSymbols: valueParameterSymbols,
+                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
+                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
             ),
             for: functionSymbol
         )

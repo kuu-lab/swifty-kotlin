@@ -552,6 +552,103 @@ public func kk_uuid_toKotlinUuid(_ receiver: Int) -> Int {
     return registerRuntimeObject(newBox)
 }
 
+// MARK: - ByteArray.putUuid(at: Int, uuid: Uuid)
+
+@_cdecl("kk_byteArray_putUuid")
+public func kk_byteArray_putUuid(
+    _ arrayRaw: Int,
+    _ at: Int,
+    _ uuidRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+
+    guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
+          let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
+    else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
+        )
+        return 0
+    }
+
+    let size = arrayBox.elements.count
+    if at < 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) < 0"
+        )
+        return 0
+    }
+    if at + 16 > size {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
+        )
+        return 0
+    }
+
+    guard let uuidBox = runtimeUuidBox(from: uuidRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IllegalArgumentException: uuid must not be null"
+        )
+        return 0
+    }
+
+    let bytes = uuidBox.byteArray
+    for i in 0..<16 {
+        arrayBox.elements[at + i] = Int(bytes[i])
+    }
+    return 0
+}
+
+// MARK: - ByteArray.uuid(at: Int): Uuid
+
+@_cdecl("kk_byteArray_uuid")
+public func kk_byteArray_uuid(
+    _ arrayRaw: Int,
+    _ at: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+
+    guard let arrayPtr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
+          let arrayBox = tryCast(arrayPtr, to: RuntimeArrayBox.self)
+    else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) is out of bounds for array of size 0"
+        )
+        return 0
+    }
+
+    let size = arrayBox.elements.count
+    if at < 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) < 0"
+        )
+        return 0
+    }
+    if at + 16 > size {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: at (\(at)) + 16 > size (\(size))"
+        )
+        return 0
+    }
+
+    var msb: UInt64 = 0
+    var lsb: UInt64 = 0
+    for i in 0..<8 {
+        msb = (msb << 8) | UInt64(arrayBox.elements[at + i] & 0xFF)
+    }
+    for i in 8..<16 {
+        lsb = (lsb << 8) | UInt64(arrayBox.elements[at + i] & 0xFF)
+    }
+
+    let box = RuntimeUuidBox(
+        mostSignificantBits: Int64(bitPattern: msb),
+        leastSignificantBits: Int64(bitPattern: lsb)
+    )
+    return registerRuntimeObject(box)
+}
+
 /// Compute MD5 digest of input bytes, returning 16 bytes.
 private func kk_uuid_md5Digest(_ input: [UInt8]) -> [UInt8] {
     let s: [UInt32] = [
