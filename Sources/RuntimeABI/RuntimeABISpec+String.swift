@@ -835,14 +835,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_struct_get_length",
-            parameters: [
-                RuntimeABIParameter(name: "structRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_char_sequence_length",
             parameters: [
                 RuntimeABIParameter(name: "raw", type: .intptr),

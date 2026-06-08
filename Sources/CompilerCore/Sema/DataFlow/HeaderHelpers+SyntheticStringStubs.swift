@@ -163,7 +163,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "length",
-            externalLinkName: "kk_string_struct_get_length",
+            externalLinkName: "__string_struct_get_length",
             receiverType: stringType,
             parameters: [],
             returnType: intType,

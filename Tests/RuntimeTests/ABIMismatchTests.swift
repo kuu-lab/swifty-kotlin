@@ -466,11 +466,11 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
     }
 
-    func testKKStringLengthSignature() throws {
-        let spec = try requireSpec("kk_string_struct_get_length")
-        XCTAssertEqual(spec.returnType, .intptr)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .intptr)
+    func testStringLengthHasNoRuntimeABISignature() {
+        XCTAssertNil(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_string_struct_get_length" }),
+            "String.length is lowered as an aggregate field extract and must not have a runtime ABI entry"
+        )
     }
 
     func testKKOpIsSignature() throws {

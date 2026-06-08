@@ -78,6 +78,7 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_uint",
             "kk_ulong",
             "kk_unknown_callable",
+            "__string_struct_get_length",
         ]
     }
 

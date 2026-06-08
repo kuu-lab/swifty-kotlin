@@ -7451,31 +7451,6 @@ public func __string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
 
 // MARK: - String struct representation / String length compatibility export
 
-/// Minimal pointer-backed representation for the exported length helper.
-/// Compiler-generated aggregate strings normally extract length directly.
-struct KSwiftStringStruct {
-    var data: UnsafeMutablePointer<UInt8>
-    var length: Int
-    var byteCount: Int
-    var hash: Int?
-}
-
-@_cdecl("kk_string_struct_get_length")
-public func kk_string_struct_get_length(_ structRaw: Int) -> Int {
-    if let rawPointer = UnsafeMutableRawPointer(bitPattern: structRaw) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: rawPointer))
-        }
-        if isObjectPointer {
-            return 0
-        }
-    }
-    guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
-        return 0
-    }
-    return structPointer.pointee.length
-}
-
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
     runtimeStringFromRaw(raw)?.count ?? 0

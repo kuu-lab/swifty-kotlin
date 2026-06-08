@@ -60,6 +60,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
         }
     }
 
@@ -86,6 +87,7 @@ extension CodegenBackendIntegrationTests {
 
             XCTAssertTrue(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
             XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
         }
     }
 

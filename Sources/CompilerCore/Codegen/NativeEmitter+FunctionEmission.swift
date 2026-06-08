@@ -248,7 +248,7 @@ extension NativeEmitter {
             // Lambda bodies may reach codegen with callee "length" when receiver type is not
             // available during KIR lowering (e.g. mapIndexed { _, v -> v.length }).
             let effectiveName: String = if calleeName == "length", argumentCount == 1, !appendThrownChannel {
-                "kk_string_struct_get_length"
+                "__string_struct_get_length"
             } else {
                 calleeName
             }
@@ -3028,7 +3028,7 @@ extension NativeEmitter {
                     calleeFunction = nil
                 } else if calleeName == "length", argumentValues.count == 1 {
                     calleeFunction = declareExternalFunction(
-                        named: "kk_string_struct_get_length",
+                        named: "__string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -3328,7 +3328,7 @@ extension NativeEmitter {
                     nil
                 } else if calleeName == "length", argumentValues.count == 1 {
                     declareExternalFunction(
-                        named: "kk_string_struct_get_length",
+                        named: "__string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
@@ -3828,7 +3828,7 @@ extension NativeEmitter {
 
     private static func effectiveExternalCalleeNameForArity(_ calleeName: String, argumentCount: Int) -> String {
         if calleeName == "length", argumentCount == 1 {
-            "kk_string_struct_get_length"
+            "__string_struct_get_length"
         } else {
             calleeName
         }
@@ -3877,7 +3877,6 @@ extension NativeEmitter {
         case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
-        case "__string_struct_get_length": "kk_string_struct_get_length"
         case "__string_compareTo_flat": "kk_string_compareTo_flat"
         case "__string_concat": "kk_string_concat"
         case "__string_isEmpty_flat": "kk_string_isEmpty_flat"
