@@ -212,6 +212,15 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use replaceFirstChar instead.\"",
+                        "replaceWith = ReplaceWith(\"replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }\")",
+                    ]
+                ),
+            ],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

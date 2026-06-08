@@ -276,16 +276,14 @@ extension DataFlowSemaPhase {
         // --- toByteArray() instance method ---
 
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
-        let byteArrayType: TypeID
-        if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
-            byteArrayType = types.make(.classType(ClassType(
-                classSymbol: byteArraySymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            byteArrayType = types.intType
+        guard let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) else {
+            preconditionFailure("kotlin.ByteArray must be registered before BigInteger stubs")
         }
+        let byteArrayType = types.make(.classType(ClassType(
+            classSymbol: byteArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
         // fun BigInteger.toByteArray(): ByteArray
         registerBigIntegerInstanceMethod(

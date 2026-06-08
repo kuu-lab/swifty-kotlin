@@ -465,7 +465,7 @@ public func kk_array_joinToString(
     let rendered = elements.map(runtimeElementToString).joined(separator: separator)
     let stringValue = prefix + rendered + postfix
     let utf8 = Array(stringValue.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
+    return (utf8.isEmpty ? [0] : utf8).withUnsafeBufferPointer { buf in
+        kk_string_from_utf8(buf.baseAddress!, Int32(utf8.count))
     }
 }

@@ -2627,6 +2627,12 @@ extension CallLowerer {
                         || runtimeCallee == "kk_list_zipWithNextTransform"
                         || runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
+                        || runtimeCallee == "kk_array_reduce"
+                        || runtimeCallee == "kk_array_reduceOrNull"
+                        || runtimeCallee == "kk_array_reduceIndexed"
+                        || runtimeCallee == "kk_array_fold"
+                        || runtimeCallee == "kk_array_foldIndexed"
+                        || runtimeCallee == "kk_array_flatMap"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
                             .temporary(Int32(arena.expressions.count)),
