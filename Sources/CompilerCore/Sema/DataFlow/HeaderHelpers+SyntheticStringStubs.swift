@@ -482,6 +482,7 @@ extension DataFlowSemaPhase {
                 ("prefix", stringType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -495,6 +496,7 @@ extension DataFlowSemaPhase {
                 ("suffix", stringType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -509,6 +511,7 @@ extension DataFlowSemaPhase {
             ],
             returnType: boolType,
             flags: [.synthetic, .operatorFunction],
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -526,6 +529,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -537,6 +541,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -551,6 +556,7 @@ extension DataFlowSemaPhase {
                 ("radix", intType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -900,6 +906,7 @@ extension DataFlowSemaPhase {
                 ("other", stringType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -913,6 +920,7 @@ extension DataFlowSemaPhase {
                 ("other", stringType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -927,6 +935,7 @@ extension DataFlowSemaPhase {
                 ("startIndex", intType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -944,6 +953,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1078,6 +1088,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1769,6 +1780,7 @@ extension DataFlowSemaPhase {
             ],
             returnType: charType,
             flags: [.synthetic, .operatorFunction],
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1784,6 +1796,7 @@ extension DataFlowSemaPhase {
                 ("other", stringType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1798,6 +1811,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1811,6 +1825,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1822,6 +1837,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1844,6 +1860,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1855,6 +1872,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1980,6 +1998,7 @@ extension DataFlowSemaPhase {
                 ("index", intType, false, false),
             ],
             returnType: nullableCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2047,6 +2066,7 @@ extension DataFlowSemaPhase {
                 ("other", nullableStringType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2061,6 +2081,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4042,6 +4063,7 @@ extension DataFlowSemaPhase {
                 ("other", nullableStringType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4056,6 +4078,7 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

@@ -422,6 +422,20 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             println(text.asIterable())
             println(text.withIndex())
             println(charSequence.withIndex())
+            if (text.compareTo("abd") >= 0) return 40
+            if (text.compareTo("ABC", true) != 0) return 41
+            if (text[1] != 'b') return 60
+            if (text.getOrNull(99) != null) return 43
+            if (!text.startsWith("a")) return 50
+            if (!text.endsWith("c")) return 51
+            if (!text.contains("b")) return 52
+            if (!"AbC".contains("a", true)) return 53
+            if (text.indexOf("b") != 1) return 54
+            if ("abcabc".indexOf("bc", 2) != 4) return 55
+            if ("Abcabc".indexOf("BC", 0, true) != 1) return 56
+            if ("abcabc".lastIndexOf("ab") != 3) return 57
+            if ("abcabc".lastIndexOf("ab", 2) != 0) return 58
+            if ("Abcabc".lastIndexOf("AB", 5, true) != 3) return 59
             return 42
         }
         """
@@ -453,6 +467,46 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                     return sema.symbols.externalLinkName(for: symbolID)
                 })
             }
+            func nonImportedLinks(
+                _ fqName: [String],
+                receiverType: TypeID,
+                parameterTypes: [TypeID]
+            ) -> Set<String> {
+                let interned = fqName.map { appCtx.interner.intern($0) }
+                return Set(sema.symbols.lookupAll(fqName: interned).compactMap { symbolID in
+                    guard sema.symbols.symbol(symbolID)?.flags.contains(.importedLibrary) != true,
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.receiverType == receiverType,
+                          signature.parameterTypes == parameterTypes
+                    else {
+                        return nil
+                    }
+                    return sema.symbols.externalLinkName(for: symbolID)
+                })
+            }
+            func assertRuntimeFallbackSuppressed(
+                named name: String,
+                receiverType: TypeID,
+                parameterTypes: [TypeID],
+                link: String,
+                file: StaticString = #filePath,
+                line: UInt = #line
+            ) {
+                XCTAssertFalse(
+                    nonImportedLinks(
+                        ["kotlin", "text", name],
+                        receiverType: receiverType,
+                        parameterTypes: parameterTypes
+                    ).contains(link),
+                    "Source stdlib import should suppress the synthetic public \(name) runtime fallback",
+                    file: file,
+                    line: line
+                )
+            }
+            let stringType = sema.types.stringType
+            let nullableStringType = sema.types.makeNullable(stringType)
+            let intType = sema.types.intType
+            let boolType = sema.types.booleanType
             for name in ["count", "any", "all", "none", "indexOfFirst", "indexOfLast"] {
                 XCTAssertEqual(
                     importedInlineCount(["kotlin", "text", name]),
@@ -472,6 +526,42 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 XCTAssertFalse(
                     nonImportedLinks(["kotlin", "text", name]).contains(link),
                     "Source stdlib import should suppress the synthetic public \(name) runtime fallback"
+                )
+            }
+            let stringRuntimeFallbacks: [(name: String, receiver: TypeID, parameters: [TypeID], link: String)] = [
+                ("isEmpty", stringType, [], "kk_string_isEmpty_flat"),
+                ("isNotEmpty", stringType, [], "kk_string_isNotEmpty_flat"),
+                ("isBlank", stringType, [], "kk_string_isBlank_flat"),
+                ("isNotBlank", stringType, [], "kk_string_isNotBlank_flat"),
+                ("compareTo", stringType, [stringType], "kk_string_compareTo_flat"),
+                ("compareTo", stringType, [stringType, boolType], "kk_string_compareToIgnoreCase_flat"),
+                ("get", stringType, [intType], "kk_string_get_flat"),
+                ("getOrNull", stringType, [intType], "kk_string_getOrNull_flat"),
+                ("startsWith", stringType, [stringType], "kk_string_startsWith_flat"),
+                ("endsWith", stringType, [stringType], "kk_string_endsWith_flat"),
+                ("contains", stringType, [stringType], "kk_string_contains_str_flat"),
+                ("contains", stringType, [stringType, boolType], "kk_string_contains_ignoreCase_flat"),
+                ("indexOf", stringType, [stringType], "kk_string_indexOf_flat"),
+                ("indexOf", stringType, [stringType, intType], "kk_string_indexOf_from_flat"),
+                ("indexOf", stringType, [stringType, intType, boolType], "kk_string_indexOf_ignoreCase_flat"),
+                ("lastIndexOf", stringType, [stringType], "kk_string_lastIndexOf_flat"),
+                ("lastIndexOf", stringType, [stringType, intType, boolType], "kk_string_lastIndexOf_ignoreCase_flat"),
+                ("equals", stringType, [nullableStringType], "kk_string_equals_flat"),
+                ("equals", stringType, [nullableStringType, boolType], "kk_string_equalsIgnoreCase_flat"),
+                ("contentEquals", nullableStringType, [nullableStringType], "kk_string_contentEquals_flat"),
+                (
+                    "contentEquals",
+                    nullableStringType,
+                    [nullableStringType, boolType],
+                    "kk_string_contentEquals_ignoreCase_flat"
+                ),
+            ]
+            for fallback in stringRuntimeFallbacks {
+                assertRuntimeFallbackSuppressed(
+                    named: fallback.name,
+                    receiverType: fallback.receiver,
+                    parameterTypes: fallback.parameters,
+                    link: fallback.link
                 )
             }
             let viewRuntimeLinks = [
