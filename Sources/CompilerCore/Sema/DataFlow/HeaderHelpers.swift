@@ -21,6 +21,19 @@ extension DataFlowSemaPhase {
         }
     }
 
+    func hasSourceOrImportedLibrarySymbol(
+        fqName: [InternedString],
+        kind: SymbolKind,
+        symbols: SymbolTable
+    ) -> Bool {
+        symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == kind else {
+                return false
+            }
+            return symbol.flags.contains(.importedLibrary) || !symbol.flags.contains(.synthetic)
+        }
+    }
+
     func declarationAnnotations(for decl: Decl) -> [AnnotationNode] {
         switch decl {
         case let .classDecl(classDecl):
@@ -1097,10 +1110,12 @@ extension DataFlowSemaPhase {
         registerSyntheticComparisonStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
-                        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-                registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticHexFormatStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticResultStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinVersionStubs(symbols: symbols, types: types, interner: interner)
