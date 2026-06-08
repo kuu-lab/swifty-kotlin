@@ -259,7 +259,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lowercase",
-            externalLinkName: "kk_string_lowercase_locale",
+            externalLinkName: "kk_string_lowercase_locale_flat",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),
@@ -272,7 +272,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "uppercase",
-            externalLinkName: "kk_string_uppercase_locale",
+            externalLinkName: "kk_string_uppercase_locale_flat",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),

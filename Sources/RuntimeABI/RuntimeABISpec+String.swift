@@ -986,21 +986,33 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_lowercase_locale",
+            name: "kk_string_lowercase_locale_flat",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
-            returnType: .intptr,
+            returnType: .nullableUInt8Pointer,
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_uppercase_locale",
+            name: "kk_string_uppercase_locale_flat",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
-            returnType: .intptr,
+            returnType: .nullableUInt8Pointer,
             section: "String"
         ),
         RuntimeABIFunctionSpec(

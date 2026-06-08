@@ -204,14 +204,14 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             sema.symbols.lookupAll(fqName: lowercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_flat"))
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_locale"))
+        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_locale_flat"))
 
         let uppercaseFQ = ["kotlin", "text", "uppercase"].map { interner.intern($0) }
         let uppercaseLinks = Set(
             sema.symbols.lookupAll(fqName: uppercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
         )
         XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_flat"))
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale"))
+        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale_flat"))
     }
 
     func testStringNormalizationStubsHaveCorrectExternalLinks() throws {

@@ -203,22 +203,50 @@ public func kk_string_uppercase_flat(
     )
 }
 
-@_cdecl("kk_string_lowercase_locale")
-public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return runtimeMakeStringRaw(source.lowercased())
-    }
-    return runtimeMakeStringRaw(source.lowercased(with: box.locale))
+@_cdecl("kk_string_lowercase_locale_flat")
+public func kk_string_lowercase_locale_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ localeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let result = runtimeLocaleBox(from: localeRaw)
+        .map { source.lowercased(with: $0.locale) }
+        ?? source.lowercased()
+    return runtimeReturnFlatString(
+        result,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
-@_cdecl("kk_string_uppercase_locale")
-public func kk_string_uppercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    guard let box = runtimeLocaleBox(from: localeRaw) else {
-        return runtimeMakeStringRaw(source.uppercased())
-    }
-    return runtimeMakeStringRaw(source.uppercased(with: box.locale))
+@_cdecl("kk_string_uppercase_locale_flat")
+public func kk_string_uppercase_locale_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ localeRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let result = runtimeLocaleBox(from: localeRaw)
+        .map { source.uppercased(with: $0.locale) }
+        ?? source.uppercased()
+    return runtimeReturnFlatString(
+        result,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_compareTo_locale_flat")

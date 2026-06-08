@@ -8,8 +8,8 @@ import XCTest
 // Implemented (common scope, backed by runtime functions):
 //   - String.lowercase()                   → kk_string_lowercase_flat
 //   - String.uppercase()                   → kk_string_uppercase_flat
-//   - String.lowercase(Locale)             → kk_string_lowercase_locale
-//   - String.uppercase(Locale)             → kk_string_uppercase_locale
+//   - String.lowercase(Locale)             → kk_string_lowercase_locale_flat
+//   - String.uppercase(Locale)             → kk_string_uppercase_locale_flat
 //   - String.compareTo(String, Locale)     → kk_string_compareTo_locale_flat
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
