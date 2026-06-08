@@ -1017,15 +1017,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testFlatStringCharSelectionRuntimeAPIsUseFlattenedStringFields() {
         withFlatString("abc") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_unbox_char(kk_string_first_flat(data, length, byteCount, hash, &thrown)), 97)
+            XCTAssertEqual(kk_string_first_flat(data, length, byteCount, hash, &thrown), 97)
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_unbox_char(kk_string_last_flat(data, length, byteCount, hash, &thrown)), 99)
+            XCTAssertEqual(kk_string_last_flat(data, length, byteCount, hash, &thrown), 99)
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_unbox_char(kk_string_firstOrNull_flat(data, length, byteCount, hash)), 97)
-            XCTAssertEqual(kk_unbox_char(kk_string_lastOrNull_flat(data, length, byteCount, hash)), 99)
+            XCTAssertEqual(kk_string_firstOrNull_flat(data, length, byteCount, hash), 97)
+            XCTAssertEqual(kk_string_lastOrNull_flat(data, length, byteCount, hash), 99)
             XCTAssertEqual(kk_string_get_flat(data, length, byteCount, hash, 1, &thrown), 98)
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_unbox_char(kk_string_getOrNull_flat(data, length, byteCount, hash, 1)), 98)
+            XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 1), 98)
             XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, -1), runtimeNullSentinelInt)
             XCTAssertEqual(kk_string_getOrNull_flat(data, length, byteCount, hash, 3), runtimeNullSentinelInt)
 
@@ -1043,9 +1043,9 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         withFlatString("x") { data, length, byteCount, hash in
             var thrown = 0
-            XCTAssertEqual(kk_unbox_char(kk_string_single_flat(data, length, byteCount, hash, &thrown)), 120)
+            XCTAssertEqual(kk_string_single_flat(data, length, byteCount, hash, &thrown), 120)
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(kk_unbox_char(kk_string_singleOrNull_flat(data, length, byteCount, hash)), 120)
+            XCTAssertEqual(kk_string_singleOrNull_flat(data, length, byteCount, hash), 120)
         }
 
         withFlatString("") { data, length, byteCount, hash in

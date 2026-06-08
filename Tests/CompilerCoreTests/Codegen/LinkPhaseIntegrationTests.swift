@@ -425,7 +425,17 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             if (text.compareTo("abd") >= 0) return 40
             if (text.compareTo("ABC", true) != 0) return 41
             if (text[1] != 'b') return 60
-            if (text.getOrNull(99) != null) return 43
+            if (text.getOrNull(1) != 'b') return 43
+            if (text.getOrNull(99) != null) return 44
+            if (text.first() != 'a') return 45
+            if (text.last() != 'c') return 46
+            if ("x".single() != 'x') return 47
+            if (text.firstOrNull() != 'a') return 48
+            if (text.lastOrNull() != 'c') return 49
+            if ("x".singleOrNull() != 'x') return 61
+            if (empty.firstOrNull() != null) return 62
+            if (empty.lastOrNull() != null) return 63
+            if (empty.singleOrNull() != null) return 64
             if (!text.startsWith("a")) return 50
             if (!text.endsWith("c")) return 51
             if (!text.contains("b")) return 52
@@ -537,6 +547,12 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 ("compareTo", stringType, [stringType, boolType], "kk_string_compareToIgnoreCase_flat"),
                 ("get", stringType, [intType], "kk_string_get_flat"),
                 ("getOrNull", stringType, [intType], "kk_string_getOrNull_flat"),
+                ("first", stringType, [], "kk_string_first_flat"),
+                ("last", stringType, [], "kk_string_last_flat"),
+                ("single", stringType, [], "kk_string_single_flat"),
+                ("firstOrNull", stringType, [], "kk_string_firstOrNull_flat"),
+                ("lastOrNull", stringType, [], "kk_string_lastOrNull_flat"),
+                ("singleOrNull", stringType, [], "kk_string_singleOrNull_flat"),
                 ("startsWith", stringType, [stringType], "kk_string_startsWith_flat"),
                 ("endsWith", stringType, [stringType], "kk_string_endsWith_flat"),
                 ("contains", stringType, [stringType], "kk_string_contains_str_flat"),

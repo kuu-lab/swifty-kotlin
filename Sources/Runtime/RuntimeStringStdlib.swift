@@ -2436,7 +2436,7 @@ public func kk_string_first_flat(
         runtimeSetThrown(outThrown, message: "Char sequence is empty.")
         return 0
     }
-    return kk_box_char(Int(first))
+    return Int(first)
 }
 
 @_cdecl("kk_string_last_flat")
@@ -2453,7 +2453,7 @@ public func kk_string_last_flat(
         runtimeSetThrown(outThrown, message: "Char sequence is empty.")
         return 0
     }
-    return kk_box_char(Int(last))
+    return Int(last)
 }
 
 @_cdecl("kk_string_single_flat")
@@ -2473,7 +2473,7 @@ public func kk_string_single_flat(
         runtimeSetThrown(outThrown, message: msg)
         return 0
     }
-    return kk_box_char(Int(codeUnits[0]))
+    return Int(codeUnits[0])
 }
 
 @_cdecl("kk_string_firstOrNull_flat")
@@ -2487,7 +2487,7 @@ public func kk_string_firstOrNull_flat(
     guard let first = codeUnits.first else {
         return runtimeNullSentinelInt
     }
-    return kk_box_char(Int(first))
+    return Int(first)
 }
 
 @_cdecl("kk_string_lastOrNull_flat")
@@ -2501,7 +2501,7 @@ public func kk_string_lastOrNull_flat(
     guard let last = codeUnits.last else {
         return runtimeNullSentinelInt
     }
-    return kk_box_char(Int(last))
+    return Int(last)
 }
 
 @_cdecl("kk_string_singleOrNull_flat")
@@ -2515,7 +2515,7 @@ public func kk_string_singleOrNull_flat(
     guard codeUnits.count == 1 else {
         return runtimeNullSentinelInt
     }
-    return kk_box_char(Int(codeUnits[0]))
+    return Int(codeUnits[0])
 }
 
 @_cdecl("kk_string_getOrNull_flat")
@@ -2530,7 +2530,7 @@ public func kk_string_getOrNull_flat(
     guard index >= 0, index < scalars.count else {
         return runtimeNullSentinelInt
     }
-    return kk_box_char(Int(scalars[index].value))
+    return Int(scalars[index].value)
 }
 
 // MARK: - STDLIB-187: isEmpty / isNotEmpty / isBlank / isNotBlank
