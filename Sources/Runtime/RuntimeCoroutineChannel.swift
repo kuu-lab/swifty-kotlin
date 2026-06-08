@@ -1,10 +1,10 @@
 import Dispatch
 import Foundation
 
-/// Channel runtime (CORO-001), Channel iterator (CORO-075),
-/// BroadcastChannel runtime (CORO-076), and the Channel pipeline runtime.
-///
-/// Split out from `RuntimeCoroutine.swift`.
+// Channel runtime (CORO-001), Channel iterator (CORO-075),
+// BroadcastChannel runtime (CORO-076), and the Channel pipeline runtime.
+//
+// Split out from `RuntimeCoroutine.swift`.
 
 // MARK: - Channel Runtime (CORO-001)
 
@@ -42,7 +42,7 @@ final class SuspendedSender: @unchecked Sendable {
     let value: Int
     /// CORO-004: Resume closure for continuation-based implementation
     var resumeClosure: (@Sendable () -> Void)?
-    
+
     /// Set to `true` (under the channel lock) when the sender's value is
     /// delivered to a receiver. The sender checks this after waking to distinguish a
     /// successful delivery from a close-induced wakeup.
@@ -183,7 +183,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // semaphore compatibility during migration.
         let senderSem = DispatchSemaphore(value: 0)
         let entry = SuspendedSender(semaphore: senderSem, continuation: continuation, value: value)
-        
+
         senderQueue.append(entry)
         lock.unlock()
 
@@ -263,7 +263,7 @@ final class RuntimeChannelHandle: @unchecked Sendable {
         // CORO-004: Store continuation for later dispatch while maintaining
         // semaphore compatibility during migration.
         let receiverEntry = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: continuation)
-        
+
         receiverQueue.append(receiverEntry)
         lock.unlock()
 

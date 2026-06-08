@@ -141,6 +141,7 @@ final class RuntimeRandomBoundaryTests: XCTestCase {
         let r2 = makeSeeded(2)
         var anyDiff = false
         for _ in 0..<20 {
+            // swiftlint:disable:next for_where
             if kk_random_nextInt(r1) != kk_random_nextInt(r2) {
                 anyDiff = true
                 break

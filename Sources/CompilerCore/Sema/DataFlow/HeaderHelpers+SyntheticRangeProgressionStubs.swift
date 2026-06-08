@@ -760,7 +760,7 @@ extension DataFlowSemaPhase {
             return
         }
 
-        let parameterSymbols = parameterTypes.enumerated().map { index, _ in
+        let parameterSymbols = parameterTypes.indices.map { index in
             let parameterName = interner.intern("p\(index)")
             let parameterSymbol = symbols.define(
                 kind: .valueParameter,
@@ -817,7 +817,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
     }
-
 
     private func registerSyntheticClosedRangeStub(
         rangesPackageSymbol: SymbolID,

@@ -23,6 +23,7 @@ private let forEachBlockCountChunks: @convention(c) (Int, Int, Int, UnsafeMutabl
 }
 
 final class RuntimeFileIOTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testReadTextReturnsUtf8Contents() throws {
         let fileURL = try makeTempFile(contents: "alpha\nbeta")

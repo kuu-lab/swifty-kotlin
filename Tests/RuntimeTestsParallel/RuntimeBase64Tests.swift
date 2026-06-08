@@ -13,8 +13,6 @@ import XCTest
 ///   "foobar" → "Zm9vYmFy"
 final class RuntimeBase64Tests: XCTestCase {
 
-
-
     // MARK: - Helpers
 
     private func makeByteArray(_ bytes: [UInt8]) -> Int {

@@ -28,7 +28,7 @@ extension KotlinParser {
                 atBlockStart = false
                 continue
             }
-            if isDeclarationStart(token.kind), (hasLeadingNewline(token) || atBlockStart) {
+            if isDeclarationStart(token.kind), hasLeadingNewline(token) || atBlockStart {
                 children.append(.node(parseDeclaration()))
                 atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {

@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimeNetworkTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     private final class HTTPTestServer {
         private static let serverStartupTimeout: TimeInterval = 5

@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import RuntimeABI
 
 /// `List<E>.map` / `flatMap` / `mapNotNull` / `filter` / `mapIndexed` /

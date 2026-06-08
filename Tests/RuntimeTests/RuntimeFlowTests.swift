@@ -314,6 +314,7 @@ func runtime_test_flow_emitter_fail_for_fallback(_ outThrown: UnsafeMutablePoint
 }
 
 final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndFlow }
     override func resetIsolatedRuntimeTestState() {
         runtimeFlowTestState.reset()

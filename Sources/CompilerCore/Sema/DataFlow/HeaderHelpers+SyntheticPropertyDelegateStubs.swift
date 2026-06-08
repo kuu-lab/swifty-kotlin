@@ -2291,6 +2291,7 @@ extension DataFlowSemaPhase {
         )
         var annotations = symbols.annotations(for: symbol)
         for record in [experimentalRecord, retentionRecord, targetRecord] {
+            // swiftlint:disable:next for_where
             if !annotations.contains(record) {
                 annotations.append(record)
             }

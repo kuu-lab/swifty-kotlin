@@ -109,7 +109,7 @@ extension ExprTypeChecker {
             []
         }
         // STDLIB-345: List/Sequence plus/minus operators
-        if !lhsIsPrimitive, (op == .add || op == .subtract) {
+        if !lhsIsPrimitive, op == .add || op == .subtract {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
             let isSeqLhs = driver.callChecker.isSequenceLikeType(lhs, sema: sema, interner: interner)
             let isCollExpr = sema.bindings.isCollectionExpr(lhsID)
@@ -243,7 +243,7 @@ extension ExprTypeChecker {
             return false
         }()
 
-        if !allowsMixedSignedness, ((lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned)) {
+        if !allowsMixedSignedness, (lhsIsSigned && rhsIsUnsigned) || (lhsIsUnsigned && rhsIsSigned) {
             ctx.semaCtx.diagnostics.error(
                 "KSWIFTK-SEMA-0043",
                 "Operator '\(interner.resolve(operatorName))' cannot be applied to '(signed, unsigned)' or '(unsigned, signed)' types.",
@@ -472,7 +472,7 @@ extension ExprTypeChecker {
             else {
                 return false
             }
-            
+
             // Support both invariant and contravariant Comparable bounds
             let argumentType: TypeID
             switch classType.args[0] {
@@ -483,7 +483,7 @@ extension ExprTypeChecker {
             default:
                 return false
             }
-            
+
             return argumentType == targetType
 
         case let .intersection(parts):

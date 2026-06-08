@@ -12,7 +12,6 @@ final class NumericBitCountTests: XCTestCase {
         return bits != 0 && (bits & (bits &- 1)) == 0
     }
 
-
     // MARK: - Int Bit Count Tests (32-bit semantics)
 
     func testIntCountOneBitsBasicValues() {
@@ -87,10 +86,10 @@ final class NumericBitCountTests: XCTestCase {
 
             XCTAssertGreaterThanOrEqual(ones, 0, "Count of ones should be non-negative")
             XCTAssertLessThanOrEqual(ones, 32, "Count of ones should not exceed 32 for Int")
-            
+
             XCTAssertGreaterThanOrEqual(leadingZeros, 0, "Leading zeros should be non-negative")
             XCTAssertLessThanOrEqual(leadingZeros, 32, "Leading zeros should not exceed 32 for Int")
-            
+
             XCTAssertGreaterThanOrEqual(trailingZeros, 0, "Trailing zeros should be non-negative")
             XCTAssertLessThanOrEqual(trailingZeros, 32, "Trailing zeros should not exceed 32 for Int")
 
@@ -131,7 +130,7 @@ final class NumericBitCountTests: XCTestCase {
 
             XCTAssertGreaterThanOrEqual(ones, 0, "Ones count should be non-negative for value \(value)")
             XCTAssertLessThanOrEqual(ones, 32, "Ones count should not exceed 32 for value \(value)")
-            
+
             if value != 0 {
                 XCTAssertLessThan(leadingZeros, 32, "Non-zero value should have less than 32 leading zeros")
                 XCTAssertLessThan(trailingZeros, 32, "Non-zero value should have less than 32 trailing zeros")
@@ -146,7 +145,7 @@ final class NumericBitCountTests: XCTestCase {
 
     func testBitCountPerformanceCharacteristics() {
         let testValues: [Int] = Array(0..<10000)
-        
+
         measure {
             for value in testValues {
                 _ = kk_int_countOneBits(value)
@@ -159,7 +158,7 @@ final class NumericBitCountTests: XCTestCase {
     func testBitManipulationPerformanceCharacteristics() {
         let testValues: [Int] = Array(0..<1000)
         let distances: [Int] = [0, 1, 7, 15, 31]
-        
+
         measure {
             for value in testValues {
                 for distance in distances {
@@ -177,7 +176,7 @@ final class NumericBitCountTests: XCTestCase {
     func testLongBitManipulationPerformanceCharacteristics() {
         let testValues: [Int] = Array(0..<1000)
         let distances: [Int] = [0, 1, 31, 63]
-        
+
         measure {
             for value in testValues {
                 for distance in distances {
@@ -209,10 +208,10 @@ final class NumericBitCountTests: XCTestCase {
 
             XCTAssertGreaterThanOrEqual(ones, 0, "Large value should have non-negative ones count")
             XCTAssertLessThanOrEqual(ones, 32, "Large value should not exceed 32 ones")
-            
+
             XCTAssertGreaterThanOrEqual(leadingZeros, 0, "Large value should have non-negative leading zeros")
             XCTAssertLessThanOrEqual(leadingZeros, 32, "Large value should not exceed 32 leading zeros")
-            
+
             XCTAssertGreaterThanOrEqual(trailingZeros, 0, "Large value should have non-negative trailing zeros")
             XCTAssertLessThanOrEqual(trailingZeros, 32, "Large value should not exceed 32 trailing zeros")
         }
@@ -266,34 +265,34 @@ final class NumericBitCountTests: XCTestCase {
             for distance in [0, 1, 7, 15, 31] {
                 let rotatedLeft = kk_int_rotateLeft(value, distance)
                 let rotatedRight = kk_int_rotateRight(value, distance)
-                
-                XCTAssertEqual(kk_int_rotateRight(rotatedLeft, distance) & 0xFFFFFFFF, value & 0xFFFFFFFF, 
+
+                XCTAssertEqual(kk_int_rotateRight(rotatedLeft, distance) & 0xFFFFFFFF, value & 0xFFFFFFFF,
                     "Rotate left then right should return original for value=\(value), distance=\(distance)")
                 XCTAssertEqual(kk_int_rotateLeft(rotatedRight, distance) & 0xFFFFFFFF, value & 0xFFFFFFFF,
                     "Rotate right then left should return original for value=\(value), distance=\(distance)")
             }
-            
+
             let highest = kk_int_highestOneBit(value)
             let lowest = kk_int_lowestOneBit(value)
 
             if value != 0 {
                 XCTAssertNotEqual(highest, 0, "Highest one bit should be non-zero for non-zero value \(value)")
                 XCTAssertNotEqual(lowest, 0, "Lowest one bit should be non-zero for non-zero value \(value)")
-                
+
                 XCTAssertTrue(isPowerOfTwo32(highest), "Highest one bit should be power of two for \(value)")
                 XCTAssertTrue(isPowerOfTwo32(lowest), "Lowest one bit should be power of two for \(value)")
             } else {
                 XCTAssertEqual(highest, 0, "Highest one bit should be 0 for zero")
                 XCTAssertEqual(lowest, 0, "Lowest one bit should be 0 for zero")
             }
-            
+
             let takeHighest = kk_int_takeHighestOneBit(value)
             let takeLowest = kk_int_takeLowestOneBit(value)
-            
+
             if value != 0 {
                 XCTAssertNotEqual(takeHighest, 0, "Take highest should be non-zero for non-zero value \(value)")
                 XCTAssertNotEqual(takeLowest, 0, "Take lowest should be non-zero for non-zero value \(value)")
-                
+
                 XCTAssertEqual(takeHighest & highest, highest, "Take highest should preserve highest bit for \(value)")
                 XCTAssertEqual(takeLowest & lowest, lowest, "Take lowest should preserve lowest bit for \(value)")
             } else {
@@ -316,25 +315,25 @@ final class NumericBitCountTests: XCTestCase {
             XCTAssertNotEqual(bits, 0, file: file, line: line)
             XCTAssertEqual(bits & (bits &- 1), 0, file: file, line: line)
         }
-        
+
         for value in testValues {
             for distance in [0, 1, 31, 63] {
                 let rotatedLeft = kk_long_rotateLeft(value, distance)
                 let rotatedRight = kk_long_rotateRight(value, distance)
-                
+
                 XCTAssertEqual(kk_long_rotateRight(rotatedLeft, distance), value,
                     "Long rotate left then right should return original for value=\(value), distance=\(distance)")
                 XCTAssertEqual(kk_long_rotateLeft(rotatedRight, distance), value,
                     "Long rotate right then left should return original for value=\(value), distance=\(distance)")
             }
-            
+
             let highest = kk_long_highestOneBit(value)
             let lowest = kk_long_lowestOneBit(value)
-            
+
             if value != 0 {
                 XCTAssertNotEqual(highest, 0, "Long highest one bit should be non-zero for non-zero value \(value)")
                 XCTAssertNotEqual(lowest, 0, "Long lowest one bit should be non-zero for non-zero value \(value)")
-                
+
                 XCTAssertTrue(isPowerOfTwo64(highest), "Long highest one bit should be power of two for \(value)")
                 XCTAssertTrue(isPowerOfTwo64(lowest), "Long lowest one bit should be power of two for \(value)")
             } else {

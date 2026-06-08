@@ -2,6 +2,7 @@
 import XCTest
 
 final class RuntimeKTypeReflectionTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndMetadata }
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()

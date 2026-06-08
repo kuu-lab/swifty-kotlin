@@ -221,6 +221,7 @@ extension TypeSystem {
                 return false
             }
             for (leftContextReceiver, rightContextReceiver) in zip(leftFunction.contextReceivers, rightFunction.contextReceivers) {
+                // swiftlint:disable:next for_where
                 if !isSubtype(rightContextReceiver, leftContextReceiver) {
                     return false
                 }
@@ -311,6 +312,7 @@ extension TypeSystem {
             guard samParamTypes.count == rightFunction.params.count else { return false }
             guard samSignature.isSuspend == rightFunction.isSuspend else { return false }
             for (samParam, rightParam) in zip(samParamTypes, rightFunction.params) {
+                // swiftlint:disable:next for_where
                 if !isSubtype(rightParam, samParam) { return false }
             }
             return isSubtype(samReturnType, rightFunction.returnType)

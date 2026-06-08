@@ -177,7 +177,6 @@ private let maxOfWithOrNullSquareValue: @convention(c) (Int, Int, UnsafeMutableP
     value * value
 }
 
-
 private let sumByDoubleWeightedTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
     kk_double_to_bits(value == 2 ? 1.5 : 0.25)
 }
@@ -186,14 +185,12 @@ private let maxByNegativeValue: @convention(c) (Int, Int, UnsafeMutablePointer<I
     -value
 }
 
-private let groupingFoldToInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, key, element, _ in
+private let groupingFoldToInitialValueSelector: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, element, _ in
     gHOFState.addCall()
     return key * 100 + element
 }
 
-private let groupingFoldToSelectorOperation: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
-    _, key, accumulator, element, _ in
+private let groupingFoldToSelectorOperation: @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, key, accumulator, element, _ in
     accumulator + key + element
 }
 

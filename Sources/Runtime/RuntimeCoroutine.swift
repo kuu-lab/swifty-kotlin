@@ -2766,7 +2766,6 @@ public func kk_job_is_failed(_ jobHandle: Int) -> Int {
     return 0
 }
 
-
 /// Check if the coroutine associated with `continuation` has been cancelled.
 /// If cancelled, allocates a CancellationException, writes it to `outThrown`,
 /// and returns 1. Otherwise returns 0 with outThrown untouched.
@@ -3052,17 +3051,16 @@ public func kk_suspend_function_invoke_0(
 
     // Suspend until the function completes
     continuationState.waitForResumeSignal()
-    
+
     // Extract results
     thrownException = continuationState.thrownException
     if thrownException != 0 {
         outThrown?.pointee = thrownException
         return 0
     }
-    
+
     return Int(continuationState.completion)
 }
-
 
 /// Invoke a suspend function with 1 argument using continuation-passing style.
 /// This is the runtime implementation for `kk_suspend_function_invoke`.
@@ -3108,14 +3106,14 @@ public func kk_suspend_function_invoke(
 
     // Suspend until the function completes
     continuationState.waitForResumeSignal()
-    
+
     // Extract results
     thrownException = continuationState.thrownException
     if thrownException != 0 {
         outThrown?.pointee = thrownException
         return 0
     }
-    
+
     return Int(continuationState.completion)
 }
 

@@ -1,8 +1,8 @@
 
-/// LongRange runtime entry points (STDLIB-RANGE-035) plus IntRange
-/// `toIntArray` (STDLIB-RANGE-034) and ULongRange iterator/forEach/map.
-///
-/// Split out from `RuntimeRangeAndDispatch.swift`.
+// LongRange runtime entry points (STDLIB-RANGE-035) plus IntRange
+// `toIntArray` (STDLIB-RANGE-034) and ULongRange iterator/forEach/map.
+//
+// Split out from `RuntimeRangeAndDispatch.swift`.
 
 // MARK: - LongRange (STDLIB-RANGE-035)
 
@@ -330,14 +330,12 @@ public func kk_long_range_drop(_ rangeRaw: Int, _ n: Int) -> Int {
     var skipped = 0
     if range.step > 0 {
         while current <= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     } else if range.step < 0 {
         while current >= range.last {
-            if skipped >= n { elements.append(current) }
-            else { skipped += 1 }
+            if skipped >= n { elements.append(current) } else { skipped += 1 }
             current &+= range.step
         }
     }

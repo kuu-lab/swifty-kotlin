@@ -39,6 +39,7 @@ enum LSPTestSupport {
 
     /// Frames a JSON object using the LSP base protocol header.
     static func frame(_ object: [String: Any]) -> Data {
+        // swiftlint:disable:next force_try
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         var framed = Data("Content-Length: \(body.count)\r\n\r\n".utf8)
         framed.append(body)

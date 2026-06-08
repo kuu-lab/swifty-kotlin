@@ -49,6 +49,7 @@ func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
     var unique: [Int] = []
     unique.reserveCapacity(elements.count)
     for element in elements {
+        // swiftlint:disable:next for_where
         if seen.insert(RuntimeElementKey(value: element)).inserted {
             unique.append(element)
         }
@@ -89,6 +90,7 @@ public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
     if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
         for element in array.elements.prefix(count) {
+            // swiftlint:disable:next for_where
             if element != runtimeNullSentinelInt {
                 elements.append(element)
             }
@@ -677,6 +679,7 @@ public func kk_list_containsAll(_ listRaw: Int, _ collectionRaw: Int) -> Int {
         return kk_box_bool(0)
     }
     for element in otherElements {
+        // swiftlint:disable:next for_where
         if !list.elements.contains(where: { runtimeValuesEqual($0, element) }) {
             return kk_box_bool(0)
         }
@@ -865,6 +868,7 @@ private func runtimeMutableSetAddAllSequence(set: RuntimeSetBox, sequenceRaw: In
     }
     var modified = false
     for elem in elements {
+        // swiftlint:disable:next for_where
         if !set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
             set.elements.append(elem)
             modified = true

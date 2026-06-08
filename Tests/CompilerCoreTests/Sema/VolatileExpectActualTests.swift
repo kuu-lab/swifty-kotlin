@@ -87,7 +87,7 @@ final class VolatileExpectActualTests: XCTestCase {
 
         XCTAssertEqual(sema.symbols.actualSymbol(for: expectSymbol.id), actualSymbol.id)
     }
-    
+
     func testExpectActualLinkValidation() throws {
         let sources = [
             """
@@ -108,11 +108,11 @@ final class VolatileExpectActualTests: XCTestCase {
         try runSema(ctx)
 
         let sema = try XCTUnwrap(ctx.sema)
-        
+
         // Test validation functionality
         let issues = sema.symbols.validateExpectActualLinks()
         XCTAssertTrue(issues.isEmpty, "Expect/actual link validation failed: \(issues)")
-        
+
         // Test that links are properly established
         let fqName = [
             ctx.interner.intern("volatile"),
@@ -125,11 +125,11 @@ final class VolatileExpectActualTests: XCTestCase {
         let expectSymbol = try XCTUnwrap(symbols.first { symbol in
             symbol.kind == .annotationClass && symbol.flags.contains(.expectDeclaration)
         })
-        
+
         // Verify the link exists and is correct
         let linkedActual = sema.symbols.actualSymbol(for: expectSymbol.id)
         XCTAssertNotNil(linkedActual, "Expect symbol should have an actual link")
-        
+
         if let actualId = linkedActual {
             let actualSymbol = try XCTUnwrap(sema.symbols.symbol(actualId))
             XCTAssertTrue(actualSymbol.flags.contains(.actualDeclaration), "Linked symbol should be an actual declaration")

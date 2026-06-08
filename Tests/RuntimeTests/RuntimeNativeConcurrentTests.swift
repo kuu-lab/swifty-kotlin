@@ -76,6 +76,7 @@ private let workerExecuteJobThunk: @convention(c) (Int, Int, UnsafeMutablePointe
 // ---------------------------------------------------------------------------
 
 final class RuntimeWorkerTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     // MARK: Worker lifecycle
@@ -179,6 +180,7 @@ final class RuntimeWorkerTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeFreezeTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testFreezeObjectReturnsSameHandle() {
@@ -370,6 +372,7 @@ final class RuntimeAtomicReferenceNativeConcurrentTests: XCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeWorkerIDTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testWorkerIDIsPositive() {
@@ -403,6 +406,7 @@ final class RuntimeWorkerIDTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeFutureTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testFutureNewReturnsNonZeroHandle() {
@@ -476,6 +480,7 @@ final class RuntimeFutureTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeTransferModeTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testTransferSafeModeReturnsSameHandle() {
@@ -508,6 +513,7 @@ final class RuntimeTransferModeTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeFreezableAtomicRefTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testCreateReturnsNonZeroHandle() {
@@ -589,6 +595,7 @@ final class RuntimeFreezableAtomicRefTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeSharedImmutableTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testSharedImmutableInitFreezesObject() {
@@ -617,6 +624,7 @@ final class RuntimeSharedImmutableTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeWorkerExecuteAfterTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
 
     func testExecuteAfterReturnsZeroForTerminatedWorker() {

@@ -1,10 +1,10 @@
 import Foundation
 
-/// `sequence { yield(...) }` / `iterator { yield(...) }` builders
-/// and the `*To` destination-collection filter ops (STDLIB-331/553/564,
-/// STDLIB-SEQ-021).
-///
-/// Split out from `RuntimeSequence.swift`.
+// `sequence { yield(...) }` / `iterator { yield(...) }` builders
+// and the `*To` destination-collection filter ops (STDLIB-331/553/564,
+// STDLIB-SEQ-021).
+//
+// Split out from `RuntimeSequence.swift`.
 
 // MARK: - Sequence Builder (sequence { yield(x) })
 

@@ -1,10 +1,10 @@
 
 // swiftlint:disable file_length
 
-/// UIntProgression / UIntRange / ULongProgression / ULongRange
-/// runtime entry points (STDLIB-RANGE-036/037/039, STDLIB-524).
-///
-/// Split out from `RuntimeRangeAndDispatch.swift`.
+// UIntProgression / UIntRange / ULongProgression / ULongRange
+// runtime entry points (STDLIB-RANGE-036/037/039, STDLIB-524).
+//
+// Split out from `RuntimeRangeAndDispatch.swift`.
 
 // MARK: - UIntProgression operations (STDLIB-RANGE-039)
 
@@ -729,7 +729,7 @@ public func kk_uint_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ out
 
 @_cdecl("kk_uint_range_any")
 public func kk_uint_range_any(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                              _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_uint_range_any")
@@ -756,7 +756,7 @@ public func kk_uint_range_any(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_uint_range_all")
 public func kk_uint_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                              _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_uint_range_all")
@@ -783,7 +783,7 @@ public func kk_uint_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_uint_range_none")
 public func kk_uint_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_uint_range_none")
@@ -1677,7 +1677,6 @@ public func kk_range_step(_ rangeRaw: Int) -> Int {
     }
     return range.step
 }
-
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {

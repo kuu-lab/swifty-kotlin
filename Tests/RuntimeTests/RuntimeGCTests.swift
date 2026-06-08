@@ -46,6 +46,7 @@ private func withDummyTypeInfo(_ body: (UnsafeRawPointer) -> Void) {
 }
 
 final class RuntimeGCTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testGCCollectsUnreachableAllocation() {
         withDummyTypeInfo { ti in

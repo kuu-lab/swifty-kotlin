@@ -112,7 +112,7 @@ extension CollectionLiteralLoweringPass {
             loweredBody: &loweredBody
         ) { return true }
 
-        if (callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName),
+        if callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName,
            arguments.count == 2,
            setExprIDs.contains(receiver.rawValue)
         {
@@ -378,13 +378,12 @@ extension CollectionLiteralLoweringPass {
         ))
 
         // Track results that produce lists (readLines/readBytes return List)
-        if (callee == lookup.readLinesName || callee == lookup.readBytesName), let result {
+        if callee == lookup.readLinesName || callee == lookup.readBytesName, let result {
             listExprIDs.insert(result.rawValue)
         }
 
         return true
     }
-
 
     private func rewriteListHOFVirtualCall(
         callee: InternedString,
@@ -789,8 +788,8 @@ extension CollectionLiteralLoweringPass {
         }
 
         var hofArgs: [KIRExprID]
-        if (callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
-            || callee == lookup.minWithName || callee == lookup.minWithOrNullName), arguments.count == 1 {
+        if callee == lookup.sortedWithName || callee == lookup.maxWithName || callee == lookup.maxWithOrNullName
+            || callee == lookup.minWithName || callee == lookup.minWithOrNullName, arguments.count == 1 {
             let comparatorExpr = arguments[0]
             let source = isComparatorFromCall(
                 exprID: comparatorExpr,
@@ -942,8 +941,8 @@ extension CollectionLiteralLoweringPass {
             let trampolineExpr = module.arena.appendExpr(.externSymbolAddress(trampolineName), type: nil)
             loweredBody.append(.constValue(result: trampolineExpr, value: .externSymbolAddress(trampolineName)))
             hofArgs = [trampolineExpr, closureExpr]
-        } else if (callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName), arguments.count == 2 {
+        } else if callee == lookup.maxOfWithName || callee == lookup.maxOfWithOrNullName
+            || callee == lookup.minOfWithName || callee == lookup.minOfWithOrNullName, arguments.count == 2 {
             let comparatorExpr = arguments[0]
             let selectorExpr = arguments[1]
             let cmpTrampolineName: InternedString
@@ -1106,7 +1105,7 @@ extension CollectionLiteralLoweringPass {
             return false
         }
 
-        guard (arguments.count == 2 || arguments.count == 3),
+        guard arguments.count == 2 || arguments.count == 3,
               listExprIDs.contains(receiver.rawValue) || sequenceExprIDs.contains(receiver.rawValue)
         else {
             return false
@@ -1184,7 +1183,7 @@ extension CollectionLiteralLoweringPass {
             return false
         }
         // arguments: [destination, lambda] or [destination, lambda, closureRaw]
-        guard (arguments.count == 2 || arguments.count == 3),
+        guard arguments.count == 2 || arguments.count == 3,
               listExprIDs.contains(receiver.rawValue) || sequenceExprIDs.contains(receiver.rawValue)
         else { return false }
 
@@ -1380,7 +1379,6 @@ extension CollectionLiteralLoweringPass {
         return false
     }
 
-
     private func rewriteCountFirstLastFoldReduceHOF(
         callee: InternedString,
         receiver: KIRExprID,
@@ -1475,7 +1473,7 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        if (callee == lookup.scanName || callee == lookup.runningFoldName), arguments.count == 2 {
+        if callee == lookup.scanName || callee == lookup.runningFoldName, arguments.count == 2 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let kkName = callee == lookup.scanName ? lookup.kkListScanName : lookup.kkListRunningFoldName
@@ -1547,14 +1545,14 @@ extension CollectionLiteralLoweringPass {
             return true
         }
         // foldIndexed: args = [initial, lambda]
-        if (callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName), arguments.count == 2 {
+        if callee == lookup.foldIndexedName || callee == lookup.kkListFoldIndexedName, arguments.count == 2 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(kkName: lookup.kkListFoldIndexedName, receiver: receiver, arguments: arguments + [zeroExpr], result: result, origCanThrow: origCanThrow, origThrownResult: origThrownResult, module: module, loweredBody: &loweredBody)
             return true
         }
         // reduceIndexed: args = [lambda]
-        if (callee == lookup.reduceIndexedName || callee == lookup.kkListReduceIndexedName), arguments.count == 1 {
+        if callee == lookup.reduceIndexedName || callee == lookup.kkListReduceIndexedName, arguments.count == 1 {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(kkName: lookup.kkListReduceIndexedName, receiver: receiver, arguments: arguments + [zeroExpr], result: result, origCanThrow: origCanThrow, origThrownResult: origThrownResult, module: module, loweredBody: &loweredBody)

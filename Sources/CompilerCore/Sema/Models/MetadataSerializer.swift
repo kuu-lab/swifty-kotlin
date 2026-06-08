@@ -508,7 +508,6 @@ final class MetadataEncoder {
         )
     }
 
-
     /// Nominal kinds that carry layout information in metadata.
     private static let nominalKinds: Set<SymbolKind> = [.class, .interface, .object, .enumClass, .annotationClass]
 

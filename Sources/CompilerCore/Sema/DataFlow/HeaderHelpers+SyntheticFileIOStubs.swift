@@ -320,7 +320,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
         // MARK: - File.startsWith (STDLIB-IO-FN-037)
         //
         // Two overloads matching kotlin.io.File:
@@ -1740,7 +1739,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
         // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
         // Top-level extension function on java.io.InputStream returning BufferedReader.
         // Signature: fun InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader
@@ -1768,7 +1766,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-
         // MARK: - File.isRooted extension property (STDLIB-IO-PROP-004)
         //
         // Kotlin signature: `public val File.isRooted: Boolean` declared in the
@@ -1784,7 +1781,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
 
         // MARK: - File.copyRecursively(target, overwrite) (STDLIB-IO-FN-012)
         //

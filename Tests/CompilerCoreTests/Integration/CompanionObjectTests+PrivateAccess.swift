@@ -80,7 +80,7 @@ extension CompanionObjectTests {
                 private val secretValue: Int = 999
                 private fun secretOp(): Int = secretValue * 2
             }
-            
+
             fun getSecret(): Int = Companion.secretValue
             fun getSecretOp(): Int = Companion.secretOp()
         }
@@ -111,14 +111,14 @@ extension CompanionObjectTests {
                 fun createChild(name: String): Person = Person(name, 0)
                 fun fromNameAndAge(name: String, age: Int): Person = Person(name, age)
             }
-            
+
             fun getInfo(): String = "$name ($age)"
         }
         fun main() {
             val adult = Person.createAdult("Alice")
             val child = Person.createChild("Bob")
             val custom = Person.fromNameAndAge("Charlie", 25)
-            
+
             val info1: String = adult.getInfo()
             val info2: String = child.getInfo()
             val info3: String = custom.getInfo()
@@ -146,7 +146,7 @@ extension CompanionObjectTests {
                 fun production(host: String): Config = Config(host, 443, true)
                 fun custom(host: String, port: Int, ssl: Boolean): Config = Config(host, port, ssl)
             }
-            
+
             fun getConnectionString(): String {
                 val protocol = if (useSSL) "https" else "http"
                 return "$protocol://$host:$port"
@@ -156,7 +156,7 @@ extension CompanionObjectTests {
             val default = Config.default()
             val prod = Config.production("example.com")
             val custom = Config.custom("test.local", 3000, true)
-            
+
             val conn1: String = default.getConnectionString()
             val conn2: String = prod.getConnectionString()
             val conn3: String = custom.getConnectionString()
@@ -176,7 +176,7 @@ extension CompanionObjectTests {
         let source = """
         class Outer {
             private val secret: Int = 42
-            
+
             object NotACompanion {
                 fun tryAccess(): Int = secret  // Should fail
             }
@@ -199,7 +199,7 @@ extension CompanionObjectTests {
                 fun create(): Secure = Secure("safe")
             }
         }
-        
+
         fun main() {
             val s = Secure("unsafe")  // Should fail
         }
@@ -251,9 +251,9 @@ extension CompanionObjectTests {
         class MyClass {
             companion object
         }
-        
+
         fun MyClass.Companion.extensionFun(): String = "extended"
-        
+
         fun main() {
             val result: String = MyClass.Companion.extensionFun()
         }
@@ -273,9 +273,9 @@ extension CompanionObjectTests {
         class Data {
             companion object
         }
-        
+
         val Data.Companion.extensionProp: Int get() = 42
-        
+
         fun main() {
             val value: Int = Data.Companion.extensionProp
         }
@@ -295,9 +295,9 @@ extension CompanionObjectTests {
         class Service {
             companion object Factory
         }
-        
+
         fun Service.Factory.create(): Service = Service()
-        
+
         fun main() {
             val s: Service = Service.Factory.create()
         }

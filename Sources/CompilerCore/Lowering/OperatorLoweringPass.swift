@@ -591,7 +591,7 @@ final class OperatorLoweringPass: LoweringPass {
         }
 
         guard let classSymbol = sema.symbols.symbol(classSymbolID),
-              (classSymbol.kind == .class || classSymbol.kind == .object || classSymbol.kind == .enumClass)
+              classSymbol.kind == .class || classSymbol.kind == .object || classSymbol.kind == .enumClass
         else {
             return nil
         }

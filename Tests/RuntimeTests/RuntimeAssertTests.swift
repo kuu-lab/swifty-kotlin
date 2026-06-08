@@ -38,6 +38,7 @@ private func fnPtrInt(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> 
 }
 
 final class RuntimeAssertTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         assertLazyMessageEvaluations = 0

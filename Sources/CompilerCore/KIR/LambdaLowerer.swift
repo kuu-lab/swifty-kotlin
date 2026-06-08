@@ -1269,13 +1269,13 @@ final class LambdaLowerer {
         driver.ctx.resetScopeForFunction()
 
         var lambdaBody: [KIRInstruction] = [.beginBlock]
-        
+
         // Set up parameters only (no captures)
         for (paramIndex, lambdaParam) in lambdaParameters.enumerated() {
             let paramExpr = arena.appendExpr(.symbolRef(lambdaParam.symbol), type: lambdaParam.type)
             lambdaBody.append(.constValue(result: paramExpr, value: .symbolRef(lambdaParam.symbol)))
             driver.ctx.setLocalValue(paramExpr, for: lambdaParam.symbol)
-            
+
             // Handle receiver parameter if needed
             if paramIndex == 0, functionType?.receiver != nil {
                 driver.ctx.setImplicitReceiver(symbol: lambdaParam.symbol, exprID: paramExpr)
@@ -1357,7 +1357,7 @@ final class LambdaLowerer {
             )
         let lambdaValueExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: lambdaValueType)
         instructions.append(.constValue(result: lambdaValueExpr, value: .symbolRef(lambdaSymbol)))
-        
+
         // Register with no capture arguments for optimization
         driver.ctx.registerCallableValue(
             lambdaValueExpr,
@@ -1366,7 +1366,7 @@ final class LambdaLowerer {
             captureArguments: [], // Empty for non-capturing lambda
             hasClosureParam: false
         )
-        
+
         return lambdaValueExpr
     }
 }

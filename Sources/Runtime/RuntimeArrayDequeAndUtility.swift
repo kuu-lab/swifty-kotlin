@@ -1,8 +1,8 @@
 
-/// ArrayDeque runtime (STDLIB-240) plus generic Array utility functions
-/// (STDLIB-089).
-///
-/// Split out from `RuntimeCollections.swift`.
+// ArrayDeque runtime (STDLIB-240) plus generic Array utility functions
+// (STDLIB-089).
+//
+// Split out from `RuntimeCollections.swift`.
 
 // MARK: - ArrayDeque Functions (STDLIB-240)
 
@@ -365,6 +365,7 @@ public func kk_array_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
 
     // Element-by-element comparison
     for i in 0 ..< array.elements.count {
+        // swiftlint:disable:next for_where
         if !runtimeValuesEqual(array.elements[i], other.elements[i]) {
             return kk_box_bool(0)
         }
@@ -494,6 +495,7 @@ private func runtimeArrayBoxesDeepEqual(
     defer { visited.remove(pair) }
 
     for index in lhs.elements.indices {
+        // swiftlint:disable:next for_where
         if !runtimeValuesDeepEqual(lhs.elements[index], rhs.elements[index], visited: &visited) {
             return false
         }
@@ -626,4 +628,3 @@ public func kk_array_contentDeepHashCode(_ arrayRaw: Int) -> Int {
     var visited: Set<Int> = []
     return runtimeArrayBoxDeepHash(raw: arrayRaw, box: array, visited: &visited)
 }
-

@@ -39,6 +39,7 @@ func runtime_test_dispatcher_observe_entry(
 }
 
 final class RuntimeDispatcherTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     // MARK: - Dispatcher tag identity
 

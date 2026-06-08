@@ -38,7 +38,7 @@ extension CodegenBackendIntegrationTests {
                 -1
                 1
                 [apple, fig, pear]
-                
+
                 """
             )
         }

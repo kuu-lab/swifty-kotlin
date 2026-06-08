@@ -260,7 +260,7 @@ final class RuntimeAdvancedLoggerBox: @unchecked Sendable {
     private let lock = NSLock()
     private var appenders: [RuntimeAppender] = []
     private var _minimumLevel: String = "INFO"
-    private var _packageFilter: String? = nil   // optional prefix filter
+    private var _packageFilter: String?   // optional prefix filter
 
     var minimumLevel: String {
         get { lock.withLockAdvanced { _minimumLevel } }
@@ -438,7 +438,7 @@ public func kk_adv_logger_log_throwable(
     guard let logger = advancedLoggerBox(from: loggerRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_adv_logger_log_throwable received invalid Logger handle")
     }
-    var throwableMessage: String? = nil
+    var throwableMessage: String?
     if throwableRaw != runtimeNullSentinelInt,
        let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
        let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)

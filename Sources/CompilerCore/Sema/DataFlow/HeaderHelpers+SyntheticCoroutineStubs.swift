@@ -120,7 +120,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
 
-
         let continuationSymbol = ensureInterfaceSymbol(
             named: "Continuation",
             in: kotlinCoroutinesPkg,

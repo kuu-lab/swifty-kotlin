@@ -62,34 +62,34 @@ enum GoldenHarnessDump {
         guard let sema = ctx.sema else {
             throw GoldenHarnessDumpError.missingSema
         }
-        
+
         return renderSemaOutput(ast: ast, sema: sema, interner: ctx.interner)
     }
-    
+
     private static func renderSemaOutput(ast: ASTModule, sema: SemaModule, interner: StringInterner) -> String {
         var lines: [String] = []
-        
+
         // Render symbols
         let symbols = sema.symbols.allSymbols().sorted { $0.id.rawValue < $1.id.rawValue }
         for symbol in symbols {
             lines.append(renderSymbol(symbol, sema: sema, interner: interner))
         }
-        
+
         // Render files and declarations
         for file in ast.sortedFiles {
             lines.append(renderFile(file, ast: ast, sema: sema, interner: interner))
         }
-        
+
         // Render expressions
         for raw in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(raw))
             guard let expr = ast.arena.expr(exprID) else { continue }
             lines.append(renderExpression(expr, id: exprID, sema: sema, interner: interner))
         }
-        
+
         return lines.joined(separator: "\n") + "\n"
     }
-    
+
     private static func renderSymbol(_ symbol: SemanticSymbol, sema: SemaModule, interner: StringInterner) -> String {
         var extra: [String] = []
         if let signature = sema.symbols.functionSignature(for: symbol.id) {
@@ -103,7 +103,7 @@ enum GoldenHarnessDump {
         let flags = GoldenHarnessSemaFormat.renderSymbolFlags(symbol.flags)
         return "symbol s\(symbol.id.rawValue) kind=\(symbol.kind) fq=\(fq) vis=\(symbol.visibility) flags=\(flags)\(extras)"
     }
-    
+
     private static func renderFile(_ file: ASTFile, ast: ASTModule, sema: SemaModule, interner: StringInterner) -> String {
         var fileLine = "file f\(file.fileID.rawValue) package=\(GoldenHarnessSemaFormat.renderFQName(file.packageFQName, interner: interner))"
         if !file.annotations.isEmpty {
@@ -118,7 +118,7 @@ enum GoldenHarnessDump {
             }.joined(separator: ",")
             fileLine += " annotations=[\(renderedAnnotations)]"
         }
-        
+
         var lines = [fileLine]
         for declID in file.topLevelDecls {
             guard let decl = ast.arena.decl(declID) else { continue }
@@ -128,20 +128,20 @@ enum GoldenHarnessDump {
         }
         return lines.joined(separator: "\n")
     }
-    
+
     private static func renderExpression(_ expr: Expr, id: ExprID, sema: SemaModule, interner: StringInterner) -> String {
         var line = "expr e\(id.rawValue) \(GoldenHarnessExprFormat.renderExpr(expr, interner: interner))"
-        
+
         if let exprType = sema.bindings.exprTypes[id] {
             line += " type=\(sema.types.renderType(exprType))"
         } else {
             line += " type=_"
         }
-        
+
         if let refSymbol = sema.bindings.identifierSymbols[id] {
             line += " ref=s\(refSymbol.rawValue)"
         }
-        
+
         if let callBinding = sema.bindings.callBindings[id] {
             let map = callBinding.parameterMapping.keys.sorted().map { key in
                 "\(key)->\(callBinding.parameterMapping[key] ?? -1)"
@@ -149,7 +149,7 @@ enum GoldenHarnessDump {
             let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
             line += " call=s\(callBinding.chosenCallee.rawValue) map=[\(map)] targs=[\(typeArgs)]"
         }
-        
+
         return line
     }
 

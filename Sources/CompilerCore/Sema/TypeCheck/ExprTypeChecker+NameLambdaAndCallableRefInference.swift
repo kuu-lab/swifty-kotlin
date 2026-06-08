@@ -680,8 +680,7 @@ extension ExprTypeChecker {
             // Check for common HOF patterns (map, filter, etc.) through context
             else if inferredImplicitItType != nil {
                 [ctx.interner.intern("it")]
-            }
-            else {
+            } else {
                 params
             }
         } else {
@@ -771,7 +770,7 @@ extension ExprTypeChecker {
                 ast: ast,
                 sema: sema
             )
-            
+
             // Apply subtype constraint only if needed
             if expectedFunctionType.returnType != sema.types.unitType {
                 driver.emitSubtypeConstraint(
@@ -1395,19 +1394,19 @@ extension ExprTypeChecker {
         if expectedReturnType == sema.types.unitType {
             return sema.types.unitType
         }
-        
+
         // If the body is a block expression with no trailing expression, infer Unit
         if let bodyExprNode = ast.arena.expr(bodyExpr),
            case let .blockExpr(_, trailingExpr, _) = bodyExprNode,
            trailingExpr == nil {
             return sema.types.unitType
         }
-        
+
         // If the body is already compatible with expected type, use it
         if sema.types.isSubtype(inferredBodyType, expectedReturnType) {
             return inferredBodyType
         }
-        
+
         // Fall back to inferred type
         return inferredBodyType
     }

@@ -1,9 +1,9 @@
 
-/// `Sequence.joinTo` / `joinToString` / `sumOf` / `associate` /
-/// `associateBy` / `associateWith` plus their `*To` destination-map
-/// variants (STDLIB-275, STDLIB-SEQ-023).
-///
-/// Split out from `RuntimeSequence.swift`.
+// `Sequence.joinTo` / `joinToString` / `sumOf` / `associate` /
+// `associateBy` / `associateWith` plus their `*To` destination-map
+// variants (STDLIB-275, STDLIB-SEQ-023).
+//
+// Split out from `RuntimeSequence.swift`.
 
 // MARK: - Sequence Terminal Operations: joinToString/sumOf/associate/associateBy (STDLIB-275)
 
@@ -98,8 +98,6 @@ public func kk_sequence_sumByDouble(
     if let outThrown, outThrown.pointee != 0 { return kk_double_to_bits(0.0) }
     return kk_double_to_bits(total)
 }
-
-
 
 @_cdecl("kk_sequence_associate")
 public func kk_sequence_associate(
@@ -392,6 +390,7 @@ public func kk_sequence_groupByTo(
         runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -613,7 +612,6 @@ public func kk_sequence_maxByOrNull(
         caller: #function, comparisonSign: 1, returnElement: true, throwOnEmpty: false
     )
 }
-
 
 @_cdecl("kk_sequence_minWithOrNull")
 public func kk_sequence_minWithOrNull(

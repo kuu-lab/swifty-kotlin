@@ -6,6 +6,7 @@ import XCTest
 /// `kk_file_resolveSibling_string`, mirroring kotlin.io.File.resolveSibling
 /// semantics (replace the last path component with the sibling name).
 final class RuntimeFileResolveSiblingTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - File overload

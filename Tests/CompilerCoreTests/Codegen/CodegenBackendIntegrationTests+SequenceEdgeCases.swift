@@ -1475,7 +1475,6 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-
     func testCodegenSequenceMaxReturnsLargestValueAndThrowsOnEmpty() throws {
         let source = """
         fun main() {

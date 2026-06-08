@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimeResourceAccessTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         unsetenv("KSWIFTK_RESOURCE_ROOT")

@@ -27,7 +27,7 @@ final class MathOverloadResolutionTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> String? {
-        var result: String? = nil
+        var result: String?
         try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)

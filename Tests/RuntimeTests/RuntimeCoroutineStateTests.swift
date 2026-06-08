@@ -122,6 +122,7 @@ func runtime_test_with_context_delay(_ continuation: Int, _ outThrown: UnsafeMut
 }
 
 final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         runtimeCoroutineTestState.reset()

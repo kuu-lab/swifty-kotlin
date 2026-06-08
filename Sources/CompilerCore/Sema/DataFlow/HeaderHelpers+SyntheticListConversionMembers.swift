@@ -292,7 +292,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        
+
         // Ensure the primitive array has size property and toList() method
         let sizeName = interner.intern("size")
         let sizeFQName = arrayPackage + [interner.intern(arrayTypeName), sizeName]
@@ -307,7 +307,7 @@ extension DataFlowSemaPhase {
             )
             symbols.setParentSymbol(arraySymbol, for: sizeSym)
             symbols.setPropertyType(types.intType, for: sizeSym)
-            
+
             // Set external link name for size property
             let sizeLinkName: String = switch arrayTypeName {
             case "IntArray": "kk_intArray_size"
@@ -326,7 +326,7 @@ extension DataFlowSemaPhase {
             }
             symbols.setExternalLinkName(sizeLinkName, for: sizeSym)
         }
-        
+
         // Also register toList() method for this primitive array
         let toListName = interner.intern("toList")
         let toListFQName = arrayPackage + [interner.intern(arrayTypeName), toListName]
@@ -340,7 +340,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(arraySymbol, for: toListSym)
-            
+
             let externalLinkName: String = switch arrayTypeName {
             case "IntArray": "kk_intArray_toList"
             case "LongArray": "kk_longArray_toList"
@@ -357,7 +357,7 @@ extension DataFlowSemaPhase {
             default: "kk_array_toList"
             }
             symbols.setExternalLinkName(externalLinkName, for: toListSym)
-            
+
             // Get List interface for return type
             let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
             if let listSymbol = symbols.lookup(fqName: listFQName) {
@@ -376,19 +376,19 @@ extension DataFlowSemaPhase {
                 case "UShortArray": types.ushortType
                 default: types.intType
                 }
-                
+
                 let listReturnType = types.make(.classType(ClassType(
                     classSymbol: listSymbol,
                     args: [.invariant(elementType)],
                     nullability: .nonNull
                 )))
-                
+
                 let arrayReceiverType = types.make(.classType(ClassType(
                     classSymbol: arraySymbol,
                     args: [],
                     nullability: .nonNull
                 )))
-                
+
                 symbols.setFunctionSignature(
                     FunctionSignature(
                         receiverType: arrayReceiverType,
@@ -400,7 +400,7 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        
+
         guard symbols.lookup(fqName: memberFQName) == nil else { return }
 
         let returnType = types.make(.classType(ClassType(

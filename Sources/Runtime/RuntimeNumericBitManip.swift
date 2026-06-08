@@ -1,7 +1,7 @@
 
-/// Bit-manipulation runtime functions (STDLIB-BIT-007).
-///
-/// Split out from `RuntimeNumericCompat.swift`.
+// Bit-manipulation runtime functions (STDLIB-BIT-007).
+//
+// Split out from `RuntimeNumericCompat.swift`.
 
 // MARK: - STDLIB-BIT-007: Additional bit manipulation functions
 
@@ -276,4 +276,3 @@ public func kk_ulong_coerceAtLeast(_ value: Int, _ minimum: Int) -> Int {
 public func kk_ulong_coerceAtMost(_ value: Int, _ maximum: Int) -> Int {
     runtimeUnsignedCoerceAtMost(value, maximum)
 }
-

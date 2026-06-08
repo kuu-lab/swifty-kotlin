@@ -1548,7 +1548,7 @@ final class CallTypeChecker {
         }
 
         if let calleeName,
-           (args.count == 2 || args.count == 3)
+           args.count == 2 || args.count == 3
         {
             // Infer the first argument without an expected type to determine the overload.
             let firstArgType = driver.inferExpr(
@@ -2237,9 +2237,9 @@ final class CallTypeChecker {
             coroutineLauncherExpectedLambdaType = nil
         }
         let withContextExpectedLambdaType: TypeID? = if let calleeName,
-                                                        (calleeName == knownNames.withContext
+                                                        calleeName == knownNames.withContext
                                                             || calleeName == knownNames.withTimeout
-                                                            || calleeName == knownNames.withTimeoutOrNull),
+                                                            || calleeName == knownNames.withTimeoutOrNull,
                                                         args.count >= 2,
                                                         let secondArgExpr = ast.arena.expr(args[1].expr),
                                                         case .lambdaLiteral = secondArgExpr
@@ -2438,7 +2438,7 @@ final class CallTypeChecker {
 
         if let calleeName,
            interner.resolve(calleeName) == "compareValuesBy",
-           (args.count == 4 || args.count >= 6),
+           args.count == 4 || args.count >= 6,
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
         {
             let firstType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
@@ -3872,7 +3872,6 @@ final class CallTypeChecker {
             safeCall: true
         )
     }
-
 
 }
 

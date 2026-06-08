@@ -56,12 +56,6 @@ struct Solution {
     let substitution: [TypeVarID: TypeID]
     let isSuccess: Bool
     let failure: Diagnostic?
-
-    init(substitution: [TypeVarID: TypeID], isSuccess: Bool, failure: Diagnostic?) {
-        self.substitution = substitution
-        self.isSuccess = isSuccess
-        self.failure = failure
-    }
 }
 
 final class ConstraintSolver {

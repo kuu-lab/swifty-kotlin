@@ -228,7 +228,7 @@ final class SuperCallAndQualifiedThisTests: XCTestCase {
                            "Regular call dump should not contain 'super=1', got:\n\(dumpOutput)")
         }
     }
-    
+
     func testKIRDumpFormatIncludesQualifiedSuperTag() throws {
         let source = """
         interface Left {

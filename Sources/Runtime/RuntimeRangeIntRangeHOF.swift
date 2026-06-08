@@ -1,10 +1,10 @@
 
 // swiftlint:disable file_length
 
-/// IntRange higher-order / aggregation / search / partitioning
-/// runtime entry points (STDLIB-091, STDLIB-RANGE-038).
-///
-/// Split out from `RuntimeRangeAndDispatch.swift`.
+// IntRange higher-order / aggregation / search / partitioning
+// runtime entry points (STDLIB-091, STDLIB-RANGE-038).
+//
+// Split out from `RuntimeRangeAndDispatch.swift`.
 
 // MARK: - IntRange HOFs (STDLIB-091)
 
@@ -64,12 +64,12 @@ public func kk_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_map")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency
     let count = kk_range_count(rangeRaw)
     var mapped: [Int] = []
     mapped.reserveCapacity(count)
-    
+
     var current = range.first
     if range.step > 0 {
         while current <= range.last {
@@ -93,18 +93,18 @@ public func kk_range_map(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_mapIndexed")
 public func kk_range_mapIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_mapIndexed")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency
     let count = kk_range_count(rangeRaw)
     var mapped: [Int] = []
     mapped.reserveCapacity(count)
-    
+
     var current = range.first
     var index = 0
     if range.step > 0 {
@@ -131,7 +131,7 @@ public func kk_range_mapIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int
 
 @_cdecl("kk_range_mapNotNull")
 public func kk_range_mapNotNull(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_mapNotNull")
@@ -165,18 +165,18 @@ public func kk_range_mapNotNull(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int
 
 @_cdecl("kk_range_filter")
 public func kk_range_filter(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                            _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_filter")
     }
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    
+
     // Pre-calculate range size for memory efficiency (worst case all elements match)
     let count = kk_range_count(rangeRaw)
     var filtered: [Int] = []
     filtered.reserveCapacity(count)
-    
+
     var current = range.first
     if range.step > 0 {
         while current <= range.last {
@@ -204,7 +204,7 @@ public func kk_range_filter(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_filterIndexed")
 public func kk_range_filterIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_filterIndexed")
@@ -277,7 +277,7 @@ public func kk_range_filterNot(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_reduce")
 public func kk_range_reduce(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                            _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_reduce")
@@ -358,7 +358,7 @@ public func kk_range_reduceIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: 
 
 @_cdecl("kk_range_fold")
 public func kk_range_fold(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_fold")
@@ -387,7 +387,7 @@ public func kk_range_fold(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ 
 
 @_cdecl("kk_range_foldIndexed")
 public func kk_range_foldIndexed(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_foldIndexed")
@@ -421,7 +421,7 @@ public func kk_range_foldIndexed(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: 
 
 @_cdecl("kk_range_find")
 public func kk_range_find(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_find")
@@ -454,7 +454,7 @@ public func kk_range_find(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_findLast")
 public func kk_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                             _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                              _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_findLast")
@@ -487,7 +487,7 @@ public func kk_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_first_predicate")
 public func kk_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                     _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_first_predicate")
@@ -521,7 +521,7 @@ public func kk_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw
 
 @_cdecl("kk_range_firstOrNull_predicate")
 public func kk_range_firstOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_firstOrNull_predicate")
@@ -584,7 +584,7 @@ public func kk_range_randomOrNull_random(_ rangeRaw: Int, _ randomRaw: Int) -> I
 
 @_cdecl("kk_range_last_predicate")
 public func kk_range_last_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                    _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_last_predicate")
@@ -618,7 +618,7 @@ public func kk_range_last_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw:
 
 @_cdecl("kk_range_lastOrNull_predicate")
 public func kk_range_lastOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_lastOrNull_predicate")
@@ -776,7 +776,7 @@ public func kk_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
 
 @_cdecl("kk_range_none")
 public func kk_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
+                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
 {
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_range_none")

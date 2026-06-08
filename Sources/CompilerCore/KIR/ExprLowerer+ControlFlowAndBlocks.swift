@@ -1694,7 +1694,7 @@ extension ExprLowerer {
                     thrownResult: nil
                 ))
             } else if let rhsType = rhsType,
-                      (sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType) {
+                      sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_ulong_range_contains"),
@@ -1742,7 +1742,7 @@ extension ExprLowerer {
                sema.types.makeNonNullable(notInRhsType) == sema.types.uintType {
                 notInContainsCallee = "kk_uint_range_contains"
             } else if let notInRhsType = notInRhsType,
-                      (sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType) {
+                      sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
                 notInContainsCallee = "kk_ulong_range_contains"
             } else if let notInRhsType = notInRhsType,
                       sema.types.makeNonNullable(notInRhsType) == sema.types.longType,

@@ -1011,7 +1011,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     private func makeFileListOfStringType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1296,7 +1295,6 @@ extension DataFlowSemaPhase {
             for: memberSymbol
         )
     }
-
 
     func makeSyntheticIterableType(
         symbols: SymbolTable,

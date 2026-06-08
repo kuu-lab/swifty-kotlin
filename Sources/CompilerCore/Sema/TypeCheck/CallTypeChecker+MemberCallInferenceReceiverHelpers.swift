@@ -616,7 +616,6 @@ extension CallTypeChecker {
         return nil
     }
 
-    // swiftlint:disable cyclomatic_complexity function_body_length
     /// This legacy inference path still owns many special cases while the split-out helpers
     /// are being migrated.
 }

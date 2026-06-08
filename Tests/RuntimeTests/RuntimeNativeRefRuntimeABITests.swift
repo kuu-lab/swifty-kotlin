@@ -22,6 +22,7 @@ import XCTest
 // ---------------------------------------------------------------------------
 
 final class RuntimeNativeRefGCStabilityTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testGCCollectOnEmptyHeapIsIdempotent() {
@@ -143,6 +144,7 @@ final class RuntimeNativeRefMemoryTests: XCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeNativeRefWeakReferenceTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testWeakReferenceCreateReturnsNonZeroHandle() {
@@ -206,6 +208,7 @@ private let nativeRefCleanerThrowingBlock: @convention(c) (Int, UnsafeMutablePoi
 }
 
 final class RuntimeNativeRefCleanerTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     override func resetIsolatedRuntimeTestState() {
@@ -266,6 +269,7 @@ final class RuntimeNativeRefCleanerTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testPinObjectReturnsNonZeroHandle() {
@@ -379,6 +383,7 @@ final class RuntimeNativeRefPinnedTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testFreezeObjectReturnsPositiveHandleForNonZeroInput() {
@@ -484,6 +489,7 @@ final class RuntimeNativeRefFreezeTests: IsolatedRuntimeXCTestCase {
 // ---------------------------------------------------------------------------
 
 final class RuntimeNativeRefDebuggingTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     func testAssertionsEnabledReturnsBooleanValue() {

@@ -11,6 +11,7 @@ import XCTest
 // concurrent callers on separate threads are correctly serialised.
 
 final class RuntimeContinuationOneShotTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Helpers

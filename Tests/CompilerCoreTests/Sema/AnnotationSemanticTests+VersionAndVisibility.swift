@@ -728,7 +728,6 @@ extension AnnotationSemanticTests {
         XCTAssertTrue(diagnostics.isEmpty, "Expected ANNOTATION_TARGET suppression alias to suppress annotation-target diagnostics, got: \(ctx.diagnostics.diagnostics)")
     }
 
-
     func testWasExperimentalAnnotationIsCollectedOnDeclaration() throws {
         let source = """
         annotation class ExperimentalApi

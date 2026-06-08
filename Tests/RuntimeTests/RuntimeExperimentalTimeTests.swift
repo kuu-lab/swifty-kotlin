@@ -4,6 +4,7 @@ import Foundation
 import XCTest
 
 final class RuntimeExperimentalTimeTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testMonotonicMarkElapsedNowIsNonNegative() {
         let mark = kk_time_source_monotonic_mark_now(0)
@@ -24,23 +25,23 @@ final class RuntimeExperimentalTimeTests: IsolatedRuntimeXCTestCase {
 
     func testComparableTimeMarkDifferenceAndOrdering() {
         let expectation = XCTestExpectation(description: "Time difference measurement")
-        
+
         let first = kk_time_source_monotonic_mark_now(0)
-        
+
         let timer = DispatchSource.makeTimerSource()
         timer.schedule(deadline: .now() + .microseconds(1))
         timer.setEventHandler {
             let second = kk_time_source_monotonic_mark_now(0)
-            
+
             let diff = kk_time_mark_minus_mark(second, first)
             XCTAssertGreaterThanOrEqual(kk_duration_inWholeNanoseconds(diff), 0)
             XCTAssertGreaterThan(kk_time_mark_compare(second, first), 0)
             XCTAssertLessThan(kk_time_mark_compare(first, second), 0)
-            
+
             expectation.fulfill()
         }
         timer.resume()
-        
+
         wait(for: [expectation], timeout: 1.0)
     }
 

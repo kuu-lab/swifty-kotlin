@@ -64,6 +64,7 @@ private func runtime_mutex_with_lock_action(_ envRaw: Int) -> Int {
 }
 
 final class RuntimeMutexTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         runtimeMutexTestState.reset()

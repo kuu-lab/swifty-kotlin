@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimePathCopyToRecursivelyTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testPathCopyToRecursivelyCopiesDirectoryTree() throws {
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
