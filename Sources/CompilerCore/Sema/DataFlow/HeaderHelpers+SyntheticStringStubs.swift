@@ -2229,7 +2229,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "filter",
-            externalLinkName: "kk_string_filter",
+            externalLinkName: "kk_string_filter_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2632,7 +2632,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "filterIndexed",
-            externalLinkName: "kk_string_filterIndexed",
+            externalLinkName: "kk_string_filterIndexed_flat",
             receiverType: stringType,
             parameters: [("predicate", intCharToBoolType, false, false)],
             returnType: stringType,
@@ -2642,7 +2642,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "filterNot",
-            externalLinkName: "kk_string_filterNot",
+            externalLinkName: "kk_string_filterNot_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2652,7 +2652,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "takeWhile",
-            externalLinkName: "kk_string_takeWhile",
+            externalLinkName: "kk_string_takeWhile_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2663,7 +2663,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-081: CharSequence.takeLastWhile(predicate: (Char) -> Boolean): String ---
         registerSyntheticStringExtensionFunction(
             named: "takeLastWhile",
-            externalLinkName: "kk_string_takeLastWhile",
+            externalLinkName: "kk_string_takeLastWhile_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2673,7 +2673,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "dropWhile",
-            externalLinkName: "kk_string_dropWhile",
+            externalLinkName: "kk_string_dropWhile_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,

@@ -2364,17 +2364,7 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_filter",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        flatStringHOFReturnSpec(name: "kk_string_filter_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_map_flat",
             parameters: [
@@ -2679,61 +2669,11 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_filterIndexed",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_filterNot",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_takeWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_takeLastWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_dropWhile",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
+        flatStringHOFReturnSpec(name: "kk_string_filterIndexed_flat"),
+        flatStringHOFReturnSpec(name: "kk_string_filterNot_flat"),
+        flatStringHOFReturnSpec(name: "kk_string_takeWhile_flat"),
+        flatStringHOFReturnSpec(name: "kk_string_takeLastWhile_flat"),
+        flatStringHOFReturnSpec(name: "kk_string_dropWhile_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_splitToSequence_flat",
             parameters: [
@@ -3176,6 +3116,22 @@ public extension RuntimeABISpec {
             section: "String"
         ),
     ]
+
+    private static func flatStringHOFReturnSpec(name: String) -> RuntimeABIFunctionSpec {
+        var parameters = flatStringParameters(prefix: "")
+        parameters.append(contentsOf: [
+            RuntimeABIParameter(name: "fnPtr", type: .intptr),
+            RuntimeABIParameter(name: "closureRaw", type: .intptr),
+        ])
+        parameters.append(contentsOf: flatStringOutParameters())
+        parameters.append(RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer))
+        return RuntimeABIFunctionSpec(
+            name: name,
+            parameters: parameters,
+            returnType: .nullableUInt8Pointer,
+            section: "String"
+        )
+    }
 
     private static func flatStringReturnSpec(
         name: String,

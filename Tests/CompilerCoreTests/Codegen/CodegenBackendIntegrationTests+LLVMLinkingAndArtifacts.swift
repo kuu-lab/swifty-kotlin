@@ -102,6 +102,20 @@ extension CodegenBackendIntegrationTests {
         let dropThrown = arena.appendExpr(.temporary(39), type: types.intType)
         let dropLastResult = arena.appendExpr(.temporary(40), type: types.stringType)
         let dropLastThrown = arena.appendExpr(.temporary(41), type: types.intType)
+        let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let filterResult = arena.appendExpr(.temporary(47), type: types.stringType)
+        let filterThrown = arena.appendExpr(.temporary(48), type: types.intType)
+        let filterIndexedResult = arena.appendExpr(.temporary(49), type: types.stringType)
+        let filterIndexedThrown = arena.appendExpr(.temporary(50), type: types.intType)
+        let filterNotResult = arena.appendExpr(.temporary(51), type: types.stringType)
+        let filterNotThrown = arena.appendExpr(.temporary(52), type: types.intType)
+        let takeWhileResult = arena.appendExpr(.temporary(53), type: types.stringType)
+        let takeWhileThrown = arena.appendExpr(.temporary(54), type: types.intType)
+        let takeLastWhileResult = arena.appendExpr(.temporary(55), type: types.stringType)
+        let takeLastWhileThrown = arena.appendExpr(.temporary(56), type: types.intType)
+        let dropWhileResult = arena.appendExpr(.temporary(57), type: types.stringType)
+        let dropWhileThrown = arena.appendExpr(.temporary(58), type: types.intType)
         let needleExpr = arena.appendExpr(.stringLiteral(needle), type: types.stringType)
         let startsWithResult = arena.appendExpr(.temporary(15), type: types.booleanType)
         let containsResult = arena.appendExpr(.temporary(16), type: types.booleanType)
@@ -178,6 +192,14 @@ extension CodegenBackendIntegrationTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_takeLast_flat"), arguments: [trimResult, takeCount], result: takeLastResult, canThrow: true, thrownResult: takeLastThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_drop_flat"), arguments: [trimResult, takeCount], result: dropResult, canThrow: true, thrownResult: dropThrown),
                 .call(symbol: nil, callee: interner.intern("kk_string_dropLast_flat"), arguments: [trimResult, takeCount], result: dropLastResult, canThrow: true, thrownResult: dropLastThrown),
+                .constValue(result: hofFnPtr, value: .intLiteral(0)),
+                .constValue(result: hofClosureRaw, value: .intLiteral(0)),
+                .call(symbol: nil, callee: interner.intern("kk_string_filter_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterResult, canThrow: true, thrownResult: filterThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_filterIndexed_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterIndexedResult, canThrow: true, thrownResult: filterIndexedThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_filterNot_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterNotResult, canThrow: true, thrownResult: filterNotThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_takeWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: takeWhileResult, canThrow: true, thrownResult: takeWhileThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_takeLastWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: takeLastWhileResult, canThrow: true, thrownResult: takeLastWhileThrown),
+                .call(symbol: nil, callee: interner.intern("kk_string_dropWhile_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: dropWhileResult, canThrow: true, thrownResult: dropWhileThrown),
                 .constValue(result: needleExpr, value: .stringLiteral(needle)),
                 .call(symbol: nil, callee: interner.intern("kk_string_startsWith_flat"), arguments: [trimResult, needleExpr], result: startsWithResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_contains_str_flat"), arguments: [trimResult, needleExpr], result: containsResult, canThrow: false, thrownResult: nil),
@@ -306,6 +328,12 @@ extension CodegenBackendIntegrationTests {
         XCTAssertFalse(ir.contains("@kk_string_takeLast("))
         XCTAssertFalse(ir.contains("@kk_string_drop("))
         XCTAssertFalse(ir.contains("@kk_string_dropLast("))
+        XCTAssertFalse(ir.contains("@kk_string_filter("))
+        XCTAssertFalse(ir.contains("@kk_string_filterIndexed("))
+        XCTAssertFalse(ir.contains("@kk_string_filterNot("))
+        XCTAssertFalse(ir.contains("@kk_string_takeWhile("))
+        XCTAssertFalse(ir.contains("@kk_string_takeLastWhile("))
+        XCTAssertFalse(ir.contains("@kk_string_dropWhile("))
         XCTAssertFalse(ir.contains("@kk_string_indexOf_char("))
         XCTAssertFalse(ir.contains("@kk_string_lastIndexOf_char("))
         XCTAssertTrue(ir.contains("@kk_string_concat_flat"))
@@ -322,6 +350,12 @@ extension CodegenBackendIntegrationTests {
         XCTAssertTrue(ir.contains("@kk_string_takeLast_flat"))
         XCTAssertTrue(ir.contains("@kk_string_drop_flat"))
         XCTAssertTrue(ir.contains("@kk_string_dropLast_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_filter_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_filterIndexed_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_filterNot_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_takeWhile_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_takeLastWhile_flat"))
+        XCTAssertTrue(ir.contains("@kk_string_dropWhile_flat"))
         XCTAssertTrue(ir.contains("@kk_string_startsWith_flat"))
         XCTAssertTrue(ir.contains("@kk_string_contains_str_flat"))
         XCTAssertTrue(ir.contains("@kk_string_indexOf_flat"))

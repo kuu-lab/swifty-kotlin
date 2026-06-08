@@ -65,6 +65,15 @@ private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
 
+private let isAsciiLowercasePredicate: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    (0x61 ... 0x7A).contains(charRaw) ? 1 : 0
+}
+
+private let isEvenIndexPredicate: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, index, _, _ in
+    index.isMultiple(of: 2) ? 1 : 0
+}
+
 private let mapBoxCharValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
     kk_box_char(charRaw)
 }
@@ -86,6 +95,19 @@ private let takeLastWhileSurrogateCodeUnit: @convention(c) (Int, Int, UnsafeMuta
     _, charRaw, _ in
     (0xD800 ... 0xDFFF).contains(charRaw) ? 1 : 0
 }
+
+private typealias RuntimeFlatStringHOFEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 
 private func withFlatStringForHOF<T>(
     _ value: String,
@@ -122,6 +144,39 @@ private func withFlatStringsForHOF<T>(
         withFlatStringForHOF(second) { otherData, otherLength, otherByteCount, otherHash in
             body(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash)
         }
+    }
+}
+
+private func flatStringHOFValue(
+    _ value: String,
+    entry: RuntimeFlatStringHOFEntry,
+    fnPtr: Int,
+    closureRaw: Int = 0,
+    thrown: inout Int
+) -> String {
+    withFlatStringForHOF(value) { data, length, byteCount, hash in
+        var outLength = 0
+        var outByteCount = 0
+        var outHash = 0
+        let outData = entry(
+            data,
+            length,
+            byteCount,
+            hash,
+            fnPtr,
+            closureRaw,
+            &outLength,
+            &outByteCount,
+            &outHash,
+            &thrown
+        )
+        _ = outLength
+        _ = outHash
+        guard let outData else {
+            return ""
+        }
+        let buffer = UnsafeBufferPointer(start: UnsafePointer(outData), count: outByteCount)
+        return String(decoding: buffer, as: UTF8.self)
     }
 }
 
@@ -232,6 +287,67 @@ final class RuntimeStringHOFTests: XCTestCase {
             XCTAssertEqual(runtimeStringValueForHOF(kk_pair_first(result)), "b")
             XCTAssertEqual(runtimeStringValueForHOF(kk_pair_second(result)), "ac")
         }
+    }
+
+    func testStringFilterFlatReturnsFlattenedStringFields() {
+        var thrown = -1
+        let result = flatStringHOFValue(
+            "a1b2",
+            entry: kk_string_filter_flat,
+            fnPtr: unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
+            thrown: &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, "12")
+    }
+
+    func testStringFilterIndexedFlatReturnsFlattenedStringFields() {
+        var thrown = -1
+        let result = flatStringHOFValue(
+            "abcd",
+            entry: kk_string_filterIndexed_flat,
+            fnPtr: unsafeBitCast(isEvenIndexPredicate, to: Int.self),
+            thrown: &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, "ac")
+    }
+
+    func testStringFilterNotFlatReturnsFlattenedStringFields() {
+        var thrown = -1
+        let result = flatStringHOFValue(
+            "a1b2",
+            entry: kk_string_filterNot_flat,
+            fnPtr: unsafeBitCast(isDigitPredicateForIndexOfFirst, to: Int.self),
+            thrown: &thrown
+        )
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(result, "ab")
+    }
+
+    func testStringTakeAndDropWhileFlatReturnFlattenedStringFields() {
+        var takeThrown = -1
+        let taken = flatStringHOFValue(
+            "abc123",
+            entry: kk_string_takeWhile_flat,
+            fnPtr: unsafeBitCast(isAsciiLowercasePredicate, to: Int.self),
+            thrown: &takeThrown
+        )
+        var dropThrown = -1
+        let dropped = flatStringHOFValue(
+            "abc123",
+            entry: kk_string_dropWhile_flat,
+            fnPtr: unsafeBitCast(isAsciiLowercasePredicate, to: Int.self),
+            thrown: &dropThrown
+        )
+
+        XCTAssertEqual(takeThrown, 0)
+        XCTAssertEqual(dropThrown, 0)
+        XCTAssertEqual(taken, "abc")
+        XCTAssertEqual(dropped, "123")
     }
 
     // MARK: - kk_string_indexOfFirst_flat (STDLIB-TEXT-FN-022)
@@ -422,18 +538,16 @@ final class RuntimeStringHOFTests: XCTestCase {
     }
 
     func testTakeLastWhileUsesUTF16CodeUnits() {
-        let source = registerRuntimeObject(RuntimeStringBox("a🐻"))
-        var thrown = 0
-
-        let result = kk_string_takeLastWhile(
-            source,
-            unsafeBitCast(takeLastWhileSurrogateCodeUnit, to: Int.self),
-            0,
-            &thrown
+        var thrown = -1
+        let result = flatStringHOFValue(
+            "a🐻",
+            entry: kk_string_takeLastWhile_flat,
+            fnPtr: unsafeBitCast(takeLastWhileSurrogateCodeUnit, to: Int.self),
+            thrown: &thrown
         )
 
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(runtimeStringValue(result), "🐻")
+        XCTAssertEqual(result, "🐻")
     }
 
     func testFirstNotNullOfOrNullReturnsFirstNonNullResult() {

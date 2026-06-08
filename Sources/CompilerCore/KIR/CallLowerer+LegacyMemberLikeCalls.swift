@@ -1792,9 +1792,9 @@ extension CallLowerer {
                 case "mapNotNull":
                     ("kk_string_mapNotNull_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "filterIndexed":
-                    ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_filterIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "filterNot":
-                    ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_filterNot_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "count":
                     ("kk_string_count_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "any":
@@ -1808,9 +1808,9 @@ extension CallLowerer {
                 case "indexOfLast":
                     ("kk_string_indexOfLast_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "takeWhile":
-                    ("kk_string_takeWhile", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_takeWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "takeLastWhile":
-                    ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_takeLastWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":

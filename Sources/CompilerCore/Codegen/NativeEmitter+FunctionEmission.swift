@@ -768,6 +768,42 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
+                "kk_string_filter_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_filter_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_filterIndexed_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_filterIndexed_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_filterNot_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_filterNot_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_takeWhile_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_takeWhile_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_takeLastWhile_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_takeLastWhile_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_dropWhile_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_dropWhile_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_replace": FlatStringReturnCallSpec(
                     flatName: "kk_string_replace_flat",
                     stringArgumentCount: 3,
