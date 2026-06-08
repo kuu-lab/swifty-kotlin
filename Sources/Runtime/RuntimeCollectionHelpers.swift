@@ -96,6 +96,16 @@ func runtimeCollectionElements(from rawValue: Int) -> [Int]? {
     return nil
 }
 
+func runtimeCollectionValues(from rawValue: Int) -> [RuntimeValue]? {
+    if let listBox = runtimeListBox(from: rawValue) {
+        return listBox.values
+    }
+    if let setBox = runtimeSetBox(from: rawValue) {
+        return setBox.values
+    }
+    return nil
+}
+
 func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeCollectionElements(from: rawValue) {
         return elements
@@ -106,24 +116,41 @@ func runtimeCollectionOrArrayElements(from rawValue: Int) -> [Int]? {
     return nil
 }
 
-func runtimeIterableElements(from rawValue: Int) -> [Int]? {
-    if let elements = runtimeCollectionElements(from: rawValue) {
-        return elements
+func runtimeCollectionOrArrayValues(from rawValue: Int) -> [RuntimeValue]? {
+    if let values = runtimeCollectionValues(from: rawValue) {
+        return values
+    }
+    if let arrayBox = runtimeArrayBox(from: rawValue) {
+        return arrayBox.values
+    }
+    return nil
+}
+
+func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
+    if let values = runtimeCollectionValues(from: rawValue) {
+        return values
     }
     if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        return stringIterable.source.unicodeScalars.map { kk_box_char(Int($0.value)) }
+        return stringIterable.source.unicodeScalars.map { RuntimeValue(charScalar: Int($0.value)) }
     }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)
     {
-        return list.elements.enumerated().map { index, element in
-            kk_pair_new(index, element)
+        return list.values.enumerated().map { index, element in
+            RuntimeValue(raw: kk_pair_new(index, element.legacyRawValue))
         }
     }
+    if let arrayBox = runtimeArrayBox(from: rawValue) {
+        return arrayBox.values
+    }
     if runtimeSequenceBox(from: rawValue) != nil {
-        return runtimeSequenceSourceElements(from: rawValue)
+        return runtimeSequenceSourceElements(from: rawValue)?.map { RuntimeValue(raw: $0) }
     }
     return nil
+}
+
+func runtimeIterableElements(from rawValue: Int) -> [Int]? {
+    runtimeIterableValues(from: rawValue)?.map(\.legacyRawValue)
 }
 
 func runtimeListIteratorBox(from rawValue: Int) -> RuntimeListIteratorBox? {

@@ -817,11 +817,13 @@ public func kk_string_toSortedSet_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charRaws = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { kk_box_char(Int($0)) }
-    let deduped = runtimeDeduplicatePreservingOrder(charRaws)
-    let sorted = deduped.sorted { runtimeCompareValues($0, $1) < 0 }
-    return registerRuntimeObject(RuntimeSetBox(elements: sorted))
+    let charValues = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { RuntimeValue(charScalar: Int($0)) }
+    let deduped = runtimeDeduplicatePreservingOrder(charValues)
+    let sorted = deduped.sorted { lhs, rhs in
+        lhs.payload0 < rhs.payload0
+    }
+    return registerRuntimeObject(RuntimeSetBox(values: sorted))
 }
 
 // MARK: - STDLIB-640: CharArray.concatToString()

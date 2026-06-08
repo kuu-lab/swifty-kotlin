@@ -403,6 +403,10 @@ final class RuntimeSetBox {
     init(elements: [Int]) {
         self.storage = elements.map { RuntimeValue(raw: $0) }
     }
+
+    init(values: [RuntimeValue]) {
+        self.storage = values
+    }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.

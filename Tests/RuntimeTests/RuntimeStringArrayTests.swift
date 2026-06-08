@@ -1519,6 +1519,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
+        XCTAssertEqual(setBox?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98, 99]) // a, b, c
     }
 
@@ -1529,6 +1534,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
+        XCTAssertEqual(setBox?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 98]) // a, b
     }
 
@@ -1547,6 +1553,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
+        XCTAssertEqual(setBox?.values.map(\.tag), [RuntimeValue.charTag])
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [122]) // 'z'
     }
 
@@ -1556,6 +1563,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
         let setBox = runtimeSetBox(from: setRaw)
         XCTAssertNotNil(setBox)
+        XCTAssertEqual(setBox?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
         XCTAssertEqual(setBox?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
     }
 
@@ -1809,7 +1821,82 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let list = runtimeListBox(from: listRaw)
         let expectedScalars: [Int] = [97, 233, 128_059] // 'a', 'é', '🐻'
+        XCTAssertEqual(
+            list?.values.map(\.tag),
+            Array(repeating: RuntimeValue.charTag, count: expectedScalars.count)
+        )
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedScalars)
+    }
+
+    func testStringAsIterableGenericConversionsPreserveTaggedChars() {
+        let iterableRaw = flatStringAsIterable("aba")
+
+        let mutableList = runtimeListBox(from: kk_iterable_toMutableList(iterableRaw))
+        let mutableSet = runtimeSetBox(from: kk_iterable_toMutableSet(iterableRaw))
+        let hashSet = runtimeSetBox(from: kk_iterable_toHashSet(iterableRaw))
+
+        XCTAssertEqual(mutableList?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
+        XCTAssertEqual(mutableList?.elements, [97, 98, 97])
+        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(mutableSet?.elements, [97, 98])
+        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(hashSet?.elements, [97, 98])
+    }
+
+    func testStringCharCollectionCopiesPreserveTaggedChars() {
+        let listRaw = kk_iterable_toMutableList(flatStringAsIterable("aba"))
+
+        let set = runtimeSetBox(from: kk_list_to_set(listRaw))
+        let mutableSet = runtimeSetBox(from: kk_list_to_mutable_set(listRaw))
+        let hashSet = runtimeSetBox(from: kk_list_toHashSet(listRaw))
+        let mutableList = runtimeListBox(from: kk_collection_toMutableList(listRaw))
+        let typedArray = runtimeArrayBox(from: kk_collection_toTypedArray(listRaw))
+
+        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(mutableSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(hashSet?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(mutableList?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
+        XCTAssertEqual(typedArray?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
+        XCTAssertEqual(set?.elements, [97, 98])
+        XCTAssertEqual(mutableList?.elements, [97, 98, 97])
+        XCTAssertEqual(typedArray?.elements, [97, 98, 97])
+    }
+
+    func testStringAsIterableGenericJoinToStringRendersTaggedChars() {
+        let iterableRaw = flatStringAsIterable("aé🐻")
+        let result = kk_iterable_joinToString(
+            iterableRaw,
+            rawFromRuntimeString("|"),
+            rawFromRuntimeString("<"),
+            rawFromRuntimeString(">")
+        )
+
+        XCTAssertEqual(runtimeStringValue(Int(bitPattern: result)), "<a|é|🐻>")
+    }
+
+    func testStringAsIterableAsSequencePreservesTaggedSourceValues() {
+        let sequenceRaw = kk_iterable_asSequence(flatStringAsIterable("ab"))
+        let sequence = runtimeSequenceBox(from: sequenceRaw)
+
+        guard case let .valueSource(values)? = sequence?.steps.first else {
+            XCTFail("Expected String.asIterable().asSequence() to use RuntimeValue source storage")
+            return
+        }
+
+        XCTAssertEqual(values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(values.map(\.legacyRawValue), [97, 98])
     }
 
     func testStringAsIterableEmptyString() {
