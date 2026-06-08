@@ -939,6 +939,134 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringBooleanRuntimeAPIsReturnRawScalars() {
+        XCTAssertEqual(kk_string_isNullOrEmpty_flat(nil, 0, 0, 0), 1)
+        XCTAssertEqual(kk_string_isNullOrBlank_flat(nil, 0, 0, 0), 1)
+        XCTAssertEqual(kk_string_contentEquals_flat(nil, 0, 0, 0, nil, 0, 0, 0), 1)
+        XCTAssertEqual(kk_string_toBoolean_flat(nil, 0, 0, 0), 0)
+
+        withFlatString("KSwiftK") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_string_isEmpty_flat(data, length, byteCount, hash), 0)
+            XCTAssertEqual(kk_string_isNotEmpty_flat(data, length, byteCount, hash), 1)
+            XCTAssertEqual(kk_string_isBlank_flat(data, length, byteCount, hash), 0)
+            XCTAssertEqual(kk_string_isNotBlank_flat(data, length, byteCount, hash), 1)
+            XCTAssertEqual(kk_string_isNullOrEmpty_flat(data, length, byteCount, hash), 0)
+            XCTAssertEqual(kk_string_isNullOrBlank_flat(data, length, byteCount, hash), 0)
+
+            withFlatString("KSw") { prefixData, prefixLength, prefixByteCount, prefixHash in
+                XCTAssertEqual(
+                    kk_string_startsWith_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        prefixData,
+                        prefixLength,
+                        prefixByteCount,
+                        prefixHash
+                    ),
+                    1
+                )
+            }
+
+            withFlatString("iftK") { suffixData, suffixLength, suffixByteCount, suffixHash in
+                XCTAssertEqual(
+                    kk_string_endsWith_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        suffixData,
+                        suffixLength,
+                        suffixByteCount,
+                        suffixHash
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_string_contains_str_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        suffixData,
+                        suffixLength,
+                        suffixByteCount,
+                        suffixHash
+                    ),
+                    1
+                )
+            }
+
+            withFlatString("kswiftk") { otherData, otherLength, otherByteCount, otherHash in
+                XCTAssertEqual(
+                    kk_string_equals_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash
+                    ),
+                    0
+                )
+                XCTAssertEqual(
+                    kk_string_equalsIgnoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash,
+                        1
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_string_contentEquals_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash,
+                        1
+                    ),
+                    1
+                )
+                XCTAssertEqual(
+                    kk_string_contains_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash,
+                        1
+                    ),
+                    1
+                )
+            }
+        }
+
+        withFlatString("true") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_string_toBoolean_flat(data, length, byteCount, hash), 1)
+            XCTAssertEqual(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil), 1)
+        }
+
+        withFlatString("false") { data, length, byteCount, hash in
+            XCTAssertEqual(kk_string_toBooleanStrict_flat(data, length, byteCount, hash, nil), 0)
+        }
+    }
+
     func testFlatStringOrEmptyUsesDataNull() {
         var nullLength = -1
         var nullByteCount = -1
@@ -1909,7 +2037,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // STDLIB-TEXT-FN-012: kk_string_contains_ignoreCase_flat
     //
-    // Asserts the boxed Boolean returned by `kk_string_contains_ignoreCase_flat`
+    // Asserts the raw Boolean scalar returned by `kk_string_contains_ignoreCase_flat`
     // matches Kotlin's `CharSequence.contains(other, ignoreCase)` semantics:
     // - empty needle always matches (mirroring `String.contains("")`)
     // - case-sensitive mode (`ignoreCase = false`) behaves like `kk_string_contains_str_flat`
@@ -1938,12 +2066,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(
             contains("HelloWorld", "World", ignoreCase: 0),
             1,
-            "case-sensitive hit should box `true`"
+            "case-sensitive hit should return raw `true`"
         )
         XCTAssertEqual(
             contains("HelloWorld", "world", ignoreCase: 0),
             0,
-            "case-sensitive miss should box `false`"
+            "case-sensitive miss should return raw `false`"
         )
         XCTAssertEqual(
             contains("HelloWorld", "", ignoreCase: 0),
@@ -1955,12 +2083,12 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(
             contains("HelloWorld", "world", ignoreCase: 1),
             1,
-            "case-insensitive hit should box `true`"
+            "case-insensitive hit should return raw `true`"
         )
         XCTAssertEqual(
             contains("HelloWorld", "WORLD", ignoreCase: 1),
             1,
-            "fully uppercased needle should box `true` when ignoreCase=true"
+            "fully uppercased needle should return raw `true` when ignoreCase=true"
         )
         XCTAssertEqual(
             contains("HelloWorld", "", ignoreCase: 1),

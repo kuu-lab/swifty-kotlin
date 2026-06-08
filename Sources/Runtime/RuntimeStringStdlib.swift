@@ -1511,7 +1511,7 @@ public func kk_string_startsWith_flat(
         byteCount: prefixByteCount,
         hash: prefixHash
     )
-    return kk_box_bool(source.hasPrefix(prefix) ? 1 : 0)
+    return source.hasPrefix(prefix) ? 1 : 0
 }
 
 @_cdecl("kk_string_endsWith_flat")
@@ -1532,7 +1532,7 @@ public func kk_string_endsWith_flat(
         byteCount: suffixByteCount,
         hash: suffixHash
     )
-    return kk_box_bool(source.hasSuffix(suffix) ? 1 : 0)
+    return source.hasSuffix(suffix) ? 1 : 0
 }
 
 @_cdecl("kk_string_contains_str_flat")
@@ -1554,9 +1554,9 @@ public func kk_string_contains_str_flat(
         hash: otherHash
     )
     if other.isEmpty {
-        return kk_box_bool(1)
+        return 1
     }
-    return kk_box_bool(source.contains(other) ? 1 : 0)
+    return source.contains(other) ? 1 : 0
 }
 
 // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
@@ -1588,16 +1588,16 @@ public func kk_string_contains_ignoreCase_flat(
     let ignoreCase = ignoreCaseRaw != 0
 
     if other.isEmpty {
-        return kk_box_bool(1)
+        return 1
     }
     if !ignoreCase {
-        return kk_box_bool(source.contains(other) ? 1 : 0)
+        return source.contains(other) ? 1 : 0
     }
 
     let sourceScalars = Array(source.unicodeScalars)
     let otherScalars = Array(other.unicodeScalars)
     if otherScalars.count > sourceScalars.count {
-        return kk_box_bool(0)
+        return 0
     }
     for offset in 0 ... (sourceScalars.count - otherScalars.count) {
         let slice = sourceScalars[offset ..< (offset + otherScalars.count)]
@@ -1605,10 +1605,10 @@ public func kk_string_contains_ignoreCase_flat(
             String($0).caseInsensitiveCompare(String($1)) == .orderedSame
         }
         if matches {
-            return kk_box_bool(1)
+            return 1
         }
     }
-    return kk_box_bool(0)
+    return 0
 }
 
 @_cdecl("kk_string_toInt")
@@ -2723,7 +2723,7 @@ public func kk_string_isEmpty_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_box_bool(source.isEmpty ? 1 : 0)
+    return source.isEmpty ? 1 : 0
 }
 
 @_cdecl("kk_string_isNotEmpty_flat")
@@ -2734,7 +2734,7 @@ public func kk_string_isNotEmpty_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_box_bool(source.isEmpty ? 0 : 1)
+    return source.isEmpty ? 0 : 1
 }
 
 @_cdecl("kk_string_isBlank_flat")
@@ -2745,7 +2745,7 @@ public func kk_string_isBlank_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0)
+    return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1 : 0
 }
 
 @_cdecl("kk_string_isNotBlank_flat")
@@ -2756,7 +2756,7 @@ public func kk_string_isNotBlank_flat(
     _ hash: Int
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_box_bool(source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1)
+    return source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0 : 1
 }
 
 // MARK: - STDLIB-TEXT-EDGE-004: CharSequence.ifBlank(defaultValue)
@@ -4186,10 +4186,10 @@ public func kk_string_contentEquals_flat(
     let receiverIsNull = (receiverData == nil)
     let otherIsNull = (otherData == nil)
     if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
+        return 1
     }
     if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
+        return 0
     }
     let receiverStr = runtimeStringFromFlat(
         data: receiverData,
@@ -4203,7 +4203,7 @@ public func kk_string_contentEquals_flat(
         byteCount: otherByteCount,
         hash: otherHash
     )
-    return kk_box_bool(receiverStr == otherStr ? 1 : 0)
+    return receiverStr == otherStr ? 1 : 0
 }
 
 @_cdecl("kk_string_contentEquals_ignoreCase_flat")
@@ -4221,10 +4221,10 @@ public func kk_string_contentEquals_ignoreCase_flat(
     let receiverIsNull = (receiverData == nil)
     let otherIsNull = (otherData == nil)
     if receiverIsNull && otherIsNull {
-        return kk_box_bool(1)
+        return 1
     }
     if receiverIsNull || otherIsNull {
-        return kk_box_bool(0)
+        return 0
     }
     let receiverStr = runtimeStringFromFlat(
         data: receiverData,
@@ -4239,9 +4239,9 @@ public func kk_string_contentEquals_ignoreCase_flat(
         hash: otherHash
     )
     if ignoreCaseRaw == 0 {
-        return kk_box_bool(receiverStr == otherStr ? 1 : 0)
+        return receiverStr == otherStr ? 1 : 0
     }
-    return kk_box_bool(receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0)
+    return receiverStr.caseInsensitiveCompare(otherStr) == .orderedSame ? 1 : 0
 }
 
 @_cdecl("kk_string_toBoolean_flat")
@@ -4252,10 +4252,10 @@ public func kk_string_toBoolean_flat(
     _ hash: Int
 ) -> Int {
     guard data != nil else {
-        return kk_box_bool(0)
+        return 0
     }
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_box_bool(source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0)
+    return source.caseInsensitiveCompare("true") == .orderedSame ? 1 : 0
 }
 
 @_cdecl("kk_string_toBooleanStrict_flat")
@@ -4270,9 +4270,9 @@ public func kk_string_toBooleanStrict_flat(
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     switch source {
     case "true":
-        return kk_box_bool(1)
+        return 1
     case "false":
-        return kk_box_bool(0)
+        return 0
     default:
         runtimeSetThrown(
             outThrown,
@@ -5503,7 +5503,7 @@ public func kk_string_equals_flat(
     _ otherHash: Int
 ) -> Int {
     guard otherData != nil else {
-        return kk_box_bool(0)
+        return 0
     }
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let other = runtimeStringFromFlat(
@@ -5512,7 +5512,7 @@ public func kk_string_equals_flat(
         byteCount: otherByteCount,
         hash: otherHash
     )
-    return kk_box_bool(source == other ? 1 : 0)
+    return source == other ? 1 : 0
 }
 
 @_cdecl("kk_string_equalsIgnoreCase_flat")
@@ -5528,7 +5528,7 @@ public func kk_string_equalsIgnoreCase_flat(
     _ ignoreCaseRaw: Int
 ) -> Int {
     guard otherData != nil else {
-        return kk_box_bool(0)
+        return 0
     }
     let cmp = kk_string_compareToIgnoreCase_flat(
         data,
@@ -5541,7 +5541,7 @@ public func kk_string_equalsIgnoreCase_flat(
         otherHash,
         ignoreCaseRaw
     )
-    return kk_box_bool(cmp == 0 ? 1 : 0)
+    return cmp == 0 ? 1 : 0
 }
 
 // MARK: - STDLIB-188: replaceFirst / replaceRange

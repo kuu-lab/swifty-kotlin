@@ -2032,7 +2032,7 @@ public func kk_string_isNullOrEmpty_flat(
     _ hash: Int
 ) -> Int {
     guard data != nil else {
-        return kk_box_bool(1)
+        return 1
     }
     let str = runtimeStringFromFlatFields(
         data: data,
@@ -2040,7 +2040,7 @@ public func kk_string_isNullOrEmpty_flat(
         byteCount: byteCount,
         hash: hash
     )
-    return kk_box_bool(str.isEmpty ? 1 : 0)
+    return str.isEmpty ? 1 : 0
 }
 
 @_cdecl("kk_string_isNullOrBlank_flat")
@@ -2051,7 +2051,7 @@ public func kk_string_isNullOrBlank_flat(
     _ hash: Int
 ) -> Int {
     guard data != nil else {
-        return kk_box_bool(1)
+        return 1
     }
     let str = runtimeStringFromFlatFields(
         data: data,
@@ -2059,7 +2059,7 @@ public func kk_string_isNullOrBlank_flat(
         byteCount: byteCount,
         hash: hash
     )
-    return kk_box_bool(str.allSatisfy(\.isWhitespace) ? 1 : 0)
+    return str.allSatisfy(\.isWhitespace) ? 1 : 0
 }
 
 // MARK: - STDLIB-534: String?.orEmpty()
