@@ -7447,3 +7447,8 @@ public func kk_string_struct_get_length(_ structRaw: Int) -> Int {
     }
     return structPointer.pointee.length
 }
+
+@_cdecl("kk_char_sequence_length")
+public func kk_char_sequence_length(_ raw: Int) -> Int {
+    runtimeStringFromRaw(raw)?.count ?? 0
+}

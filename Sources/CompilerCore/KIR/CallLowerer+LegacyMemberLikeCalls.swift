@@ -1055,6 +1055,20 @@ extension CallLowerer {
                 ))
                 return result
             }
+            if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
+               case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+               classType.classSymbol == charSequenceSymbol
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_char_sequence_length"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         }
 
         // Char.digitToInt() / Char.digitToIntOrNull() (STDLIB-083)

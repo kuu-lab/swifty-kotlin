@@ -843,6 +843,14 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_char_sequence_length",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_string_trim_predicate",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
