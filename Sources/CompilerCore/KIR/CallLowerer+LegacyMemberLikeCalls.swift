@@ -2607,6 +2607,18 @@ extension CallLowerer {
                     "kk_iterable_firstNotNullOf"
                 case "firstNotNullOfOrNull":
                     "kk_iterable_firstNotNullOfOrNull"
+                case "reduce":
+                    "kk_array_reduce"
+                case "reduceOrNull":
+                    "kk_array_reduceOrNull"
+                case "reduceIndexed":
+                    "kk_array_reduceIndexed"
+                case "fold":
+                    "kk_array_fold"
+                case "foldIndexed":
+                    "kk_array_foldIndexed"
+                case "flatMap":
+                    "kk_array_flatMap"
                 default:
                     nil
                 }

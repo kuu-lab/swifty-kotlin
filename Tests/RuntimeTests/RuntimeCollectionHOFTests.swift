@@ -2520,4 +2520,42 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    // MARK: - kk_array_joinToString (STDLIB-GAP-PH1)
+
+    func testArrayJoinToStringWithDefaultSeparator() {
+        let array = makeArray([runtimeStringRaw("a"), runtimeStringRaw("b"), runtimeStringRaw("c")])
+        let sep = runtimeStringRaw(", ")
+        let pre = runtimeStringRaw("")
+        let post = runtimeStringRaw("")
+        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
+        XCTAssertEqual(runtimeStringValue(result), "a, b, c")
+    }
+
+    func testArrayJoinToStringWithCustomSeparatorAndWrappers() {
+        let array = makeArray([runtimeStringRaw("1"), runtimeStringRaw("2"), runtimeStringRaw("3")])
+        let sep = runtimeStringRaw("-")
+        let pre = runtimeStringRaw("[")
+        let post = runtimeStringRaw("]")
+        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
+        XCTAssertEqual(runtimeStringValue(result), "[1-2-3]")
+    }
+
+    func testArrayJoinToStringEmptyArrayReturnsEmptyWithWrappers() {
+        let array = makeArray([])
+        let sep = runtimeStringRaw(", ")
+        let pre = runtimeStringRaw("(")
+        let post = runtimeStringRaw(")")
+        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
+        XCTAssertEqual(runtimeStringValue(result), "()")
+    }
+
+    func testArrayJoinToStringSingleElement() {
+        let array = makeArray([runtimeStringRaw("only")])
+        let sep = runtimeStringRaw(", ")
+        let pre = runtimeStringRaw("")
+        let post = runtimeStringRaw("")
+        let result = Int(bitPattern: kk_array_joinToString(array, sep, pre, post))
+        XCTAssertEqual(runtimeStringValue(result), "only")
+    }
+
 }

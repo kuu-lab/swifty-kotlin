@@ -1006,6 +1006,17 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_array_joinToString",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
+            ],
+            returnType: .opaquePointer,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_array_contentToString",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),

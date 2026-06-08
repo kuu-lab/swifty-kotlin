@@ -210,6 +210,122 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- Bitwise and shift operations (kotlin stdlib extension functions, STDLIB-GAP-PH1) ---
+
+        // infix fun BigInteger.or(other: BigInteger): BigInteger
+        registerBigIntegerExtensionFunction(
+            named: "or",
+            externalLinkName: "kk_biginteger_or",
+            receiverType: bigIntegerType,
+            parameters: [("other", bigIntegerType)],
+            returnType: bigIntegerType,
+            packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // infix fun BigInteger.xor(other: BigInteger): BigInteger
+        registerBigIntegerExtensionFunction(
+            named: "xor",
+            externalLinkName: "kk_biginteger_xor",
+            receiverType: bigIntegerType,
+            parameters: [("other", bigIntegerType)],
+            returnType: bigIntegerType,
+            packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // fun BigInteger.inv(): BigInteger  (maps to kk_biginteger_not)
+        registerBigIntegerExtensionFunction(
+            named: "inv",
+            externalLinkName: "kk_biginteger_not",
+            receiverType: bigIntegerType,
+            parameters: [],
+            returnType: bigIntegerType,
+            packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // infix fun BigInteger.shl(n: Int): BigInteger  (maps to kk_biginteger_shiftLeft)
+        registerBigIntegerExtensionFunction(
+            named: "shl",
+            externalLinkName: "kk_biginteger_shiftLeft",
+            receiverType: bigIntegerType,
+            parameters: [("n", intType)],
+            returnType: bigIntegerType,
+            packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // infix fun BigInteger.shr(n: Int): BigInteger  (maps to kk_biginteger_shiftRight)
+        registerBigIntegerExtensionFunction(
+            named: "shr",
+            externalLinkName: "kk_biginteger_shiftRight",
+            receiverType: bigIntegerType,
+            parameters: [("n", intType)],
+            returnType: bigIntegerType,
+            packageFQName: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- toByteArray() instance method ---
+
+        let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
+        let byteArrayType: TypeID
+        if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
+            byteArrayType = types.make(.classType(ClassType(
+                classSymbol: byteArraySymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        } else {
+            byteArrayType = types.intType
+        }
+
+        // fun BigInteger.toByteArray(): ByteArray
+        registerBigIntegerInstanceMethod(
+            named: "toByteArray",
+            externalLinkName: "kk_biginteger_toByteArray",
+            returnType: byteArrayType,
+            parameters: [],
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- Modular arithmetic instance methods (throwing, STDLIB-GAP-PH1) ---
+
+        // fun BigInteger.modInverse(m: BigInteger): BigInteger  — ArithmeticException if m <= 0
+        registerBigIntegerInstanceMethod(
+            named: "modInverse",
+            externalLinkName: "kk_biginteger_modInverse",
+            returnType: bigIntegerType,
+            parameters: [("m", bigIntegerType)],
+            canThrow: true,
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // fun BigInteger.modPow(exponent: BigInteger, m: BigInteger): BigInteger  — ArithmeticException
+        registerBigIntegerInstanceMethod(
+            named: "modPow",
+            externalLinkName: "kk_biginteger_modPow",
+            returnType: bigIntegerType,
+            parameters: [("exponent", bigIntegerType), ("m", bigIntegerType)],
+            canThrow: true,
+            ownerSymbol: bigIntegerSymbol,
+            ownerType: bigIntegerType,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - BigInteger Helpers

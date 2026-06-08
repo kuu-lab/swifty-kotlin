@@ -106,6 +106,13 @@ public func kk_string_uppercase(_ strRaw: Int) -> Int {
     return runtimeMakeStringRaw(source.uppercased())
 }
 
+@_cdecl("kk_string_capitalize")
+public func kk_string_capitalize(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard !source.isEmpty else { return strRaw }
+    return runtimeMakeStringRaw(source.prefix(1).uppercased() + source.dropFirst())
+}
+
 @_cdecl("kk_string_lowercase_locale")
 public func kk_string_lowercase_locale(_ strRaw: Int, _ localeRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

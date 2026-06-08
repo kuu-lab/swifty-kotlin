@@ -621,6 +621,7 @@ extension ABILoweringPass {
             interner.intern("kk_list_to_string"),
             interner.intern("kk_list_to_mutable_list"),
             interner.intern("kk_list_joinToString"),
+            interner.intern("kk_array_joinToString"),
             interner.intern("kk_iterable_joinTo"),
             interner.intern("kk_iterable_joinToString"),
             interner.intern("kk_list_to_set"),
@@ -1214,8 +1215,8 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_get_annotations"),
             interner.intern("kk_kclass_find_annotation"),
             interner.intern("kk_kclass_register_single_annotation"),
-            // BigInteger non-throwing operations (STDLIB-NUM-129)
-            // divide, pow, and fromString are intentionally excluded here — they
+            // BigInteger non-throwing operations (STDLIB-NUM-129, STDLIB-GAP-PH1)
+            // divide, pow, fromString, modInverse, modPow are intentionally excluded — they
             // use outThrown and are marked .throwingFunction in the sema stubs.
             interner.intern("kk_biginteger_valueOf"),
             interner.intern("kk_biginteger_add"),
@@ -1226,6 +1227,13 @@ extension ABILoweringPass {
             interner.intern("kk_biginteger_toInt"),
             interner.intern("kk_biginteger_toLong"),
             interner.intern("kk_biginteger_toString"),
+            interner.intern("kk_biginteger_and"),
+            interner.intern("kk_biginteger_or"),
+            interner.intern("kk_biginteger_xor"),
+            interner.intern("kk_biginteger_not"),
+            interner.intern("kk_biginteger_shiftLeft"),
+            interner.intern("kk_biginteger_shiftRight"),
+            interner.intern("kk_biginteger_toByteArray"),
             // Job State Queries (STDLIB-CORO-070)
             interner.intern("kk_job_is_active"),
             interner.intern("kk_job_is_completed"),

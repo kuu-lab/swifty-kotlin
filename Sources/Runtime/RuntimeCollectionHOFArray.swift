@@ -452,3 +452,22 @@ public func kk_array_count(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ o
     }
     return count
 }
+
+@_cdecl("kk_array_joinToString")
+public func kk_array_joinToString(
+    _ arrayRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int
+) -> UnsafeMutableRawPointer {
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeArrayBox(from: arrayRaw)?.elements ?? []
+    let rendered = elements.map(runtimeElementToString).joined(separator: separator)
+    let stringValue = prefix + rendered + postfix
+    let utf8 = Array(stringValue.utf8)
+    return utf8.withUnsafeBufferPointer { buf in
+        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
+    }
+}
