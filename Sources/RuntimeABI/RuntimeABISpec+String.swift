@@ -1753,15 +1753,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_equals",
-            parameters: [
-                RuntimeABIParameter(name: "aRaw", type: .intptr),
-                RuntimeABIParameter(name: "bRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_enum_valueOf_throw",
             parameters: [
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),

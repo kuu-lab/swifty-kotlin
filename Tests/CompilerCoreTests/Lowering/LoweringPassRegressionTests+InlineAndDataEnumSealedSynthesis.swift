@@ -330,7 +330,8 @@ extension LoweringPassRegressionTests {
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
-        XCTAssertTrue(valueOfCallees.contains("kk_string_equals"), "valueOf should call kk_string_equals")
+        XCTAssertTrue(valueOfCallees.contains("kk_string_equals_flat"), "valueOf should call kk_string_equals_flat")
+        XCTAssertTrue(valueOfCallees.contains("kk_unbox_bool"), "valueOf should unbox the flat String.equals result")
         XCTAssertTrue(valueOfCallees.contains("kk_string_concat"), "valueOf should call kk_string_concat to build 'ClassName.value' for error message")
         XCTAssertTrue(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 

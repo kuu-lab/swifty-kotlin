@@ -380,7 +380,7 @@ extension BuildKIRRegressionTests {
         let callees = pass.nonThrowingCallees(interner: interner)
 
         XCTAssertTrue(callees.contains(interner.intern("kk_string_equals_flat")))
-        XCTAssertTrue(callees.contains(interner.intern("kk_string_equals")))
+        XCTAssertFalse(callees.contains(interner.intern("kk_string_equals")))
     }
 
     func testBuildKIRLowersMapWithDefaultToCollectionRuntimeCall() throws {

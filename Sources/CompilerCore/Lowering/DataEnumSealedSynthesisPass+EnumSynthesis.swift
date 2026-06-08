@@ -324,15 +324,28 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.constValue(result: entryNameExpr, value: .stringLiteral(entryNameStr)))
 
-            let cmpResult = module.arena.appendExpr(
+            let boxedCmpResult = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)),
-                type: sema.types.make(.primitive(.boolean, .nonNull))
+                type: sema.types.anyType
             )
-            let cmpCallee = interner.intern("kk_string_equals")
+            let cmpCallee = interner.intern("kk_string_equals_flat")
             body.append(.call(
                 symbol: nil,
                 callee: cmpCallee,
                 arguments: [paramRef, entryNameExpr],
+                result: boxedCmpResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+
+            let cmpResult = module.arena.appendExpr(
+                .temporary(Int32(module.arena.expressions.count)),
+                type: sema.types.make(.primitive(.boolean, .nonNull))
+            )
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_unbox_bool"),
+                arguments: [boxedCmpResult],
                 result: cmpResult,
                 canThrow: false,
                 thrownResult: nil
