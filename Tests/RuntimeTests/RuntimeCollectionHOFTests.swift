@@ -1251,6 +1251,26 @@ final class RuntimeCollectionHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testIterableFirstNotNullOfOrNullAcceptsArrayReceiver() {
+        let arraySource = makeArray([1, 2, 4])
+        let result = kk_iterable_firstNotNullOfOrNull(
+            arraySource,
+            unsafeBitCast(firstNullableEvenTimesTen, to: Int.self),
+            0,
+            nil
+        )
+        XCTAssertEqual(result, 20)
+
+        let emptyArray = makeArray([1, 3, 5])
+        let nullResult = kk_iterable_firstNotNullOfOrNull(
+            emptyArray,
+            unsafeBitCast(alwaysNullTransform, to: Int.self),
+            0,
+            nil
+        )
+        XCTAssertEqual(nullResult, runtimeNullSentinelInt)
+    }
+
     func testSortedByWithStringKeyHandlesNonIntegerComparison() {
         let source = makeList([makeRuntimeStringRaw("b"), makeRuntimeStringRaw("a"), makeRuntimeStringRaw("c")])
 
