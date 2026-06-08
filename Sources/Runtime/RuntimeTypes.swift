@@ -64,6 +64,7 @@ final class RuntimeStringBox {
 struct RuntimeValue {
     static let rawTag = 0
     static let stringTag = 1
+    static let charTag = 2
 
     var tag: Int
     var payload0: Int
@@ -85,6 +86,14 @@ struct RuntimeValue {
         self.payload1 = length
         self.payload2 = byteCount
         self.payload3 = hash
+    }
+
+    init(charScalar value: Int) {
+        self.tag = Self.charTag
+        self.payload0 = value
+        self.payload1 = 0
+        self.payload2 = 0
+        self.payload3 = 0
     }
 
     var legacyRawValue: Int {

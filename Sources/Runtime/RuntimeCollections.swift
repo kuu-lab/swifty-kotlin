@@ -264,7 +264,7 @@ public func kk_list_to_string(_ listRaw: Int) -> UnsafeMutableRawPointer {
             kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
         }
     }
-    let parts = list.elements.map { elem -> String in
+    let parts = list.values.map { elem -> String in
         runtimeElementToString(elem)
     }
     let str = "[" + parts.joined(separator: ", ") + "]"
@@ -279,7 +279,7 @@ public func kk_list_to_mutable_list(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_to_mutable_list")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: list.elements))
+    return registerRuntimeObject(RuntimeListBox(values: list.values))
 }
 
 @_cdecl("kk_list_joinToString")
@@ -292,7 +292,7 @@ public func kk_list_joinToString(
     let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
     let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
     let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
-    let elements = runtimeListBox(from: listRaw)?.elements ?? []
+    let elements = runtimeListBox(from: listRaw)?.values ?? []
     let rendered = elements.map(runtimeElementToString).joined(separator: separator)
     let stringValue = prefix + rendered + postfix
     let utf8 = Array(stringValue.utf8)
@@ -418,13 +418,18 @@ func runtimeMutableCollectionExists(_ destRaw: Int) -> Bool {
 
 @inline(__always)
 func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: Int) {
+    runtimeAppendToMutableCollection(destRaw, RuntimeValue(raw: element))
+}
+
+@inline(__always)
+func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
     if let list = runtimeListBox(from: destRaw) {
-        list.elements.append(element)
+        list.values.append(element)
         return
     }
     if let set = runtimeSetBox(from: destRaw) {
-        if !set.elements.contains(where: { runtimeValuesEqual($0, element) }) {
-            set.elements.append(element)
+        if !set.values.contains(where: { runtimeValuesEqual($0, element) }) {
+            set.values.append(element)
         }
         return
     }

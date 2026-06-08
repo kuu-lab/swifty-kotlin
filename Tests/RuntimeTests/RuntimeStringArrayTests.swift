@@ -1348,14 +1348,40 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray()
 
-    func testStringToTypedArrayReturnsBoxedArrayOfChar() {
+    func testStringToTypedArrayStoresTaggedGenericCharArray() {
         withFlatString("abc") { data, length, byteCount, hash in
             let arrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
             let array = runtimeArrayBox(from: arrayRaw)
             XCTAssertNotNil(array, "toTypedArray should return a RuntimeArrayBox")
             let expected = [97, 98, 99] // 'a', 'b', 'c'
+            XCTAssertEqual(array?.values.map(\.tag), [
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+            ])
             XCTAssertEqual(array?.elements.count, 3)
             XCTAssertEqual(array?.elements.map(kk_unbox_char), expected)
+        }
+    }
+
+    func testStringCharContainersStoreTaggedRuntimeValues() {
+        withFlatString("ab") { data, length, byteCount, hash in
+            let listRaw = kk_string_toList_flat(data, length, byteCount, hash)
+            let typedArrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
+            let typedArrayListRaw = kk_array_toList(typedArrayRaw)
+
+            let list = runtimeListBox(from: listRaw)
+            let typedArray = runtimeArrayBox(from: typedArrayRaw)
+            let typedArrayList = runtimeListBox(from: typedArrayListRaw)
+
+            XCTAssertEqual(list?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(typedArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(typedArrayList?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(list?.elements, [97, 98])
+            XCTAssertEqual(typedArray?.elements, [97, 98])
+            XCTAssertEqual(runtimeRenderAnyForPrint(listRaw), "[a, b]")
+            XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayRaw), "[a, b]")
+            XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayListRaw), "[a, b]")
         }
     }
 
@@ -1397,6 +1423,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let list = runtimeListBox(from: returnedRaw)
         XCTAssertNotNil(list)
         let expected = [97, 98, 99] // 'a', 'b', 'c'
+        XCTAssertEqual(list?.values.map(\.tag), [
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
@@ -1408,6 +1439,11 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 100, 101] // 'a', 'd', 'e'
+        XCTAssertEqual(list?.values.map(\.tag), [
+            RuntimeValue.rawTag,
+            RuntimeValue.charTag,
+            RuntimeValue.charTag,
+        ])
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
@@ -1430,6 +1466,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         let list = runtimeListBox(from: destRaw)
         let expected = [97, 233] // 'a', 'é'
+        XCTAssertEqual(list?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
@@ -1441,8 +1478,24 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertEqual(returnedRaw, destRaw, "flat toCollection should return the destination collection")
             let list = runtimeListBox(from: returnedRaw)
             let expected = [48, 97, 122] // '0', 'a', 'z'
+            XCTAssertEqual(list?.values.map(\.tag), [
+                RuntimeValue.rawTag,
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+            ])
             XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
         }
+    }
+
+    func testStringToCollectionDeduplicatesTaggedCharsInMutableSet() {
+        let destRaw = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_char(97)]))
+        withFlatString("aab") { data, length, byteCount, hash in
+            _ = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
+        }
+
+        let set = runtimeSetBox(from: destRaw)
+        XCTAssertEqual(set?.values.map(\.tag), [RuntimeValue.rawTag, RuntimeValue.charTag])
+        XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
     }
 
     func testListToCharArrayStoresRawCharScalars() {

@@ -407,6 +407,35 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     return lhs == rhs
 }
 
+func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
+    if lhs.tag == rhs.tag {
+        switch lhs.tag {
+        case RuntimeValue.charTag:
+            return lhs.payload0 == rhs.payload0
+        case RuntimeValue.stringTag:
+            guard let lhsData = UnsafePointer<UInt8>(bitPattern: lhs.payload0),
+                  let rhsData = UnsafePointer<UInt8>(bitPattern: rhs.payload0)
+            else {
+                return lhs.payload0 == rhs.payload0
+            }
+            return runtimeStringFromFlatFields(
+                data: lhsData,
+                length: lhs.payload1,
+                byteCount: lhs.payload2,
+                hash: lhs.payload3
+            ) == runtimeStringFromFlatFields(
+                data: rhsData,
+                length: rhs.payload1,
+                byteCount: rhs.payload2,
+                hash: rhs.payload3
+            )
+        default:
+            return runtimeValuesEqual(lhs.payload0, rhs.payload0)
+        }
+    }
+    return runtimeValuesEqual(lhs.legacyRawValue, rhs.legacyRawValue)
+}
+
 /// Structural equality for `==` on reference types (lists, sets, maps, boxed values).
 /// Returns a boxed Bool (via kk_box_bool) so it matches the ABI of other kk_op_* functions.
 @_cdecl("kk_structural_eq")
@@ -455,15 +484,15 @@ func runtimeElementToString(_ elem: Int) -> String {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
-        let parts = listBox.elements.map { runtimeElementToString($0) }
+        let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let setBox = tryCast(ptr, to: RuntimeSetBox.self) {
-        let parts = setBox.elements.map { runtimeElementToString($0) }
+        let parts = setBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let mapBox = tryCast(ptr, to: RuntimeMapBox.self) {
-        let parts = zip(mapBox.keys, mapBox.values).map { key, value in
+        let parts = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
             "\(runtimeElementToString(key))=\(runtimeElementToString(value))"
         }
         return "{" + parts.joined(separator: ", ") + "}"
@@ -499,7 +528,7 @@ func runtimeElementToString(_ elem: Int) -> String {
         }
     }
     if let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let parts = arrayBox.elements.map { runtimeElementToString($0) }
+        let parts = arrayBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
     }
     if let sbBox = tryCast(ptr, to: RuntimeStringBuilderBox.self) {
@@ -512,6 +541,25 @@ func runtimeElementToString(_ elem: Int) -> String {
         return runtimeKTypeToString(ktypeBox)
     }
     return "\(elem)"
+}
+
+func runtimeElementToString(_ value: RuntimeValue) -> String {
+    switch value.tag {
+    case RuntimeValue.stringTag:
+        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
+            return "null"
+        }
+        return runtimeStringFromFlatFields(
+            data: data,
+            length: value.payload1,
+            byteCount: value.payload2,
+            hash: value.payload3
+        )
+    case RuntimeValue.charTag:
+        return UnicodeScalar(value.payload0).map(String.init) ?? "?"
+    default:
+        return runtimeElementToString(value.payload0)
+    }
 }
 
 // MARK: - Collection HOF Helpers (STDLIB-005)

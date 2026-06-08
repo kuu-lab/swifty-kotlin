@@ -1616,17 +1616,17 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        let rendered = listBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        let rendered = setBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
     if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keys, mapBox.values).map { key, value in
+        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
             "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
         }.joined(separator: ", ")
         Swift.print("{\(rendered)}")
@@ -1665,7 +1665,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        let rendered = arrayBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", ")
+        let rendered = arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", ")
         Swift.print("[\(rendered)]")
         return
     }
@@ -1844,13 +1844,13 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "Throwable(\(throwable.renderedMessage))"
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
-        return "[\(listBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let setBox = tryCast(raw, to: RuntimeSetBox.self) {
-        return "[\(setBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(setBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let mapBox = tryCast(raw, to: RuntimeMapBox.self) {
-        let rendered = zip(mapBox.keys, mapBox.values).map { key, value in
+        let rendered = zip(mapBox.keyValues, mapBox.entryValues).map { key, value in
             "\(runtimeRenderAnyForPrint(key))=\(runtimeRenderAnyForPrint(value))"
         }.joined(separator: ", ")
         return "{\(rendered)}"
@@ -1883,7 +1883,7 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeRenderStringIterableForPrint(iterableBox.source)
     }
     if let arrayBox = tryCast(raw, to: RuntimeArrayBox.self), type(of: arrayBox) == RuntimeArrayBox.self {
-        return "[\(arrayBox.elements.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
+        return "[\(arrayBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
     if let sbBox = tryCast(raw, to: RuntimeStringBuilderBox.self) {
         return sbBox.value
@@ -1896,6 +1896,25 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeKTypeToString(ktypeBox)
     }
     return "<object \(raw)>"
+}
+
+func runtimeRenderAnyForPrint(_ value: RuntimeValue) -> String {
+    switch value.tag {
+    case RuntimeValue.stringTag:
+        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
+            return "null"
+        }
+        return runtimeStringFromFlatFields(
+            data: data,
+            length: value.payload1,
+            byteCount: value.payload2,
+            hash: value.payload3
+        )
+    case RuntimeValue.charTag:
+        return UnicodeScalar(value.payload0).map { String(Character($0)) } ?? "�"
+    default:
+        return runtimeRenderAnyForPrint(value.payload0)
+    }
 }
 
 private func runtimeRenderStringIterableForPrint(_ string: String) -> String {

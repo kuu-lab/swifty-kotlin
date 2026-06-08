@@ -206,7 +206,7 @@ public func kk_array_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
 }
 
 @_cdecl("kk_array_toMutableList")
@@ -214,7 +214,7 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_toMutableList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    return registerRuntimeObject(RuntimeListBox(values: Array(array.values)))
 }
 
 @_cdecl("kk_list_toTypedArray")
@@ -223,8 +223,8 @@ public func kk_list_toTypedArray(_ listRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toTypedArray")
     }
     let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = elem
+    for (i, elem) in list.values.enumerated() {
+        box.values[i] = elem
     }
     return registerRuntimeObject(box)
 }

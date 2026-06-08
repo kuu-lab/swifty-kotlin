@@ -44,6 +44,12 @@ final class RuntimeTypesTests: XCTestCase {
         XCTAssertEqual(box.value, "hello")
     }
 
+    func testRuntimeValueCharPayloadRoundTripsThroughLegacyRawValue() {
+        let value = RuntimeValue(charScalar: 97)
+        XCTAssertEqual(value.tag, RuntimeValue.charTag)
+        XCTAssertEqual(value.legacyRawValue, 97)
+    }
+
     // MARK: - RuntimeThrowableBox
 
     func testRuntimeThrowableBoxStoresMessage() {

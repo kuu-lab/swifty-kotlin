@@ -717,7 +717,7 @@ public func kk_string_toList_flat(
 }
 
 func runtimeStringToCharListRaw(_ source: String) -> Int {
-    runtimeMakeListRaw(source.unicodeScalars.map { kk_box_char(Int($0.value)) })
+    runtimeMakeListValue(runtimeCharValues(from: source.unicodeScalars))
 }
 
 // MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
@@ -753,7 +753,7 @@ public func kk_string_toCharArray_flat(
 
 // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
 
-/// Converts a `String` to a boxed `Array<Char>` by iterating its Unicode scalars.
+/// Converts a `String` to a generic `Array<Char>` by iterating its Unicode scalars.
 /// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
 /// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
 @_cdecl("kk_string_toTypedArray_flat")
@@ -763,14 +763,15 @@ public func kk_string_toTypedArray_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { kk_box_char(Int($0.value)) }
-    return runtimeMakeArrayRaw(charRaws)
+    let charValues = runtimeCharValues(
+        from: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    )
+    return runtimeMakeArrayValue(charValues)
 }
 
 // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
 
-/// Appends every character of the string (as a boxed `Char`) to `destRaw`,
+/// Appends every character of the string to `destRaw`,
 /// which must be a mutable collection (List or Set).  Returns `destRaw` so
 /// callers can chain: `val result = "abc".toCollection(mutableListOf())`.
 ///
@@ -799,7 +800,7 @@ private func runtimeStringToCollection(
         invalidContainerPanic(caller, "mutable collection")
     }
     for scalar in scalars {
-        runtimeAppendToMutableCollection(destRaw, kk_box_char(Int(scalar.value)))
+        runtimeAppendToMutableCollection(destRaw, RuntimeValue(charScalar: Int(scalar.value)))
     }
     return destRaw
 }
@@ -6031,6 +6032,10 @@ private func runtimeMakeListRaw(_ values: [Int]) -> Int {
     return Int(bitPattern: pointer)
 }
 
+private func runtimeMakeListValue(_ values: [RuntimeValue]) -> Int {
+    registerRuntimeObject(RuntimeListBox(values: values))
+}
+
 private func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
     let box = RuntimeArrayBox(length: values.count)
     for (index, value) in values.enumerated() {
@@ -6041,6 +6046,16 @@ private func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
         state.objectPointers.insert(UInt(bitPattern: pointer))
     }
     return Int(bitPattern: pointer)
+}
+
+private func runtimeMakeArrayValue(_ values: [RuntimeValue]) -> Int {
+    let box = RuntimeArrayBox(length: values.count)
+    box.values = values
+    return registerRuntimeObject(box)
+}
+
+private func runtimeCharValues<S: Sequence>(from scalars: S) -> [RuntimeValue] where S.Element == UnicodeScalar {
+    scalars.map { RuntimeValue(charScalar: Int($0.value)) }
 }
 
 private func runtimeMakeStringListRaw(_ values: [String]) -> Int {
