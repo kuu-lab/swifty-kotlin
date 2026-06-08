@@ -759,6 +759,40 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_match_result_range", parameters: [
             p("matchRaw", .intptr),
         ]),
+        // STDLIB-TEXT-TYPE-010: MatchResult.Destructured
+        abiParitySpec("kk_match_result_destructured", parameters: [
+            p("matchRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_match", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component1", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component2", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component3", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component4", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component5", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component6", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component7", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component8", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
+        abiParitySpec("kk_match_result_destructured_component9", parameters: [
+            p("destructuredRaw", .intptr),
+        ]),
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
         abiParitySpec("kk_mdc_clear"),

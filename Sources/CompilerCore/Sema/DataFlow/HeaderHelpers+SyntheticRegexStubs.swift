@@ -14,6 +14,16 @@ extension DataFlowSemaPhase {
         let matchGroupCollectionSymbol = ensureClassSymbol(named: "MatchGroupCollection", in: kotlinTextPkg, symbols: symbols, interner: interner)
         let matchGroupSymbol = ensureClassSymbol(named: "MatchGroup", in: kotlinTextPkg, symbols: symbols, interner: interner)
 
+        // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured nested class ---
+        let matchResultFQName = symbols.symbol(matchResultSymbol)?.fqName ?? kotlinTextPkg + [interner.intern("MatchResult")]
+        let matchResultDestructuredSymbol = ensureNestedClassSymbol(
+            named: "Destructured",
+            inFQName: matchResultFQName,
+            parentSymbol: matchResultSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- Types ---
         let regexType = types.make(.classType(ClassType(
             classSymbol: regexSymbol, args: [], nullability: .nonNull
@@ -22,6 +32,9 @@ extension DataFlowSemaPhase {
             classSymbol: matchResultSymbol, args: [], nullability: .nonNull
         )))
         let nullableMatchResultType = types.makeNullable(matchResultType)
+        let matchResultDestructuredType = types.make(.classType(ClassType(
+            classSymbol: matchResultDestructuredSymbol, args: [], nullability: .nonNull
+        )))
         let matchGroupCollectionType = types.make(.classType(ClassType(
             classSymbol: matchGroupCollectionSymbol, args: [], nullability: .nonNull
         )))
@@ -378,9 +391,70 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-TEXT-TYPE-010: MatchResult.Destructured members ---
+
+        // MatchResult.Destructured.match: MatchResult
+        registerRegexMemberProperty(
+            named: "match",
+            externalLinkName: "kk_match_result_destructured_match",
+            ownerSymbol: matchResultDestructuredSymbol,
+            returnType: matchResultType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MatchResult.Destructured.component1()..component9(): String
+        for index in 1...9 {
+            registerRegexMemberFunction(
+                named: "component\(index)",
+                externalLinkName: "kk_match_result_destructured_component\(index)",
+                ownerSymbol: matchResultDestructuredSymbol,
+                ownerType: matchResultDestructuredType,
+                parameters: [],
+                returnType: stringType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
+        // MatchResult.destructured: MatchResult.Destructured
+        registerRegexMemberProperty(
+            named: "destructured",
+            externalLinkName: "kk_match_result_destructured",
+            ownerSymbol: matchResultSymbol,
+            returnType: matchResultDestructuredType,
+            symbols: symbols,
+            interner: interner
+        )
     }
 
     // MARK: - Helpers
+
+    /// Defines a nested class symbol inside `parentFQName` if it doesn't already exist.
+    private func ensureNestedClassSymbol(
+        named name: String,
+        inFQName parentFQName: [InternedString],
+        parentSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let internedName = interner.intern(name)
+        let fqName = parentFQName + [internedName]
+        if let existing = symbols.lookup(fqName: fqName) {
+            return existing
+        }
+        let nestedSymbol = symbols.define(
+            kind: .class,
+            name: internedName,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(parentSymbol, for: nestedSymbol)
+        return nestedSymbol
+    }
 
     private func ensureKotlinTextPackage(
         symbols: SymbolTable,
