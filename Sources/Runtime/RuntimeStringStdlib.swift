@@ -747,7 +747,7 @@ public func kk_string_toCharArray_flat(
     _ hash: Int
 ) -> Int {
     let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { kk_box_char(Int($0.value)) }
+        .map { Int($0.value) }
     return runtimeMakeArrayRaw(charRaws)
 }
 

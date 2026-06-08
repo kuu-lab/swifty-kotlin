@@ -1332,7 +1332,17 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertNotNil(charArray)
             let expected = [97, 98, 99]
             XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.elements, expected)
             XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+        }
+    }
+
+    func testStringToCharArrayStoresRawCharScalars() {
+        withFlatString("hi") { data, length, byteCount, hash in
+            let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
+            let charArray = runtimeArrayBox(from: charArrayRaw)
+
+            XCTAssertEqual(charArray?.elements, [104, 105])
         }
     }
 
@@ -1433,6 +1443,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             let expected = [48, 97, 122] // '0', 'a', 'z'
             XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
         }
+    }
+
+    func testListToCharArrayStoresRawCharScalars() {
+        let listRaw = registerRuntimeObject(RuntimeListBox(elements: [
+            kk_box_char(97),
+            kk_box_char(233),
+        ]))
+        let charArrayRaw = kk_list_toCharArray(listRaw)
+        let charArray = runtimeArrayBox(from: charArrayRaw)
+
+        XCTAssertEqual(charArray?.elements, [97, 233])
+        XCTAssertEqual(charArray?.elements.map(kk_unbox_char), [97, 233])
     }
 
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet_flat tests

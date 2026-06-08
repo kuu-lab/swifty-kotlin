@@ -239,7 +239,7 @@ public func kk_list_toCharArray(_ listRaw: Int) -> Int {
     }
     let box = RuntimeArrayBox(length: list.elements.count)
     for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_box_char(kk_unbox_char(elem))
+        box.elements[i] = kk_unbox_char(elem)
     }
     return registerRuntimeObject(box)
 }
