@@ -880,16 +880,25 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_locale_new",
             parameters: [
-                RuntimeABIParameter(name: "identifierRaw", type: .intptr),
+                RuntimeABIParameter(name: "identifierData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "identifierLength", type: .intptr),
+                RuntimeABIParameter(name: "identifierByteCount", type: .intptr),
+                RuntimeABIParameter(name: "identifierHash", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_new_language_country",
+            name: "kk_locale_new_language_country_flat",
             parameters: [
-                RuntimeABIParameter(name: "languageRaw", type: .intptr),
-                RuntimeABIParameter(name: "countryRaw", type: .intptr),
+                RuntimeABIParameter(name: "languageData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "languageLength", type: .intptr),
+                RuntimeABIParameter(name: "languageByteCount", type: .intptr),
+                RuntimeABIParameter(name: "languageHash", type: .intptr),
+                RuntimeABIParameter(name: "countryData", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "countryLength", type: .intptr),
+                RuntimeABIParameter(name: "countryByteCount", type: .intptr),
+                RuntimeABIParameter(name: "countryHash", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"

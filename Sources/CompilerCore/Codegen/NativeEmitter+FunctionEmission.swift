@@ -969,6 +969,16 @@ extension NativeEmitter {
             }
 
             var flatScalarReturnCallSpecs: [String: FlatScalarReturnCallSpec] = [
+                "kk_locale_new_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_locale_new_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0
+                ),
+                "kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_locale_new_language_country_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0
+                ),
                 "kk_string_toList_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_toList_flat",
                     stringArgumentCount: 1,

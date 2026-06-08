@@ -49,18 +49,41 @@ final class RuntimeStringLocaleTests: XCTestCase {
         return body(constData, length, byteCount, hash)
     }
 
+    private func makeLocale(_ identifier: String) -> Int {
+        withFlatString(identifier) { data, length, byteCount, hash in
+            kk_locale_new_flat(data, length, byteCount, hash)
+        }
+    }
+
+    private func makeLocale(language: String, country: String) -> Int {
+        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
+            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
+                kk_locale_new_language_country_flat(
+                    languageData,
+                    languageLength,
+                    languageByteCount,
+                    languageHash,
+                    countryData,
+                    countryLength,
+                    countryByteCount,
+                    countryHash
+                )
+            }
+        }
+    }
+
     func testLocaleLowercaseUsesTurkishRules() {
-        let result = kk_string_lowercase_locale(runtimeString("I"), kk_locale_new(runtimeString("tr")))
+        let result = kk_string_lowercase_locale(runtimeString("I"), makeLocale("tr"))
         XCTAssertEqual(stringValue(result), "ı")
     }
 
     func testLocaleUppercaseUsesTurkishRules() {
-        let result = kk_string_uppercase_locale(runtimeString("i"), kk_locale_new(runtimeString("tr")))
+        let result = kk_string_uppercase_locale(runtimeString("i"), makeLocale("tr"))
         XCTAssertEqual(stringValue(result), "İ")
     }
 
     func testLocaleCompareToFlatMatchesBasicOrdering() {
-        let locale = kk_locale_new(runtimeString("en_US"))
+        let locale = makeLocale("en_US")
         withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
             withFlatString("abd") { rhsData, rhsLength, rhsByteCount, rhsHash in
                 let result = kk_string_compareTo_locale_flat(
@@ -80,7 +103,7 @@ final class RuntimeStringLocaleTests: XCTestCase {
     }
 
     func testLocalePropertiesExposeLanguageCountryAndVariant() {
-        let locale = kk_locale_new_language_country(runtimeString("en"), runtimeString("US"))
+        let locale = makeLocale(language: "en", country: "US")
         XCTAssertEqual(stringValue(kk_locale_language(locale)), "en")
         XCTAssertEqual(stringValue(kk_locale_country(locale)), "US")
         XCTAssertEqual(stringValue(kk_locale_variant(locale)), "")
@@ -88,18 +111,18 @@ final class RuntimeStringLocaleTests: XCTestCase {
 
     func testLocaleDisplayLanguageUsesDefaultLocale() {
         let original = kk_locale_getDefault(0)
-        let japanese = kk_locale_new(runtimeString("ja_JP"))
+        let japanese = makeLocale("ja_JP")
         _ = kk_locale_setDefault(0, japanese)
         defer { _ = kk_locale_setDefault(0, original) }
 
-        let english = kk_locale_new(runtimeString("en_US"))
+        let english = makeLocale("en_US")
         let displayLanguage = stringValue(kk_locale_displayLanguage(english))
         XCTAssertFalse(displayLanguage.isEmpty)
     }
 
     func testLocaleDefaultCanBeOverridden() {
         let original = kk_locale_getDefault(0)
-        let locale = kk_locale_new_language_country(runtimeString("tr"), runtimeString("TR"))
+        let locale = makeLocale(language: "tr", country: "TR")
         _ = kk_locale_setDefault(0, locale)
         defer { _ = kk_locale_setDefault(0, original) }
 
@@ -109,15 +132,15 @@ final class RuntimeStringLocaleTests: XCTestCase {
     }
 
     func testLocaleEqualityAndHashCodeAreValueBased() {
-        let lhs = kk_locale_new_language_country(runtimeString("en"), runtimeString("US"))
-        let rhs = kk_locale_new_language_country(runtimeString("en"), runtimeString("US"))
+        let lhs = makeLocale(language: "en", country: "US")
+        let rhs = makeLocale(language: "en", country: "US")
 
         XCTAssertTrue(boolValue(kk_any_equals(lhs, 0, rhs, 0)))
         XCTAssertEqual(kk_any_hashCode(lhs, 0), kk_any_hashCode(rhs, 0))
     }
 
     func testSingleArgumentLocaleTreatsInputAsLanguageField() {
-        let locale = kk_locale_new(runtimeString("en_US_POSIX"))
+        let locale = makeLocale("en_US_POSIX")
         XCTAssertEqual(stringValue(kk_locale_language(locale)), "en_us_posix")
         XCTAssertEqual(stringValue(kk_locale_country(locale)), "")
         XCTAssertEqual(stringValue(kk_locale_variant(locale)), "")

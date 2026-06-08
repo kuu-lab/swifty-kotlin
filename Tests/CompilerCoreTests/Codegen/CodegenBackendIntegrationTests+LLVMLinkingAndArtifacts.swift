@@ -763,6 +763,78 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatLocaleConstructorRuntimeCalls() throws {
+        let interner = StringInterner()
+        let types = TypeSystem()
+        let arena = KIRArena()
+
+        let identifier = interner.intern("en_US")
+        let language = interner.intern("de")
+        let country = interner.intern("DE")
+        let identifierExpr = arena.appendExpr(.stringLiteral(identifier), type: types.stringType)
+        let languageExpr = arena.appendExpr(.stringLiteral(language), type: types.stringType)
+        let countryExpr = arena.appendExpr(.stringLiteral(country), type: types.stringType)
+
+        var nextTemp: Int32 = 350
+        func temporary(_ type: TypeID) -> KIRExprID {
+            nextTemp += 1
+            return arena.appendExpr(.temporary(nextTemp), type: type)
+        }
+
+        var body: [KIRInstruction] = [
+            .constValue(result: identifierExpr, value: .stringLiteral(identifier)),
+            .constValue(result: languageExpr, value: .stringLiteral(language)),
+            .constValue(result: countryExpr, value: .stringLiteral(country)),
+        ]
+
+        func appendLocaleCall(_ calleeName: String, arguments: [KIRExprID]) {
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern(calleeName),
+                arguments: arguments,
+                result: temporary(types.intType),
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+
+        appendLocaleCall("kk_locale_new_flat", arguments: [identifierExpr])
+        appendLocaleCall("kk_locale_new_language_country_flat", arguments: [languageExpr, countryExpr])
+        body.append(.returnUnit)
+
+        let main = KIRFunction(
+            symbol: SymbolID(rawValue: 1220),
+            name: interner.intern("main"),
+            params: [],
+            returnType: types.unitType,
+            body: body,
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(main))
+        let module = KIRModule(
+            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
+            arena: arena
+        )
+
+        let backend = try LLVMBackend(
+            target: defaultTargetTriple(),
+            optLevel: .O0,
+            debugInfo: false,
+            diagnostics: DiagnosticEngine()
+        )
+        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
+
+        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
+        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
+
+        XCTAssertFalse(ir.contains("@kk_locale_new("), "Unexpected raw Locale constructor call")
+        XCTAssertFalse(ir.contains("@kk_locale_new_language_country("), "Unexpected raw Locale language/country constructor call")
+        XCTAssertTrue(ir.contains("@kk_locale_new_flat"), "Missing flat Locale constructor call")
+        XCTAssertTrue(ir.contains("@kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
+    }
+
     func testLLVMBackendEmitsFlatStringCharSelectionRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()

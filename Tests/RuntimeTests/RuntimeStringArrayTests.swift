@@ -120,6 +120,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    private func makeLocale(language: String, country: String) -> Int {
+        withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
+            withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
+                kk_locale_new_language_country_flat(
+                    languageData,
+                    languageLength,
+                    languageByteCount,
+                    languageHash,
+                    countryData,
+                    countryLength,
+                    countryByteCount,
+                    countryHash
+                )
+            }
+        }
+    }
+
     private func flatStringValue(
         data: UnsafePointer<UInt8>?,
         length: Int,
@@ -2294,7 +2311,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringFormatLocaleUsesLocaleDecimalSeparator() {
-        let locale = kk_locale_new_language_country(rawFromRuntimeString("de"), rawFromRuntimeString("DE"))
+        let locale = makeLocale(language: "de", country: "DE")
         let args = makeRuntimeArray([
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern))),
         ])

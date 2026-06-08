@@ -252,7 +252,7 @@ extension DataFlowSemaPhase {
             ownerSymbol: localeSymbol,
             ownerType: localeType,
             parameters: [("identifier", stringType)],
-            externalLinkName: "kk_locale_new",
+            externalLinkName: "kk_locale_new_flat",
             symbols: symbols,
             interner: interner
         )
