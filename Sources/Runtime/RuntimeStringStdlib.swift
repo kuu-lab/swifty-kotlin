@@ -5978,6 +5978,24 @@ private func runtimeMakeStringRaw(_ value: String) -> Int {
     })
 }
 
+private func runtimeMakeStringValue(_ value: String) -> RuntimeValue {
+    var length = 0
+    var byteCount = 0
+    var hash = 0
+    let data = runtimeRegisterFlatString(
+        value,
+        outLength: &length,
+        outByteCount: &byteCount,
+        outHash: &hash
+    )
+    return RuntimeValue(
+        stringData: data.map { Int(bitPattern: $0) } ?? 0,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+}
+
 private func runtimeMakeListRaw(_ values: [Int]) -> Int {
     let box = RuntimeListBox(elements: values)
     let pointer = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
@@ -6000,7 +6018,7 @@ private func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
 }
 
 private func runtimeMakeStringListRaw(_ values: [String]) -> Int {
-    runtimeMakeListRaw(values.map(runtimeMakeStringRaw))
+    registerRuntimeObject(RuntimeListBox(values: values.map(runtimeMakeStringValue)))
 }
 
 private func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, message: String) {

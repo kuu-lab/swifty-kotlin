@@ -2646,6 +2646,25 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         return array
     }
 
+    private func assertStringValueList(
+        _ list: RuntimeListBox?,
+        equals expected: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let list else {
+            XCTFail("Expected a RuntimeListBox", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(
+            list.values.map(\.tag),
+            Array(repeating: RuntimeValue.stringTag, count: expected.count),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(list.elements.map(runtimeStringValue), expected, file: file, line: line)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
