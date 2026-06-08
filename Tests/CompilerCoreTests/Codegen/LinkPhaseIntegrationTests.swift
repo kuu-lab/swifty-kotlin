@@ -265,6 +265,35 @@ final class LinkPhaseIntegrationTests: XCTestCase {
         XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNotBlank_flat"), ["kk_string_isNotBlank_flat"])
         XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNullOrEmpty_flat"), ["kk_string_isNullOrEmpty_flat"])
         XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNullOrBlank_flat"), ["kk_string_isNullOrBlank_flat"])
+        for name in ["equals", "contentEquals"] {
+            let publicLinks = sourceLinks(for: "kotlin.text.\(name)")
+            XCTAssertEqual(
+                publicLinks.count,
+                2,
+                "Expected source stdlib to export both kotlin.text.\(name) overloads"
+            )
+            XCTAssertTrue(
+                publicLinks.allSatisfy { $0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should stay source-backed, got \(publicLinks)"
+            )
+            XCTAssertFalse(
+                publicLinks.contains { $0.hasPrefix("kk_") && !$0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should not expose the runtime bridge directly"
+            )
+        }
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_equals_flat"), ["kk_string_equals_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_equalsIgnoreCase_flat"),
+            ["kk_string_equalsIgnoreCase_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_contentEquals_flat"),
+            ["kk_string_contentEquals_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_contentEquals_ignoreCase_flat"),
+            ["kk_string_contentEquals_ignoreCase_flat"]
+        )
 
         let appSource = """
         fun main(): Int {
@@ -274,6 +303,8 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             val nullableNull: String? = null
             val nullableEmpty: String? = ""
             val nullableBlank: String? = "   "
+            val nullableText: String? = text
+            val nullableUpper: String? = "ABC"
 
             if (!empty.isEmpty()) return 1
             if (text.isEmpty()) return 2
@@ -289,6 +320,15 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             if (!nullableEmpty.isNullOrBlank()) return 12
             if (nullableBlank.isNullOrEmpty()) return 13
             if (!nullableBlank.isNullOrBlank()) return 14
+            if (!text.equals("abc")) return 15
+            if (text.equals("ABC")) return 16
+            if (!text.equals("ABC", true)) return 17
+            if (text.equals(null)) return 18
+            if (!nullableNull.contentEquals(null)) return 19
+            if (nullableNull.contentEquals(nullableText)) return 20
+            if (nullableText.contentEquals(nullableUpper)) return 21
+            if (!nullableText.contentEquals(nullableUpper, true)) return 22
+            if (nullableText.contentEquals(nullableUpper, false)) return 23
             return 42
         }
         """

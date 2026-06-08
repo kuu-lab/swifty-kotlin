@@ -552,12 +552,14 @@ extension NativeEmitter {
         func flattenedRuntimeArguments(
             values argumentValues: [LLVMCAPIBindings.LLVMValueRef],
             types argumentTypes: [TypeID?],
+            ids argumentIDs: [KIRExprID?],
             argumentCount: Int,
             stringArgumentPositions: [Int],
             suffix: String
         ) -> [LLVMCAPIBindings.LLVMValueRef]? {
             guard argumentValues.count >= argumentCount,
-                  argumentTypes.count >= argumentCount
+                  argumentTypes.count >= argumentCount,
+                  argumentIDs.count >= argumentCount
             else {
                 return nil
             }
@@ -566,7 +568,17 @@ extension NativeEmitter {
             for index in 0..<argumentCount {
                 if stringPositions.contains(index) {
                     let stringValue: LLVMCAPIBindings.LLVMValueRef
-                    if isStringAggregateType(argumentTypes[index]) {
+                    if let argumentID = argumentIDs[index],
+                       isZeroConstant(argumentID),
+                       let typeLowering,
+                       let nullString = buildNullStringAggregate(
+                           builder: builder,
+                           lowering: typeLowering,
+                           name: "string_null_flat_arg\(suffix)_\(index)"
+                       )
+                    {
+                        stringValue = nullString
+                    } else if isStringAggregateType(argumentTypes[index]) {
                         stringValue = argumentValues[index]
                     } else if isCharSequenceRuntimeStringType(argumentTypes[index]),
                               let bridged = bridgeRuntimeRawToStringAggregate(
@@ -1781,6 +1793,7 @@ extension NativeEmitter {
                       let flattenedArgs = flattenedRuntimeArguments(
                           values: argumentValues,
                           types: argumentTypes,
+                          ids: arguments.map(Optional.some),
                           argumentCount: requiredArgumentCount,
                           stringArgumentPositions: spec.stringArgumentPositions,
                           suffix: "\(spec.flatName)_\(instructionIndex)"
@@ -1883,6 +1896,11 @@ extension NativeEmitter {
                       let flattenedArgs = flattenedRuntimeArguments(
                           values: effectiveArgumentValues,
                           types: effectiveArgumentTypes,
+                          ids: Array(arguments.map(Optional.some).prefix(effectiveArgumentValues.count))
+                              + Array(
+                                  repeating: nil,
+                                  count: max(0, effectiveArgumentValues.count - arguments.count)
+                              ),
                           argumentCount: requiredArgumentCount,
                           stringArgumentPositions: spec.stringArgumentPositions,
                           suffix: "\(spec.flatName)_\(instructionIndex)"

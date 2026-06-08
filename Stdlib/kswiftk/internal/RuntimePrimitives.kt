@@ -523,6 +523,18 @@ external fun __string_lastIndexOf_ignoreCase_flat(
     ignoreCase: Boolean
 ): Int
 
+@KSwiftKRuntimeName("kk_string_equals_flat")
+external fun __string_equals_flat(s: String, other: String?): Boolean
+
+@KSwiftKRuntimeName("kk_string_equalsIgnoreCase_flat")
+external fun __string_equalsIgnoreCase_flat(s: String, other: String?, ignoreCase: Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_contentEquals_flat")
+external fun __string_contentEquals_flat(s: String?, other: String?): Boolean
+
+@KSwiftKRuntimeName("kk_string_contentEquals_ignoreCase_flat")
+external fun __string_contentEquals_ignoreCase_flat(s: String?, other: String?, ignoreCase: Boolean): Boolean
+
 @KSwiftKRuntimeName("kk_string_toInt_flat")
 external fun __string_toInt_flat(s: String): Int
 
