@@ -119,8 +119,13 @@ public func kk_box_long(_ value: Int) -> Int {
 
 @_cdecl("kk_unbox_long")
 public func kk_unbox_long(_ obj: Int) -> Int {
-    if obj == runtimeNullSentinelInt { return 0 }
-    guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return obj }
+    // NOTE: no early-return for runtimeNullSentinelInt (Int64.min == Long.MIN_VALUE).
+    // runtimeNullSentinelInt is never a valid heap pointer, so it reaches the
+    // passthrough branch below and returns Int.min (= Long.MIN_VALUE) correctly.
+    // Returning 0 here was wrong: it caused Double.NEGATIVE_INFINITY.roundToLong()
+    // to produce 0 instead of Long.MIN_VALUE (kk_double_roundToLong returns Int.min
+    // raw, which the KIR passes through kk_unbox_long).
+    guard let objPointer = UnsafeMutableRawPointer(bitPattern: obj) else { return 0 }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: objPointer))
     }
