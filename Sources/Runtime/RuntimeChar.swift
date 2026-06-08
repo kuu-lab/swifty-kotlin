@@ -370,6 +370,8 @@ public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
     }
 }
 
+// MARK: - STDLIB-TEXT-PROP-008: Char.isIdentifierIgnorable
+
 @_cdecl("kk_char_isIdentifierIgnorable")
 public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
     // Matches Java's Character.isIdentifierIgnorable(int), which Kotlin delegates to on JVM.
