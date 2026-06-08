@@ -23,6 +23,7 @@ private let runtimeReplaceFirstCharThrowing: RuntimeStringUnaryEntry = { _, _, o
 }
 
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()
@@ -237,6 +238,50 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
         XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
         XCTAssertNotEqual(typedArrayRaw, charArrayRaw, "toTypedArray and toCharArray should return distinct array handles")
+    }
+
+    // MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
+
+    func testStringToCollectionAppendsCharsToMutableList() {
+        let strRaw = rawFromRuntimeString("abc")
+        let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+        let returnedRaw = kk_string_toCollection(strRaw, destRaw)
+
+        XCTAssertEqual(returnedRaw, destRaw, "toCollection should return the destination collection")
+        let list = runtimeListBox(from: returnedRaw)
+        XCTAssertNotNil(list)
+        let expected = [97, 98, 99] // 'a', 'b', 'c'
+        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+    }
+
+    func testStringToCollectionPreservesExistingElements() {
+        let strRaw = rawFromRuntimeString("de")
+        let destRaw = registerRuntimeObject(RuntimeListBox(elements: [kk_box_char(97)]))
+        _ = kk_string_toCollection(strRaw, destRaw)
+
+        let list = runtimeListBox(from: destRaw)
+        let expected = [97, 100, 101] // 'a', 'd', 'e'
+        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+    }
+
+    func testStringToCollectionEmptyStringLeavesDestinationUnchanged() {
+        let strRaw = rawFromRuntimeString("")
+        let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+        _ = kk_string_toCollection(strRaw, destRaw)
+
+        let list = runtimeListBox(from: destRaw)
+        XCTAssertNotNil(list)
+        XCTAssertEqual(list?.elements.count, 0)
+    }
+
+    func testStringToCollectionWithNonASCII() {
+        let strRaw = rawFromRuntimeString("aé")
+        let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+        _ = kk_string_toCollection(strRaw, destRaw)
+
+        let list = runtimeListBox(from: destRaw)
+        let expected = [97, 233] // 'a', 'é'
+        XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
     // MARK: - STDLIB-TEXT-FN-108: kk_string_toSortedSet tests

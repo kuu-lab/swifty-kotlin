@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `jsTypeOf` external function surface.
 extension DataFlowSemaPhase {

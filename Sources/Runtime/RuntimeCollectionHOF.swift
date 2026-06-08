@@ -1,4 +1,3 @@
-import Foundation
 
 let indexedValueRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
@@ -1558,7 +1557,7 @@ public func kk_list_groupByTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: Int, _ cl
     }
     var keyIndex = buildKeyIndex(from: dest)
     var cachedLists: [Int: RuntimeListBox] = [:]
-    for (i, _) in dest.keys.enumerated() {
+    for i in dest.keys.indices {
         if let existingList = runtimeListBox(from: dest.values[i]) {
             cachedLists[i] = existingList
         }

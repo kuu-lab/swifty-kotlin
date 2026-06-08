@@ -238,31 +238,31 @@ final class TypeSystemTests: XCTestCase {
         let st = SymbolTable()
         let interner = StringInterner()
         ts.symbolTable = st
-        
+
         let annoInterfaceSym = st.define(kind: .interface, name: interner.intern("Annotation"), fqName: [interner.intern("kotlin"), interner.intern("Annotation")], declSite: nil, visibility: .public)
         ts.annotationInterfaceSymbol = annoInterfaceSym
         let annotationType = ts.make(.classType(ClassType(classSymbol: annoInterfaceSym)))
         let nullableAnnotationType = ts.make(.classType(ClassType(classSymbol: annoInterfaceSym, args: [], nullability: .nullable)))
 
         let annoSymbol = st.define(kind: .annotationClass, name: interner.intern("MyAnnotation"), fqName: [interner.intern("MyAnnotation")], declSite: nil, visibility: .public)
-        
+
         let annoType = ts.make(.classType(ClassType(classSymbol: annoSymbol)))
         let nullableAnnoType = ts.make(.classType(ClassType(classSymbol: annoSymbol, args: [], nullability: .nullable)))
-        
+
         // Annotation class <: Annotation
         XCTAssertTrue(ts.isSubtype(annoType, annotationType))
         XCTAssertTrue(ts.isSubtype(nullableAnnoType, nullableAnnotationType))
-        
+
         // Annotation <: Any
         XCTAssertTrue(ts.isSubtype(annotationType, ts.anyType))
-        
+
         // Normal class is NOT <: Annotation
         let classSymbol = st.define(kind: .class, name: interner.intern("MyClass"), fqName: [interner.intern("MyClass")], declSite: nil, visibility: .public)
         let classType = ts.make(.classType(ClassType(classSymbol: classSymbol)))
         XCTAssertFalse(ts.isSubtype(classType, annotationType))
         XCTAssertFalse(ts.isSubtype(nullableAnnotationType, annotationType))
         XCTAssertFalse(ts.isSubtype(nullableAnnoType, annotationType))
-        
+
         // Nothing <: Annotation
         XCTAssertTrue(ts.isSubtype(ts.nothingType, annotationType))
     }

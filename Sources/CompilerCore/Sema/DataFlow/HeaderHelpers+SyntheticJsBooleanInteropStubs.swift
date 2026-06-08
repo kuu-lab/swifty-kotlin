@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsBoolean` conversion surface.
 extension DataFlowSemaPhase {

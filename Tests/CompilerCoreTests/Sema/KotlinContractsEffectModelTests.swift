@@ -138,10 +138,10 @@ final class KotlinContractsEffectModelTests: XCTestCase {
     /// InvocationKind values.
     func testCallsInPlaceEffectIsStoredForAllInvocationKinds() throws {
         let kinds: [(name: String, kind: InvocationKind)] = [
-            ("runAtMostOnce",   .atMostOnce),
-            ("runAtLeastOnce",  .atLeastOnce),
-            ("runExactlyOnce",  .exactlyOnce),
-            ("runUnknown",      .unknown),
+            ("runAtMostOnce", .atMostOnce),
+            ("runAtLeastOnce", .atLeastOnce),
+            ("runExactlyOnce", .exactlyOnce),
+            ("runUnknown", .unknown),
         ]
 
         for (fnName, expectedKind) in kinds {

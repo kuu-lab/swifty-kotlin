@@ -15,7 +15,7 @@ extension DataEnumSealedSynthesisPass {
         interner: StringInterner,
         diagnostics: DiagnosticEngine
     ) {
-        guard (owner.kind == .class || owner.kind == .enumClass || owner.kind == .object),
+        guard owner.kind == .class || owner.kind == .enumClass || owner.kind == .object,
               let functionSymbol = existingSymbol
         else {
             return
@@ -745,17 +745,17 @@ extension DataEnumSealedSynthesisPass {
         if let superSymbol = explicitSuperclass {
             let receiverRef = module.arena.appendExpr(.symbolRef(parameterSymbol), type: receiverType)
             body.append(.constValue(result: receiverRef, value: .symbolRef(parameterSymbol)))
-            
+
             let superToStringResult = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)),
                 type: stringType
             )
-            
+
             // Find super.toString() method symbol
             let toStringName = interner.intern("toString")
             let superToStringFQName = superSymbol.fqName + [toStringName]
             let superToStringSymbol = sema.symbols.lookupAll(fqName: superToStringFQName).first
-            
+
             // Call super.toString() if it exists, otherwise use default
             if let superToStringSymbol = superToStringSymbol {
                 body.append(.call(
@@ -772,7 +772,7 @@ extension DataEnumSealedSynthesisPass {
                 let fallbackStr = interner.intern("\(className)")
                 body.append(.constValue(result: superToStringResult, value: .stringLiteral(fallbackStr)))
             }
-            
+
             // Create string builder from super.toString()
             builderExpr = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)),
@@ -900,7 +900,7 @@ extension DataEnumSealedSynthesisPass {
 
         // Append closing ")" only if not inheriting from another class
         let shouldCloseParen = explicitSuperclass == nil
-        
+
         if shouldCloseParen {
             let suffixStr = interner.intern(")")
             let suffixExpr = module.arena.appendExpr(
@@ -1021,14 +1021,14 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
             body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
-            
+
             // STDLIB-DATA-014: If data class inherits from another class, call super.equals()
             if let superSymbol = dataClassExplicitSuperclass(owner: owner, sema: sema, interner: interner) {
                 // Find super.equals() method symbol
                 let equalsName = interner.intern("equals")
                 let superEqualsFQName = superSymbol.fqName + [equalsName]
                 let superEqualsSymbol = sema.symbols.lookupAll(fqName: superEqualsFQName).first
-                
+
                 // Call super.equals(other) if it exists, otherwise use reference equality
                 if let superEqualsSymbol = superEqualsSymbol {
                     body.append(.call(
@@ -1196,12 +1196,12 @@ extension DataEnumSealedSynthesisPass {
                 )
                 body.append(.constValue(result: receiverRef, value: .symbolRef(receiverParam.symbol)))
                 body.append(.constValue(result: otherRef, value: .symbolRef(paramSymbol)))
-                
+
                 // Find super.equals() method symbol
                 let equalsName = interner.intern("equals")
                 let superEqualsFQName = superSymbol.fqName + [equalsName]
                 let superEqualsSymbol = sema.symbols.lookupAll(fqName: superEqualsFQName).first
-                
+
                 // Call super.equals(other) if it exists, otherwise use reference equality
                 if let superEqualsSymbol = superEqualsSymbol {
                     body.append(.call(

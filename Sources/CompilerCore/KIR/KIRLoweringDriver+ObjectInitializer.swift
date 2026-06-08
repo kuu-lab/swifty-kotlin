@@ -1,4 +1,3 @@
-import Foundation
 
 extension KIRLoweringDriver {
     /// Synthesise an initializer function for a top-level `object` declaration.

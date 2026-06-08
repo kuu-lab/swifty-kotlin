@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS primitive wrapper class surfaces.
 extension DataFlowSemaPhase {

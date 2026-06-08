@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimePathCreateParentDirectoriesTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testPathCreateParentDirectoriesAttributesCreatesOnlyParentTree() throws {
         let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

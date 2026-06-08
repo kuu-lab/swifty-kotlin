@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `RegExp` external class surface.
 extension DataFlowSemaPhase {

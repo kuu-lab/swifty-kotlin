@@ -1,9 +1,8 @@
-import Foundation
 
-/// Range-based coercion functions (STDLIB-CONV-006) plus UByte / UShort /
-/// Char conversions (STDLIB-PRIM-002).
-///
-/// Split out from `RuntimeNumericCompat.swift`.
+// Range-based coercion functions (STDLIB-CONV-006) plus UByte / UShort /
+// Char conversions (STDLIB-PRIM-002).
+//
+// Split out from `RuntimeNumericCompat.swift`.
 
 // MARK: - Range-based coercion functions (STDLIB-CONV-006)
 
@@ -417,4 +416,3 @@ func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {
 func runtimeNormalizedShift(_ value: Int) -> Int {
     Int(UInt(bitPattern: value) & UInt(Int.bitWidth - 1))
 }
-

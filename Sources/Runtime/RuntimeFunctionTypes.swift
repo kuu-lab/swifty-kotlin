@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - ランタイム関数型操作
 

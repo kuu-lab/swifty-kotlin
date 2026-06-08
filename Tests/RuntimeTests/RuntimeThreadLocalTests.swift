@@ -105,6 +105,7 @@ private final class ThreadLocalBackgroundValueBox: @unchecked Sendable {
 }
 
 final class RuntimeThreadLocalTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndThreadLocal }
     override func resetIsolatedRuntimeTestState() {
         threadLocalThunkState.reset()

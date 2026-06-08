@@ -1,5 +1,3 @@
-// swiftlint:disable file_length
-
 /// KClass / KFunction reflection-aware member-call lowerings.
 ///
 /// Covers `lowerClassRefPropertyAccess`, `lowerKClassReifiedTypeNameHint`,

@@ -202,7 +202,7 @@ extension DataFlowSemaPhase {
             guard let sup = ctx.symbols.symbol(supertypeID) else {
                 continue
             }
-            
+
             // STDLIB-DATA-014: Check if attempting to inherit from a data class
             if sup.flags.contains(.dataType) {
                 let name = sup.fqName
@@ -215,7 +215,7 @@ extension DataFlowSemaPhase {
                 )
                 continue
             }
-            
+
             if isSubclassable(sup, interner: ctx.interner) { continue }
             let name = sup.fqName
                 .map { ctx.interner.resolve($0) }
@@ -358,7 +358,7 @@ extension DataFlowSemaPhase {
             return nil
         }
     }
-    
+
     private func extractVisibility(from modifiers: Modifiers) -> Visibility {
         if modifiers.contains(.private) { return .private }
         if modifiers.contains(.protected) { return .protected }
@@ -375,11 +375,11 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate visibility constraints in inheritance hierarchy
-        
+
         guard memberMeta.hasOverride else { return } // Only check overrides
-        
+
         let memberName = ctx.interner.resolve(memberMeta.name)
-        
+
         // Find the parent member being overridden
         let parent = findInheritedMember(
             named: memberMeta.name,
@@ -388,20 +388,20 @@ extension DataFlowSemaPhase {
         )
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
-        
+
         // Rule 1: Cannot override with less visibility
         if !isVisibilityAllowed(childVisibility: memberMeta.visibility, parentVisibility: parentSym.visibility) {
             let parentVisibility = visibilityToString(parentSym.visibility)
             let childVisibility = visibilityToString(memberMeta.visibility)
             let parentName = ctx.interner.resolve(parent.ownerName)
-            
+
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-VISIBILITY",
                 "'\(memberName)' cannot override '\(parentName).\(memberName)' because it has \(childVisibility) visibility, but parent has \(parentVisibility) visibility.",
                 range: memberMeta.range
             )
         }
-        
+
         // Rule 2: private members cannot be overridden (shouldn't reach here due to lookup)
         if parentSym.visibility == .private {
             let parentName = ctx.interner.resolve(parent.ownerName)
@@ -412,7 +412,7 @@ extension DataFlowSemaPhase {
             )
         }
     }
-    
+
     private func isVisibilityAllowed(childVisibility: Visibility, parentVisibility: Visibility) -> Bool {
         // In Kotlin, child visibility must be the same or more permissive than parent
         switch parentVisibility {
@@ -426,7 +426,7 @@ extension DataFlowSemaPhase {
             return childVisibility == .public
         }
     }
-    
+
     private func visibilityToString(_ visibility: Visibility) -> String {
         switch visibility {
         case .private: return "private"
@@ -444,9 +444,9 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate that modifier combinations follow Kotlin rules
-        
+
         let memberName = ctx.interner.resolve(memberMeta.name)
-        
+
         // Rule 1: abstract and final are mutually exclusive
         if memberMeta.hasAbstract && memberMeta.hasFinal {
             ctx.diagnostics.error(
@@ -455,16 +455,16 @@ extension DataFlowSemaPhase {
                 range: memberMeta.range
             )
         }
-        
+
         // Rule 2: open and final are mutually exclusive
         if memberMeta.hasOverride && memberMeta.hasFinal {
             // This is actually valid (final override), so no error here
             // final override is allowed and means "override but don't allow further overriding"
         }
-        
+
         // Rule 3: Check for invalid modifier combinations based on context
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-        
+
         // Rule 3a: abstract members cannot be in final classes
         if memberMeta.hasAbstract && ownerSym.flags.contains(.finalMember) {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
@@ -474,10 +474,10 @@ extension DataFlowSemaPhase {
                 range: memberMeta.range
             )
         }
-        
+
         // Rule 3b: override without actual parent implementation (already checked in validateOverrideTarget)
         // This is handled elsewhere
-        
+
         // Rule 3c: Check interface-specific constraints
         if ownerSym.kind == .interface {
             // Interface members cannot be final
@@ -489,7 +489,7 @@ extension DataFlowSemaPhase {
                     range: memberMeta.range
                 )
             }
-            
+
             // Interface members are implicitly abstract, but explicit abstract is redundant
             if memberMeta.hasAbstract {
                 let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
@@ -500,7 +500,7 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        
+
         // Rule 3d: Data classes cannot declare open members.
         if ownerSym.flags.contains(.dataType) && memberMeta.hasOpen {
             let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
@@ -520,19 +520,19 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate that override members follow Kotlin's openness rules
-        
+
         // Find the member symbol by looking in the owner's children
         guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-        
+
         let memberSymbol = ctx.symbols.children(ofFQName: ownerSym.fqName).first { childID in
             guard let childSym = ctx.symbols.symbol(childID) else { return false }
-            return childSym.name == memberMeta.name && 
+            return childSym.name == memberMeta.name &&
                    (childSym.kind == .function || childSym.kind == .property)
         }
-        
+
         guard let memberSymID = memberSymbol,
               let memberSym = ctx.symbols.symbol(memberSymID) else { return }
-        
+
         // Check if this is an override member
         if memberMeta.hasOverride {
             // Rule: Override members are implicitly open unless marked final
@@ -540,7 +540,7 @@ extension DataFlowSemaPhase {
                 // This override member should be overridable by subclasses
                 // The isMemberOverridable function already handles this logic
                 // but we can add additional validation here if needed
-                
+
                 // Ensure the symbol has the overrideMember flag set
                 if !memberSym.flags.contains(.overrideMember) {
                     // This would be a symbol table consistency issue
@@ -574,11 +574,11 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         // STDLIB-INHERIT-018: Validate abstract override combinations
-        
+
         // Check 1: abstract override is only allowed in abstract classes
         if memberMeta.hasAbstract {
             guard let ownerSym = ctx.symbols.symbol(ownerSymbol) else { return }
-            
+
             if !ownerSym.flags.contains(.abstractType) {
                 let memberName = ctx.interner.resolve(memberMeta.name)
                 let ownerName = ownerSym.fqName.map { ctx.interner.resolve($0) }.joined(separator: ".")
@@ -589,7 +589,7 @@ extension DataFlowSemaPhase {
                 )
                 return
             }
-            
+
             // Check 2: abstract override must reference an inherited declaration.
             let parent = findInheritedMember(
                 named: memberMeta.name,
@@ -606,7 +606,7 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        
+
         // Check 3: final override cannot be used with abstract
         if memberMeta.hasAbstract && memberMeta.hasFinal {
             let memberName = ctx.interner.resolve(memberMeta.name)
@@ -650,7 +650,7 @@ extension DataFlowSemaPhase {
                     ctx: ctx
                 )
             }
-            
+
             // Check exception type covariance
             validateExceptionTypeCovariance(
                 memberName: memberName,
@@ -659,7 +659,7 @@ extension DataFlowSemaPhase {
                 parentSymbol: parentSym,
                 ctx: ctx
             )
-            
+
             // Check visibility expansion
             validateVisibilityExpansion(
                 childVisibility: visibility,
@@ -668,8 +668,8 @@ extension DataFlowSemaPhase {
                 memberRange: memberRange,
                 ctx: ctx
             )
-            
-            return 
+
+            return
         }
 
         let name = ctx.interner.resolve(memberName)
@@ -783,7 +783,7 @@ extension DataFlowSemaPhase {
             // This is valid - child throws fewer exceptions
             return
         }
-        
+
         if !parentExceptions && childExceptions {
             // Child throws exceptions but parent doesn't - this violates covariance
             let name = ctx.interner.resolve(memberName)
@@ -793,7 +793,7 @@ extension DataFlowSemaPhase {
                 range: memberRange
             )
         }
-        
+
         // Note: Currently the FunctionSignature only tracks canThrow boolean, not specific exception types
         // When exception type information is added to FunctionSignature, we should enhance this check
         // to verify that child exception types are subtypes of parent exception types
@@ -808,10 +808,10 @@ extension DataFlowSemaPhase {
     ) -> Bool {
         // For now, implement basic checks for common generic patterns
         // Full generic substitution would require more sophisticated type system integration
-        
+
         let parentKind = types.kind(of: parentReturnType)
         let childKind = types.kind(of: childReturnType)
-        
+
         // Case 1: Both are the same generic class with potentially different type arguments
         if case let .classType(parentClass) = parentKind,
            case let .classType(childClass) = childKind,
@@ -822,7 +822,7 @@ extension DataFlowSemaPhase {
                 types: types
             )
         }
-        
+
         // Case 2: Child is a subtype of parent (for non-generic cases)
         return types.isSubtype(childReturnType, parentReturnType)
     }
@@ -833,7 +833,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem
     ) -> Bool {
         guard childArgs.count == parentArgs.count else { return false }
-        
+
         for (childArg, parentArg) in zip(childArgs, parentArgs) {
             switch (childArg, parentArg) {
             case (.out(let childType), .out(let parentType)):
@@ -856,7 +856,7 @@ extension DataFlowSemaPhase {
                 return false
             }
         }
-        
+
         return true
     }
 
@@ -902,16 +902,16 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         let parentVisibility = parentSymbol.visibility
-        
+
         // Enhanced visibility validation with Kotlin-specific rules
-        
+
         // Rule 1: Basic visibility hierarchy check
         if !isVisibilityExpansionAllowed(child: childVisibility, parent: parentVisibility) {
             let name = ctx.interner.resolve(memberName)
             let ownerName = ctx.interner.resolve(parentSymbol.name)
             let childVisStr = visibilityToString(childVisibility)
             let parentVisStr = visibilityToString(parentVisibility)
-            
+
             ctx.diagnostics.error(
                 "KSWIFTK-SEMA-VISIBILITY",
                 "'\(name)' cannot override '\(ownerName).\(name)' because it has \(childVisStr) visibility, which is more restrictive than the \(parentVisStr) visibility of the overridden member.",
@@ -919,7 +919,7 @@ extension DataFlowSemaPhase {
             )
             return
         }
-        
+
         // Rule 2: Special handling for interface members
         if let ownerSym = ctx.symbols.symbol(ctx.symbols.parentSymbol(for: parentSymbol.id) ?? parentSymbol.id),
            ownerSym.kind == .interface {
@@ -934,7 +934,7 @@ extension DataFlowSemaPhase {
                 )
             }
         }
-        
+
         // Rule 3: Module boundary considerations (simplified)
         // In a full implementation, this would check if parent and child are in different modules
         validateModuleBoundaryCompatibility(
@@ -945,7 +945,7 @@ extension DataFlowSemaPhase {
             ctx: ctx
         )
     }
-    
+
     private func validateModuleBoundaryCompatibility(
         childVisibility: Visibility,
         parentVisibility: Visibility,
@@ -955,13 +955,13 @@ extension DataFlowSemaPhase {
     ) {
         // Simplified module boundary check
         // In a full implementation, this would compare package/module FQNames
-        
+
         // For now, implement conservative rules:
         // - internal members can only be overridden within the same module
         // - protected members have special cross-module rules
-        
+
         let name = ctx.interner.resolve(memberName)
-        
+
         if parentVisibility == .internal && childVisibility != .internal && childVisibility != .public {
             // This would need actual module comparison in a full implementation
             // For now, allow it with a warning
@@ -977,12 +977,12 @@ extension DataFlowSemaPhase {
         // Visibility hierarchy: private < protected < internal < public
         // Child visibility must be >= parent visibility
         let visibilityOrder: [Visibility] = [.private, .protected, .internal, .public]
-        
+
         guard let childIndex = visibilityOrder.firstIndex(of: child),
               let parentIndex = visibilityOrder.firstIndex(of: parent) else {
             return false
         }
-        
+
         return childIndex >= parentIndex
     }
 
@@ -995,26 +995,26 @@ extension DataFlowSemaPhase {
         ctx: OpenFinalOverrideContext
     ) {
         let name = ctx.interner.resolve(memberName)
-        
+
         // Enhanced override detection with signature-aware matching
-        
+
         // Find all potential parent members that could be overridden
         let allParentMembers = findAllInheritedMembers(
             named: memberName,
             for: ownerSymbol,
             symbols: ctx.symbols
         )
-        
+
         guard !allParentMembers.isEmpty else { return }
-        
+
         // Filter to only overridable members
         let overridableParents = allParentMembers.filter { parent in
             guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return false }
             return isMemberOverridable(parentSym, parent: parent)
         }
-        
+
         guard !overridableParents.isEmpty else { return }
-        
+
         // Special handling for interface implementations
         if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
             // Check if this is implementing an interface method
@@ -1046,7 +1046,7 @@ extension DataFlowSemaPhase {
                 }
             }
         }
-        
+
         // For class inheritance, check if this actually overrides a parent member
         // Use improved signature matching to avoid false positives with overloads
         if let ownerSym = ctx.symbols.symbol(ownerSymbol), ownerSym.kind == .class {
@@ -1080,7 +1080,7 @@ extension DataFlowSemaPhase {
             }
         }
     }
-    
+
     // MARK: - Overridability check
 
     /// A member is overridable when it belongs to an interface,
@@ -1222,19 +1222,20 @@ extension DataFlowSemaPhase {
         guard child.parameterTypes.count == parent.parameterTypes.count else {
             return false
         }
-        
+
         // Check parameter types (covariant for return, contravariant for parameters)
         for (childParam, parentParam) in zip(child.parameterTypes, parent.parameterTypes) {
+            // swiftlint:disable:next for_where
             if !ctx.types.isSubtype(parentParam, childParam) {
                 return false
             }
         }
-        
+
         // Check return type (covariant)
         if !ctx.types.isSubtype(child.returnType, parent.returnType) {
             return false
         }
-        
+
         // Check other signature aspects
         return child.isSuspend == parent.isSuspend
     }

@@ -329,7 +329,7 @@ extension CallLowerer {
                 // Fallback: if virtual dispatch is not needed (e.g. final class with
                 // no subtypes), resolve the concrete close() method on the receiver type
                 // so that the static call targets the correct mangled name.
-                var concreteCloseSymbol: SymbolID? = nil
+                var concreteCloseSymbol: SymbolID?
                 var concreteCloseName = closeName
                 if let recvTypeID = receiverTypeForDispatch,
                    case let .classType(recvClass) = sema.types.kind(of: recvTypeID)

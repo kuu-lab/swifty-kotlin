@@ -1,4 +1,3 @@
-import Foundation
 
 // Runtime support for the basic kotlin.test assertion helpers used by STDLIB-TEST-157.
 
@@ -142,5 +141,3 @@ public func kk_test_assertNull_message(
     }
     return 0
 }
-
-

@@ -1,5 +1,4 @@
 @testable import CompilerCore
-import Foundation
 
 enum GoldenHarnessSyntaxFormat {
     static func renderRange(_ range: SourceRange) -> String {

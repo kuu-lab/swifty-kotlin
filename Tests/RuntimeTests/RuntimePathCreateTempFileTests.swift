@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimePathCreateTempFileTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testPathCreateTempFilePrefixSuffixAttributesCreatesFile() throws {
         var thrown = 0

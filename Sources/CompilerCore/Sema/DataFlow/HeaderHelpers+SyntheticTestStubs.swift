@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic `kotlin.test` stubs for basic assertion helpers and lifecycle annotations.
 /// The annotations are compile-time only; runtime behavior lives in `RuntimeTest.swift`.

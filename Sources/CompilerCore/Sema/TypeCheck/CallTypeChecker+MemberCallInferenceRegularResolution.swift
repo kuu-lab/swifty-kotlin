@@ -1,5 +1,4 @@
 // swiftlint:disable file_length function_body_length cyclomatic_complexity
-import Foundation
 
 extension CallTypeChecker {
     func inferRegularMemberCall(
@@ -45,7 +44,7 @@ extension CallTypeChecker {
         // Skip lambda literals and callable refs so that their first inference
         // happens inside prepareCallArguments with a contextual expected type,
         // preventing a stale no-expectedType binding from poisoning the cache.
-        let argTypes = args.enumerated().map { _, arg -> TypeID in
+        let argTypes = args.map { arg -> TypeID in
             if let expr = ast.arena.expr(arg.expr) {
                 switch expr {
                 case .lambdaLiteral, .callableRef:
@@ -73,7 +72,7 @@ extension CallTypeChecker {
 
         var isSuperCall = false
         var supertypeSymbols: Set<SymbolID> = []
-        var qualifiedSuperType: SymbolID? = nil
+        var qualifiedSuperType: SymbolID?
         if !safeCall {
             if let superExpr = ast.arena.expr(receiverID), case let .superRef(interfaceQualifier, _) = superExpr {
                 isSuperCall = true
@@ -1273,3 +1272,4 @@ extension CallTypeChecker {
         return finalType
     }
 }
+// swiftlint:enable cyclomatic_complexity file_length function_body_length

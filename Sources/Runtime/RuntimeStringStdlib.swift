@@ -187,7 +187,6 @@ public func kk_string_isNormalized(_ strRaw: Int, _ formTagRaw: Int) -> Int {
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
-
 @_cdecl("kk_string_split")
 public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -348,6 +347,25 @@ public func kk_string_toCharArray(_ strRaw: Int) -> Int {
 public func kk_string_toTypedArray(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
     return runtimeMakeArrayRaw(charRaws)
+}
+
+// MARK: - STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
+
+/// Appends every character of the string (as a boxed `Char`) to `destRaw`,
+/// which must be a mutable collection (List or Set).  Returns `destRaw` so
+/// callers can chain: `val result = "abc".toCollection(mutableListOf())`.
+///
+/// Mirrors `kotlin.text.CharSequence.toCollection<C : MutableCollection<in Char>>`.
+@_cdecl("kk_string_toCollection")
+public func kk_string_toCollection(_ strRaw: Int, _ destRaw: Int) -> Int {
+    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    guard runtimeMutableCollectionExists(destRaw) else {
+        invalidContainerPanic(#function, "mutable collection")
+    }
+    for charRaw in charRaws {
+        runtimeAppendToMutableCollection(destRaw, charRaw)
+    }
+    return destRaw
 }
 
 // MARK: - STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
@@ -1186,6 +1204,7 @@ public func kk_string_indexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _ sta
         }
     }
     for offset in start..<source.count {
+        // swiftlint:disable:next for_where
         if needles.contains(where: { matches($0, at: offset) }) {
             return offset
         }
@@ -1254,6 +1273,7 @@ public func kk_string_lastIndexOfAny_strings(_ strRaw: Int, _ stringsRaw: Int, _
         }
     }
     for offset in stride(from: start, through: 0, by: -1) {
+        // swiftlint:disable:next for_where
         if needles.contains(where: { matches($0, at: offset) }) {
             return offset
         }

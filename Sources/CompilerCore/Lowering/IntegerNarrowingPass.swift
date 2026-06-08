@@ -1,4 +1,3 @@
-import Foundation
 
 /// Enforces Kotlin's 32-bit `Int` arithmetic semantics.
 ///

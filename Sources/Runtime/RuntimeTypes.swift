@@ -470,23 +470,23 @@ final class RuntimeSequenceBuilderBox {
     var elements: [Int] = []
 }
 
-/// STDLIB-563: Continuation-based lazy sequence coroutine.
-///
-/// Runs the builder lambda on a background thread. Each call to `yield(value)`
-/// suspends the producer (via `producerSemaphore`) until the consumer calls
-/// `materializeAll()`, which signals the producer to continue.
-///
-/// The coroutine is started lazily on the first call to `materializeAll()`.
-///
-/// Thread protocol:
-///   Producer thread (background):
-///     1. Runs builder lambda
-///     2. On yield(value): store value, signal consumer, wait on producer semaphore
-///     3. On completion: set finished flag, signal consumer
-///
-///   Consumer thread (caller):
-///     1. materializeAll(): signal producer, wait on consumer semaphore, read value
-///     2. Returns when producer has finished
+// STDLIB-563: Continuation-based lazy sequence coroutine.
+//
+// Runs the builder lambda on a background thread. Each call to `yield(value)`
+// suspends the producer (via `producerSemaphore`) until the consumer calls
+// `materializeAll()`, which signals the producer to continue.
+//
+// The coroutine is started lazily on the first call to `materializeAll()`.
+//
+// Thread protocol:
+//   Producer thread (background):
+//     1. Runs builder lambda
+//     2. On yield(value): store value, signal consumer, wait on producer semaphore
+//     3. On completion: set finished flag, signal consumer
+//
+//   Consumer thread (caller):
+//     1. materializeAll(): signal producer, wait on consumer semaphore, read value
+//     2. Returns when producer has finished
 // TODO(CORO-004): The producer/consumer semaphore ping-pong blocks two GCD
 // threads (one producer, one consumer) for the entire iteration.  To migrate:
 // model yield() as a suspend point in the producer's coroutine entry loop and
@@ -686,25 +686,25 @@ final class RuntimeSequenceCoroutineBuilderProxy {
     }
 }
 
-/// Runtime box for the `iterator { yield(x) }` builder (STDLIB-331/564).
-///
-/// Implements **continuation-based lazy iteration** using a cooperative
-/// producer-consumer pattern. The builder lambda runs on a background thread
-/// and suspends on each `yield()` call until the consumer calls `next()`.
-///
-/// Protocol:
-///   1. `kk_iterator_builder_build(fnPtr)` creates the box and spawns the
-///      producer thread. The producer immediately blocks on `producerGate`
-///      until the first `hasNext` / `next` call.
-///   2. `hasNext` signals `producerGate` (let producer run), then waits on
-///      `consumerGate`. When the producer yields a value or finishes, it
-///      signals `consumerGate`.
-///   3. `next` returns the most recently yielded value (already fetched by
-///      `hasNext`).
-///
-/// Memory: The box is registered in the runtime object table; the background
-/// thread retains the box via its closure capture. The thread exits naturally
-/// when the builder lambda returns.
+// Runtime box for the `iterator { yield(x) }` builder (STDLIB-331/564).
+//
+// Implements **continuation-based lazy iteration** using a cooperative
+// producer-consumer pattern. The builder lambda runs on a background thread
+// and suspends on each `yield()` call until the consumer calls `next()`.
+//
+// Protocol:
+//   1. `kk_iterator_builder_build(fnPtr)` creates the box and spawns the
+//      producer thread. The producer immediately blocks on `producerGate`
+//      until the first `hasNext` / `next` call.
+//   2. `hasNext` signals `producerGate` (let producer run), then waits on
+//      `consumerGate`. When the producer yields a value or finishes, it
+//      signals `consumerGate`.
+//   3. `next` returns the most recently yielded value (already fetched by
+//      `hasNext`).
+//
+// Memory: The box is registered in the runtime object table; the background
+// thread retains the box via its closure capture. The thread exits naturally
+// when the builder lambda returns.
 // TODO(CORO-004): Same semaphore ping-pong pattern as RuntimeSequenceCoroutine.
 // Migrate to continuation model so neither producer nor consumer blocks a GCD thread.
 final class RuntimeIteratorBuilderBox: @unchecked Sendable {

@@ -1,4 +1,3 @@
-import Foundation
 
 extension DataFlowSemaPhase {
     func registerSyntheticExceptionStubs(

@@ -459,6 +459,7 @@ final class KotlinAnnotationAPIInventoryTests: XCTestCase {
 
         var gaps: [String] = []
         for fqPath in mandatorySymbols {
+            // swiftlint:disable:next for_where
             if symbol(fqPath: fqPath, sema: sema, interner: interner) == nil {
                 gaps.append(fqPath.joined(separator: "."))
             }

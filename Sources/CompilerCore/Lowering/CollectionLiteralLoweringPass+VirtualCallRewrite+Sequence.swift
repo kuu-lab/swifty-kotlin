@@ -132,7 +132,7 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        if (callee == lookup.reversedName || callee == lookup.asReversedName), arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
+        if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.isEmpty, listExprIDs.contains(receiver.rawValue) {
             let transformResult = module.arena.appendExpr(
                 .temporary(Int32(module.arena.expressions.count)), type: nil
             )
@@ -213,7 +213,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         if callee == lookup.shuffledName,
-           (arguments.isEmpty || arguments.count == 1),
+           arguments.isEmpty || arguments.count == 1,
            sequenceExprIDs.contains(receiver.rawValue)
         {
             let kkName = arguments.isEmpty
@@ -640,7 +640,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         // max / maxOrNull / minOrNull on sequence (STDLIB-SEQ-FN-065, STDLIB-470)
-        if (callee == lookup.maxName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName),
+        if callee == lookup.maxName || callee == lookup.maxOrNullName || callee == lookup.minOrNullName,
            arguments.isEmpty, sequenceExprIDs.contains(receiver.rawValue)
         {
             let kkName: InternedString
@@ -887,7 +887,7 @@ extension CollectionLiteralLoweringPass {
         // minus(element)/minusElement(element) on sequence → kk_sequence_minus
         // Only rewrite when the argument is a single element (not a collection).
         // Collection-removal is not yet supported at the ABI level.
-        if (callee == lookup.minusMemberName || callee == lookup.minusElementName),
+        if callee == lookup.minusMemberName || callee == lookup.minusElementName,
            arguments.count == 1,
            sequenceExprIDs.contains(receiver.rawValue)
         {
@@ -915,7 +915,7 @@ extension CollectionLiteralLoweringPass {
 
         // STDLIB-SEQ-021: Sequence destination-collection filter operations
         // filterTo / filterNotTo on sequence (2 args: destination, lambda)
-        if (callee == lookup.filterToName || callee == lookup.filterNotToName),
+        if callee == lookup.filterToName || callee == lookup.filterNotToName,
            (2 ... 4).contains(arguments.count),
            sequenceExprIDs.contains(receiver.rawValue)
         {

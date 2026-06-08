@@ -157,7 +157,7 @@ final class RuntimePlatformInfoTests: XCTestCase {
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
         let le  = kk_platform_isLittleEndian(0)
         let cau = kk_platform_canAccessUnaligned(0)
-        XCTAssertEqual(le,  1, "Apple platforms are little-endian")
+        XCTAssertEqual(le, 1, "Apple platforms are little-endian")
         XCTAssertEqual(cau, 1, "Apple arm64/x86_64 support unaligned access")
 #endif
     }

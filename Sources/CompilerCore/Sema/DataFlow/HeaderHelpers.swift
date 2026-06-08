@@ -190,7 +190,6 @@ extension DataFlowSemaPhase {
         .annotationClass,
     ]
 
-
     /// Base value for synthetic type parameter symbol IDs used in metadata encoding.
     /// Shared between MetadataTypeSignatureParser (encoding) and collectSyntheticTypeParameters (decoding).
     static var syntheticTypeParameterBase: Int32 {

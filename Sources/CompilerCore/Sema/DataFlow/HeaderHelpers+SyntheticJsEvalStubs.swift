@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `eval` external function surface.
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// Type aliases ArrayList, HashMap, HashSet, LinkedHashMap (STDLIB-560)

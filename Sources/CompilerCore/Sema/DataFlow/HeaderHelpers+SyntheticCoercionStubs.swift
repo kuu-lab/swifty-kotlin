@@ -1,4 +1,3 @@
-import Foundation
 
 // Coercion extension stubs (STDLIB-150) for kotlin.ranges.
 // Int/Long/Double/Float coercion tests: CoercionSyntheticStubTests (TEST-002)

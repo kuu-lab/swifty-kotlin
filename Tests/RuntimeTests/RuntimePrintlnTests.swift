@@ -8,6 +8,7 @@ import XCTest
 #endif
 
 final class RuntimePrintlnTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     private func capturePrintln(_ block: () -> Void) -> String {
         let pipe = Pipe()

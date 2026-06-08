@@ -128,6 +128,7 @@ private final class LazyPublicationCallbackState: @unchecked Sendable {
 
     func waitForInitializerEntries(_ count: Int, timeout: DispatchTimeInterval = .seconds(5)) -> Bool {
         for _ in 0..<count {
+            // swiftlint:disable:next for_where
             if enteredSemaphore.wait(timeout: .now() + timeout) != .success {
                 return false
             }
@@ -226,6 +227,7 @@ private let vetoableOrderCallback: KKDelegateObserverEntryPoint = { _, _, _, _ i
 }
 
 final class RuntimeDelegateTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndDelegate }
     override func resetIsolatedRuntimeTestState() {
         gDelegateState.reset()

@@ -1,4 +1,3 @@
-import Foundation
 import RuntimeABI
 
 /// Synthetic stdlib stubs for kotlin's not-yet-implemented helper, kotlin.io.println (0-arg), and kotlin.io.readLine (STDLIB-063).
@@ -1012,7 +1011,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     private func makeFileListOfStringType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1297,7 +1295,6 @@ extension DataFlowSemaPhase {
             for: memberSymbol
         )
     }
-
 
     func makeSyntheticIterableType(
         symbols: SymbolTable,

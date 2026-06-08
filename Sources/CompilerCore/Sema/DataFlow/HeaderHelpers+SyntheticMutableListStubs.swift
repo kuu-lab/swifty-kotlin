@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// MutableList<E> interface, mutation members, and the synthetic List extension function helper.

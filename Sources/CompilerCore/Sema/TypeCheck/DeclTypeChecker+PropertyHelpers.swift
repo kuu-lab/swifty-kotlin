@@ -1,4 +1,3 @@
-import Foundation
 
 // Property accessor type-checking helpers extracted from DeclTypeChecker
 // to keep the main file within SwiftLint length limits.

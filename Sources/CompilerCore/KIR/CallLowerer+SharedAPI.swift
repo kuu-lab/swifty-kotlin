@@ -1,4 +1,3 @@
-import Foundation
 
 extension CallLowerer {
     func lowerMemberCallExpr(

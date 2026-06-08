@@ -1,4 +1,3 @@
-import Foundation
 
 extension DataFlowSemaPhase {
     func registerSyntheticCoroutineStubs(
@@ -120,7 +119,6 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([kotlinResultTypeParamSymbol], for: kotlinResultSymbol)
         types.setNominalTypeParameterVariances([.out], for: kotlinResultSymbol)
         symbols.setPropertyType(kotlinResultType, for: kotlinResultSymbol)
-
 
         let continuationSymbol = ensureInterfaceSymbol(
             named: "Continuation",

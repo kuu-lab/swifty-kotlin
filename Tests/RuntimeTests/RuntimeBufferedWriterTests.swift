@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimeBufferedWriterTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - STDLIB-IO-FN-010: File.bufferedWriter()

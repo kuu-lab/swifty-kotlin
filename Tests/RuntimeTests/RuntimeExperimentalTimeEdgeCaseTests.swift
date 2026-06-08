@@ -10,6 +10,7 @@ import XCTest
 // overflow/saturation, toString on elapsed duration, and monotonicity invariants.
 
 final class RuntimeExperimentalTimeEdgeCaseTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Helpers

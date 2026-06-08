@@ -43,6 +43,7 @@ private func fnPtrInt1(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
 /// Covers kk_path_forEachLine and kk_path_forEachLine_default — the runtime
 /// entries for the kotlin.io.path.forEachLine extension.
 final class RuntimePathForEachLineTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Helpers

@@ -149,6 +149,8 @@
 - [ ] STDLIB-IO-FN-017: `forEachLine` 関数の実装（Reader版）
 - [x] STDLIB-IO-FN-020: `inputStream` 関数の実装（ByteArray版）
 - [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [ ] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
 - [x] STDLIB-IO-FN-022: `iterator` 関数の実装
 - [x] STDLIB-IO-FN-024: `normalize` 関数の実装
 - [x] STDLIB-IO-FN-027: `printWriter` 関数の実装
@@ -690,6 +692,9 @@
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
+- [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
+- [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-097: `toFloat` 関数の実装
 - [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-099: `toInt` 関数の実装
@@ -807,9 +812,6 @@
 - [x] STDLIB-UUID-FN-002: `putUuid` 関数の実装
 - [x] STDLIB-UUID-FN-003: `toJavaUuid` 関数の実装
 - [x] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
-- [ ] STDLIB-UUID-FN-002: `putUuid` 関数の実装
-- [x] STDLIB-UUID-FN-003: `toJavaUuid` 関数の実装
-- [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [x] STDLIB-GAP-PH4: `kotlin.math` / `kotlin.random` / `kotlin.reflect` / `kotlin.comparisons` / `kotlin.annotation` / `kotlin.system` / `kotlin.uuid` / `kotlin.native` 周辺の「部分」を潰す
@@ -1268,3 +1270,5 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現が `java.lang.*.toString` と異なる（Kotlin: `4.9E-324`/`1.4E-45`、kswiftk: `5.0E-324`/`1.0E-45`）。Swift の最短表現と Java の FloatingDecimal の差。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`（SKIP-DIFF）。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
 - [ ] SPEC-NUM-0008: プリミティブ `Double`/`Float` への明示メンバ呼び出しの欠落。`x.compareTo(y)` がリンクエラー（`undefined reference to 'compareTo'`）、`(-0.0).toString()` が `"null"` を返す。また関数の戻り値として返した `-0.0` が呼び出し側の `println` で `0.0` に化ける（戻り値経路で符号消失）。
+- [ ] TEST-TIME-020: `kotlin.time` の Duration Long 受信ファクトリの実行テストを追加する。`from_days_long`（`5L.days`）/ `from_hours_long`（`5L.hours`）/ `from_minutes_long`（`5L.minutes`）/ `from_microseconds_long`（`5L.microseconds`）は実装ありだが実行テストなし。**注意**: `from_seconds_long` / `from_milliseconds_long` / `from_nanoseconds_long` は `CodegenBackendIntegrationTests+StableDurationEdgeCases.testDurationStableUnitExtensionPropertiesLong` でカバー済みのため対象外。カバー対象: 正常変換・`Long.MAX_VALUE` のオーバーフロー飽和（INFINITE）・負値・ゼロ
+- [x] TEST-TIME-021: `kotlin.time` の Instant 変換の実行テストを追加する。`from_epoch_seconds`（`Instant.fromEpochSeconds(...)`）/ `to_epoch_millis`（`instant.toEpochMilliseconds()`）/ `to_foundation_date`（Foundation Date 変換）は `RuntimeTime.swift` に実装ありだが実行テストなし（`RuntimeInstantTests` は `from_epoch_millis`/`compare`/`elapsed`/`until` 等の別関数のみ）。カバー対象: epoch 往復・負の epoch（1970以前）・秒未満ナノ秒の保持・`fromEpochSeconds` の nanosecondAdjustment 引数

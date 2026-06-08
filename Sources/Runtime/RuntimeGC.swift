@@ -464,5 +464,3 @@ func appendObjectChildrenLocked(of object: HeapObjectRecord, into worklist: inou
         }
     }
 }
-
-

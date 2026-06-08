@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for kotlinx.serialization / kotlinx.serialization.json.
 extension DataFlowSemaPhase {

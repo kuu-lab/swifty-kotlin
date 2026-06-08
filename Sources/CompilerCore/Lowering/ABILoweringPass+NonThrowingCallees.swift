@@ -1,4 +1,3 @@
-import Foundation
 
 extension ABILoweringPass {
     func nonThrowingCallees(interner: StringInterner) -> Set<InternedString> {
@@ -803,6 +802,7 @@ extension ABILoweringPass {
             interner.intern("kk_uuid_leastSignificantBits"),
             interner.intern("kk_uuid_nameUUIDFromBytes"),
             interner.intern("kk_uuid_fromLongs"),
+            interner.intern("kk_uuid_toKotlinUuid"),
             interner.intern("kk_time_source_mark_now"),
             interner.intern("kk_time_source_monotonic_mark_now"),
             interner.intern("kk_time_mark_elapsed_now"),

@@ -1,4 +1,3 @@
-import Foundation
 
 extension CoroutineLoweringPass {
     func analyzeSuspendLoweringPlan(
@@ -288,11 +287,25 @@ extension CoroutineLoweringPass {
     ) -> SpillPlan {
         var transitionSourceToExprs: [Int: Set<KIRExprID>] = [:]
         var allSpilledExprs: Set<KIRExprID> = []
-        let resultExprs = Set(transitionsByResumeLabel.values.compactMap(\.callResultExpr))
+
+        // Each suspend point's own call result is retrieved via
+        // kk_coroutine_state_get_completion on resume, so don't spill it at
+        // its own source.  However, if that result is still live at a LATER
+        // suspend point, it MUST be spilled there — the later suspension
+        // overwrites completion with its own result (fixes multi-await bug,
+        // e.g. `a.await() + b.await()` returning wrong value).
+        var ownResultBySource: [Int: KIRExprID] = [:]
+        for transition in transitionsByResumeLabel.values {
+            if let expr = transition.callResultExpr {
+                ownResultBySource[transition.sourceInstructionIndex] = expr
+            }
+        }
 
         for sourceIndex in transitionSourceIndexes {
             var spillExprs = liveOutByInstruction[sourceIndex] ?? []
-            spillExprs.subtract(resultExprs)
+            if let ownResult = ownResultBySource[sourceIndex] {
+                spillExprs.remove(ownResult)
+            }
             transitionSourceToExprs[sourceIndex] = spillExprs
             allSpilledExprs.formUnion(spillExprs)
         }

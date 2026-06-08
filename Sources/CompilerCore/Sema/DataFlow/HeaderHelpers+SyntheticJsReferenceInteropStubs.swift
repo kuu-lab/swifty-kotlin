@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `T.toJsReference` conversion surface.
 extension DataFlowSemaPhase {

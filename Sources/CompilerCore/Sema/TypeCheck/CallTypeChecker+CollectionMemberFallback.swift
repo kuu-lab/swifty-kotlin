@@ -1068,7 +1068,7 @@ extension CallTypeChecker {
             return argCount == 2
         case interner.intern("slice"):
             return argCount == 1
-        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceRightOrNull"), interner.intern("reduceIndexed"), interner.intern("reduceIndexedOrNull"), interner.intern("runningReduceIndexed"):
+        case interner.intern("reduceRight"), interner.intern("reduceRightIndexed"), interner.intern("reduceRightIndexedOrNull"), interner.intern("reduceRightOrNull"), interner.intern("reduceIndexed"):
             return argCount == 1
         case interner.intern("windowed"):
             return argCount == 1 || argCount == 2 || argCount == 3 || argCount == 4
@@ -1541,10 +1541,10 @@ extension CallTypeChecker {
             return sema.types.nullableAnyType
         }
 
-        if (memberName == interner.intern("toList")
+        if memberName == interner.intern("toList")
             || memberName == interner.intern("subList")
             || memberName == interner.intern("slice")
-            || memberName == interner.intern("minusElement")),
+            || memberName == interner.intern("minusElement"),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             if memberName == interner.intern("minusElement"), isSequenceReceiver {
@@ -1743,9 +1743,9 @@ extension CallTypeChecker {
             return sema.types.makeNullable(receiverElementType)
         }
 
-        if (memberName == interner.intern("runningReduce")
+        if memberName == interner.intern("runningReduce")
             || memberName == interner.intern("runningReduceIndexed")
-            || memberName == interner.intern("scanReduce")),
+            || memberName == interner.intern("scanReduce"),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             return sema.types.make(.classType(ClassType(
@@ -1755,10 +1755,10 @@ extension CallTypeChecker {
             )))
         }
 
-        if (memberName == interner.intern("scan")
+        if memberName == interner.intern("scan")
             || memberName == interner.intern("scanIndexed")
             || memberName == interner.intern("runningFold")
-            || memberName == interner.intern("runningFoldIndexed")),
+            || memberName == interner.intern("runningFoldIndexed"),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
         {
             // scan/runningFold variants return List<R> where R is the accumulator type,
@@ -1776,7 +1776,7 @@ extension CallTypeChecker {
             )))
         }
 
-        if (isListReceiver || isSetReceiver),
+        if isListReceiver || isSetReceiver,
            isSetReturningCollectionBinaryMember(memberName, interner: interner),
            let setSymbol = sema.symbols.lookup(fqName: [
                interner.intern("kotlin"),
@@ -1835,7 +1835,7 @@ extension CallTypeChecker {
                 elementType: receiverElementType
             )
         }
-        if (memberName == interner.intern("sorted") || memberName == interner.intern("sortedDescending")),
+        if memberName == interner.intern("sorted") || memberName == interner.intern("sortedDescending"),
            isSequenceReceiver
         {
             return makeSyntheticSequenceType(
@@ -2258,10 +2258,10 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("maxWith")
+        if memberName == interner.intern("maxWith")
             || memberName == interner.intern("maxWithOrNull")
             || memberName == interner.intern("minWith")
-            || memberName == interner.intern("minWithOrNull")),
+            || memberName == interner.intern("minWithOrNull"),
            argCount == 1,
            let comparatorSymbol = sema.symbols.lookup(fqName: [
                interner.intern("kotlin"),
@@ -2276,10 +2276,10 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("maxOfWith")
+        if memberName == interner.intern("maxOfWith")
             || memberName == interner.intern("maxOfWithOrNull")
             || memberName == interner.intern("minOfWith")
-            || memberName == interner.intern("minOfWithOrNull")),
+            || memberName == interner.intern("minOfWithOrNull"),
            argCount == 2
         {
             let expectedType = sema.types.make(.functionType(FunctionType(
@@ -2401,7 +2401,7 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("reduce") || memberName == interner.intern("reduceOrNull")), argCount == 1 {
+        if memberName == interner.intern("reduce") || memberName == interner.intern("reduceOrNull"), argCount == 1 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.anyType, sema.types.anyType],
                 returnType: sema.types.anyType,
@@ -2421,10 +2421,10 @@ extension CallTypeChecker {
             return (argumentIndex: 0, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("scan")
+        if memberName == interner.intern("scan")
             || memberName == interner.intern("scanIndexed")
             || memberName == interner.intern("runningFold")
-            || memberName == interner.intern("runningFoldIndexed")), argCount == 2
+            || memberName == interner.intern("runningFoldIndexed"), argCount == 2
         {
             // scan/runningFold variants: (acc: R, element: T) -> R
             // The accumulator type is unknown in the fallback path, so use Any;
@@ -2445,13 +2445,13 @@ extension CallTypeChecker {
             return (argumentIndex: 1, expectedType: expectedType)
         }
 
-        if (memberName == interner.intern("runningReduce")
+        if memberName == interner.intern("runningReduce")
             || memberName == interner.intern("runningReduceIndexed")
             || memberName == interner.intern("scanReduce")
             || memberName == interner.intern("reduceRightIndexed")
             || memberName == interner.intern("reduceRightIndexedOrNull")
             || memberName == interner.intern("reduceRightOrNull")
-            || memberName == interner.intern("reduceIndexedOrNull")), argCount == 1
+            || memberName == interner.intern("reduceIndexedOrNull"), argCount == 1
         {
             // reduce/runningReduce variants use receiver element type.
             let params: [TypeID] = if memberName == interner.intern("runningReduceIndexed")

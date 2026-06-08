@@ -374,6 +374,7 @@ extension CallTypeChecker {
             (knownNames.charArray, sema.types.charType),
         ]
         for (name, elementType) in primitiveMapping {
+            // swiftlint:disable:next for_where
             if symbol.name == name {
                 return elementType
             }

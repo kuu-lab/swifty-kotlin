@@ -237,10 +237,12 @@ final class ScopeTests: XCTestCase {
     }
 
     func testInsertWithInvalidIDIsNoOp() {
+        let interner = StringInterner()
         let symbols = SymbolTable()
         let scope = FileScope(parent: nil, symbols: symbols)
         scope.insert(SymbolID.invalid)
-        // Should not crash
+        XCTAssertTrue(scope.lookup(interner.intern("anything")).isEmpty,
+                      "inserting SymbolID.invalid must leave scope state unchanged")
     }
 }
 

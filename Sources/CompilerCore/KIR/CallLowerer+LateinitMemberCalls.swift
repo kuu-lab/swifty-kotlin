@@ -1,4 +1,3 @@
-import Foundation
 
 /// Lowering for `lateinit` property initialization checks.
 extension CallLowerer {

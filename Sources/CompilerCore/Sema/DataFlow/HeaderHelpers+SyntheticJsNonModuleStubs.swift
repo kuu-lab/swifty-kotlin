@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for stable Kotlin/JS annotations.
 extension DataFlowSemaPhase {

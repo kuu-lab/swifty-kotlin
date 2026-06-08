@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimePathCopyToTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testPathCopyToOptionsCopiesFileAndReturnsTargetPath() throws {
         let sourceURL = try makeTempFile(contents: "copy me")

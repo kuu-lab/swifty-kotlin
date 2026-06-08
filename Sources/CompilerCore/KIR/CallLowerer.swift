@@ -1,4 +1,3 @@
-import Foundation
 
 final class CallLowerer {
     unowned let driver: KIRLoweringDriver
@@ -738,8 +737,8 @@ final class CallLowerer {
         let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             if let chosen,
-               (sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
-                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg")
+               sema.symbols.externalLinkName(for: chosen) == "kk_comparator_from_multi_selectors_vararg" ||
+                sema.symbols.externalLinkName(for: chosen) == "kk_compareValuesByVararg"
             {
                 NormalizedCallResult(arguments: loweredArgIDs, defaultMask: 0)
             } else {

@@ -1,10 +1,10 @@
 import Dispatch
 import Foundation
 
-/// `CoroutineContext` element runtime (STDLIB-CORO-077) and the
-/// coroutine dispatcher scheduler (STDLIB-133).
-///
-/// Split out from `RuntimeCoroutine.swift`.
+// `CoroutineContext` element runtime (STDLIB-CORO-077) and the
+// coroutine dispatcher scheduler (STDLIB-133).
+//
+// Split out from `RuntimeCoroutine.swift`.
 
 // MARK: - CoroutineContext Elements (STDLIB-CORO-077)
 
@@ -709,4 +709,3 @@ public func kk_with_context(_ dispatcherRaw: Int, _ blockFnPtr: Int, _ continuat
     semaphore.wait()
     return resultBox.value
 }
-

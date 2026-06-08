@@ -1,4 +1,3 @@
-import Foundation
 
 /// `kk_list_max{Of,With,OfWith}` / `kk_list_min{Of,With,OfWith}`
 /// (and `OrNull` variants) — STDLIB-301b/c/d.
@@ -564,7 +563,6 @@ public func kk_list_shuffled(_ listRaw: Int) -> Int {
     let shuffled = elements.shuffled()
     return registerRuntimeObject(RuntimeListBox(elements: shuffled))
 }
-
 
 /// Collection<T : Comparable>.max(): T (throws NoSuchElementException if empty)
 @_cdecl("kk_list_max")

@@ -49,6 +49,7 @@ private func fnPtrInt(_ fn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?
 }
 
 final class RuntimeBufferedReaderTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testBufferedReaderHandlesMixedLineEndingsAndNoTrailingEmptyLine() throws {
         let fileURL = try makeTempFile(contents: "alpha\r\nbeta\rgamma\n")

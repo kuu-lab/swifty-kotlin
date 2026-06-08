@@ -1,4 +1,3 @@
-import Foundation
 
 final class ExprTypeChecker {
     unowned let driver: TypeCheckDriver
@@ -567,7 +566,7 @@ final class ExprTypeChecker {
                 chosenCallee: chosen,
                 substitutedTypeArguments: resolved.substitutedTypeArguments
                     .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                    .map { (key: TypeVarID, value: TypeID) in value },
+                    .map { (_: TypeVarID, value: TypeID) in value },
                 parameterMapping: resolved.parameterMapping
             )
         )

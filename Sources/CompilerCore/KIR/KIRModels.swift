@@ -1,4 +1,3 @@
-import Foundation
 
 public struct KIRDeclID: Hashable, Sendable {
     public let rawValue: Int32

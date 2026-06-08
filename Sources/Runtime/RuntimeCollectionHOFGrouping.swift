@@ -1,8 +1,7 @@
-import Foundation
 
-/// `Grouping` runtime helpers (STDLIB-285/286).
-///
-/// Split out from `RuntimeCollectionHOF.swift`.
+// `Grouping` runtime helpers (STDLIB-285/286).
+//
+// Split out from `RuntimeCollectionHOF.swift`.
 
 // MARK: - Grouping (STDLIB-285/286)
 

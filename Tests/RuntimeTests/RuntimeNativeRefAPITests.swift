@@ -60,6 +60,7 @@ import XCTest
 //   - kotlin.native.runtime.Debugging.globalObjectCount
 
 final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - GC.collect() (kk_gc_collect)
@@ -70,12 +71,16 @@ final class RuntimeNativeRefGCTests: IsolatedRuntimeXCTestCase {
     }
 
     func testGCCollectMultipleTimesIsIdempotent() {
+        // Repeated collects must leave the heap in the same state each time.
+        let before = kk_runtime_heap_object_count()
         for _ in 0 ..< 3 {
             kk_gc_collect()
         }
+        XCTAssertEqual(kk_runtime_heap_object_count(), before,
+                       "heap object count should be unchanged after repeated collects on an empty heap")
     }
 
-    func testSystemGCDelegatesToGCCollect() {
+    func testSystemGCIsCallableWithoutCrashing() {
         // kk_system_gc() is the Kotlin-facing alias; must be callable without crash.
         kk_system_gc()
     }

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsBigInt.toLong` conversion surface.
 extension DataFlowSemaPhase {

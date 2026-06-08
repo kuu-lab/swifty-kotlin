@@ -1,4 +1,3 @@
-import Foundation
 
 final class ControlFlowLowerer {
     unowned let driver: KIRLoweringDriver
@@ -483,7 +482,7 @@ final class ControlFlowLowerer {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            guard let _ = sema.symbols.symbol(candidate),
+            guard sema.symbols.symbol(candidate) != nil,
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
@@ -499,7 +498,7 @@ final class ControlFlowLowerer {
             sema: sema,
             interner: interner
         ).filter { candidate in
-            guard let _ = sema.symbols.symbol(candidate),
+            guard sema.symbols.symbol(candidate) != nil,
                   let signature = sema.symbols.functionSignature(for: candidate),
                   signature.parameterTypes.isEmpty
             else {
@@ -1032,8 +1031,8 @@ final class ControlFlowLowerer {
 
             let hasThrowableCall = finallyInstructions.contains { (instr: KIRInstruction) -> Bool in
                 switch instr {
-                case .call(_, _, _, _, _, _, _, _),
-                     .virtualCall(_, _, _, _, _, _, _, _),
+                case .call,
+                     .virtualCall,
                      .rethrow:
                     return true
                 default:

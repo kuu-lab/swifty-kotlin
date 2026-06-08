@@ -11,6 +11,7 @@ import XCTest
 ///       bufferSize: Int = DEFAULT_BUFFER_SIZE
 ///   ): File
 final class RuntimeFileCopyToTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Happy paths

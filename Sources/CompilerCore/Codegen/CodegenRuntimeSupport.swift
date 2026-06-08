@@ -1,4 +1,3 @@
-import Foundation
 
 enum CodegenRuntimeSupport {
     static func targetTripleString(_ target: TargetTriple) -> String {

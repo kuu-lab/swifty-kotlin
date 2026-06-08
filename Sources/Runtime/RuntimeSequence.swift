@@ -1,4 +1,3 @@
-import Foundation
 
 // MARK: - Sequence Functions (STDLIB-003)
 
@@ -841,7 +840,6 @@ func runtimeTraverseSequenceWithState(
     }
 }
 
-
 /// Convenience wrapper that creates its own `SequenceTraversalState`.
 func runtimeTraverseSequence(
     _ seq: RuntimeSequenceBox,
@@ -872,6 +870,7 @@ func runtimeTraverseSequenceSource(
         return state
     }
     for elem in runtimeSequenceSourceElementsOrPanic(from: rawValue, caller: caller) {
+        // swiftlint:disable:next for_where
         if !yield(elem) { break }
     }
     return nil
@@ -1796,6 +1795,7 @@ public func kk_sequence_firstNotNullOf(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -1836,6 +1836,7 @@ public func kk_sequence_firstNotNullOfOrNull(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -2833,7 +2834,6 @@ public func kk_sequence_intersect(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: result))
 }
 
-
 @_cdecl("kk_sequence_elementAtOrNull")
 public func kk_sequence_elementAtOrNull(_ seqRaw: Int, _ index: Int) -> Int {
     let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
@@ -3134,6 +3134,7 @@ public func kk_sequence_reduce(
         runtimeTraverseSequence(seq, outThrown: outThrown, yield: visit)
     } else {
         for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
+            // swiftlint:disable:next for_where
             if !visit(elem) { break }
         }
     }
@@ -3349,7 +3350,6 @@ public func kk_sequence_reduceRightIndexed(
     }
     return acc
 }
-
 
 // MARK: - Sequence Operations: chunked/windowed/onEach (STDLIB-276)
 
@@ -3645,7 +3645,7 @@ public func kk_sequence_groupBy(
 
 @_cdecl("kk_sequence_maxOrNull")
 public func kk_sequence_maxOrNull(_ seqRaw: Int) -> Int {
-    var best: Int? = nil
+    var best: Int?
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
             if let current = best {
@@ -3682,7 +3682,7 @@ public func kk_sequence_max(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int
 
 @_cdecl("kk_sequence_minOrNull")
 public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
-    var best: Int? = nil
+    var best: Int?
     if let seq = runtimeSequenceBox(from: seqRaw) {
         runtimeTraverseSequence(seq, outThrown: nil) { elem in
             if let current = best {
@@ -3709,7 +3709,7 @@ public func kk_sequence_minOrNull(_ seqRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_min")
 public func kk_sequence_min(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    var best: Int? = nil
+    var best: Int?
     let traversalState = runtimeTraverseSequenceSource(seqRaw, caller: #function, outThrown: outThrown) { elem in
         if let current = best {
             if runtimeCompareValues(elem, current) < 0 {
@@ -3801,7 +3801,7 @@ public func kk_sequence_plus(_ seqRaw: Int, _ otherRaw: Int) -> Int {
     // final capacity up front so there are no intermediate reallocations
     // or copy-on-write copies.
     let totalCount = lhsElements.count + rhsElements.count
-    let combined = Array<Int>(unsafeUninitializedCapacity: totalCount) { buffer, initializedCount in
+    let combined = [Int](unsafeUninitializedCapacity: totalCount) { buffer, initializedCount in
         var idx = 0
         for e in lhsElements { buffer[idx] = e; idx += 1 }
         for e in rhsElements { buffer[idx] = e; idx += 1 }

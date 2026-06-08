@@ -1,4 +1,3 @@
-import Foundation
 
 extension LocalDeclTypeChecker {
     func inferIndexedAccessExpr(
@@ -102,7 +101,7 @@ extension LocalDeclTypeChecker {
                         chosenCallee: chosen,
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                            .map { (key: TypeVarID, value: TypeID) in value },
+                            .map { (_: TypeVarID, value: TypeID) in value },
                         parameterMapping: resolved.parameterMapping
                     )
                 )
@@ -249,7 +248,7 @@ extension LocalDeclTypeChecker {
                         chosenCallee: chosen,
                         substitutedTypeArguments: resolved.substitutedTypeArguments
                             .sorted(by: { $0.key.rawValue < $1.key.rawValue })
-                            .map { (key: TypeVarID, value: TypeID) in value },
+                            .map { (_: TypeVarID, value: TypeID) in value },
                         parameterMapping: resolved.parameterMapping
                     )
                 )

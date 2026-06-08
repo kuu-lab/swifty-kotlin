@@ -1,4 +1,3 @@
-import Foundation
 
 @inline(__always)
 private func runtimeRegisterComparatorCompareMethod(

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: shared helpers (symbol/type/property registration utilities) used across all native-concurrent topic files.
 ///

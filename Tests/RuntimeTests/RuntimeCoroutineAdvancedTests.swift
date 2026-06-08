@@ -126,6 +126,7 @@ func advcoro_nested_two_delays(_ continuation: Int, _ outThrown: UnsafeMutablePo
 /// resumeWith, multi-spill slot state, timeout-or-null, exception handler invocation,
 /// and recursive / chained suspend patterns.
 final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         advancedCoroTestState.reset()

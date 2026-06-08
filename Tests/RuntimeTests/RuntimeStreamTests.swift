@@ -3,6 +3,7 @@ import Foundation
 import XCTest
 
 final class RuntimeStreamTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     func testInputStreamReadAvailableSkipAndClose() throws {
         let fileURL = try makeTempFile(contents: "abcd")

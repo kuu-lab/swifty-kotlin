@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for Regex, MatchResult, and related methods (STDLIB-100/101/103).
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 
 extension BuildASTPhase {
     func makeClassDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ClassDecl {

@@ -1,4 +1,3 @@
-import Foundation
 
 struct MemberDeclarations {
     let functions: [DeclID]

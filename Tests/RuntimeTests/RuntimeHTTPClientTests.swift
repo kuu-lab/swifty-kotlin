@@ -5,7 +5,7 @@ import FoundationNetworking
 @testable import Runtime
 import XCTest
 
-fileprivate struct MockURLProtocolResult {
+private struct MockURLProtocolResult {
     let response: HTTPURLResponse?
     let data: Data?
     let delay: TimeInterval
@@ -32,10 +32,12 @@ private final class MockURLProtocol: URLProtocol {
         }
     }
 
+    // swiftlint:disable:next static_over_final_class
     override class func canInit(with request: URLRequest) -> Bool {
         true
     }
 
+    // swiftlint:disable:next static_over_final_class
     override class func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
@@ -69,6 +71,7 @@ private final class MockURLProtocol: URLProtocol {
 
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
 final class RuntimeHTTPClientTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
     override func resetIsolatedRuntimeTestState() {
         MockURLProtocol.handler = nil

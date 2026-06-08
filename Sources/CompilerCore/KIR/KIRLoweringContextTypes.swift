@@ -1,4 +1,3 @@
-import Foundation
 
 struct KIRLoweringSharedContext {
     let ast: ASTModule

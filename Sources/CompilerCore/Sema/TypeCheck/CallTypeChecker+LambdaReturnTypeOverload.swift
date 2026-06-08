@@ -1,4 +1,3 @@
-import Foundation
 
 extension CallTypeChecker {
     struct PreparedCallArguments {
@@ -30,7 +29,7 @@ extension CallTypeChecker {
         var lambdaLiteralIndices: Set<Int> = []
         var inputOnlyLambdaIndices: Set<Int> = []
         var blockedLambdaRefinement = false
-        var contextualArgExpectedTypes = Array<TypeID?>(repeating: nil, count: args.count)
+        var contextualArgExpectedTypes = [TypeID?](repeating: nil, count: args.count)
 
         for (index, argument) in args.enumerated() {
             guard let argumentExpr = ast.arena.expr(argument.expr) else {

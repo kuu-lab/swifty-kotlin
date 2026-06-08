@@ -1,4 +1,3 @@
-import Foundation
 
 extension DataFlowSemaPhase {
     func bindInheritanceEdges(
@@ -327,7 +326,7 @@ extension DataFlowSemaPhase {
             ) else { return nil }
             contextReceiverTypes.append(contextReceiverType)
         }
-        var receiverType: TypeID? = nil
+        var receiverType: TypeID?
         if let receiverRefID {
             guard let resolved = resolveTypeRefForInheritance(
                 receiverRefID, currentPackage: currentPackage, ast: ast, symbols: symbols, types: types, interner: interner

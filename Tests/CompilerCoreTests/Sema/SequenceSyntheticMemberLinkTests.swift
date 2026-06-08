@@ -242,7 +242,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-
     func testSequenceFirstResolvesInCallExpressions() throws {
         let source = """
         fun firstValue(): Int {
@@ -302,7 +301,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             XCTAssertTrue(links.contains("kk_sequence_firstOrNull"))
         }
     }
-
 
     func testSequenceFilterIndexedTypeChecksInCallExpressions() throws {
         let source = """
@@ -539,7 +537,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             XCTAssertTrue(links.contains("kk_sequence_to_list"))
         }
     }
-
 
     func testSequenceToHashSetResolvesInCallExpressions() throws {
         let source = """
@@ -810,7 +807,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-
     func testSequenceToMutableListResolvesInCallExpressions() throws {
         let source = """
         fun collectMutableValues(): MutableList<Int> {
@@ -1004,7 +1000,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             XCTAssertTrue(links.contains("kk_sequence_plus_element"))
         }
     }
-
 
     func testSequenceNoneResolvesInCallExpressions() throws {
         let source = """
@@ -1354,7 +1349,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             XCTAssertTrue(links.contains("kk_sequence_onEachIndexed"))
         }
     }
-
 
     func testSequenceUnionResolvesInCallExpressions() throws {
         let source = """
@@ -2744,7 +2738,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
-
     func testSequenceMinWithResolvesInCallExpressions() throws {
         let source = """
         fun smallestByReverseOrder(): Int {
@@ -2776,7 +2769,6 @@ final class SequenceSyntheticMemberLinkTests: XCTestCase {
             XCTAssertEqual(signature.parameterTypes.count, 1)
         }
     }
-
 
     func testSequenceMaxByOrNullResolvesInCallExpressions() throws {
         let source = """

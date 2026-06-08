@@ -153,6 +153,7 @@ public final class PhaseTimer {
         public let percent: Double
         public let subPhases: [PhaseReportEntry]?
 
+        // swiftlint:disable:next nesting
         enum CodingKeys: String, CodingKey {
             case phase
             case durationMs = "duration_ms"

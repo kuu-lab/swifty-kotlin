@@ -5,6 +5,7 @@ import XCTest
 /// UIntRange, ULongRange, their progressions (step / downTo / until / rangeUntil),
 /// and ClosedRange / OpenEndRange contracts.
 final class RuntimeRangeProgressionEdgeCaseTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Empty range (from > to)

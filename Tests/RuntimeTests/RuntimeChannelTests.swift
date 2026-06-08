@@ -6,13 +6,13 @@ import XCTest
 class ThreadSafeInt: @unchecked Sendable {
     private var value: Int = 0
     private let lock = NSLock()
-    
+
     func set(_ newValue: Int) {
         lock.lock()
         value = newValue
         lock.unlock()
     }
-    
+
     func get() -> Int {
         lock.lock()
         let result = value
@@ -22,6 +22,7 @@ class ThreadSafeInt: @unchecked Sendable {
 }
 
 final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
+    // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
 
     // MARK: - Rendezvous Channel (capacity == 0)
@@ -521,7 +522,7 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
 
         let receiveDone = XCTestExpectation(description: "receive completes")
         let sendDone = XCTestExpectation(description: "send completes")
-        
+
         let receiveResult = ThreadSafeInt()
         let sendResult = ThreadSafeInt()
 
@@ -683,22 +684,22 @@ final class RuntimeChannelTests: IsolatedRuntimeXCTestCase {
     /// Test that the resume methods work correctly
     func testResumeMethodsWork() {
         let ch = RuntimeChannelHandle(capacity: 0)
-        
+
         // Test that resume methods don't crash and handle nil resumeClosure gracefully
         let sender = SuspendedSender(semaphore: DispatchSemaphore(value: 0), continuation: 0, value: 42)
         let receiver = SuspendedReceiver(semaphore: DispatchSemaphore(value: 0), continuation: 0)
-        
+
         // These should not crash and should fall back to semaphore
         ch.resumeSender(sender)
         ch.resumeReceiver(receiver)
-        
+
         // Test with resume closure
         let resumeExpectation = XCTestExpectation(description: "resume closure called")
         let senderWithClosure = SuspendedSender(semaphore: DispatchSemaphore(value: 0), continuation: 0, value: 42)
         senderWithClosure.resumeClosure = {
             resumeExpectation.fulfill()
         }
-        
+
         ch.resumeSender(senderWithClosure)
         wait(for: [resumeExpectation], timeout: 1.0)
     }

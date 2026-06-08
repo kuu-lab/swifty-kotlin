@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for kotlin.DeepRecursiveFunction / kotlin.DeepRecursiveScope.
 ///

@@ -2,12 +2,6 @@ struct VariableFlowState: Equatable {
     var possibleTypes: Set<TypeID>
     var nullability: Nullability
     var isStable: Bool
-
-    init(possibleTypes: Set<TypeID>, nullability: Nullability, isStable: Bool) {
-        self.possibleTypes = possibleTypes
-        self.nullability = nullability
-        self.isStable = isStable
-    }
 }
 
 struct DataFlowState: Equatable {
@@ -43,11 +37,6 @@ struct WhenBranchSummary {
 struct ConditionBranch: Equatable {
     let trueState: DataFlowState
     let falseState: DataFlowState
-
-    init(trueState: DataFlowState, falseState: DataFlowState) {
-        self.trueState = trueState
-        self.falseState = falseState
-    }
 }
 
 final class DataFlowAnalyzer {
