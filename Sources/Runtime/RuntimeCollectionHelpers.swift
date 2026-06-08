@@ -131,7 +131,7 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
         return values
     }
     if let stringIterable = runtimeStringIterableBox(from: rawValue) {
-        return stringIterable.source.unicodeScalars.map { RuntimeValue(charScalar: Int($0.value)) }
+        return stringIterable.source.utf16.map { RuntimeValue(charScalar: Int($0)) }
     }
     if let indexingIterable = runtimeIndexingIterableBox(from: rawValue),
        let list = runtimeListBox(from: indexingIterable.listRaw)

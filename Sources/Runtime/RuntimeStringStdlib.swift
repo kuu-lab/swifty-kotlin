@@ -717,7 +717,7 @@ public func kk_string_toList_flat(
 }
 
 func runtimeStringToCharListRaw(_ source: String) -> Int {
-    runtimeMakeListValue(runtimeCharValues(from: source.unicodeScalars))
+    runtimeMakeListValue(runtimeCharValuesFromUTF16(source.utf16))
 }
 
 // MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
@@ -746,14 +746,14 @@ public func kk_string_toCharArray_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charRaws = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { Int($0.value) }
+    let charRaws = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+        .map { Int($0) }
     return runtimeMakeArrayRaw(charRaws)
 }
 
 // MARK: - STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
 
-/// Converts a `String` to a generic `Array<Char>` by iterating its Unicode scalars.
+/// Converts a `String` to a generic `Array<Char>` by iterating its UTF-16 code units.
 /// Unlike `toCharArray()` which returns a primitive `CharArray`, this returns a
 /// generic `Array<Char>` compatible with `Collection<Char>.toTypedArray()`.
 @_cdecl("kk_string_toTypedArray_flat")
@@ -763,8 +763,8 @@ public func kk_string_toTypedArray_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charValues = runtimeCharValues(
-        from: runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let charValues = runtimeCharValuesFromUTF16(
+        runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     )
     return runtimeMakeArrayValue(charValues)
 }
@@ -785,22 +785,22 @@ public func kk_string_toCollection_flat(
     _ destRaw: Int
 ) -> Int {
     runtimeStringToCollection(
-        runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
         destRaw: destRaw,
         caller: #function
     )
 }
 
 private func runtimeStringToCollection(
-    _ scalars: [UnicodeScalar],
+    _ codeUnits: [UInt16],
     destRaw: Int,
     caller: StaticString
 ) -> Int {
     guard runtimeMutableCollectionExists(destRaw) else {
         invalidContainerPanic(caller, "mutable collection")
     }
-    for scalar in scalars {
-        runtimeAppendToMutableCollection(destRaw, RuntimeValue(charScalar: Int(scalar.value)))
+    for codeUnit in codeUnits {
+        runtimeAppendToMutableCollection(destRaw, RuntimeValue(charScalar: Int(codeUnit)))
     }
     return destRaw
 }
@@ -942,7 +942,7 @@ public func kk_string_iterator_flat(
 }
 
 private func runtimeStringIteratorRaw(_ source: String) -> Int {
-    let charRaws = source.unicodeScalars.map { Int($0.value) }
+    let charRaws = source.utf16.map { Int($0) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
@@ -6056,8 +6056,8 @@ private func runtimeMakeArrayValue(_ values: [RuntimeValue]) -> Int {
     return registerRuntimeObject(box)
 }
 
-private func runtimeCharValues<S: Sequence>(from scalars: S) -> [RuntimeValue] where S.Element == UnicodeScalar {
-    scalars.map { RuntimeValue(charScalar: Int($0.value)) }
+private func runtimeCharValuesFromUTF16<S: Sequence>(_ codeUnits: S) -> [RuntimeValue] where S.Element == UInt16 {
+    codeUnits.map { RuntimeValue(charScalar: Int($0)) }
 }
 
 private func runtimeMakeStringListRaw(_ values: [String]) -> Int {

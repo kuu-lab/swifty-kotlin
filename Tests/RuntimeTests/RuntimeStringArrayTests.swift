@@ -1337,7 +1337,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
-    func testStringToCharArrayStoresRawCharScalars() {
+    func testStringToCharArrayStoresRawUTF16CodeUnits() {
         withFlatString("hi") { data, length, byteCount, hash in
             let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
             let charArray = runtimeArrayBox(from: charArrayRaw)
@@ -1460,13 +1460,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringToCollectionWithNonASCII() {
         let destRaw = registerRuntimeObject(RuntimeListBox(elements: []))
-        withFlatString("aé") { data, length, byteCount, hash in
+        withFlatString("aé🐻") { data, length, byteCount, hash in
             _ = kk_string_toCollection_flat(data, length, byteCount, hash, destRaw)
         }
 
         let list = runtimeListBox(from: destRaw)
-        let expected = [97, 233] // 'a', 'é'
-        XCTAssertEqual(list?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        let expected = [97, 233, 0xD83D, 0xDC3B]
+        XCTAssertEqual(
+            list?.values.map(\.tag),
+            [RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag, RuntimeValue.charTag]
+        )
         XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
     }
 
@@ -1498,7 +1501,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
     }
 
-    func testListToCharArrayStoresRawCharScalars() {
+    func testListToCharArrayStoresRawCharCodeUnits() {
         let listRaw = registerRuntimeObject(RuntimeListBox(elements: [
             kk_box_char(97),
             kk_box_char(233),
@@ -1585,7 +1588,14 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
 
         withFlatString("a🐻a") { data, length, byteCount, hash in
+            let expected = [97, 0xD83D, 0xDC3B, 97]
+            let list = runtimeListBox(from: kk_string_toList_flat(data, length, byteCount, hash))
+            let charArray = runtimeArrayBox(from: kk_string_toCharArray_flat(data, length, byteCount, hash))
+            let typedArray = runtimeArrayBox(from: kk_string_toTypedArray_flat(data, length, byteCount, hash))
             let sortedSet = runtimeSetBox(from: kk_string_toSortedSet_flat(data, length, byteCount, hash))
+            XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(typedArray?.elements.map(kk_unbox_char), expected)
             XCTAssertEqual(sortedSet?.elements.map(kk_unbox_char), [97, 0xD83D, 0xDC3B])
         }
 
@@ -1851,7 +1861,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 0)
     }
 
-    func testStringIteratorNextReturnsRawCharScalars() {
+    func testStringIteratorNextReturnsRawUTF16CodeUnits() {
         let iterableRaw = flatStringAsIterable("hi")
         let iterRaw = kk_string_iterable_iterator(iterableRaw)
 
@@ -1865,12 +1875,19 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let listRaw = kk_string_iterable_toList(iterableRaw)
 
         let list = runtimeListBox(from: listRaw)
-        let expectedScalars: [Int] = [97, 233, 128_059] // 'a', 'é', '🐻'
+        let expectedCodeUnits: [Int] = [97, 233, 0xD83D, 0xDC3B]
         XCTAssertEqual(
             list?.values.map(\.tag),
-            Array(repeating: RuntimeValue.charTag, count: expectedScalars.count)
+            Array(repeating: RuntimeValue.charTag, count: expectedCodeUnits.count)
         )
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedScalars)
+        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
+
+        let iteratorRaw = kk_string_iterable_iterator(iterableRaw)
+        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 97)
+        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 233)
+        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 0xD83D)
+        XCTAssertEqual(kk_string_iterator_next(iteratorRaw), 0xDC3B)
+        XCTAssertEqual(kk_string_iterator_hasNext(iteratorRaw), 0)
     }
 
     func testStringAsIterableGenericConversionsPreserveTaggedChars() {
@@ -1928,7 +1945,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             rawFromRuntimeString(">")
         )
 
-        XCTAssertEqual(runtimeStringValue(Int(bitPattern: result)), "<a|é|🐻>")
+        XCTAssertEqual(runtimeStringValue(Int(bitPattern: result)), "<a|é|?|?>")
     }
 
     func testStringAsIterableAsSequencePreservesTaggedSourceValues() {
@@ -1987,8 +2004,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let text = "aé🐻"
         let listRaw = kk_string_toList(rawFromRuntimeString(text))
         let list = runtimeListBox(from: listRaw)
-        let expectedScalars: [Int] = [97, 233, 128_059] // 'a', 'é', '🐻'
-        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedScalars)
+        let expectedCodeUnits: [Int] = [97, 233, 0xD83D, 0xDC3B]
+        XCTAssertEqual(list?.elements.map(kk_unbox_char), expectedCodeUnits)
 
         XCTAssertEqual(flatStringReturnValue(text, intArg: 2, using: kk_string_take_flat), "aé")
         XCTAssertEqual(flatStringReturnValue(text, intArg: 1, using: kk_string_drop_flat), "é🐻")
@@ -2961,10 +2978,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list?.elements.count, 4)
 
         let expectedIndices = [0, 1, 2, 3]
-        let expectedScalars = [97, 233, 0xD83D, 0xDC3B] // 'a', 'é', high surrogate, low surrogate
+        let expectedCodeUnits = [97, 233, 0xD83D, 0xDC3B] // 'a', 'é', high surrogate, low surrogate
         for (i, elem) in (list?.elements ?? []).enumerated() {
             XCTAssertEqual(kk_pair_first(elem), expectedIndices[i], "Index mismatch at \(i)")
-            XCTAssertEqual(kk_unbox_char(kk_pair_second(elem)), expectedScalars[i], "Scalar mismatch at \(i)")
+            XCTAssertEqual(kk_unbox_char(kk_pair_second(elem)), expectedCodeUnits[i], "Code unit mismatch at \(i)")
         }
     }
 
