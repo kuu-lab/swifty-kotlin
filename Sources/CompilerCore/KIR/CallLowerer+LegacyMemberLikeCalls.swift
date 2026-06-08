@@ -954,7 +954,7 @@ extension CallLowerer {
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
             case ("toInt", charType, intType): nil // identity (Char is stored as Int)
             case ("toInt", intType, intType): nil // identity
-            case ("toChar", intType, charType): nil // identity (Char is stored as Int)
+            case ("toChar", intType, charType): interner.intern("kk_int_to_char")
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
@@ -1020,7 +1020,6 @@ extension CallLowerer {
                     || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && nonNullReceiverType == charType && nonNullResultType == intType)
-                    || (calleeStr == "toChar" && nonNullReceiverType == intType && nonNullResultType == charType)
             if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toUByte", "toUShort", "toChar"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
                nonNullReceiverType == intType || nonNullReceiverType == longType

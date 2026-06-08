@@ -1,7 +1,3 @@
-// KSWIFTK_DIFF_IGNORE: TEST-NUM-017 — Int/Long shifts do not mask the shift amount
-// (Int: & 31, Long: & 63) and Int shift results are not truncated to 32 bits.
-// Out-of-range or negative shift amounts are emitted as raw LLVM shifts (undefined
-// behavior), producing garbage or null. See TODO.md (TEST-NUM-017).
 fun main() {
     var one = 1
     println(one shl 32)

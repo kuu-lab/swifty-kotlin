@@ -894,6 +894,7 @@ extension ABILoweringPass {
             interner.intern("kk_op_ushr"),
             // Width-aware integer builtins (IntegerNarrowingPass).
             interner.intern("kk_int_narrow"),
+            interner.intern("kk_uint_narrow"),
             interner.intern("kk_op_ishl"),
             interner.intern("kk_op_ishr"),
             interner.intern("kk_op_iushr"),
