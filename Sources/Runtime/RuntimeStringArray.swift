@@ -1458,6 +1458,8 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         let second = runtimeRenderAnyForPrint(pairBox.second)
         if runtimeIsMapEntry(rawValue: intValue) {
             Swift.print("\(first)=\(second)")
+        } else if runtimeObjectTypeID(rawValue: intValue) == indexedValueRuntimeTypeID {
+            Swift.print("IndexedValue(index=\(first), value=\(second))")
         } else {
             Swift.print("(\(first), \(second))")
         }
@@ -1643,6 +1645,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         let second = runtimeRenderAnyForPrint(pairBox.second)
         if runtimeIsMapEntry(rawValue: value) {
             return "\(first)=\(second)"
+        }
+        if runtimeObjectTypeID(rawValue: value) == indexedValueRuntimeTypeID {
+            return "IndexedValue(index=\(first), value=\(second))"
         }
         return "(\(first), \(second))"
     }
