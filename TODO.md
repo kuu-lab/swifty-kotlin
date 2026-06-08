@@ -71,7 +71,7 @@
 #### kotlin.coroutines.cancellation 関数の実装
 
 #### kotlin.io 型の実装
-- [ ] STDLIB-IO-TYPE-004: `FileTreeWalk` クラスの実装
+- [x] STDLIB-IO-TYPE-004: `FileTreeWalk` クラスの実装
 
 #### kotlin.io プロパティの実装
 - [ ] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
