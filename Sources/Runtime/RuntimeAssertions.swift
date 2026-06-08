@@ -125,6 +125,26 @@ final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeNumberFormatExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.NumberFormatException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.NumberFormatException",
+            "kotlin.IllegalArgumentException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        "NumberFormatException: \(message)"
+    }
+}
+
 // MARK: - Typed Allocators
 
 /// Allocates an `AssertionError` with the given message.
@@ -177,6 +197,15 @@ func runtimeAllocateConcurrentModificationException(message: String, cause: Int 
 
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String) -> Int {
     let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+func runtimeAllocateNumberFormatException(message: String) -> Int {
+    let throwable = RuntimeNumberFormatExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))

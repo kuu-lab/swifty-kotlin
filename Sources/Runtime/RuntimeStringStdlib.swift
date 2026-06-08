@@ -830,9 +830,8 @@ public func kk_string_toInt(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int32(source) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -851,9 +850,8 @@ public func kk_string_toInt_radix(_ strRaw: Int, _ radix: Int, _ outThrown: Unsa
         return 0
     }
     guard let value = Int32(source, radix: radix) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -980,7 +978,7 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
-        runtimeSetThrown(outThrown, message: "NumberFormatException: empty String")
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
         return 0
     }
 
@@ -995,9 +993,8 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
         Double(trimmed)
     }
     guard let parsed = value else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(trimmed)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(trimmed)\""
         )
         return 0
     }
@@ -1058,9 +1055,8 @@ public func kk_string_toLong(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int64(source) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -1082,14 +1078,13 @@ public func kk_string_toFloat(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
-        runtimeSetThrown(outThrown, message: "NumberFormatException: empty String")
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "empty String")
         return 0
     }
 
     guard let parsed = runtimeParseFloat(trimmed) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(trimmed)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(trimmed)\""
         )
         return 0
     }
@@ -2192,9 +2187,8 @@ public func kk_string_toShort(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<I
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int16(source) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -2215,9 +2209,8 @@ public func kk_string_toByte(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<In
     outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let value = Int8(source) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -2240,9 +2233,8 @@ public func kk_string_toByte_radix(
         return 0
     }
     guard let value = Int8(source, radix: radix) else {
-        runtimeSetThrown(
-            outThrown,
-            message: "NumberFormatException: For input string: \"\(source)\""
+        outThrown?.pointee = runtimeAllocateNumberFormatException(
+            message: "For input string: \"\(source)\""
         )
         return 0
     }
@@ -3920,7 +3912,7 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
     // leading/trailing whitespace, so we validate the raw string as-is.
     guard isValidBigDecimalFormat(str) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
     let box = RuntimeBigNumberBox(value: str, kind: .decimal)
@@ -3940,7 +3932,7 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     // leading/trailing whitespace, so we validate the raw string as-is.
     var idx = str.startIndex
     guard idx < str.endIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
     if str[idx] == "+" || str[idx] == "-" {
@@ -3952,7 +3944,7 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     }
     let isValid = idx > digitStart && idx == str.endIndex
     guard isValid else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "NumberFormatException: For input string: \"\(str)\"")
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
     let box = RuntimeBigNumberBox(value: str, kind: .integer)

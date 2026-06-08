@@ -112,4 +112,62 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    func testCodegenNumberFormatExceptionIsCaught() throws {
+        let source = """
+        fun main() {
+            try {
+                val n = "xyz".toInt()
+                println("unexpected: $n")
+            } catch (e: NumberFormatException) {
+                println("caught-nfe")
+            }
+
+            try {
+                val n = "abc".toLong()
+                println("unexpected: $n")
+            } catch (e: NumberFormatException) {
+                println("caught-nfe-long")
+            }
+
+            try {
+                val n = "bad".toDouble()
+                println("unexpected: $n")
+            } catch (e: NumberFormatException) {
+                println("caught-nfe-double")
+            }
+
+            try {
+                val n = "xyz".toInt()
+                println("unexpected: $n")
+            } catch (e: IllegalArgumentException) {
+                println("caught-iae")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "NumberFormatExceptionCatch",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                caught-nfe
+                caught-nfe-long
+                caught-nfe-double
+                caught-iae
+                """
+                + "\n"
+            )
+        }
+    }
 }
