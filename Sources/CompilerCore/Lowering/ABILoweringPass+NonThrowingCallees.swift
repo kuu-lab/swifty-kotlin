@@ -1101,6 +1101,15 @@ extension ABILoweringPass {
             interner.intern("kk_file_mkdirs"),
             interner.intern("kk_file_listFiles"),
             interner.intern("kk_file_walk"),
+            // STDLIB-IO-TYPE-004: FileTreeWalk factory and builder methods are non-throwing
+            interner.intern("kk_file_walkTopDown"),
+            interner.intern("kk_file_walkBottomUp"),
+            interner.intern("kk_file_tree_walk_create"),
+            interner.intern("kk_file_tree_walk_maxDepth"),
+            interner.intern("kk_file_tree_walk_filter"),
+            interner.intern("kk_file_tree_walk_onEnter"),
+            interner.intern("kk_file_tree_walk_onLeave"),
+            interner.intern("kk_file_tree_walk_onFail"),
             // Files utility (STDLIB-IO-090) — non-throwing subset
             interner.intern("kk_files_isRegularFile"),
             interner.intern("kk_files_isDirectory"),
