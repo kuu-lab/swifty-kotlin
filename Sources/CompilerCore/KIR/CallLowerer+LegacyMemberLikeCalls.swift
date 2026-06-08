@@ -1047,7 +1047,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_struct_get_length"),
+                    callee: interner.intern("__string_struct_get_length"),
                     arguments: [loweredReceiverID],
                     result: result,
                     canThrow: false,

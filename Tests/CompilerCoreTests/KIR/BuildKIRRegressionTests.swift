@@ -83,6 +83,25 @@ final class BuildKIRRegressionTests: XCTestCase {
         }
     }
 
+    func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
+        let source = """
+        fun lengthOf(value: String): Int {
+            return value.length
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            XCTAssertTrue(callees.contains("__string_struct_get_length"))
+            XCTAssertFalse(callees.contains("kk_string_struct_get_length"))
+        }
+    }
+
     func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
         let source = """
         fun main(): Int {

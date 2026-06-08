@@ -63,6 +63,32 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendLowersStringLengthInLambdasToAggregateFieldExtract() throws {
+        let source = """
+        fun main() {
+            println(listOf("a", "bb").map { it.length })
+            println("hello".run { length })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringLengthLambdaIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertTrue(ir.contains("extractvalue"), "String.length in lambdas should read the aggregate length field")
+            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+        }
+    }
+
     func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {

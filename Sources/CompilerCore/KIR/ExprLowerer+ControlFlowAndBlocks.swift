@@ -214,7 +214,7 @@ extension ExprLowerer {
                     if memberStr == "length" {
                         instructions.append(.call(
                             symbol: nil,
-                            callee: interner.intern("kk_string_struct_get_length"),
+                            callee: interner.intern("__string_struct_get_length"),
                             arguments: [receiverExprID],
                             result: result,
                             canThrow: false,

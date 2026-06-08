@@ -66,7 +66,7 @@ extension CallLowerer {
         if memberName == "length",
            sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         {
-            return interner.intern("kk_string_struct_get_length")
+            return interner.intern("__string_struct_get_length")
         }
 
         if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
