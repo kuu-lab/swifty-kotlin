@@ -187,16 +187,37 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-TYPE-004: FileTreeWalk — walkTopDown / walkBottomUp and builder methods
+        // STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk
         RuntimeABIFunctionSpec(
             name: "kk_file_walkTopDown",
-            parameters: [RuntimeABIParameter(name: "fileRaw", type: .intptr)],
+            parameters: [
+                RuntimeABIParameter(name: "fileRaw", type: .intptr),
+            ],
             returnType: .intptr,
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_file_walkBottomUp",
-            parameters: [RuntimeABIParameter(name: "fileRaw", type: .intptr)],
+            parameters: [
+                RuntimeABIParameter(name: "fileRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_walk_with_direction",
+            parameters: [
+                RuntimeABIParameter(name: "fileRaw", type: .intptr),
+                RuntimeABIParameter(name: "directionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_to_list",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+            ],
             returnType: .intptr,
             section: "FileIO"
         ),

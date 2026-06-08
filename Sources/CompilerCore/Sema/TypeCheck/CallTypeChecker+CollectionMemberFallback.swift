@@ -52,7 +52,7 @@ extension CallTypeChecker {
         let isIterableFirstNotNullOfCall: Bool = {
             guard memberName == "firstNotNullOf",
                   args.count == 1,
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner) || isArrayReceiver,
                   let firstArgExpr = args.first?.expr,
                   let firstArgNode = ctx.ast.arena.expr(firstArgExpr)
             else {
@@ -63,7 +63,7 @@ extension CallTypeChecker {
         let isIterableFirstNotNullOfOrNullCall: Bool = {
             guard memberName == "firstNotNullOfOrNull",
                   args.count == 1,
-                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner),
+                  isIterableLikeReceiver(receiverID: receiverID, sema: sema, interner: interner) || isArrayReceiver,
                   let firstArgExpr = args.first?.expr,
                   let firstArgNode = ctx.ast.arena.expr(firstArgExpr)
             else {
@@ -825,6 +825,8 @@ extension CallTypeChecker {
             interner.intern("flatten"),
             interner.intern("chunked"),
             interner.intern("windowed"),
+            interner.intern("firstNotNullOf"),
+            interner.intern("firstNotNullOfOrNull"),
             interner.intern("sortedDescending"),
             interner.intern("sortedByDescending"),
             interner.intern("sortedWith"),

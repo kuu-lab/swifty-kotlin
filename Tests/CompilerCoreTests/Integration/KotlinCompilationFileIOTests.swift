@@ -48,4 +48,22 @@ final class KotlinCompilationFileIOTests: XCTestCase {
         }
         """)
     }
+
+    // STDLIB-IO-PROP-004: `File.isRooted` compiles end-to-end through Sema to KIR.
+    // The property is registered in the `kotlin.io` package with `java.io.File` as
+    // the receiver and is backed by the runtime helper `kk_file_isRooted`.
+    func testCompile_file_isRootedPropertyResolves() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.io.File
+
+        fun main() {
+            val abs = File("/tmp/demo")
+            val rel = File("relative/path")
+            val absRooted: Boolean = abs.isRooted
+            val relRooted: Boolean = rel.isRooted
+            println(absRooted)
+            println(relRooted)
+        }
+        """)
+    }
 }

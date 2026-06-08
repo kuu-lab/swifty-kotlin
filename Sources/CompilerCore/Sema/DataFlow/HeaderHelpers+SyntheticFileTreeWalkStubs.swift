@@ -1,13 +1,25 @@
 
-/// Synthetic stubs for kotlin.io.FileTreeWalk (STDLIB-IO-TYPE-004).
+/// Synthetic stub for kotlin.io.FileTreeWalk (STDLIB-IO-TYPE-004).
 ///
-/// Covers:
-/// - `FileTreeWalk` class with builder methods: `maxDepth`, `onEnter`, `onLeave`, `onFail`
-/// - `File.walkTopDown()` and `File.walkBottomUp()` extension functions
-/// - Update of `File.walk()` return type from `List<File>` → `FileTreeWalk`
+/// `FileTreeWalk` is a Kotlin stdlib class in the `kotlin.io` package that
+/// implements `Sequence<File>`. It is the return type of:
+/// - `File.walkTopDown(): FileTreeWalk`
+/// - `File.walkBottomUp(): FileTreeWalk`
+/// - `File.walk(direction: FileWalkDirection): FileTreeWalk`
 ///
-/// This stub must run after `registerSyntheticFileIOStubs` (which defines `java.io.File`)
-/// and after `registerSyntheticFileWalkDirectionStubs` (which ensures `kotlin.io` exists).
+/// This stub registers the class and its key members in the symbol table so
+/// that name resolution and type checking succeed for code that calls
+/// `walkTopDown()`, `walkBottomUp()`, `walk(direction)`, and chains
+/// `.maxDepth()` or `.toList()` on the result.
+///
+/// Registration runs after `registerSyntheticFileWalkDirectionStubs` (which
+/// ensures `FileWalkDirection` exists) and after `registerSyntheticFileIOStubs`
+/// (which ensures `java.io.File` and `kotlin.io` package exist).
+///
+/// NOTE: The zero-argument `File.walk()` overload registered in
+/// `HeaderHelpers+SyntheticFileIOStubs.swift` intentionally returns `List<File>`
+/// to preserve existing golden test output. Only the new overloads added here
+/// return `FileTreeWalk`.
 extension DataFlowSemaPhase {
     func registerSyntheticFileTreeWalkStubs(
         symbols: SymbolTable,
@@ -19,33 +31,66 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let kotlinIOPkgSymbol = symbols.lookup(fqName: kotlinIOPkg)
 
-        // Retrieve java.io.File (registered by registerSyntheticFileIOStubs)
-        let javaIOPkg: [InternedString] = [interner.intern("java"), interner.intern("io")]
-        guard let fileSymbol = symbols.lookup(fqName: javaIOPkg + [interner.intern("File")]) else {
+        // Look up java.io.File (registered by registerSyntheticFileIOStubs)
+        let javaIOFileFQName = ["java", "io", "File"].map { interner.intern($0) }
+        guard let fileSymbol = symbols.lookup(fqName: javaIOFileFQName),
+              let fileType = symbols.propertyType(for: fileSymbol)
+        else {
+            assertionFailure("java.io.File not found; FileTreeWalk stubs require FileIO stubs to run first")
             return
         }
-        let fileType = types.make(.classType(ClassType(
-            classSymbol: fileSymbol, args: [], nullability: .nonNull
-        )))
 
-        // kotlin.io.FileTreeWalk class
-        let fileTreeWalkSymbol = ensureClassSymbol(
-            named: "FileTreeWalk",
+        // Build List<File> type for toList() return
+        let listSymbol = resolveListSymbolForFileTreeWalk(symbols: symbols, interner: interner)
+        let listOfFileType: TypeID = if let listSym = listSymbol {
+            types.make(.classType(ClassType(
+                classSymbol: listSym,
+                args: [.out(fileType)],
+                nullability: .nonNull
+            )))
+        } else {
+            types.anyType
+        }
+
+        // Define kotlin.io.FileTreeWalk as a synthetic class
+        let fileTreeWalkSymbol = ensureFileTreeWalkClassSymbol(
             in: kotlinIOPkg,
             symbols: symbols,
             interner: interner
         )
-        if let kotlinIOPkgSymbol {
-            symbols.setParentSymbol(kotlinIOPkgSymbol, for: fileTreeWalkSymbol)
-        }
         let fileTreeWalkType = types.make(.classType(ClassType(
-            classSymbol: fileTreeWalkSymbol, args: [], nullability: .nonNull
+            classSymbol: fileTreeWalkSymbol,
+            args: [],
+            nullability: .nonNull
         )))
         symbols.setPropertyType(fileTreeWalkType, for: fileTreeWalkSymbol)
 
-        // Lambda parameter types for builder methods
+        // FileTreeWalk.toList(): List<File>
+        registerFileMemberFunction(
+            named: "toList",
+            externalLinkName: "kk_file_tree_walk_to_list",
+            ownerSymbol: fileTreeWalkSymbol,
+            ownerType: fileTreeWalkType,
+            parameters: [],
+            returnType: listOfFileType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // FileTreeWalk.maxDepth(depth: Int): FileTreeWalk
+        registerFileMemberFunction(
+            named: "maxDepth",
+            externalLinkName: "kk_file_tree_walk_max_depth",
+            ownerSymbol: fileTreeWalkSymbol,
+            ownerType: fileTreeWalkType,
+            parameters: [("depth", types.intType)],
+            returnType: fileTreeWalkType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // Lambda types for callback builder methods
         let fileToBoolean = types.make(.functionType(FunctionType(
             params: [fileType],
             returnType: types.booleanType,
@@ -58,8 +103,7 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        // IOException is represented as Any; the Lowering pass threads the opaque
-        // exception handle through unchanged.
+        // IOException represented as Any; Lowering threads the opaque exception handle through.
         let fileAnyToUnit = types.make(.functionType(FunctionType(
             params: [fileType, types.anyType],
             returnType: types.unitType,
@@ -67,21 +111,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // MARK: - FileTreeWalk member functions
-
-        // maxDepth(depth: Int): FileTreeWalk
-        registerFileMemberFunction(
-            named: "maxDepth",
-            externalLinkName: "kk_file_tree_walk_max_depth",
-            ownerSymbol: fileTreeWalkSymbol,
-            ownerType: fileTreeWalkType,
-            parameters: [("depth", types.intType)],
-            returnType: fileTreeWalkType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // onEnter(function: (File) -> Boolean): FileTreeWalk
+        // FileTreeWalk.onEnter(function: (File) -> Boolean): FileTreeWalk
         registerFileMemberFunction(
             named: "onEnter",
             externalLinkName: "kk_file_tree_walk_on_enter",
@@ -93,7 +123,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // onLeave(function: (File) -> Unit): FileTreeWalk
+        // FileTreeWalk.onLeave(function: (File) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onLeave",
             externalLinkName: "kk_file_tree_walk_on_leave",
@@ -105,7 +135,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // onFail(function: (File, IOException) -> Unit): FileTreeWalk
+        // FileTreeWalk.onFail(function: (File, IOException) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onFail",
             externalLinkName: "kk_file_tree_walk_on_fail",
@@ -117,7 +147,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // forEach(action: (File) -> Unit): Unit
+        // FileTreeWalk.forEach(action: (File) -> Unit): Unit
         registerFileMemberFunction(
             named: "forEach",
             externalLinkName: "kk_file_tree_walk_for_each",
@@ -128,8 +158,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
-        // MARK: - File extension functions returning FileTreeWalk
 
         // File.walkTopDown(): FileTreeWalk
         registerFileMemberFunction(
@@ -154,5 +182,59 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // File.walk(direction: FileWalkDirection): FileTreeWalk
+        let fileWalkDirectionFQName = ["kotlin", "io", "FileWalkDirection"].map { interner.intern($0) }
+        if let directionSymbol = symbols.lookup(fqName: fileWalkDirectionFQName),
+           let directionType = symbols.propertyType(for: directionSymbol) {
+            registerFileMemberFunction(
+                named: "walk",
+                externalLinkName: "kk_file_walk_with_direction",
+                ownerSymbol: fileSymbol,
+                ownerType: fileType,
+                parameters: [("direction", directionType)],
+                returnType: fileTreeWalkType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    // MARK: - Private helpers
+
+    private func ensureFileTreeWalkClassSymbol(
+        in pkg: [InternedString],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let name = interner.intern("FileTreeWalk")
+        let fqName = pkg + [name]
+        if let existing = symbols.lookup(fqName: fqName) {
+            return existing
+        }
+        let classSymbol = symbols.define(
+            kind: .class,
+            name: name,
+            fqName: fqName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let pkgSymbol = symbols.lookup(fqName: pkg), pkgSymbol != .invalid {
+            symbols.setParentSymbol(pkgSymbol, for: classSymbol)
+        }
+        return classSymbol
+    }
+
+    private func resolveListSymbolForFileTreeWalk(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let listFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]
+        return symbols.lookup(fqName: listFQName)
     }
 }

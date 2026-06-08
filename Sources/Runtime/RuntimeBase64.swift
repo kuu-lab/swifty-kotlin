@@ -78,12 +78,16 @@ private func base64MakeByteArrayRaw(_ bytes: [UInt8]) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: intElements))
 }
 
-/// Extracts a [UInt8] from a runtime ByteArray / List raw Int.
+/// Extracts a [UInt8] from a runtime ByteArray (ArrayBox or ListBox) / List raw Int.
 private func base64BytesFromRaw(_ raw: Int) -> [UInt8]? {
     if raw == runtimeNullSentinelInt { return nil }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
-          let box = tryCast(ptr, to: RuntimeListBox.self) else { return nil }
-    return box.elements.map { UInt8(truncatingIfNeeded: $0) }
+    if let list = runtimeListBox(from: raw) {
+        return list.elements.map { UInt8(truncatingIfNeeded: $0) }
+    }
+    if let array = runtimeArrayBox(from: raw) {
+        return array.elements.map { UInt8(truncatingIfNeeded: $0) }
+    }
+    return nil
 }
 
 /// Strips padding characters from a base64 string.

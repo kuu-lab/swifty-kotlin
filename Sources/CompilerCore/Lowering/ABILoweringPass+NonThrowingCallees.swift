@@ -1104,6 +1104,8 @@ extension ABILoweringPass {
             // STDLIB-IO-TYPE-004: FileTreeWalk builder chain (non-throwing subset)
             interner.intern("kk_file_walkTopDown"),
             interner.intern("kk_file_walkBottomUp"),
+            interner.intern("kk_file_walk_with_direction"),
+            interner.intern("kk_file_tree_walk_to_list"),
             interner.intern("kk_file_tree_walk_max_depth"),
             interner.intern("kk_file_tree_walk_on_enter"),
             interner.intern("kk_file_tree_walk_on_leave"),

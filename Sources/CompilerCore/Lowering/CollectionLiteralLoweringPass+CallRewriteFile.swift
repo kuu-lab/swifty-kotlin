@@ -235,6 +235,12 @@ extension CollectionLiteralLoweringPass {
             return false
         }
 
+        // kk_file_tree_walk_to_list: result is a List<File>
+        if callee == lookup.kkFileTreeWalkToListName {
+            if let result { state.listExprIDs.insert(result.rawValue) }
+            return false
+        }
+
         if arguments.count >= 1, state.fileTreeWalkExprIDs.contains(arguments[0].rawValue) {
             // maxDepth: pure value set, no lambda → just track result
             if callee == lookup.kkFileTreeWalkMaxDepthName {

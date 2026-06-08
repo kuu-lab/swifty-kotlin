@@ -21,7 +21,11 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     }
 
     private func extractListElements(_ raw: Int) -> [Int]? {
-        runtimeListBox(from: raw)?.elements
+        // After the ArrayBox fix, encodeToByteArray returns RuntimeArrayBox.
+        // Accept both to remain compatible with legacy ListBox call sites.
+        if let list = runtimeListBox(from: raw) { return list.elements }
+        if let array = runtimeArrayBox(from: raw) { return array.elements }
+        return nil
     }
 
     private func makeListRaw(_ elements: [Int]) -> Int {

@@ -2315,6 +2315,7 @@ public func kk_string_trimEnd_predicate(
 
 @_cdecl("kk_string_toByteArray")
 public func kk_string_toByteArray(_ strRaw: Int) -> Int {
+    // Sema types this as List<Int> — return ListBox so list-access codegen works.
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     return runtimeMakeListRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
@@ -2364,7 +2365,7 @@ public func kk_charset_utf_32le() -> Int { CharsetTag.utf32le.rawValue }
 public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
-        // Unknown charset — fall back to UTF-8
+        // Unknown charset — fall back to UTF-8. Sema types this as List<Int>.
         return runtimeMakeListRaw(source.utf8.map(Int.init))
     }
     let bytes: [Int]
@@ -2437,14 +2438,16 @@ public func kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) -> I
         }
         bytes = result
     }
+    // Sema types toByteArray(charset) as List<Int> — return ListBox.
     return runtimeMakeListRaw(bytes)
 }
 
 // STDLIB-573: String.encodeToByteArray()
-// Delegates to kk_string_toByteArray to avoid behavioral drift (single source of truth).
+// Sema types this as ByteArray — must return ArrayBox so kk_array_size/get work.
 @_cdecl("kk_string_encodeToByteArray")
 public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
-    kk_string_toByteArray(strRaw)
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
@@ -2453,15 +2456,18 @@ public func kk_string_encodeToByteArray(_ strRaw: Int) -> Int {
 public func kk_string_encodeToByteArray_range(_ strRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let slice = runtimeUTF16Substring(source, startIndex: startIndex, endIndex: endIndex)
-    return runtimeMakeListRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
+    return runtimeMakeArrayRaw(slice.utf8.map { Int(Int8(bitPattern: $0)) })
 }
 
 // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload.
-// Delegates to kk_string_toByteArray_charset which uses CharsetTag enum for
-// consistent charset ID mapping across all charset-aware runtime functions.
+// Sema types this as ByteArray — must return ArrayBox.
+// kk_string_toByteArray_charset returns ListBox (Sema: List<Int>), so we
+// convert the elements here rather than delegating directly.
 @_cdecl("kk_string_encodeToByteArray_charset")
 public func kk_string_encodeToByteArray_charset(_ strRaw: Int, _ charsetID: Int) -> Int {
-    kk_string_toByteArray_charset(strRaw, charsetID)
+    let listHandle = kk_string_toByteArray_charset(strRaw, charsetID)
+    let elements = runtimeListBox(from: listHandle)?.elements ?? []
+    return runtimeMakeArrayRaw(elements)
 }
 
 private func runtimeByteArrayElements(from raw: Int) -> [Int]? {

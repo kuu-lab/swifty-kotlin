@@ -1,16 +1,14 @@
 import java.io.File
+import kotlin.io.FileTreeWalk
 
-fun main() {
-    val root = File("/tmp/tree_test")
-
-    // walkTopDown with maxDepth and forEach
-    root.walkTopDown().maxDepth(2).forEach { f ->
+fun testWalkTopDown(dir: File): FileTreeWalk = dir.walkTopDown()
+fun testWalkBottomUp(dir: File): FileTreeWalk = dir.walkBottomUp()
+fun testMaxDepth(dir: File): FileTreeWalk = dir.walkTopDown().maxDepth(2)
+fun testToList(dir: File): List<File> = dir.walkTopDown().toList()
+fun testOnEnter(dir: File): FileTreeWalk = dir.walkTopDown().onEnter { it.name != "skip" }
+fun testOnLeave(dir: File): FileTreeWalk = dir.walkTopDown().onLeave { println(it.name) }
+fun testForEach(dir: File) {
+    dir.walkTopDown().maxDepth(3).onEnter { d -> d.name != "skip" }.forEach { f ->
         println(f.name)
     }
-
-    // walkBottomUp with onEnter and onLeave
-    val walk = root.walkBottomUp()
-    val filtered = walk.onEnter { dir -> dir.name != "skip" }
-    val withLeave = filtered.onLeave { dir -> println("leaving: ${dir.name}") }
-    withLeave.forEach { f -> println(f.path) }
 }

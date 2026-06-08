@@ -7,11 +7,33 @@ final class RuntimeFileBox {
     init(_ path: String) { self.path = path }
 }
 
+// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk
+
+final class RuntimeFileTreeWalkBox {
+    let root: String
+    var topDown: Bool
+    var maxDepth: Int
+    // Callback slots for onEnter / onLeave / onFail / forEach (STDLIB-IO-TYPE-004)
+    var enterFnPtr: Int = 0; var enterClosureRaw: Int = 0   // (File) -> Boolean
+    var leaveFnPtr: Int = 0; var leaveClosureRaw: Int = 0   // (File) -> Unit
+    var failFnPtr: Int = 0; var failClosureRaw: Int = 0     // (File, IOException) -> Unit
+    init(root: String, topDown: Bool = true) {
+        self.root = root
+        self.topDown = topDown
+        self.maxDepth = Int.max
+    }
+}
+
 final class RuntimeClassLoaderBox {}
 
 private func runtimeFileBox(from raw: Int) -> RuntimeFileBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeFileBox.self)
+}
+
+private func runtimeFileTreeWalkBox(from raw: Int) -> RuntimeFileTreeWalkBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeFileTreeWalkBox.self)
 }
 
 private func resourceRootDirectory() -> URL {
@@ -331,12 +353,11 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendBytes received invalid File handle")
     }
-    guard let list = runtimeListBox(from: arrayRaw) else {
+    guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> array")
         return 0
     }
     do {
-        let bytes = list.elements.map { UInt8(bitPattern: Int8(truncatingIfNeeded: $0)) }
         let data = Data(bytes)
         let url = URL(fileURLWithPath: file.path)
         if FileManager.default.fileExists(atPath: file.path) {
@@ -961,45 +982,45 @@ public func kk_file_walk(_ fileRaw: Int) -> Int {
     return registerRuntimeObject(listBox)
 }
 
-// MARK: - STDLIB-IO-TYPE-004: FileTreeWalk
-//
-// Kotlin signature:
-//   class FileTreeWalk(start: File, direction: FileWalkDirection) : Sequence<File>
-//   fun File.walkTopDown(): FileTreeWalk
-//   fun File.walkBottomUp(): FileTreeWalk
-//
-// `RuntimeFileTreeWalkBox` holds the builder state accumulated via
-// maxDepth / onEnter / onLeave / onFail calls. kk_file_tree_walk_for_each
-// materialises the walk by performing a DFS that respects direction,
-// maxDepth, and the stored callbacks.
+// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk runtime
 
-final class RuntimeFileTreeWalkBox {
-    let path: String
-    var direction: Int       // 0 = TOP_DOWN, 1 = BOTTOM_UP
-    var maxDepthValue: Int
-    var enterFnPtr: Int
-    var enterClosureRaw: Int // (File) -> Boolean
-    var leaveFnPtr: Int
-    var leaveClosureRaw: Int // (File) -> Unit
-    var failFnPtr: Int
-    var failClosureRaw: Int  // (File, IOException) -> Unit
+/// Postorder (BOTTOM_UP) or preorder (TOP_DOWN) DFS traversal of the file tree
+/// rooted at `path`. Directories are traversed only when `currentDepth < maxDepth`.
+private func fileTreeWalkFiles(
+    at path: String,
+    topDown: Bool,
+    maxDepth: Int,
+    currentDepth: Int = 0
+) -> [String] {
+    var result: [String] = []
+    var isDir: ObjCBool = false
+    FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
 
-    init(path: String, direction: Int) {
-        self.path = path
-        self.direction = direction
-        maxDepthValue = Int.max
-        enterFnPtr = 0
-        enterClosureRaw = 0
-        leaveFnPtr = 0
-        leaveClosureRaw = 0
-        failFnPtr = 0
-        failClosureRaw = 0
+    if topDown {
+        result.append(path)
     }
-}
 
-private func runtimeFileTreeWalkBox(from raw: Int) -> RuntimeFileTreeWalkBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeFileTreeWalkBox.self)
+    if isDir.boolValue && currentDepth < maxDepth {
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: path) {
+            for entry in contents.sorted() {
+                let childPath = (path as NSString).appendingPathComponent(entry)
+                result.append(
+                    contentsOf: fileTreeWalkFiles(
+                        at: childPath,
+                        topDown: topDown,
+                        maxDepth: maxDepth,
+                        currentDepth: currentDepth + 1
+                    )
+                )
+            }
+        }
+    }
+
+    if !topDown {
+        result.append(path)
+    }
+
+    return result
 }
 
 @_cdecl("kk_file_walkTopDown")
@@ -1007,7 +1028,7 @@ public func kk_file_walkTopDown(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkTopDown received invalid File handle")
     }
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(path: file.path, direction: 0))
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: true))
 }
 
 @_cdecl("kk_file_walkBottomUp")
@@ -1015,7 +1036,27 @@ public func kk_file_walkBottomUp(_ fileRaw: Int) -> Int {
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkBottomUp received invalid File handle")
     }
-    return registerRuntimeObject(RuntimeFileTreeWalkBox(path: file.path, direction: 1))
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: false))
+}
+
+/// `directionRaw` is the ordinal of `FileWalkDirection`: 0 = TOP_DOWN, 1 = BOTTOM_UP.
+@_cdecl("kk_file_walk_with_direction")
+public func kk_file_walk_with_direction(_ fileRaw: Int, _ directionRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walk_with_direction received invalid File handle")
+    }
+    let topDown = kk_unbox_int(directionRaw) != 1
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: topDown))
+}
+
+@_cdecl("kk_file_tree_walk_to_list")
+public func kk_file_tree_walk_to_list(_ walkRaw: Int) -> Int {
+    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_to_list received invalid FileTreeWalk handle")
+    }
+    let paths = fileTreeWalkFiles(at: walk.root, topDown: walk.topDown, maxDepth: walk.maxDepth)
+    let elements = paths.map { registerRuntimeObject(RuntimeFileBox($0)) }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
 }
 
 @_cdecl("kk_file_tree_walk_max_depth")
@@ -1023,8 +1064,13 @@ public func kk_file_tree_walk_max_depth(_ walkRaw: Int, _ depthRaw: Int) -> Int 
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_max_depth received invalid FileTreeWalk handle")
     }
-    walk.maxDepthValue = kk_unbox_int(depthRaw)
-    return walkRaw
+    let newWalk = RuntimeFileTreeWalkBox(root: walk.root, topDown: walk.topDown)
+    newWalk.maxDepth = kk_unbox_int(depthRaw)
+    // Preserve existing callbacks
+    newWalk.enterFnPtr = walk.enterFnPtr; newWalk.enterClosureRaw = walk.enterClosureRaw
+    newWalk.leaveFnPtr = walk.leaveFnPtr; newWalk.leaveClosureRaw = walk.leaveClosureRaw
+    newWalk.failFnPtr = walk.failFnPtr; newWalk.failClosureRaw = walk.failClosureRaw
+    return registerRuntimeObject(newWalk)
 }
 
 @_cdecl("kk_file_tree_walk_on_enter")
@@ -1032,9 +1078,12 @@ public func kk_file_tree_walk_on_enter(_ walkRaw: Int, _ fnPtr: Int, _ closureRa
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_enter received invalid FileTreeWalk handle")
     }
-    walk.enterFnPtr = fnPtr
-    walk.enterClosureRaw = closureRaw
-    return walkRaw
+    let newWalk = RuntimeFileTreeWalkBox(root: walk.root, topDown: walk.topDown)
+    newWalk.maxDepth = walk.maxDepth
+    newWalk.enterFnPtr = fnPtr; newWalk.enterClosureRaw = closureRaw
+    newWalk.leaveFnPtr = walk.leaveFnPtr; newWalk.leaveClosureRaw = walk.leaveClosureRaw
+    newWalk.failFnPtr = walk.failFnPtr; newWalk.failClosureRaw = walk.failClosureRaw
+    return registerRuntimeObject(newWalk)
 }
 
 @_cdecl("kk_file_tree_walk_on_leave")
@@ -1042,9 +1091,12 @@ public func kk_file_tree_walk_on_leave(_ walkRaw: Int, _ fnPtr: Int, _ closureRa
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_leave received invalid FileTreeWalk handle")
     }
-    walk.leaveFnPtr = fnPtr
-    walk.leaveClosureRaw = closureRaw
-    return walkRaw
+    let newWalk = RuntimeFileTreeWalkBox(root: walk.root, topDown: walk.topDown)
+    newWalk.maxDepth = walk.maxDepth
+    newWalk.enterFnPtr = walk.enterFnPtr; newWalk.enterClosureRaw = walk.enterClosureRaw
+    newWalk.leaveFnPtr = fnPtr; newWalk.leaveClosureRaw = closureRaw
+    newWalk.failFnPtr = walk.failFnPtr; newWalk.failClosureRaw = walk.failClosureRaw
+    return registerRuntimeObject(newWalk)
 }
 
 @_cdecl("kk_file_tree_walk_on_fail")
@@ -1052,87 +1104,69 @@ public func kk_file_tree_walk_on_fail(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_fail received invalid FileTreeWalk handle")
     }
-    walk.failFnPtr = fnPtr
-    walk.failClosureRaw = closureRaw
-    return walkRaw
+    let newWalk = RuntimeFileTreeWalkBox(root: walk.root, topDown: walk.topDown)
+    newWalk.maxDepth = walk.maxDepth
+    newWalk.enterFnPtr = walk.enterFnPtr; newWalk.enterClosureRaw = walk.enterClosureRaw
+    newWalk.leaveFnPtr = walk.leaveFnPtr; newWalk.leaveClosureRaw = walk.leaveClosureRaw
+    newWalk.failFnPtr = fnPtr; newWalk.failClosureRaw = closureRaw
+    return registerRuntimeObject(newWalk)
 }
 
-// Recursive DFS helper. `remainingDepth` starts at `walk.maxDepthValue` and
-// decrements each level. Using `Int.max` for unlimited depth: the decrement
-// guard below prevents overflow.
-private func fileTreeWalkVisit(
-    path: String,
-    remainingDepth: Int,
+/// DFS traversal for `forEach`, respecting onEnter/onLeave/onFail callbacks.
+private func fileTreeWalkForEach(
+    at path: String,
     walk: RuntimeFileTreeWalkBox,
-    fnPtr: Int,
-    closureRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
+    currentDepth: Int,
+    action: (_ fileRaw: Int) -> Void
 ) {
     let fileRaw = registerRuntimeObject(RuntimeFileBox(path))
-    let fm = FileManager.default
     var isDir: ObjCBool = false
-    let exists = fm.fileExists(atPath: path, isDirectory: &isDir)
+    FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
 
-    if walk.direction == 0 {
-        // TOP_DOWN: yield self, then recurse
-        var thrown = 0
-        _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: fileRaw, outThrown: &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown; return }
+    if walk.topDown {
+        action(fileRaw)
+    }
 
-        if exists && isDir.boolValue {
-            var enterResult = 1
-            if walk.enterFnPtr != 0 {
-                enterResult = runtimeInvokeCollectionLambda1(fnPtr: walk.enterFnPtr, closureRaw: walk.enterClosureRaw, value: fileRaw, outThrown: &thrown)
-                if thrown != 0 { outThrown?.pointee = thrown; return }
-            }
-            if kk_unbox_bool(enterResult) != 0 && remainingDepth > 0 {
-                let nextDepth = remainingDepth == Int.max ? Int.max : remainingDepth - 1
-                if let entries = try? fm.contentsOfDirectory(atPath: path) {
-                    for entry in entries.sorted() {
-                        let childPath = (path as NSString).appendingPathComponent(entry)
-                        fileTreeWalkVisit(path: childPath, remainingDepth: nextDepth, walk: walk, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-                        if outThrown?.pointee != 0 { return }
-                    }
-                } else if walk.failFnPtr != 0 {
-                    _ = runtimeInvokeCollectionLambda2(fnPtr: walk.failFnPtr, closureRaw: walk.failClosureRaw, lhs: fileRaw, rhs: runtimeNullSentinelInt, outThrown: &thrown)
-                    if thrown != 0 { outThrown?.pointee = thrown; return }
-                }
-                if walk.leaveFnPtr != 0 {
-                    _ = runtimeInvokeCollectionLambda1(fnPtr: walk.leaveFnPtr, closureRaw: walk.leaveClosureRaw, value: fileRaw, outThrown: &thrown)
-                    if thrown != 0 { outThrown?.pointee = thrown; return }
-                }
+    if isDir.boolValue && currentDepth < walk.maxDepth {
+        // onEnter: if present and returns false, skip children
+        if walk.enterFnPtr != 0 {
+            let enterResult = runtimeInvokeCollectionLambda1(
+                fnPtr: walk.enterFnPtr, closureRaw: walk.enterClosureRaw,
+                value: fileRaw, outThrown: nil
+            )
+            if kk_unbox_bool(enterResult) == 0 {
+                if !walk.topDown { action(fileRaw) }
+                return
             }
         }
-    } else {
-        // BOTTOM_UP: recurse first, then yield self
-        if exists && isDir.boolValue {
-            var thrown = 0
-            var enterResult = 1
-            if walk.enterFnPtr != 0 {
-                enterResult = runtimeInvokeCollectionLambda1(fnPtr: walk.enterFnPtr, closureRaw: walk.enterClosureRaw, value: fileRaw, outThrown: &thrown)
-                if thrown != 0 { outThrown?.pointee = thrown; return }
+
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(atPath: path)
+            for entry in contents.sorted() {
+                let childPath = (path as NSString).appendingPathComponent(entry)
+                fileTreeWalkForEach(at: childPath, walk: walk, currentDepth: currentDepth + 1, action: action)
             }
-            if kk_unbox_bool(enterResult) != 0 && remainingDepth > 0 {
-                let nextDepth = remainingDepth == Int.max ? Int.max : remainingDepth - 1
-                if let entries = try? fm.contentsOfDirectory(atPath: path) {
-                    for entry in entries.sorted() {
-                        let childPath = (path as NSString).appendingPathComponent(entry)
-                        fileTreeWalkVisit(path: childPath, remainingDepth: nextDepth, walk: walk, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
-                        if outThrown?.pointee != 0 { return }
-                    }
-                } else if walk.failFnPtr != 0 {
-                    _ = runtimeInvokeCollectionLambda2(fnPtr: walk.failFnPtr, closureRaw: walk.failClosureRaw, lhs: fileRaw, rhs: runtimeNullSentinelInt, outThrown: &thrown)
-                    if thrown != 0 { outThrown?.pointee = thrown; return }
-                }
-                if walk.leaveFnPtr != 0 {
-                    _ = runtimeInvokeCollectionLambda1(fnPtr: walk.leaveFnPtr, closureRaw: walk.leaveClosureRaw, value: fileRaw, outThrown: &thrown)
-                    if thrown != 0 { outThrown?.pointee = thrown; return }
-                }
+        } catch {
+            if walk.failFnPtr != 0 {
+                let exRaw = runtimeAllocateThrowable(message: error.localizedDescription)
+                _ = runtimeInvokeCollectionLambda2(
+                    fnPtr: walk.failFnPtr, closureRaw: walk.failClosureRaw,
+                    lhs: fileRaw, rhs: exRaw, outThrown: nil
+                )
             }
         }
-        var thrown = 0
-        _ = runtimeInvokeCollectionLambda1(fnPtr: fnPtr, closureRaw: closureRaw, value: fileRaw, outThrown: &thrown)
-        if thrown != 0 { outThrown?.pointee = thrown }
+
+        // onLeave
+        if walk.leaveFnPtr != 0 {
+            _ = runtimeInvokeCollectionLambda1(
+                fnPtr: walk.leaveFnPtr, closureRaw: walk.leaveClosureRaw,
+                value: fileRaw, outThrown: nil
+            )
+        }
+    }
+
+    if !walk.topDown {
+        action(fileRaw)
     }
 }
 
@@ -1147,7 +1181,12 @@ public func kk_file_tree_walk_for_each(
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_for_each received invalid FileTreeWalk handle")
     }
-    fileTreeWalkVisit(path: walk.path, remainingDepth: walk.maxDepthValue, walk: walk, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
+    fileTreeWalkForEach(at: walk.root, walk: walk, currentDepth: 0) { fileRaw in
+        _ = runtimeInvokeCollectionLambda1(
+            fnPtr: fnPtr, closureRaw: closureRaw,
+            value: fileRaw, outThrown: outThrown
+        )
+    }
     return 0
 }
 
