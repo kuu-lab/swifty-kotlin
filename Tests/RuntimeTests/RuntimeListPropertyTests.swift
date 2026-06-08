@@ -42,4 +42,19 @@ final class RuntimeListPropertyTests: XCTestCase {
         XCTAssertEqual(kk_list_firstOrNull(makeList([10, 20])), 10)
         XCTAssertEqual(kk_list_firstOrNull(makeList([])), runtimeNullSentinelInt)
     }
+
+    func testListFirstOrNullPredicateReturnsFirstMatchOrNull() {
+        let greaterThanTwo: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value > 2 ? 1 : 0
+        }
+        let fnPtr = unsafeBitCast(greaterThanTwo, to: Int.self)
+
+        var thrown = 0
+        XCTAssertEqual(kk_list_firstOrNull_predicate(makeList([1, 2, 3, 4]), fnPtr, 0, &thrown), 3)
+        XCTAssertEqual(thrown, 0)
+
+        var thrown2 = 0
+        XCTAssertEqual(kk_list_firstOrNull_predicate(makeList([1, 2]), fnPtr, 0, &thrown2), runtimeNullSentinelInt)
+        XCTAssertEqual(thrown2, 0)
+    }
 }
