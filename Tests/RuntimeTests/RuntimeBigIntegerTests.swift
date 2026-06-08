@@ -62,6 +62,80 @@ final class RuntimeBigIntegerTests: XCTestCase {
         XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "2")
     }
 
+    func testBigIntegerAndHandlesZeroAndPositive() {
+        let lhs = bigInteger("0")
+        let rhs = bigInteger("123")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "0")
+    }
+
+    func testBigIntegerAndHandlesPositiveAndZero() {
+        let lhs = bigInteger("456")
+        let rhs = bigInteger("0")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "0")
+    }
+
+    func testBigIntegerAndHandlesZeroAndZero() {
+        let lhs = bigInteger("0")
+        let rhs = bigInteger("0")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "0")
+    }
+
+    func testBigIntegerAndHandlesBothNegative() {
+        let lhs = bigInteger("-2")
+        let rhs = bigInteger("-3")
+        let result = kk_biginteger_and(lhs, rhs)
+        // -2 in two's complement: ...11111110
+        // -3 in two's complement: ...11111101
+        // AND:                 ...11111100 = -4
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "-4")
+    }
+
+    func testBigIntegerAndIdentityWithNegativeOne() {
+        let lhs = bigInteger("123")
+        let rhs = bigInteger("-1")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "123")
+    }
+
+    func testBigIntegerAndIdentityWithNegativeOneReversed() {
+        let lhs = bigInteger("-1")
+        let rhs = bigInteger("456")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "456")
+    }
+
+    func testBigIntegerAndSameOperands() {
+        let value = bigInteger("789")
+        let result = kk_biginteger_and(value, value)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "789")
+    }
+
+    func testBigIntegerAndSignBitBoundary() {
+        // Number near Int64.MAX_VALUE
+        let lhs = bigInteger("9223372036854775807") // Int64.MAX_VALUE
+        let rhs = bigInteger("1")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "1")
+    }
+
+    func testBigIntegerAndVeryLargeNumbers() {
+        // Multi-byte sign extension scenario
+        let lhs = bigInteger("340282366920938463463374607431768211455") // 2^128 - 1
+        let rhs = bigInteger("18446744073709551615") // 2^64 - 1
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "18446744073709551615")
+    }
+
+    func testBigIntegerAndNegativeWithZero() {
+        let lhs = bigInteger("-123")
+        let rhs = bigInteger("0")
+        let result = kk_biginteger_and(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "0")
+    }
+
     // MARK: - New BigInteger Function Tests
 
     func testBigIntegerOrHandlesPositiveOperands() {
