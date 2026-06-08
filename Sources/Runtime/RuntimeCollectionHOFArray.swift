@@ -270,8 +270,7 @@ public func kk_array_reduceIndexed(_ arrayRaw: Int, _ fnPtr: Int, _ closureRaw: 
     var acc = maybeUnbox(array.elements[0])
     for idx in 1 ..< array.elements.count {
         var thrown = 0
-        let indexedValue = runtimeIndexedValueNew(index: idx, value: array.elements[idx])
-        acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: indexedValue, outThrown: &thrown))
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(fnPtr: fnPtr, closureRaw: closureRaw, arg1: idx, arg2: acc, arg3: array.elements[idx], outThrown: &thrown))
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     }
     return acc
@@ -318,8 +317,7 @@ public func kk_array_foldIndexed(
     var acc = initial
     for (index, elem) in array.elements.enumerated() {
         var thrown = 0
-        let indexedValue = runtimeIndexedValueNew(index: index, value: elem)
-        acc = maybeUnbox(runtimeInvokeCollectionLambda2(fnPtr: fnPtr, closureRaw: closureRaw, lhs: acc, rhs: indexedValue, outThrown: &thrown))
+        acc = maybeUnbox(runtimeInvokeCollectionLambda3(fnPtr: fnPtr, closureRaw: closureRaw, arg1: index, arg2: acc, arg3: elem, outThrown: &thrown))
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
     }
     return acc
