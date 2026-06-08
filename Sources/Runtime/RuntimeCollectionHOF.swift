@@ -249,7 +249,7 @@ public func kk_list_mapNotNull(_ listRaw: Int, _ fnPtr: Int, _ closureRaw: Int, 
 
 @_cdecl("kk_iterable_firstNotNullOf")
 public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let elements = runtimeCollectionElements(from: iterableRaw) else {
+    guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
     }
     for elem in elements {
@@ -266,7 +266,7 @@ public func kk_iterable_firstNotNullOf(_ iterableRaw: Int, _ fnPtr: Int, _ closu
 
 @_cdecl("kk_iterable_firstNotNullOfOrNull")
 public func kk_iterable_firstNotNullOfOrNull(_ iterableRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let elements = runtimeCollectionElements(from: iterableRaw) else {
+    guard let elements = runtimeCollectionOrArrayElements(from: iterableRaw) else {
         invalidContainerPanic(#function, "iterable")
     }
     for elem in elements {

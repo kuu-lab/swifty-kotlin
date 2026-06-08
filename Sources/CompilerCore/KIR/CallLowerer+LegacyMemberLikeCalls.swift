@@ -2603,12 +2603,18 @@ extension CallLowerer {
                     "kk_array_count"
                 case "fill":
                     "kk_array_fill"
+                case "firstNotNullOf":
+                    "kk_iterable_firstNotNullOf"
+                case "firstNotNullOfOrNull":
+                    "kk_iterable_firstNotNullOfOrNull"
                 default:
                     nil
                 }
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_list_partition"
                         || runtimeCallee == "kk_list_zipWithNextTransform"
+                        || runtimeCallee == "kk_iterable_firstNotNullOf"
+                        || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
                             .temporary(Int32(arena.expressions.count)),
