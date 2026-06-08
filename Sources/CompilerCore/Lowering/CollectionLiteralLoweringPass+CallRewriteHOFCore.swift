@@ -13,7 +13,7 @@ extension CollectionLiteralLoweringPass {
     ) -> Bool {
     // --- Rewrite higher-order collection member calls (FUNC-003) ---
     if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.mapNotNullName || callee == lookup.forEachName || callee == lookup.onEachName
-        || callee == lookup.flatMapName || callee == lookup.anyName || callee == lookup.noneName
+        || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.anyName || callee == lookup.noneName
         || callee == lookup.allName || callee == lookup.mapValuesName || callee == lookup.mapKeysName
         || callee == lookup.toListName || callee == lookup.countName
     {
