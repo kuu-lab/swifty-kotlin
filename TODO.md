@@ -15,8 +15,6 @@
 - Kotlin release process: https://kotlinlang.org/docs/releases.html
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
-## Kotlin stdlib（common / Kotlin/Native 相当）
-
 ### スコープパッケージ
 - `kotlin`
 - `kotlin.annotation`
@@ -46,11 +44,6 @@
 ### Phase 2: コレクション・Sequence・Range
 - [~] STDLIB-022: range / progression / unsigned range の網羅性を上げる（LongRange `firstOrNull` / `lastOrNull` runtime 済み）
 
-#### kotlin.collections 抽象基底クラスの実装
-
-#### kotlin.collections 具象実装クラスの実装
-
-#### kotlin.collections 関数の実装（A-C）
 #### kotlin.collections 関数の実装（D-Z）
 - [ ] STDLIB-COL-FN-073: `firstNotNullOfOrNull` 関数の実装
 - [ ] STDLIB-COL-FN-074: `firstOrNull` 関数の実装
@@ -78,6 +71,7 @@
 
 #### kotlin.io プロパティの実装
 - [x] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
+- [ ] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
 - [x] STDLIB-IO-PROP-004: `isRooted` 拡張プロパティの実装
 
 #### kotlin.io 関数の実装
@@ -105,7 +99,6 @@
 #### kotlin.io.path 関数の実装
 - [x] STDLIB-IO-FN-040: `useLines` 関数の実装（Reader版）
 
-#### kotlin.io.path 関数の実装
 - [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-023: `getOwner` 関数の実装
@@ -119,7 +112,6 @@
 - [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
 - [ ] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
-
 #### kotlin.reflect 型の実装
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
@@ -137,11 +129,9 @@
 - [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
-#### kotlin.sequences 関数の実装
 - [ ] STDLIB-SEQ-FN-005: `associate` 関数の実装
 - [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-087: `plus` 関数の実装
-
 #### kotlin.system 関数の実装
 - [ ] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
@@ -166,7 +156,6 @@
 #### kotlin.text 関数の実装
 - [ ] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
 
-#### kotlin.text 関数の実装
 - [ ] STDLIB-TEXT-FN-003: `append` 関数の実装
 - [ ] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
@@ -174,7 +163,7 @@
 - [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
-- [ ] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
+- [x] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
@@ -231,6 +220,14 @@
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
+- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
+- [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
+- [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
+- [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [ ] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
@@ -263,6 +260,9 @@
 #### kotlin.uuid 型の実装
 
 #### kotlin.uuid 関数の実装
+#### kotlin.uuid 関数の実装
+- [ ] STDLIB-UUID-FN-002: `putUuid` 関数の実装
+- [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める

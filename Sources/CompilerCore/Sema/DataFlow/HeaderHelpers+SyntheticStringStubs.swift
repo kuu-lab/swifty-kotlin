@@ -2742,6 +2742,11 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: intType
         )
+        let byteArrayTypeForEncode = makeNominalType(
+            symbols: symbols,
+            types: types,
+            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
+        )
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
@@ -2810,7 +2815,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_encodeToByteArray",
             receiverType: stringType,
             parameters: [],
-            returnType: listIntType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2826,7 +2831,7 @@ extension DataFlowSemaPhase {
                     ("startIndex", intType, false, false),
                     ("endIndex", intType, false, false),
                 ],
-                returnType: listIntType,
+                returnType: byteArrayTypeForEncode,
                 packageFQName: kotlinTextPkg,
                 symbols: symbols,
                 interner: interner
@@ -2841,7 +2846,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 ("charset", charsetType, false, false),
             ],
-            returnType: listIntType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

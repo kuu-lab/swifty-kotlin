@@ -190,5 +190,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Uuid"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_uuid_getUuid",
+            parameters: [
+                RuntimeABIParameter(name: "byteArray", type: .intptr),
+                RuntimeABIParameter(name: "offset", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Uuid"
+        ),
     ]
 }

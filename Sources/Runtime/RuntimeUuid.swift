@@ -649,6 +649,47 @@ public func kk_byteArray_uuid(
     return registerRuntimeObject(box)
 }
 
+// MARK: - ByteArray.getUuid(offset: Int)
+
+/// Read a UUID from 16 bytes at [offset, offset+16) of the ByteArray.
+/// Throws IndexOutOfBoundsException when offset < 0 or offset + 16 > size.
+@_cdecl("kk_uuid_getUuid")
+public func kk_uuid_getUuid(_ arrayRaw: Int, _ offset: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: arrayRaw),
+          let arrayBox = tryCast(ptr, to: RuntimeArrayBox.self)
+    else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: offset out of bounds for empty reference"
+        )
+        return 0
+    }
+
+    let size = arrayBox.elements.count
+    guard offset >= 0, offset + 16 <= size else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IndexOutOfBoundsException: offset \(offset) out of bounds for array of size \(size)"
+        )
+        return 0
+    }
+
+    var msb: UInt64 = 0
+    var lsb: UInt64 = 0
+    for i in 0..<8 {
+        msb = (msb << 8) | UInt64(arrayBox.elements[offset + i] & 0xFF)
+    }
+    for i in 8..<16 {
+        lsb = (lsb << 8) | UInt64(arrayBox.elements[offset + i] & 0xFF)
+    }
+
+    let box = RuntimeUuidBox(
+        mostSignificantBits: Int64(bitPattern: msb),
+        leastSignificantBits: Int64(bitPattern: lsb)
+    )
+    return registerRuntimeObject(box)
+}
+
 /// Compute MD5 digest of input bytes, returning 16 bytes.
 private func kk_uuid_md5Digest(_ input: [UInt8]) -> [UInt8] {
     let s: [UInt32] = [
