@@ -1017,7 +1017,7 @@ private func fileTreeWalkCollect(
                 fnPtr: walk.onEnterFnPtr, closureRaw: walk.onEnterClosureRaw,
                 value: fileHandle, outThrown: &thrown
             )
-            descend = thrown == 0 && kk_unbox_int(r) != 0
+            descend = thrown == 0 && kk_unbox_bool(r) != 0
         }
         if descend {
             do {
@@ -1091,7 +1091,7 @@ public func kk_file_tree_walk_to_list(_ walkRaw: Int) -> Int {
                 fnPtr: walk.filterFnPtr, closureRaw: walk.filterClosureRaw,
                 value: handle, outThrown: &thrown
             )
-            return thrown == 0 && kk_unbox_int(r) != 0
+            return thrown == 0 && kk_unbox_bool(r) != 0
         }
     } else {
         filtered = results

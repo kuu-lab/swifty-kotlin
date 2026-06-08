@@ -1148,56 +1148,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        // STDLIB-IO-TYPE-004: FileTreeWalk builder methods
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_create",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "directionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_filter",
-            parameters: [
-                RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_onEnter",
-            parameters: [
-                RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_onLeave",
-            parameters: [
-                RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_onFail",
-            parameters: [
-                RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
     ]
 
 }
