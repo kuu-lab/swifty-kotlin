@@ -2665,6 +2665,29 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list.elements.map(runtimeStringValue), expected, file: file, line: line)
     }
 
+    private func assertStringValueSequence(
+        _ sequenceRaw: Int,
+        equals expected: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
+            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
+            return
+        }
+        guard case let .valueSource(values)? = sequence.steps.first else {
+            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(
+            values.map(\.tag),
+            Array(repeating: RuntimeValue.stringTag, count: expected.count),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue), expected, file: file, line: line)
+    }
+
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }

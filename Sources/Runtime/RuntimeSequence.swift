@@ -564,7 +564,7 @@ private func runtimeSequenceTransformElement(
         }
     case .shuffledStep:
         return
-    case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+    case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
         runtimeSequenceTransformElement(
             element,
             steps: steps,
@@ -685,7 +685,7 @@ func runtimeTraverseSequenceWithState(
     }
     let transformSteps = seq.steps.filter {
         switch $0 {
-        case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
             false
         default:
             true
@@ -707,6 +707,20 @@ func runtimeTraverseSequenceWithState(
         case let .source(sourceElements), let .builder(sourceElements):
             for element in sourceElements {
                 emit(element)
+                if state.stop { break }
+            }
+            if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
+                runtimeSequenceFlushChunkedTransforms(
+                    transformSteps,
+                    state: state,
+                    outThrown: outThrown,
+                    yield: yield
+                )
+            }
+            return
+        case let .valueSource(sourceValues):
+            for value in sourceValues {
+                emit(value.legacyRawValue)
                 if state.stop { break }
             }
             if !state.limitReached, (outThrown?.pointee ?? 0) == 0 {
@@ -882,6 +896,8 @@ private func extractSourceElements(from step: SequenceStepKind) -> [Int]? {
     switch step {
     case let .source(sourceElements):
         return sourceElements
+    case let .valueSource(sourceValues):
+        return sourceValues.map(\.legacyRawValue)
     case let .builder(builderElements):
         return builderElements
     case let .lazyBuilder(coroutine):
@@ -1259,7 +1275,7 @@ private func evaluateSequence(
 
     let hasTransformSteps = seq.steps.contains {
         switch $0 {
-        case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
             return false
         default:
             return true
@@ -1329,7 +1345,7 @@ private func evaluateSequence(
     // Apply transformation steps in order
     for step in seq.steps {
         switch step {
-        case .source, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
+        case .source, .valueSource, .stringSource, .builder, .generator, .nullableGenerator, .lazyBuilder:
             break
         case let .mapStep(fnPtr, closureRaw):
             elements = applyMapStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: nil)

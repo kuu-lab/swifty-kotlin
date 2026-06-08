@@ -551,6 +551,7 @@ final class RuntimeMapIteratorBox {
 /// for map/filter transformations. Lazy semantics: no evaluation until terminal.
 enum SequenceStepKind {
     case source(elements: [Int])
+    case valueSource(values: [RuntimeValue])
     case stringSource(source: String)
     case mapStep(fnPtr: Int, closureRaw: Int)
     case filterStep(fnPtr: Int, closureRaw: Int)

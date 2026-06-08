@@ -4445,9 +4445,7 @@ public func kk_string_lineSequence_flat(
 }
 
 private func runtimeStringLineSequenceRaw(_ source: String) -> Int {
-    let lineRaws = runtimeNormalizedMultilineString(source).map(runtimeMakeStringRaw)
-    let seq = RuntimeSequenceBox(steps: [.source(elements: lineRaws)])
-    return registerRuntimeObject(seq)
+    runtimeMakeStringSequenceRaw(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_trimStart_flat")
@@ -5063,15 +5061,15 @@ private func runtimeStringWindowedSequencePartial(
     let clampedStep = max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
-    var windows: [Int] = []
+    var windows: [String] = []
     var i = 0
     while i < scalars.count {
         let end = min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
-        windows.append(runtimeMakeStringRaw(runtimeStringFromScalars(scalars[i ..< end])))
+        windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
     }
-    return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: windows)]))
+    return runtimeMakeStringSequenceRaw(windows)
 }
 
 private func runtimeStringWindowedSequenceTransform(
@@ -6019,6 +6017,10 @@ private func runtimeMakeArrayRaw(_ values: [Int]) -> Int {
 
 private func runtimeMakeStringListRaw(_ values: [String]) -> Int {
     registerRuntimeObject(RuntimeListBox(values: values.map(runtimeMakeStringValue)))
+}
+
+private func runtimeMakeStringSequenceRaw(_ values: [String]) -> Int {
+    registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: values.map(runtimeMakeStringValue))]))
 }
 
 private func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, message: String) {
@@ -7179,14 +7181,10 @@ public func kk_string_splitToSequence_flat(
 
 private func runtimeStringSplitToSequenceRaw(_ source: String, delimiter: String) -> Int {
     if delimiter.isEmpty {
-        let singleElement = runtimeMakeStringRaw(source)
-        let seq = RuntimeSequenceBox(steps: [.source(elements: [singleElement])])
-        return registerRuntimeObject(seq)
+        return runtimeMakeStringSequenceRaw([source])
     }
 
-    let splitStrings = runtimeSplitString(source, delimiter: delimiter).map { runtimeMakeStringRaw($0) }
-    let seq = RuntimeSequenceBox(steps: [.source(elements: splitStrings)])
-    return registerRuntimeObject(seq)
+    return runtimeMakeStringSequenceRaw(runtimeSplitString(source, delimiter: delimiter))
 }
 
 @_cdecl("kk_string_joinToString")

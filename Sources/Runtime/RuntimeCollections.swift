@@ -1109,11 +1109,11 @@ public func kk_list_asSequence(_ listRaw: Int) -> Int {
     // KNOWN DEVIATION: Kotlin's `Iterable.asSequence()` is lazy and delegates
     // to `iterator()` at iteration time, so mutations between the call and
     // iteration are observable.  Our implementation captures a COW snapshot of
-    // `list.elements` (a Swift Array value) at the point of call, so later
+    // `list.values` (a Swift Array value) at the point of call, so later
     // mutations to the original list are NOT reflected in the sequence.
     // This is an intentional simplification for the current runtime; a future
     // version may store the list reference and obtain an iterator lazily.
-    let seq = RuntimeSequenceBox(steps: [.source(elements: list.elements)])
+    let seq = RuntimeSequenceBox(steps: [.valueSource(values: list.values)])
     return registerRuntimeObject(seq)
 }
 
@@ -1123,7 +1123,7 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_asSequence")
     }
     // Same COW-snapshot semantics (known Kotlin deviation) as kk_list_asSequence above.
-    let seq = RuntimeSequenceBox(steps: [.source(elements: array.elements)])
+    let seq = RuntimeSequenceBox(steps: [.valueSource(values: array.values)])
     return registerRuntimeObject(seq)
 }
 
@@ -1230,12 +1230,20 @@ public func kk_collection_toTypedArray(_ collRaw: Int) -> Int {
 /// Falls back to fatalError only when the handle is truly unrecognized.
 @_cdecl("kk_iterable_asSequence")
 public func kk_iterable_asSequence(_ iterableRaw: Int) -> Int {
+    if let list = runtimeListBox(from: iterableRaw) {
+        let seq = RuntimeSequenceBox(steps: [.valueSource(values: list.values)])
+        return registerRuntimeObject(seq)
+    }
+    if let set = runtimeSetBox(from: iterableRaw) {
+        let seq = RuntimeSequenceBox(steps: [.valueSource(values: set.values)])
+        return registerRuntimeObject(seq)
+    }
     if let elements = runtimeCollectionElements(from: iterableRaw) {
         let seq = RuntimeSequenceBox(steps: [.source(elements: elements)])
         return registerRuntimeObject(seq)
     }
     if let array = runtimeArrayBox(from: iterableRaw) {
-        let seq = RuntimeSequenceBox(steps: [.source(elements: array.elements)])
+        let seq = RuntimeSequenceBox(steps: [.valueSource(values: array.values)])
         return registerRuntimeObject(seq)
     }
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid iterable handle in kk_iterable_asSequence")
