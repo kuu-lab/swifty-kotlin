@@ -936,14 +936,14 @@ extension CallLowerer {
             }
         case "firstNotNullOf":
             switch knownNames.collectionKind(of: symbol) {
-            case .list?, .set?, .collection?:
+            case .list?, .set?, .collection?, .array?:
                 return interner.intern("kk_iterable_firstNotNullOf")
             default:
                 break
             }
         case "firstNotNullOfOrNull":
             switch knownNames.collectionKind(of: symbol) {
-            case .list?, .set?, .collection?:
+            case .list?, .set?, .collection?, .array?:
                 return interner.intern("kk_iterable_firstNotNullOfOrNull")
             default:
                 break

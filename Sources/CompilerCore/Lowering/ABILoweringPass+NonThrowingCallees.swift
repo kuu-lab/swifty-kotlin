@@ -1104,8 +1104,10 @@ extension ABILoweringPass {
             // STDLIB-IO-TYPE-004: FileTreeWalk factory and builder methods are non-throwing
             interner.intern("kk_file_walkTopDown"),
             interner.intern("kk_file_walkBottomUp"),
+            interner.intern("kk_file_walk_with_direction"),
             interner.intern("kk_file_tree_walk_create"),
-            interner.intern("kk_file_tree_walk_maxDepth"),
+            interner.intern("kk_file_tree_walk_to_list"),
+            interner.intern("kk_file_tree_walk_max_depth"),
             interner.intern("kk_file_tree_walk_filter"),
             interner.intern("kk_file_tree_walk_onEnter"),
             interner.intern("kk_file_tree_walk_onLeave"),
