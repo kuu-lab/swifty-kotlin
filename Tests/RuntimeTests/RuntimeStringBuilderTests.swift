@@ -27,9 +27,9 @@ final class RuntimeStringBuilderTests: XCTestCase {
 
     func testAppendRangeAppendsSubstringSliceAndReturnsReceiver() {
         let builder = makeBuilder("hello")
-        let value = makeRuntimeString("WORLD")
-
-        let returned = kk_string_builder_appendRange_obj(builder, value, 1, 4)
+        let returned = withFlatString("WORLD") { data, length, byteCount, hash in
+            kk_string_builder_appendRange_obj_flat(builder, data, length, byteCount, hash, 1, 4)
+        }
 
         XCTAssertEqual(returned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "helloORL")
@@ -37,9 +37,9 @@ final class RuntimeStringBuilderTests: XCTestCase {
 
     func testAppendRangeFromEmptyRangeAppendsNothing() {
         let builder = makeBuilder("abc")
-        let value = makeRuntimeString("XYZ")
-
-        let returned = kk_string_builder_appendRange_obj(builder, value, 2, 2)
+        let returned = withFlatString("XYZ") { data, length, byteCount, hash in
+            kk_string_builder_appendRange_obj_flat(builder, data, length, byteCount, hash, 2, 2)
+        }
 
         XCTAssertEqual(returned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")

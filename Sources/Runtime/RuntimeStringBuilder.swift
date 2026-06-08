@@ -261,16 +261,6 @@ public func kk_string_builder_deleteAt(
     kk_string_builder_deleteCharAt(sbRaw, index, outThrown)
 }
 
-@_cdecl("kk_string_builder_appendRange_obj")
-public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
-    runtimeStringBuilderAppendRange(
-        sbRaw,
-        csq: runtimeElementToString(csqRaw),
-        startIndex: startIndex,
-        endIndex: endIndex
-    )
-}
-
 @_cdecl("kk_string_builder_appendRange_obj_flat")
 public func kk_string_builder_appendRange_obj_flat(
     _ sbRaw: Int,
@@ -410,18 +400,6 @@ private func runtimeStringBuilderSetRange(
 }
 
 // MARK: - STDLIB-STR-123: Additional StringBuilder methods
-
-@_cdecl("kk_string_builder_replace_obj")
-public func kk_string_builder_replace_obj(_ sbRaw: Int, _ start: Int, _ end: Int, _ strRaw: Int) -> Int {
-    let replacement: String
-    if let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
-       let s = extractString(from: ptr) {
-        replacement = s
-    } else {
-        replacement = runtimeElementToString(strRaw)
-    }
-    return runtimeStringBuilderReplace(sbRaw, start: start, end: end, replacement: replacement)
-}
 
 @_cdecl("kk_string_builder_replace_obj_flat")
 public func kk_string_builder_replace_obj_flat(

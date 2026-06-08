@@ -1190,7 +1190,7 @@ final class CallLowerer {
         case ("appendLine", 1):
             "kk_string_builder_append_line_obj"
         case ("appendRange", 3):
-            "kk_string_builder_appendRange_obj"
+            "kk_string_builder_appendRange_obj_flat"
         case ("toString", 0):
             "kk_string_builder_toString"
         case ("clear", 0):
@@ -1210,9 +1210,9 @@ final class CallLowerer {
         case ("deleteRange", 2):
             "kk_string_builder_deleteRange"
         case ("insertRange", 4):
-            "kk_string_builder_insertRange_obj"
+            "kk_string_builder_insertRange_obj_flat"
         case ("setRange", 3):
-            "kk_string_builder_setRange"
+            "kk_string_builder_setRange_flat"
         case ("set", 2):
             // STDLIB-TEXT-FN-064: operator fun set(index, value) desugars to setCharAt
             "kk_string_builder_setCharAt"

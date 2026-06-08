@@ -710,10 +710,10 @@ extension CodegenBackendIntegrationTests {
         appendBuilderCall("kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
         appendBuilderCall("kk_string_builder_append_line_obj", arguments: [builderExpr, textExpr])
         appendBuilderCall("kk_string_builder_insert_obj", arguments: [builderExpr, startExpr, textExpr])
-        appendBuilderCall("kk_string_builder_appendRange_obj", arguments: [builderExpr, textExpr, startExpr, endExpr])
-        appendBuilderCall("kk_string_builder_insertRange_obj", arguments: [builderExpr, startExpr, textExpr, startExpr, endExpr])
-        appendBuilderCall("kk_string_builder_setRange", arguments: [builderExpr, startExpr, endExpr, textExpr])
-        appendBuilderCall("kk_string_builder_replace_obj", arguments: [builderExpr, startExpr, endExpr, textExpr])
+        appendBuilderCall("kk_string_builder_appendRange_obj_flat", arguments: [builderExpr, textExpr, startExpr, endExpr])
+        appendBuilderCall("kk_string_builder_insertRange_obj_flat", arguments: [builderExpr, startExpr, textExpr, startExpr, endExpr])
+        appendBuilderCall("kk_string_builder_setRange_flat", arguments: [builderExpr, startExpr, endExpr, textExpr])
+        appendBuilderCall("kk_string_builder_replace_obj_flat", arguments: [builderExpr, startExpr, endExpr, textExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(

@@ -1238,25 +1238,25 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     stringArgumentPositions: [2]
                 ),
-                "kk_string_builder_appendRange_obj": FlatScalarReturnCallSpec(
+                "kk_string_builder_appendRange_obj_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_appendRange_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
                     stringArgumentPositions: [1]
                 ),
-                "kk_string_builder_insertRange_obj": FlatScalarReturnCallSpec(
+                "kk_string_builder_insertRange_obj_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_insertRange_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 4,
                     stringArgumentPositions: [2]
                 ),
-                "kk_string_builder_setRange": FlatScalarReturnCallSpec(
+                "kk_string_builder_setRange_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_setRange_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
                     stringArgumentPositions: [3]
                 ),
-                "kk_string_builder_replace_obj": FlatScalarReturnCallSpec(
+                "kk_string_builder_replace_obj_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_replace_obj_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,

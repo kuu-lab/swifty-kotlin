@@ -1773,7 +1773,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let insertRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_insertRange_obj_flat"
             }
             XCTAssertEqual(insertRangeBindings.count, 2)
         }
@@ -1806,7 +1806,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let sema = try XCTUnwrap(ctx.sema)
             let setRangeBindings = sema.bindings.callBindings.values.filter { binding in
-                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange"
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_setRange_flat"
             }
             XCTAssertEqual(setRangeBindings.count, 2)
         }
