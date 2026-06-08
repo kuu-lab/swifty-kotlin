@@ -969,7 +969,7 @@ public func kk_file_walk(_ fileRaw: Int) -> Int {
 //   fun File.walkBottomUp(): FileTreeWalk
 //
 // `RuntimeFileTreeWalkBox` holds the builder state accumulated via
-// maxDepth / onEnter / onLeave / onFail calls. kk_file_treewalk_forEach
+// maxDepth / onEnter / onLeave / onFail calls. kk_file_tree_walk_for_each
 // materialises the walk by performing a DFS that respects direction,
 // maxDepth, and the stored callbacks.
 
@@ -1018,39 +1018,39 @@ public func kk_file_walkBottomUp(_ fileRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeFileTreeWalkBox(path: file.path, direction: 1))
 }
 
-@_cdecl("kk_file_treewalk_maxDepth")
-public func kk_file_treewalk_maxDepth(_ walkRaw: Int, _ depthRaw: Int) -> Int {
+@_cdecl("kk_file_tree_walk_max_depth")
+public func kk_file_tree_walk_max_depth(_ walkRaw: Int, _ depthRaw: Int) -> Int {
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_treewalk_maxDepth received invalid FileTreeWalk handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_max_depth received invalid FileTreeWalk handle")
     }
     walk.maxDepthValue = kk_unbox_int(depthRaw)
     return walkRaw
 }
 
-@_cdecl("kk_file_treewalk_onEnter")
-public func kk_file_treewalk_onEnter(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("kk_file_tree_walk_on_enter")
+public func kk_file_tree_walk_on_enter(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_treewalk_onEnter received invalid FileTreeWalk handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_enter received invalid FileTreeWalk handle")
     }
     walk.enterFnPtr = fnPtr
     walk.enterClosureRaw = closureRaw
     return walkRaw
 }
 
-@_cdecl("kk_file_treewalk_onLeave")
-public func kk_file_treewalk_onLeave(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("kk_file_tree_walk_on_leave")
+public func kk_file_tree_walk_on_leave(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_treewalk_onLeave received invalid FileTreeWalk handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_leave received invalid FileTreeWalk handle")
     }
     walk.leaveFnPtr = fnPtr
     walk.leaveClosureRaw = closureRaw
     return walkRaw
 }
 
-@_cdecl("kk_file_treewalk_onFail")
-public func kk_file_treewalk_onFail(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("kk_file_tree_walk_on_fail")
+public func kk_file_tree_walk_on_fail(_ walkRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_treewalk_onFail received invalid FileTreeWalk handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_on_fail received invalid FileTreeWalk handle")
     }
     walk.failFnPtr = fnPtr
     walk.failClosureRaw = closureRaw
@@ -1136,8 +1136,8 @@ private func fileTreeWalkVisit(
     }
 }
 
-@_cdecl("kk_file_treewalk_forEach")
-public func kk_file_treewalk_forEach(
+@_cdecl("kk_file_tree_walk_for_each")
+public func kk_file_tree_walk_for_each(
     _ walkRaw: Int,
     _ fnPtr: Int,
     _ closureRaw: Int,
@@ -1145,7 +1145,7 @@ public func kk_file_treewalk_forEach(
 ) -> Int {
     outThrown?.pointee = 0
     guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_treewalk_forEach received invalid FileTreeWalk handle")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_for_each received invalid FileTreeWalk handle")
     }
     fileTreeWalkVisit(path: walk.path, remainingDepth: walk.maxDepthValue, walk: walk, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
     return 0

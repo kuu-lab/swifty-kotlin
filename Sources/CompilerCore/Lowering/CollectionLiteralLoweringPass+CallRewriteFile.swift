@@ -237,15 +237,15 @@ extension CollectionLiteralLoweringPass {
 
         if arguments.count >= 1, state.fileTreeWalkExprIDs.contains(arguments[0].rawValue) {
             // maxDepth: pure value set, no lambda → just track result
-            if callee == lookup.kkFileTreewalkMaxDepthName {
+            if callee == lookup.kkFileTreeWalkMaxDepthName {
                 if let result { state.fileTreeWalkExprIDs.insert(result.rawValue) }
                 return false
             }
 
             // onEnter / onLeave / onFail: (walkRaw, fnPtr) → inject closureRaw → track result
-            if callee == lookup.kkFileTreewalkOnEnterName
-                || callee == lookup.kkFileTreewalkOnLeaveName
-                || callee == lookup.kkFileTreewalkOnFailName
+            if callee == lookup.kkFileTreeWalkOnEnterName
+                || callee == lookup.kkFileTreeWalkOnLeaveName
+                || callee == lookup.kkFileTreeWalkOnFailName
             {
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -262,7 +262,7 @@ extension CollectionLiteralLoweringPass {
             }
 
             // forEach: (walkRaw, fnPtr) → inject closureRaw (can throw via callback)
-            if callee == lookup.kkFileTreewalkForEachName {
+            if callee == lookup.kkFileTreeWalkForEachName {
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(

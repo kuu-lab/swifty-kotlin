@@ -201,7 +201,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_treewalk_maxDepth",
+            name: "kk_file_tree_walk_max_depth",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "depthRaw", type: .intptr),
@@ -210,7 +210,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_treewalk_onEnter",
+            name: "kk_file_tree_walk_on_enter",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -220,7 +220,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_treewalk_onLeave",
+            name: "kk_file_tree_walk_on_leave",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -230,7 +230,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_treewalk_onFail",
+            name: "kk_file_tree_walk_on_fail",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -240,7 +240,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_treewalk_forEach",
+            name: "kk_file_tree_walk_for_each",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

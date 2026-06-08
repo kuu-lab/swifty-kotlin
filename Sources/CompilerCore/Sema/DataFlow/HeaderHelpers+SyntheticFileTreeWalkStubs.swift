@@ -72,7 +72,7 @@ extension DataFlowSemaPhase {
         // maxDepth(depth: Int): FileTreeWalk
         registerFileMemberFunction(
             named: "maxDepth",
-            externalLinkName: "kk_file_treewalk_maxDepth",
+            externalLinkName: "kk_file_tree_walk_max_depth",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
             parameters: [("depth", types.intType)],
@@ -84,7 +84,7 @@ extension DataFlowSemaPhase {
         // onEnter(function: (File) -> Boolean): FileTreeWalk
         registerFileMemberFunction(
             named: "onEnter",
-            externalLinkName: "kk_file_treewalk_onEnter",
+            externalLinkName: "kk_file_tree_walk_on_enter",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
             parameters: [("function", fileToBoolean)],
@@ -96,7 +96,7 @@ extension DataFlowSemaPhase {
         // onLeave(function: (File) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onLeave",
-            externalLinkName: "kk_file_treewalk_onLeave",
+            externalLinkName: "kk_file_tree_walk_on_leave",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
             parameters: [("function", fileToUnit)],
@@ -108,7 +108,7 @@ extension DataFlowSemaPhase {
         // onFail(function: (File, IOException) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onFail",
-            externalLinkName: "kk_file_treewalk_onFail",
+            externalLinkName: "kk_file_tree_walk_on_fail",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
             parameters: [("function", fileAnyToUnit)],
@@ -120,7 +120,7 @@ extension DataFlowSemaPhase {
         // forEach(action: (File) -> Unit): Unit
         registerFileMemberFunction(
             named: "forEach",
-            externalLinkName: "kk_file_treewalk_forEach",
+            externalLinkName: "kk_file_tree_walk_for_each",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
             parameters: [("action", fileToUnit)],
