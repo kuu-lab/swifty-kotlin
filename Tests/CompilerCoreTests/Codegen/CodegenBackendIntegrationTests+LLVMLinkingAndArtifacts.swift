@@ -601,7 +601,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_regex_create_with_options", arguments: [patternExpr, optionsSetExpr])
         appendRegexCall("kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
-        appendRegexCall("kk_string_toRegex", arguments: [patternExpr])
+        appendRegexCall("kk_string_toRegex_flat", arguments: [patternExpr])
         appendRegexCall("kk_regex_find", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_findAll", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])

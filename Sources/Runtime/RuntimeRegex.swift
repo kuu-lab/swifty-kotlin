@@ -640,11 +640,6 @@ private func runtimeRegexContainsMatchIn(_ regexRaw: Int, input rawInput: String
 
 // MARK: - STDLIB-103: String.toRegex() / Regex.pattern
 
-@_cdecl("kk_string_toRegex")
-public func kk_string_toRegex(_ strRaw: Int) -> Int {
-    runtimeRegexCreate(pattern: regexStringFromRaw(strRaw) ?? "")
-}
-
 @_cdecl("kk_string_toRegex_flat")
 public func kk_string_toRegex_flat(
     _ data: UnsafePointer<UInt8>?,
