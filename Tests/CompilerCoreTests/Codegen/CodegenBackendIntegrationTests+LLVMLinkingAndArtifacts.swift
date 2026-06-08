@@ -706,7 +706,7 @@ extension CodegenBackendIntegrationTests {
         appendBuilderCall("kk_string_builder_append_line", arguments: [textExpr])
         appendBuilderCall("kk_string_builder_append_range", arguments: [textExpr, startExpr, endExpr])
         appendBuilderCall("kk_string_builder_insert", arguments: [startExpr, textExpr])
-        appendBuilderCall("kk_string_builder_new_from_string", arguments: [textExpr])
+        appendBuilderCall("kk_string_builder_new_from_string_flat", arguments: [textExpr])
         appendBuilderCall("kk_string_builder_append_obj", arguments: [builderExpr, textExpr])
         appendBuilderCall("kk_string_builder_append_line_obj", arguments: [builderExpr, textExpr])
         appendBuilderCall("kk_string_builder_insert_obj", arguments: [builderExpr, startExpr, textExpr])

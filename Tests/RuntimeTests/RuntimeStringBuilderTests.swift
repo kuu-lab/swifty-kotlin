@@ -14,7 +14,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
 
     // STDLIB-TEXT-FN-024: insert
     func testInsertObjInsertsValueAtIndexAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ac"))
+        let builder = makeBuilder("ac")
         let value = makeRuntimeString("b")
         var thrown = 0
 
@@ -26,7 +26,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testAppendRangeAppendsSubstringSliceAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
+        let builder = makeBuilder("hello")
         let value = makeRuntimeString("WORLD")
 
         let returned = kk_string_builder_appendRange_obj(builder, value, 1, 4)
@@ -36,7 +36,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testAppendRangeFromEmptyRangeAppendsNothing() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
+        let builder = makeBuilder("abc")
         let value = makeRuntimeString("XYZ")
 
         let returned = kk_string_builder_appendRange_obj(builder, value, 2, 2)
@@ -46,7 +46,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testInsertObjAtBeginningPrependsValue() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("bc"))
+        let builder = makeBuilder("bc")
         let value = makeRuntimeString("a")
         var thrown = 0
 
@@ -57,7 +57,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testInsertObjAtEndAppendsValue() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ab"))
+        let builder = makeBuilder("ab")
         let value = makeRuntimeString("c")
         var thrown = 0
 
@@ -90,7 +90,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testInsertRangeInsertsValueSliceAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("ab"))
+        let builder = makeBuilder("ab")
         let value = makeRuntimeString("WXYZ")
         var thrown = 0
 
@@ -102,7 +102,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testSetRangeReplacesRangeAndReturnsReceiver() {
-        let builder = kk_string_builder_new_from_string(makeRuntimeString("abcd"))
+        let builder = makeBuilder("abcd")
         let value = makeRuntimeString("XYZ")
         var thrown = 0
 
@@ -168,7 +168,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(appendLineReturned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abcDE\n")
 
-        let rangedBuilder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
+        let rangedBuilder = makeBuilder("hello")
         let appendRangeReturned = withFlatString("WORLD") { data, length, byteCount, hash in
             kk_string_builder_appendRange_obj_flat(rangedBuilder, data, length, byteCount, hash, 1, 4)
         }
@@ -196,6 +196,12 @@ final class RuntimeStringBuilderTests: XCTestCase {
 
     private func makeRuntimeString(_ value: String) -> Int {
         registerRuntimeObject(RuntimeStringBox(value))
+    }
+
+    private func makeBuilder(_ value: String) -> Int {
+        withFlatString(value) { data, length, byteCount, hash in
+            kk_string_builder_new_from_string_flat(data, length, byteCount, hash)
+        }
     }
 
     private func withFlatString<T>(

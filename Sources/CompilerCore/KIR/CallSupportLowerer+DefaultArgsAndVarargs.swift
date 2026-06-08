@@ -96,7 +96,7 @@ extension CallSupportLowerer {
             case 0:
                 return interner.intern("kk_string_builder_new")
             case 1:
-                return interner.intern("kk_string_builder_new_from_string")
+                return interner.intern("kk_string_builder_new_from_string_flat")
             default:
                 return nil
             }

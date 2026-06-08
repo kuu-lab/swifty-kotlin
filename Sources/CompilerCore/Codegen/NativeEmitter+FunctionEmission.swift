@@ -1205,7 +1205,7 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_string_builder_new_from_string": FlatScalarReturnCallSpec(
+                "kk_string_builder_new_from_string_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_new_from_string_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0

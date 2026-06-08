@@ -780,7 +780,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [superToStringResult],
                 result: builderExpr,
                 canThrow: false,
@@ -801,7 +801,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [prefixExpr],
                 result: builderExpr,
                 canThrow: false,

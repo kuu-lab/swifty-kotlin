@@ -1211,7 +1211,7 @@ extension ABILoweringPass {
             interner.intern("kk_http_headers_firstValue"),
             // StringBuilder (STDLIB-255/256/257)
             interner.intern("kk_string_builder_new"),
-            interner.intern("kk_string_builder_new_from_string"),
+            interner.intern("kk_string_builder_new_from_string_flat"),
             interner.intern("kk_string_builder_append_obj"),
             interner.intern("kk_string_builder_toString"),
             interner.intern("kk_string_builder_length_prop"),

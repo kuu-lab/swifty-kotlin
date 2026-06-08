@@ -8,14 +8,6 @@ public extension RuntimeABISpec {
             section: "StringBuilder"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_builder_new_from_string",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "StringBuilder"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_builder_new_from_string_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
