@@ -201,6 +201,80 @@ final class IntegerNarrowingPassTests: XCTestCase {
         XCTAssertEqual(narrowCount, 0, "Long shift result must not be narrowed to 32 bits")
     }
 
+    func testUIntAdditionResultIsNarrowedToUInt() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = makeSema()
+        let uintType = sema.types.make(.primitive(.uint, .nonNull))
+
+        let lhs = arena.appendExpr(.temporary(0), type: uintType)
+        let rhs = arena.appendExpr(.temporary(1), type: uintType)
+        let result = arena.appendExpr(.temporary(2), type: uintType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        XCTAssertTrue(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = body(declID, module)
+        guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
+            return XCTFail("Expected arithmetic call to be preserved")
+        }
+        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
+        XCTAssertNotEqual(addResult, result, "Arithmetic result should be redirected to a temporary")
+
+        guard case let .call(_, narrowCallee, narrowArgs, narrowResult, _, _, _, _) = lowered[1] else {
+            return XCTFail("Expected a narrowing call after the arithmetic call")
+        }
+        XCTAssertEqual(interner.resolve(narrowCallee), "kk_uint_narrow")
+        XCTAssertEqual(narrowArgs, [addResult])
+        XCTAssertEqual(narrowResult, result, "Narrowing must write back to the original result id")
+    }
+
+    func testULongAdditionResultIsNotNarrowed() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let sema = makeSema()
+        let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
+
+        let lhs = arena.appendExpr(.temporary(0), type: ulongType)
+        let rhs = arena.appendExpr(.temporary(1), type: ulongType)
+        let result = arena.appendExpr(.temporary(2), type: ulongType)
+        let (module, declID) = makeModule(
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_op_add"), arguments: [lhs, rhs], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner, sema: sema)
+
+        try IntegerNarrowingPass().run(module: module, ctx: ctx)
+
+        let lowered = body(declID, module)
+        let narrowCount = lowered.filter { instruction in
+            if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                let name = interner.resolve(callee)
+                return name == "kk_int_narrow" || name == "kk_uint_narrow"
+            }
+            return false
+        }.count
+        XCTAssertEqual(narrowCount, 0, "ULong arithmetic must not be narrowed to 32 or 64 bits")
+        guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
+            return XCTFail("Expected the ulong add call to be preserved")
+        }
+        XCTAssertEqual(interner.resolve(addCallee), "kk_op_add")
+        XCTAssertEqual(addResult, result)
+    }
+
     // MARK: - shouldRun
 
     func testShouldRunReturnsFalseWithoutRelevantCallees() {

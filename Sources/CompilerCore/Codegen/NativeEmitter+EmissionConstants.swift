@@ -225,6 +225,14 @@ extension NativeEmitter {
         case "kk_int_narrow":
             // Wrap a 64-bit arithmetic result to Kotlin's 32-bit `Int`.
             lowered = narrowTo32(lhs, name: "narrow")
+        case "kk_uint_narrow":
+            // Mask a 64-bit arithmetic result to Kotlin's 32-bit `UInt` (zero-extend low 32 bits).
+            if let mask = bindings.constInt(state.int64Type, value: 0xFFFF_FFFF) {
+                lowered = bindings.buildAnd(state.builder, lhs: lhs, rhs: mask,
+                                            name: "uint_narrow_\(instructionIndex)")
+            } else {
+                lowered = nil
+            }
         case "kk_op_ishl":
             // Kotlin `Int.shl`: shift distance is `rhs and 31`; result wraps to 32 bits.
             if let mask = bindings.constInt(state.int64Type, value: 31),

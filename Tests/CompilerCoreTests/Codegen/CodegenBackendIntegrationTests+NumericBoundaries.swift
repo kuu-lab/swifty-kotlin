@@ -164,6 +164,46 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testNumericBoundaryUIntArithmeticWraps() throws {
+        let source = """
+        fun main() {
+            println(UInt.MAX_VALUE + 1u)
+            println(0u - 1u)
+            println(UInt.MAX_VALUE * 2u)
+        }
+        """
+        try assertProgramStdout(
+            source,
+            moduleName: "NumericBoundaryUIntOverflow",
+            expected: """
+            0
+            4294967295
+            4294967294
+            """ + "\n"
+        )
+    }
+
+    func testNumericBoundaryIntToCharTruncates() throws {
+        let source = """
+        fun main() {
+            println(65601.toChar().code)
+            println(70000.toChar().code)
+            println(65536.toChar().code)
+            println(131072.toChar().code)
+        }
+        """
+        try assertProgramStdout(
+            source,
+            moduleName: "NumericBoundaryIntToChar",
+            expected: """
+            65
+            4464
+            0
+            0
+            """ + "\n"
+        )
+    }
+
     func testNumericBoundaryCharArithmeticBasics() throws {
         let source = """
         fun main() {

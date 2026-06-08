@@ -75,6 +75,7 @@ final class IntegerNarrowingPass: LoweringPass {
         let interner = ctx.interner
         let arena = module.arena
         let narrowCallee = interner.intern("kk_int_narrow")
+        let unarrowCallee = interner.intern("kk_uint_narrow")
         let narrowingIDs = Set(Self.narrowingCalleeNames.map { interner.intern($0) })
         let intShiftRenameIDs: [InternedString: InternedString] = Dictionary(
             uniqueKeysWithValues: Self.intShiftRenameNames.map { (interner.intern($0.key), interner.intern($0.value)) }
@@ -136,6 +137,22 @@ final class IntegerNarrowingPass: LoweringPass {
                     ))
                     newBody.append(.call(
                         symbol: nil, callee: narrowCallee, arguments: [rawResult], result: result,
+                        canThrow: false, thrownResult: nil
+                    ))
+                    continue
+                }
+
+                // UInt results: mask to 32 bits via kk_uint_narrow (zero-extend low 32 bits).
+                if narrowingIDs.contains(callee), let result, resultKind == .uint {
+                    let resultType = arena.exprType(result) ?? types.uintType
+                    let rawResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
+                    newBody.append(.call(
+                        symbol: symbol, callee: callee, arguments: arguments, result: rawResult,
+                        canThrow: canThrow, thrownResult: thrownResult,
+                        isSuperCall: isSuperCall, qualifiedSuperType: qualifiedSuperType
+                    ))
+                    newBody.append(.call(
+                        symbol: nil, callee: unarrowCallee, arguments: [rawResult], result: result,
                         canThrow: false, thrownResult: nil
                     ))
                     continue
