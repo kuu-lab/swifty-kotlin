@@ -39,6 +39,14 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ),
+           // Only allow the early-return for kinds that map cleanly to their own
+           // surface-spec entries (.list, .map, .sequence).  .set, .collection,
+           // and .iterable all map to .list inside stdlibSurfaceOwnerKind, so
+           // collectionRuntimeLinkName would return a *List* runtime function for
+           // those receivers when hofArity==1 (SOURCE count), bypassing the
+           // isSetLikeType block and the CollectionLiteralLoweringPass Set-HOF
+           // rewrite that correctly routes them to kk_set_filter etc.
+           collectionKind == .list || collectionKind == .map || collectionKind == .sequence,
            let runtimeLinkName = MemberRuntimeDispatch.collectionRuntimeLinkName(for: MemberDispatchKey(
                receiverKind: collectionKind,
                memberName: memberName,
