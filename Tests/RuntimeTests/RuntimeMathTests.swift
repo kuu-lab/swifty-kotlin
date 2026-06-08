@@ -122,6 +122,8 @@ final class RuntimeMathTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
         XCTAssertEqual(kk_float_roundToLong(floatToBits(Float.infinity), nil), Int(Int64.max))
         XCTAssertEqual(kk_float_roundToLong(floatToBits(-Float.infinity), nil), Int(Int64.min))
+        let rawMin = kk_float_roundToLong(floatToBits(-Float.infinity), nil)
+        XCTAssertEqual(kk_unbox_long(rawMin), Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
         XCTAssertEqual(kk_float_roundToLong(floatToBits(-1.5), nil), -1)
         XCTAssertEqual(kk_float_roundToLong(floatToBits(-0.5), nil), 0)
         XCTAssertEqual(kk_float_roundToLong(floatToBits(0.5), nil), 1)
@@ -136,6 +138,10 @@ final class RuntimeMathTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0, "roundToLong(NaN) must throw IllegalArgumentException")
         XCTAssertEqual(kk_double_roundToLong(doubleToBits(Double.infinity), nil), Int(Int64.max))
         XCTAssertEqual(kk_double_roundToLong(doubleToBits(-Double.infinity), nil), Int(Int64.min))
+        // Int.min == runtimeNullSentinelInt: verify the raw return passes through
+        // kk_unbox_long without being misread as null (regression for Long.MIN_VALUE bug).
+        let rawMin = kk_double_roundToLong(doubleToBits(-Double.infinity), nil)
+        XCTAssertEqual(kk_unbox_long(rawMin), Int(Int64.min), "-Inf.roundToLong() must unbox to Long.MIN_VALUE")
         XCTAssertEqual(kk_double_roundToLong(doubleToBits(-1.5), nil), -1)
         XCTAssertEqual(kk_double_roundToLong(doubleToBits(-0.5), nil), 0)
         XCTAssertEqual(kk_double_roundToLong(doubleToBits(0.5), nil), 1)

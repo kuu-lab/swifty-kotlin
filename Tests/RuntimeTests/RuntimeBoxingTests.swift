@@ -85,6 +85,15 @@ final class RuntimeBoxingTests: XCTestCase {
 
     // MARK: - Multiple boxes
 
+    // MARK: - kk_unbox_long sentinel edge case
+
+    func testUnboxLongRawLongMinReturnsLongMin() {
+        // runtimeNullSentinelInt == Int64.min == Long.MIN_VALUE.
+        // Passing Long.MIN_VALUE as a raw (unboxed) intptr_t must return Long.MIN_VALUE,
+        // not 0. This is the passthrough path: Int.min is never a heap pointer.
+        XCTAssertEqual(kk_unbox_long(Int.min), Int.min)
+    }
+
     func testMultipleBoxedIntsAreIndependent() {
         let boxed1 = kk_box_int(10)
         let boxed2 = kk_box_int(20)
