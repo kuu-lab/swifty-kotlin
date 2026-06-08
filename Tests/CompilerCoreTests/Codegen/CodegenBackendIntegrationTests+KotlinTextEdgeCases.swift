@@ -2243,4 +2243,71 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    func testKotlinTextCharSequenceZipEdgeCases() throws {
+        let source = """
+        fun merge(a: String, b: CharSequence): List<String> {
+            return a.zip(b) { x, y -> "" + x + y }
+        }
+
+        fun main() {
+            // String.zip: basic count
+            println("abc".zip("xyz").size)
+
+            // Truncation at shorter string
+            println("ab".zip("xyz").size)
+            println("xyz".zip("ab").size)
+
+            // Empty source returns empty list
+            println("".zip("xyz").size)
+
+            // Transform variant
+            val joined = "abc".zip("XYZ") { a, b -> "" + a + b }
+            println(joined.size)
+            println(joined[0])
+            println(joined[2])
+
+            // CharSequence receiver
+            val cs: CharSequence = "hello"
+            println(cs.zip("hi").size)
+            val csJoined = cs.zip("HI") { a, b -> "" + a + b }
+            println(csJoined[0])
+            println(csJoined[1])
+
+            // Via helper function
+            println(merge("abc", "123")[1])
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextCharSequenceZipEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                3
+                2
+                2
+                0
+                3
+                aX
+                cZ
+                2
+                hH
+                eI
+                b2
+                """
+                + "\n"
+            )
+        }
+    }
 }
