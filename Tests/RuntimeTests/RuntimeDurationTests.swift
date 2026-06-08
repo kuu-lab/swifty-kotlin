@@ -999,4 +999,47 @@ final class RuntimeDurationTests: IsolatedRuntimeXCTestCase {
         // Verify total test time is reasonable
         XCTAssertLessThan(totalTestTime, 10_000_000_000, "50 rapid measurements should complete within 10 seconds")
     }
+
+    // MARK: - Long factory: kk_duration_from_days_long (TEST-TIME-020)
+
+    func testDurationFromDaysLongNormalValues() {
+        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(5)), 5)
+        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(0)), 0)
+        XCTAssertEqual(kk_duration_inWholeDays(kk_duration_from_days_long(-3)), -3)
+    }
+
+    // MARK: - Long factory: kk_duration_from_hours_long (TEST-TIME-020)
+
+    func testDurationFromHoursLongNormalValues() {
+        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(5)), 5)
+        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(0)), 0)
+        XCTAssertEqual(kk_duration_inWholeHours(kk_duration_from_hours_long(-2)), -2)
+    }
+
+    // MARK: - Long factory: kk_duration_from_minutes_long (TEST-TIME-020)
+
+    func testDurationFromMinutesLongNormalValues() {
+        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(5)), 5)
+        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(0)), 0)
+        XCTAssertEqual(kk_duration_inWholeMinutes(kk_duration_from_minutes_long(-10)), -10)
+    }
+
+    // MARK: - Long factory: kk_duration_from_microseconds_long (TEST-TIME-020)
+
+    func testDurationFromMicrosecondsLongNormalValues() {
+        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(5)), 5)
+        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(0)), 0)
+        XCTAssertEqual(kk_duration_inWholeMicroseconds(kk_duration_from_microseconds_long(-100)), -100)
+    }
+
+    // MARK: - Long.MAX_VALUE saturation (TEST-TIME-020)
+
+    func testDurationLongMaxValueSaturatesToInfinite() {
+        // Long.MAX_VALUE = Int64.max; all factories with a multiplier > 1 overflow to INFINITE
+        let longMax = Int(Int64.max)
+        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_days_long(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_hours_long(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_minutes_long(longMax)), 1)
+        XCTAssertEqual(kk_duration_isInfinite(kk_duration_from_microseconds_long(longMax)), 1)
+    }
 }
