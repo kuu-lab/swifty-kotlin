@@ -70,7 +70,7 @@
 - [ ] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
 
 - [ ] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
-- [ ] STDLIB-IO-PROP-004: `isRooted` 拡張プロパティの実装
+- [x] STDLIB-IO-PROP-004: `isRooted` 拡張プロパティの実装
 
 #### kotlin.io 関数の実装
 - [ ] STDLIB-IO-FN-001: `appendBytes` 関数の実装
