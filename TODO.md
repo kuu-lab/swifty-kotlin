@@ -74,7 +74,7 @@
 - [ ] STDLIB-IO-TYPE-004: `FileTreeWalk` クラスの実装
 
 #### kotlin.io プロパティの実装
-- [ ] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
+- [x] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
 
 #### kotlin.io プロパティの実装
 - [x] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
