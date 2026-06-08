@@ -161,7 +161,7 @@
 - [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
-- [ ] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
+- [x] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
