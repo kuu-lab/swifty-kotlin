@@ -283,6 +283,22 @@ extension CollectionLiteralLoweringPass {
                 ))
                 return true
             }
+
+            // sortedBy: (walkRaw, fnPtr) → inject closureRaw → result is List<File>
+            if callee == lookup.kkFileTreeWalkSortedByName {
+                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                loweredBody.append(.call(
+                    symbol: symbol,
+                    callee: callee,
+                    arguments: arguments + [zeroExpr],
+                    result: result,
+                    canThrow: canThrow,
+                    thrownResult: thrownResult
+                ))
+                if let result { state.listExprIDs.insert(result.rawValue) }
+                return true
+            }
         }
 
         // --- Append closureRaw argument for File lambda-accepting methods (STDLIB-322) ---
