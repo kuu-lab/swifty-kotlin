@@ -227,6 +227,25 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(output, "")
     }
 
+    func testStringStructLengthDoesNotAcceptLegacyRawStringBox() {
+        var bytes = Array("hello".utf8)
+        bytes.withUnsafeMutableBufferPointer { buffer in
+            var stringStruct = KSwiftStringStruct(
+                data: buffer.baseAddress!,
+                length: 5,
+                byteCount: buffer.count,
+                hash: nil
+            )
+            let structLength = withUnsafeMutablePointer(to: &stringStruct) { pointer in
+                kk_string_struct_get_length(Int(bitPattern: pointer))
+            }
+            XCTAssertEqual(structLength, 5)
+        }
+
+        // Legacy RuntimeStringBox handles are not valid aggregate String struct handles.
+        XCTAssertEqual(kk_string_struct_get_length(rawFromRuntimeString("hello")), 0)
+    }
+
     // MARK: - kk_string_concat
 
     func testStringConcatTwoStrings() {

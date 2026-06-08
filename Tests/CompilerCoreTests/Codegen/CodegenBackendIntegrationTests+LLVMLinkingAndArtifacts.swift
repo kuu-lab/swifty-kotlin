@@ -34,6 +34,35 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendLowersStringLengthToAggregateFieldExtract() throws {
+        let source = """
+        fun lengthOf(value: String): Int {
+            return value.length
+        }
+
+        fun main() {
+            println(lengthOf("hello"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringLengthIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertTrue(ir.contains("extractvalue"), "String.length should read the aggregate length field")
+            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+        }
+    }
+
     func testLLVMBackendEmitsRuntimeStringAndCoroutineHelpersInLLVMIR() throws {
         let interner = StringInterner()
         let types = TypeSystem()

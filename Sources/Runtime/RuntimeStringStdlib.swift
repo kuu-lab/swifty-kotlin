@@ -7160,8 +7160,8 @@ public func kk_string_struct_get_length(_ structRaw: Int) -> Int {
         let isObjectPointer = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: rawPointer))
         }
-        if isObjectPointer, let box = tryCast(rawPointer, to: RuntimeStringBox.self) {
-            return box.value.count
+        if isObjectPointer {
+            return 0
         }
     }
     guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
