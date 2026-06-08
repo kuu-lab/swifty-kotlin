@@ -48,6 +48,7 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_for_lowered",
             "kk_int",
             "kk_int_narrow",
+            "kk_uint_narrow",
             "kk_lambda_invoke",
             "kk_long",
             "kk_op_add",
