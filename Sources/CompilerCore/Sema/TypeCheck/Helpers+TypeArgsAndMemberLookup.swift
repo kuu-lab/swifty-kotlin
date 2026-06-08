@@ -408,6 +408,7 @@ extension TypeCheckHelpers {
             let primitiveExtensionPackages: [[InternedString]] = [
                 [interner.intern("kotlin")],
                 [interner.intern("kotlin"), interner.intern("ranges")],
+                [interner.intern("kotlin"), interner.intern("text")],
             ]
             for packageFQName in primitiveExtensionPackages {
                 guard let packageSymbol = sema.symbols.lookup(fqName: packageFQName) else {

@@ -1,0 +1,13 @@
+symbol s0 kind=function fq=kotlin.text.compareTo vis=public flags=synthetic sig=recv=Char params=[Char] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s1 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=charCompareToDemo vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3 kind=local fq=__local_0.result vis=private flags=_ type=Int
+file f0 package=_
+  decl d0 fun charCompareToDemo suspend=0 inline=0 sym=s2
+expr e0 char(90) type=Char
+expr e1 char(65) type=Char
+expr e2 memberCall recv=e0 callee=compareTo args=[_:e1] type=Int call=s0 map=[0->0] targs=[]
+expr e3 localDecl result mutable=0 type=_ init=e2 type=Unit ref=s3
+expr e4 name(println) type=_
+expr e5 name(result) type=Int ref=s3
+expr e6 call callee=e4 args=[_:e5] type=Unit call=s1 map=[0->0] targs=[]

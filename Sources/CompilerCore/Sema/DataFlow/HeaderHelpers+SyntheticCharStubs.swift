@@ -402,6 +402,19 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // PARITY-CODEGEN-005: Char.compareTo(Char)
+        registerSyntheticCharExtensionFunction(
+            named: "compareTo",
+            externalLinkName: "kk_char_compareTo",
+            receiverType: types.charType,
+            parameters: [
+                ("other", types.charType, false, false),
+            ],
+            returnType: types.intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
         registerDigitToIntRadixStub(symbols: symbols, types: types, interner: interner)
         registerNativeCharCompanionHelpers(symbols: symbols, types: types, interner: interner)

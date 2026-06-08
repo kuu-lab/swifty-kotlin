@@ -244,6 +244,14 @@ public func kk_char_minus(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     return lhs - rhs
 }
 
+/// operator fun Char.compareTo(other: Char): Int
+@_cdecl("kk_char_compareTo")
+public func kk_char_compareTo(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
+    let lhs = kk_unbox_char(lhsRaw)
+    let rhs = kk_unbox_char(rhsRaw)
+    return lhs - rhs
+}
+
 // New numeric conversion functions
 @_cdecl("kk_char_toInt")
 public func kk_char_toInt(_ value: Int) -> Int {

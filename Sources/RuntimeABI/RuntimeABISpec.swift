@@ -2342,6 +2342,15 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Char"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_char_compareTo",
+            parameters: [
+                RuntimeABIParameter(name: "lhsRaw", type: .intptr),
+                RuntimeABIParameter(name: "rhsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Char"
+        ),
     ]
 
     /// Regex (STDLIB-100/101/102/103)
