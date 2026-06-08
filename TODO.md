@@ -39,7 +39,7 @@
 
 ### Phase 1: プリミティブ・演算子・配列・String コア
 - [ ] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
-- [ ] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
+- [x] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
 
 ### Phase 2: コレクション・Sequence・Range
 - [~] STDLIB-022: range / progression / unsigned range の網羅性を上げる（LongRange `firstOrNull` / `lastOrNull` runtime 済み）
@@ -67,13 +67,30 @@
 - [x] STDLIB-IO-TYPE-004: `FileTreeWalk` クラスの実装
 
 #### kotlin.io プロパティの実装
-- [ ] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
+- [x] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
 
+#### kotlin.io プロパティの実装
+- [x] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
 - [ ] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
+- [ ] STDLIB-IO-TYPE-007: `OnErrorAction` enum の実装
+- [x] STDLIB-IO-PROP-003: `invariantSeparatorsPath` 拡張プロパティの実装
 - [x] STDLIB-IO-PROP-004: `isRooted` 拡張プロパティの実装
 
 #### kotlin.io 関数の実装
 - [x] STDLIB-IO-FN-001: `appendBytes` 関数の実装
+- [x] STDLIB-IO-FN-009: `bufferedWriter` 関数の実装（OutputStream版）
+- [x] STDLIB-IO-FN-010: `bufferedWriter` 関数の実装（File版）
+- [x] STDLIB-IO-FN-011: `byteInputStream` 関数の実装
+- [x] STDLIB-IO-FN-012: `copyRecursively` 関数の実装
+- [x] STDLIB-IO-FN-007: `bufferedReader` 関数の実装（InputStream版）
+- [x] STDLIB-IO-FN-014: `copyTo` 関数の実装（Reader版）
+- [x] STDLIB-IO-FN-016: `forEachBlock` 関数の実装
+- [x] STDLIB-IO-FN-020: `inputStream` 関数の実装（ByteArray版）
+- [x] STDLIB-IO-FN-017: `forEachLine` 関数の実装（Reader版）
+- [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [x] STDLIB-IO-FN-024: `normalize` 関数の実装
+- [x] STDLIB-IO-FN-029: `readBytes` 関数の実装（InputStream版）
+- [x] STDLIB-IO-FN-033: `readText` 関数の実装（Reader版）
 - [ ] STDLIB-IO-FN-009: `bufferedWriter` 関数の実装（OutputStream版）
 - [ ] STDLIB-IO-FN-010: `bufferedWriter` 関数の実装（File版）
 - [ ] STDLIB-IO-FN-011: `byteInputStream` 関数の実装
@@ -88,14 +105,14 @@
 - [ ] STDLIB-IO-FN-029: `readBytes` 関数の実装（InputStream版）
 - [ ] STDLIB-IO-FN-033: `readText` 関数の実装（Reader版）
 - [ ] STDLIB-IO-FN-030: `readBytes` 関数の実装（URL版）
-- [ ] STDLIB-IO-FN-038: `toRelativeString` 関数の実装
+- [x] STDLIB-IO-FN-038: `toRelativeString` 関数の実装
 
 #### kotlin.io.encoding 型の実装
 
 #### kotlin.io.path プロパティの実装
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-FN-040: `useLines` 関数の実装（Reader版）
+- [x] STDLIB-IO-FN-040: `useLines` 関数の実装（Reader版）
 
 - [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
@@ -159,7 +176,7 @@
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [ ] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
-- [ ] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
+- [x] STDLIB-TEXT-FN-009: `capitalize` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-014: `encodeToByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
@@ -234,25 +251,25 @@
 - [ ] STDLIB-TEXT-FN-116: `zip` 関数の実装
 
 #### kotlin.time 型の実装
-- [ ] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
+- [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
 - [ ] STDLIB-TIME-TYPE-007: `ExperimentalTime` アノテーションの実装
 - [ ] STDLIB-TIME-TYPE-009: `TestTimeSource` クラスの実装
-- [ ] STDLIB-TIME-TYPE-010: `TimedValue` クラスの実装
-- [ ] STDLIB-TIME-TYPE-012: `TimeSource` インターフェースの実装
+- [x] STDLIB-TIME-TYPE-010: `TimedValue` クラスの実装
+- [x] STDLIB-TIME-TYPE-012: `TimeSource` インターフェースの実装
 
 #### kotlin.time プロパティの実装
-- [ ] STDLIB-TIME-PROP-001: `isDistantFuture` 拡張プロパティの実装
+- [x] STDLIB-TIME-PROP-001: `isDistantFuture` 拡張プロパティの実装
 
 #### kotlin.time 関数の実装
-- [ ] STDLIB-TIME-FN-002: `measureTime` 関数の実装
-- [ ] STDLIB-TIME-FN-001: `asClock` 関数の実装
-- [ ] STDLIB-TIME-FN-004: `times` 関数の実装
-- [ ] STDLIB-TIME-FN-005: `toDuration` 関数の実装
+- [x] STDLIB-TIME-FN-002: `measureTime` 関数の実装
+- [x] STDLIB-TIME-FN-001: `asClock` 関数の実装
+- [x] STDLIB-TIME-FN-004: `times` 関数の実装
+- [x] STDLIB-TIME-FN-005: `toDuration` 関数の実装
 - [ ] STDLIB-TIME-FN-006: `toDurationUnit` 関数の実装
-- [ ] STDLIB-TIME-FN-008: `toJavaInstant` 関数の実装
-- [ ] STDLIB-TIME-FN-007: `toJavaDuration` 関数の実装
-- [ ] STDLIB-TIME-FN-009: `toJSDate` 関数の実装
-- [ ] STDLIB-TIME-FN-010: `toKotlinDuration` 関数の実装
+- [x] STDLIB-TIME-FN-008: `toJavaInstant` 関数の実装
+- [x] STDLIB-TIME-FN-007: `toJavaDuration` 関数の実装
+- [x] STDLIB-TIME-FN-009: `toJSDate` 関数の実装
+- [x] STDLIB-TIME-FN-010: `toKotlinDuration` 関数の実装
 - [ ] STDLIB-TIME-FN-012: `toTimeUnit` 関数の実装
 
 #### kotlin.uuid 型の実装
@@ -367,8 +384,8 @@
 - [ ] TEST-RANGE-015: `kotlin.ranges` の IntRange/LongRange 受信者の HOF 実行テストを追加する。`forEach` / `drop` / `take` / `sorted` / `average` / `mapIndexed` / `mapNotNull` / `filterIndexed` / `findLast` / `reduceIndexed` / `first`(predicate版) / `last`(predicate版) は実装ありだが実行レベルのテストが無い（`KotlinCompilationBasicTests` は KIR コンパイルのみで実行せず、`forEach`/`drop`/`take`/`sorted`/`average` は KIR すら未通過）。`RuntimeRangeHOFTests` の直接 `kk_range_*` 呼び出しか Codegen 統合（`.kt` 実行）で。カバー対象: 空 range・単一要素・降順 progression（step 負）・`average` の整数→Double 変換。IntRange の `mapIndexed` は直接ギャップ（UInt/ULong 版は既存）
 - [ ] TEST-COMP-011: `kotlin.comparisons` の Comparator 合成を補強する。`naturalOrder` / `reverseOrder` のトランポリンに `runtimeNullSentinelInt` を渡したときの挙動、`compareBy` で全キー等値のとき `0` を返すこと、参照型オブジェクトの厳密な安定ソート（同値要素の原順序保持をインデックスベースで検証）。既存 `RuntimeComparatorTests.swift` は充実しているため上記の隙間に限定する
 - [ ] TEST-COL-013: `kotlin.collections` の `Map` 高階関数 `getOrDefault` / `flatMap` / `mapNotNull` / `maxByOrNull` / `minByOrNull` の Codegen 統合テストを追加する（`RuntimeSetAndMap.swift` 等に実装ありだが実行テストなし）。カバー対象: 空 Map・キー不在時の `getOrDefault` デフォルト返却・全エントリ変換・`maxByOrNull`/`minByOrNull` の空 Map で `null`
-- [ ] TEST-TIME-020: `kotlin.time` の Duration Long 受信ファクトリの実行テストを追加する。`from_days_long`（`5L.days`）/ `from_hours_long`（`5L.hours`）/ `from_minutes_long`（`5L.minutes`）/ `from_microseconds_long`（`5L.microseconds`）は実装ありだが実行テストなし。**注意**: `from_seconds_long` / `from_milliseconds_long` / `from_nanoseconds_long` は `CodegenBackendIntegrationTests+StableDurationEdgeCases.testDurationStableUnitExtensionPropertiesLong` でカバー済みのため対象外。カバー対象: 正常変換・`Long.MAX_VALUE` のオーバーフロー飽和（INFINITE）・負値・ゼロ
-- [ ] TEST-TIME-021: `kotlin.time` の Instant 変換の実行テストを追加する。`from_epoch_seconds`（`Instant.fromEpochSeconds(...)`）/ `to_epoch_millis`（`instant.toEpochMilliseconds()`）/ `to_foundation_date`（Foundation Date 変換）は `RuntimeTime.swift` に実装ありだが実行テストなし（`RuntimeInstantTests` は `from_epoch_millis`/`compare`/`elapsed`/`until` 等の別関数のみ）。カバー対象: epoch 往復・負の epoch（1970以前）・秒未満ナノ秒の保持・`fromEpochSeconds` の nanosecondAdjustment 引数
+- [x] TEST-TIME-020: `kotlin.time` の Duration Long 受信ファクトリの実行テストを追加する。`from_days_long`（`5L.days`）/ `from_hours_long`（`5L.hours`）/ `from_minutes_long`（`5L.minutes`）/ `from_microseconds_long`（`5L.microseconds`）は実装ありだが実行テストなし。**注意**: `from_seconds_long` / `from_milliseconds_long` / `from_nanoseconds_long` は `CodegenBackendIntegrationTests+StableDurationEdgeCases.testDurationStableUnitExtensionPropertiesLong` でカバー済みのため対象外。カバー対象: 正常変換・`Long.MAX_VALUE` のオーバーフロー飽和（INFINITE）・負値・ゼロ
+- [x] TEST-TIME-021: `kotlin.time` の Instant 変換の実行テストを追加する。`from_epoch_seconds`（`Instant.fromEpochSeconds(...)`）/ `to_epoch_millis`（`instant.toEpochMilliseconds()`）/ `to_foundation_date`（Foundation Date 変換）は `RuntimeTime.swift` に実装ありだが実行テストなし（`RuntimeInstantTests` は `from_epoch_millis`/`compare`/`elapsed`/`until` 等の別関数のみ）。カバー対象: epoch 往復・負の epoch（1970以前）・秒未満ナノ秒の保持・`fromEpochSeconds` の nanosecondAdjustment 引数
 - [ ] TEST-MATH-022: `kotlin.math` の `pow` IEEE 特殊ケースの実行テストを追加する。`pow(負, 非整数)`=NaN / `pow(0.0, 負)`=+Inf / `pow(-0.0, 負の奇数整数)`=-Inf / `pow(-1.0, ±Inf)`=1.0 / `pow(+Inf, 負)`=+0.0 が未テスト（`RuntimeMathEdgeCaseTests` は `Inf^-1`/`NaN^0`/`1^NaN` のみで負底・分数指数の特殊表が欠落）。Double/Float/Int 各 overload（`kk_math_pow`/`pow_float`/`pow_int`/`pow_float_int`）でカバー
 - [ ] TEST-MATH-023: `kotlin.math` の 2引数 `log(x, base)` と `log2`/`log10` のドメイン端の実行テストを追加する。`log(x, base)` の `base≤0`/`base==1`→NaN、`x<0`→NaN、`x=0`→-Inf、`x`/`base` が `+Inf` の組合せ。`log2`/`log10` の `0`→-Inf・`負`→NaN・`+Inf`→+Inf（既存は `1→0` と NaN のみ）
 - [ ] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある

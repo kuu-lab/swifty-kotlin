@@ -1,0 +1,38 @@
+symbol s0 kind=class fq=kotlin.Array vis=public flags=synthetic
+symbol s1 kind=function fq=aggregate vis=public flags=_ sig=recv=_ params=[Class#0<Int>] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=valueParameter fq=aggregate.$0.numbers vis=private flags=_
+symbol s3 kind=local fq=__local_0.sum vis=private flags=_ type=Int
+symbol s4 kind=local fq=__local_1.count vis=private flags=_ type=Int
+symbol s5 kind=local fq=__local_2.none vis=private flags=_ type=Boolean
+file f0 package=_
+  decl d0 fun aggregate suspend=0 inline=0 sym=s1
+expr e0 name(numbers) type=Class#0<Int> ref=s2
+expr e1 name(a) type=_
+expr e2 name(b) type=_
+expr e3 binary(add) lhs=e1 rhs=e2 type=_
+expr e4 name(a) type=Int ref=s-0
+expr e5 name(b) type=Int ref=s-1
+expr e6 binary(add) lhs=e4 rhs=e5 type=Int
+expr e7 lambda params=[a,b] body=e6 label=reduce type=(Int, Int) -> Int
+expr e8 memberCall recv=e0 callee=reduce args=[_:e7] type=Int
+expr e9 localDecl sum mutable=0 type=_ init=e8 type=Unit ref=s3
+expr e10 name(numbers) type=Class#0<Int> ref=s2
+expr e11 name(it) type=_
+expr e12 int(0) type=_
+expr e13 binary(greaterThan) lhs=e11 rhs=e12 type=_
+expr e14 name(it) type=Int ref=s-2
+expr e15 int(0) type=Int
+expr e16 binary(greaterThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 lambda params=[] body=e16 label=count type=(Int) -> Boolean
+expr e18 memberCall recv=e10 callee=count args=[_:e17] type=Int
+expr e19 localDecl count mutable=0 type=_ init=e18 type=Unit ref=s4
+expr e20 name(numbers) type=Class#0<Int> ref=s2
+expr e21 name(it) type=_
+expr e22 int(0) type=_
+expr e23 binary(lessThan) lhs=e21 rhs=e22 type=_
+expr e24 name(it) type=Int ref=s-3
+expr e25 int(0) type=Int
+expr e26 binary(lessThan) lhs=e24 rhs=e25 type=Boolean
+expr e27 lambda params=[] body=e26 label=none type=(Int) -> Boolean
+expr e28 memberCall recv=e20 callee=none args=[_:e27] type=Boolean
+expr e29 localDecl none mutable=0 type=_ init=e28 type=Unit ref=s5

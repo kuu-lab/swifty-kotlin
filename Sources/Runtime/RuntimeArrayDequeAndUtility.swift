@@ -184,18 +184,26 @@ public func kk_array_copyOf_newSize_init(
 }
 
 @_cdecl("kk_array_copyOfRange")
-public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: Int) -> Int {
+public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOfRange")
     }
-    // Kotlin semantics: validate boundaries
     let size = array.elements.count
-    let from = max(0, min(fromIndex, size))
-    let to = max(from, min(toIndex, size))
-    let count = to - from
+    guard fromIndex <= toIndex else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "fromIndex (\(fromIndex)) > toIndex (\(toIndex)).")
+        return 0
+    }
+    guard fromIndex >= 0, toIndex <= size else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "Array index out of bounds: fromIndex=\(fromIndex), toIndex=\(toIndex), size=\(size).")
+        return 0
+    }
+    let count = toIndex - fromIndex
     let box = RuntimeArrayBox(length: count)
     for i in 0 ..< count {
-        box.elements[i] = array.elements[from + i]
+        box.elements[i] = array.elements[fromIndex + i]
     }
     return registerRuntimeObject(box)
 }

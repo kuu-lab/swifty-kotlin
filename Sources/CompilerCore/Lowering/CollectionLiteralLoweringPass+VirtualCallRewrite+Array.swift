@@ -176,8 +176,8 @@ extension CollectionLiteralLoweringPass {
                 callee: lookup.kkArrayCopyOfRangeName,
                 arguments: [receiver] + arguments,
                 result: copyResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: origThrownResult
             ))
             if let result {
                 arrayExprIDs.insert(result.rawValue)
@@ -211,6 +211,60 @@ extension CollectionLiteralLoweringPass {
                 thrownResult: nil
             ))
             if let result { sequenceExprIDs.insert(result.rawValue) }
+            return true
+        }
+
+        // reduce/reduceOrNull/reduceIndexed on array (STDLIB-GAP-PH1)
+        if callee == lookup.reduceName || callee == lookup.reduceOrNullName || callee == lookup.reduceIndexedName,
+           arguments.count == 1
+        {
+            let kkName: InternedString = if callee == lookup.reduceName {
+                lookup.kkArrayReduceName
+            } else if callee == lookup.reduceOrNullName {
+                lookup.kkArrayReduceOrNullName
+            } else {
+                lookup.kkArrayReduceIndexedName
+            }
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: kkName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+
+        // fold/foldIndexed on array (STDLIB-GAP-PH1)
+        if callee == lookup.foldName || callee == lookup.foldIndexedName, arguments.count == 2 {
+            let kkName: InternedString = callee == lookup.foldName
+                ? lookup.kkArrayFoldName : lookup.kkArrayFoldIndexedName
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            _ = emitHOFCall(
+                kkName: kkName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            return true
+        }
+
+        // flatMap on array → kk_array_flatMap (result is List) (STDLIB-GAP-PH1)
+        if callee == lookup.flatMapName, arguments.count == 1 {
+            let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
+            loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+            let hofResult = emitHOFCall(
+                kkName: lookup.kkArrayFlatMapName, receiver: receiver, arguments: arguments + [zeroExpr],
+                result: result, origCanThrow: origCanThrow,
+                origThrownResult: origThrownResult, module: module,
+                loweredBody: &loweredBody
+            )
+            if let result {
+                listExprIDs.insert(result.rawValue)
+                listExprIDs.insert(hofResult.rawValue)
+            }
             return true
         }
 

@@ -2607,6 +2607,18 @@ extension CallLowerer {
                     "kk_iterable_firstNotNullOf"
                 case "firstNotNullOfOrNull":
                     "kk_iterable_firstNotNullOfOrNull"
+                case "reduce":
+                    "kk_array_reduce"
+                case "reduceOrNull":
+                    "kk_array_reduceOrNull"
+                case "reduceIndexed":
+                    "kk_array_reduceIndexed"
+                case "fold":
+                    "kk_array_fold"
+                case "foldIndexed":
+                    "kk_array_foldIndexed"
+                case "flatMap":
+                    "kk_array_flatMap"
                 default:
                     nil
                 }
@@ -2615,6 +2627,12 @@ extension CallLowerer {
                         || runtimeCallee == "kk_list_zipWithNextTransform"
                         || runtimeCallee == "kk_iterable_firstNotNullOf"
                         || runtimeCallee == "kk_iterable_firstNotNullOfOrNull"
+                        || runtimeCallee == "kk_array_reduce"
+                        || runtimeCallee == "kk_array_reduceOrNull"
+                        || runtimeCallee == "kk_array_reduceIndexed"
+                        || runtimeCallee == "kk_array_fold"
+                        || runtimeCallee == "kk_array_foldIndexed"
+                        || runtimeCallee == "kk_array_flatMap"
                     let thrownResult = canThrow
                         ? arena.appendExpr(
                             .temporary(Int32(arena.expressions.count)),
@@ -3361,8 +3379,11 @@ extension CallLowerer {
                         callee: interner.intern("kk_array_copyOfRange"),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: true,
+                        thrownResult: arena.appendExpr(
+                            .temporary(Int32(arena.expressions.count)),
+                            type: sema.types.nullableAnyType
+                        )
                     ))
                     return result
                 }

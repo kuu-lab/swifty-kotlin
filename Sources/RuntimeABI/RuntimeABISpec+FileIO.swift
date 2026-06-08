@@ -231,7 +231,16 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_on_enter",
+            name: "kk_file_tree_walk_create",
+            parameters: [
+                RuntimeABIParameter(name: "fileRaw", type: .intptr),
+                RuntimeABIParameter(name: "directionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_filter",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -241,7 +250,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_on_leave",
+            name: "kk_file_tree_walk_onEnter",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -251,7 +260,7 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_on_fail",
+            name: "kk_file_tree_walk_onLeave",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -261,7 +270,17 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_for_each",
+            name: "kk_file_tree_walk_onFail",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_forEach",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

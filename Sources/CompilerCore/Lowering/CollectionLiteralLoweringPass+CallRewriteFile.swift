@@ -248,8 +248,9 @@ extension CollectionLiteralLoweringPass {
                 return false
             }
 
-            // onEnter / onLeave / onFail: (walkRaw, fnPtr) → inject closureRaw → track result
-            if callee == lookup.kkFileTreeWalkOnEnterName
+            // filter / onEnter / onLeave / onFail: (walkRaw, fnPtr) → inject closureRaw → track result
+            if callee == lookup.kkFileTreeWalkFilterName
+                || callee == lookup.kkFileTreeWalkOnEnterName
                 || callee == lookup.kkFileTreeWalkOnLeaveName
                 || callee == lookup.kkFileTreeWalkOnFailName
             {

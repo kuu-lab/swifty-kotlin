@@ -1,4 +1,3 @@
-
 /// Synthetic stub for kotlin.io.FileTreeWalk (STDLIB-IO-TYPE-004).
 ///
 /// `FileTreeWalk` is a Kotlin stdlib class in the `kotlin.io` package that
@@ -10,7 +9,8 @@
 /// This stub registers the class and its key members in the symbol table so
 /// that name resolution and type checking succeed for code that calls
 /// `walkTopDown()`, `walkBottomUp()`, `walk(direction)`, and chains
-/// `.maxDepth()` or `.toList()` on the result.
+/// `.maxDepth()`, `.filter()`, `.onEnter()`, `.onLeave()`, `.onFail()`,
+/// `.toList()`, or `.forEach()` on the result.
 ///
 /// Registration runs after `registerSyntheticFileWalkDirectionStubs` (which
 /// ensures `FileWalkDirection` exists) and after `registerSyntheticFileIOStubs`
@@ -66,6 +66,33 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(fileTreeWalkType, for: fileTreeWalkSymbol)
 
+        // Lambda types used by builder callbacks
+        let fileToBoolType = types.make(.functionType(FunctionType(
+            params: [fileType],
+            returnType: types.booleanType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let fileToUnitType = types.make(.functionType(FunctionType(
+            params: [fileType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
+        let throwableType: TypeID = if let throwableSym = symbols.lookup(fqName: throwableFQName) {
+            types.make(.classType(ClassType(classSymbol: throwableSym, args: [], nullability: .nonNull)))
+        } else {
+            types.anyType
+        }
+        let fileAndThrowableToUnitType = types.make(.functionType(FunctionType(
+            params: [fileType, throwableType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
         // FileTreeWalk.toList(): List<File>
         registerFileMemberFunction(
             named: "toList",
@@ -90,70 +117,61 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Lambda types for callback builder methods
-        let fileToBoolean = types.make(.functionType(FunctionType(
-            params: [fileType],
-            returnType: types.booleanType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let fileToUnit = types.make(.functionType(FunctionType(
-            params: [fileType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        // IOException represented as Any; Lowering threads the opaque exception handle through.
-        let fileAnyToUnit = types.make(.functionType(FunctionType(
-            params: [fileType, types.anyType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
+        // FileTreeWalk.filter((File) -> Boolean): FileTreeWalk
+        registerFileMemberFunction(
+            named: "filter",
+            externalLinkName: "kk_file_tree_walk_filter",
+            ownerSymbol: fileTreeWalkSymbol,
+            ownerType: fileTreeWalkType,
+            parameters: [("predicate", fileToBoolType)],
+            returnType: fileTreeWalkType,
+            symbols: symbols,
+            interner: interner
+        )
 
-        // FileTreeWalk.onEnter(function: (File) -> Boolean): FileTreeWalk
+        // FileTreeWalk.onEnter((File) -> Boolean): FileTreeWalk
         registerFileMemberFunction(
             named: "onEnter",
-            externalLinkName: "kk_file_tree_walk_on_enter",
+            externalLinkName: "kk_file_tree_walk_onEnter",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
-            parameters: [("function", fileToBoolean)],
+            parameters: [("function", fileToBoolType)],
             returnType: fileTreeWalkType,
             symbols: symbols,
             interner: interner
         )
 
-        // FileTreeWalk.onLeave(function: (File) -> Unit): FileTreeWalk
+        // FileTreeWalk.onLeave((File) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onLeave",
-            externalLinkName: "kk_file_tree_walk_on_leave",
+            externalLinkName: "kk_file_tree_walk_onLeave",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
-            parameters: [("function", fileToUnit)],
+            parameters: [("function", fileToUnitType)],
             returnType: fileTreeWalkType,
             symbols: symbols,
             interner: interner
         )
 
-        // FileTreeWalk.onFail(function: (File, IOException) -> Unit): FileTreeWalk
+        // FileTreeWalk.onFail((File, Throwable) -> Unit): FileTreeWalk
         registerFileMemberFunction(
             named: "onFail",
-            externalLinkName: "kk_file_tree_walk_on_fail",
+            externalLinkName: "kk_file_tree_walk_onFail",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
-            parameters: [("function", fileAnyToUnit)],
+            parameters: [("function", fileAndThrowableToUnitType)],
             returnType: fileTreeWalkType,
             symbols: symbols,
             interner: interner
         )
 
-        // FileTreeWalk.forEach(action: (File) -> Unit): Unit
+        // FileTreeWalk.forEach((File) -> Unit): Unit
         registerFileMemberFunction(
             named: "forEach",
-            externalLinkName: "kk_file_tree_walk_for_each",
+            externalLinkName: "kk_file_tree_walk_forEach",
             ownerSymbol: fileTreeWalkSymbol,
             ownerType: fileTreeWalkType,
-            parameters: [("action", fileToUnit)],
+            parameters: [("action", fileToUnitType)],
             returnType: types.unitType,
             symbols: symbols,
             interner: interner

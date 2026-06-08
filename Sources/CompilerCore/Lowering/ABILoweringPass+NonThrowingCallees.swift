@@ -621,6 +621,7 @@ extension ABILoweringPass {
             interner.intern("kk_list_to_string"),
             interner.intern("kk_list_to_mutable_list"),
             interner.intern("kk_list_joinToString"),
+            interner.intern("kk_array_joinToString"),
             interner.intern("kk_iterable_joinTo"),
             interner.intern("kk_iterable_joinToString"),
             interner.intern("kk_list_to_set"),
@@ -655,7 +656,6 @@ extension ABILoweringPass {
             interner.intern("kk_array_copyOf"),
             interner.intern("kk_array_copyOf_newSize"),
             interner.intern("kk_chararray_concatToString"),
-            interner.intern("kk_array_copyOfRange"),
             interner.intern("kk_array_reversedArray"),
             interner.intern("kk_array_sortedArray"),
             interner.intern("kk_array_sliceArray_range"),
@@ -1077,6 +1077,8 @@ extension ABILoweringPass {
             interner.intern("kk_file_name"),
             interner.intern("kk_file_nameWithoutExtension"),
             interner.intern("kk_file_path"),
+            interner.intern("kk_file_extension"),               // STDLIB-IO-PROP-002
+            interner.intern("kk_file_invariantSeparatorsPath"), // STDLIB-IO-PROP-003
             interner.intern("kk_classloader_getSystemClassLoader"),
             interner.intern("kk_classloader_getResource"),
             interner.intern("kk_classloader_getResourceAsStream"),
@@ -1101,15 +1103,17 @@ extension ABILoweringPass {
             interner.intern("kk_file_mkdirs"),
             interner.intern("kk_file_listFiles"),
             interner.intern("kk_file_walk"),
-            // STDLIB-IO-TYPE-004: FileTreeWalk builder chain (non-throwing subset)
+            // STDLIB-IO-TYPE-004: FileTreeWalk factory and builder methods are non-throwing
             interner.intern("kk_file_walkTopDown"),
             interner.intern("kk_file_walkBottomUp"),
             interner.intern("kk_file_walk_with_direction"),
+            interner.intern("kk_file_tree_walk_create"),
             interner.intern("kk_file_tree_walk_to_list"),
             interner.intern("kk_file_tree_walk_max_depth"),
-            interner.intern("kk_file_tree_walk_on_enter"),
-            interner.intern("kk_file_tree_walk_on_leave"),
-            interner.intern("kk_file_tree_walk_on_fail"),
+            interner.intern("kk_file_tree_walk_filter"),
+            interner.intern("kk_file_tree_walk_onEnter"),
+            interner.intern("kk_file_tree_walk_onLeave"),
+            interner.intern("kk_file_tree_walk_onFail"),
             // Files utility (STDLIB-IO-090) — non-throwing subset
             interner.intern("kk_files_isRegularFile"),
             interner.intern("kk_files_isDirectory"),
@@ -1223,8 +1227,8 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_get_annotations"),
             interner.intern("kk_kclass_find_annotation"),
             interner.intern("kk_kclass_register_single_annotation"),
-            // BigInteger non-throwing operations (STDLIB-NUM-129)
-            // divide, pow, and fromString are intentionally excluded here — they
+            // BigInteger non-throwing operations (STDLIB-NUM-129, STDLIB-GAP-PH1)
+            // divide, pow, fromString, modInverse, modPow are intentionally excluded — they
             // use outThrown and are marked .throwingFunction in the sema stubs.
             interner.intern("kk_biginteger_valueOf"),
             interner.intern("kk_biginteger_add"),
@@ -1235,6 +1239,13 @@ extension ABILoweringPass {
             interner.intern("kk_biginteger_toInt"),
             interner.intern("kk_biginteger_toLong"),
             interner.intern("kk_biginteger_toString"),
+            interner.intern("kk_biginteger_and"),
+            interner.intern("kk_biginteger_or"),
+            interner.intern("kk_biginteger_xor"),
+            interner.intern("kk_biginteger_not"),
+            interner.intern("kk_biginteger_shiftLeft"),
+            interner.intern("kk_biginteger_shiftRight"),
+            interner.intern("kk_biginteger_toByteArray"),
             // Job State Queries (STDLIB-CORO-070)
             interner.intern("kk_job_is_active"),
             interner.intern("kk_job_is_completed"),

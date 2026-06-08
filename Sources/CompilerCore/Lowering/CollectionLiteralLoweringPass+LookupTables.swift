@@ -379,6 +379,12 @@ struct CollectionLiteralLookupTables {
     let kkArrayCopyOfNewSizeInitName: InternedString
     let kkArrayCopyOfRangeName: InternedString
     let kkArrayFillName: InternedString
+    let kkArrayReduceName: InternedString
+    let kkArrayReduceOrNullName: InternedString
+    let kkArrayReduceIndexedName: InternedString
+    let kkArrayFoldName: InternedString
+    let kkArrayFoldIndexedName: InternedString
+    let kkArrayFlatMapName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
 
@@ -775,6 +781,7 @@ struct CollectionLiteralLookupTables {
     let onFailName: InternedString
     let kkFileTreeWalkOnFailName: InternedString
     let kkFileTreeWalkForEachName: InternedString
+    let kkFileTreeWalkFilterName: InternedString
     let readBytesName: InternedString
     let kkFileReadBytesName: InternedString
     // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
@@ -1178,6 +1185,12 @@ struct CollectionLiteralLookupTables {
         kkArrayCopyOfNewSizeInitName = interner.intern("kk_array_copyOf_newSize_init")
         kkArrayCopyOfRangeName = interner.intern("kk_array_copyOfRange")
         kkArrayFillName = interner.intern("kk_array_fill")
+        kkArrayReduceName = interner.intern("kk_array_reduce")
+        kkArrayReduceOrNullName = interner.intern("kk_array_reduceOrNull")
+        kkArrayReduceIndexedName = interner.intern("kk_array_reduceIndexed")
+        kkArrayFoldName = interner.intern("kk_array_fold")
+        kkArrayFoldIndexedName = interner.intern("kk_array_foldIndexed")
+        kkArrayFlatMapName = interner.intern("kk_array_flatMap")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")
 
@@ -1554,12 +1567,13 @@ struct CollectionLiteralLookupTables {
         kkFileTreeWalkMaxDepthName = interner.intern("kk_file_tree_walk_max_depth")
         kkFileTreeWalkToListName = interner.intern("kk_file_tree_walk_to_list")
         onEnterName = interner.intern("onEnter")
-        kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_on_enter")
+        kkFileTreeWalkOnEnterName = interner.intern("kk_file_tree_walk_onEnter")
         onLeaveName = interner.intern("onLeave")
-        kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_on_leave")
+        kkFileTreeWalkOnLeaveName = interner.intern("kk_file_tree_walk_onLeave")
         onFailName = interner.intern("onFail")
-        kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_on_fail")
-        kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_for_each")
+        kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
+        kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")
+        kkFileTreeWalkFilterName = interner.intern("kk_file_tree_walk_filter")
         readBytesName = interner.intern("readBytes")
         kkFileReadBytesName = interner.intern("kk_file_readBytes")
         // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
