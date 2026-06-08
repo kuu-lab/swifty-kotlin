@@ -1,0 +1,31 @@
+symbol s0 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s1 kind=class fq=java.io.File vis=public flags=synthetic type=Class#1
+symbol s2 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#2
+symbol s3 kind=function fq=kotlin.io.FileTreeWalk.toList vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#0<out Class#1> suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=kotlin.io.FileTreeWalk.maxDepth vis=public flags=synthetic sig=recv=Class#2 params=[Int] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=function fq=java.io.File.walkTopDown vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#2 suspend=0 defaults=[] vararg=[]
+symbol s6 kind=function fq=java.io.File.walkBottomUp vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#2 suspend=0 defaults=[] vararg=[]
+symbol s7 kind=function fq=testWalkTopDown vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=valueParameter fq=testWalkTopDown.$0.dir vis=private flags=_
+symbol s9 kind=function fq=testWalkBottomUp vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=valueParameter fq=testWalkBottomUp.$1.dir vis=private flags=_
+symbol s11 kind=function fq=testMaxDepth vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=valueParameter fq=testMaxDepth.$2.dir vis=private flags=_
+symbol s13 kind=function fq=testToList vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#0<Class#1> suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=valueParameter fq=testToList.$3.dir vis=private flags=_
+file f0 package=_
+  decl d0 fun testWalkTopDown suspend=0 inline=0 sym=s7
+  decl d1 fun testWalkBottomUp suspend=0 inline=0 sym=s9
+  decl d2 fun testMaxDepth suspend=0 inline=0 sym=s11
+  decl d3 fun testToList suspend=0 inline=0 sym=s13
+expr e0 name(dir) type=Class#1 ref=s8
+expr e1 memberCall recv=e0 callee=walkTopDown args=[] type=Class#2 call=s5 map=[] targs=[]
+expr e2 name(dir) type=Class#1 ref=s10
+expr e3 memberCall recv=e2 callee=walkBottomUp args=[] type=Class#2 call=s6 map=[] targs=[]
+expr e4 name(dir) type=Class#1 ref=s12
+expr e5 memberCall recv=e4 callee=walkTopDown args=[] type=Class#2 call=s5 map=[] targs=[]
+expr e6 int(2) type=Int
+expr e7 memberCall recv=e5 callee=maxDepth args=[_:e6] type=Class#2 call=s4 map=[0->0] targs=[]
+expr e8 name(dir) type=Class#1 ref=s14
+expr e9 memberCall recv=e8 callee=walkTopDown args=[] type=Class#2 call=s5 map=[] targs=[]
+expr e10 memberCall recv=e9 callee=toList args=[] type=Class#0<out Class#1> call=s3 map=[] targs=[]

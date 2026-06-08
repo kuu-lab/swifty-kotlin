@@ -7,11 +7,29 @@ final class RuntimeFileBox {
     init(_ path: String) { self.path = path }
 }
 
+// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk
+
+final class RuntimeFileTreeWalkBox {
+    let root: String
+    var topDown: Bool
+    var maxDepth: Int
+    init(root: String, topDown: Bool = true) {
+        self.root = root
+        self.topDown = topDown
+        self.maxDepth = Int.max
+    }
+}
+
 final class RuntimeClassLoaderBox {}
 
 private func runtimeFileBox(from raw: Int) -> RuntimeFileBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeFileBox.self)
+}
+
+private func runtimeFileTreeWalkBox(from raw: Int) -> RuntimeFileTreeWalkBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeFileTreeWalkBox.self)
 }
 
 private func resourceRootDirectory() -> URL {
@@ -958,6 +976,93 @@ public func kk_file_walk(_ fileRaw: Int) -> Int {
     // Return as a Sequence (list of File handles)
     let listBox = RuntimeListBox(elements: files)
     return registerRuntimeObject(listBox)
+}
+
+// MARK: - STDLIB-IO-TYPE-004: kotlin.io.FileTreeWalk runtime
+
+/// Postorder (BOTTOM_UP) or preorder (TOP_DOWN) DFS traversal of the file tree
+/// rooted at `path`. Directories are traversed only when `currentDepth < maxDepth`.
+private func fileTreeWalkFiles(
+    at path: String,
+    topDown: Bool,
+    maxDepth: Int,
+    currentDepth: Int = 0
+) -> [String] {
+    var result: [String] = []
+    var isDir: ObjCBool = false
+    FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+
+    if topDown {
+        result.append(path)
+    }
+
+    if isDir.boolValue && currentDepth < maxDepth {
+        if let contents = try? FileManager.default.contentsOfDirectory(atPath: path) {
+            for entry in contents.sorted() {
+                let childPath = (path as NSString).appendingPathComponent(entry)
+                result.append(
+                    contentsOf: fileTreeWalkFiles(
+                        at: childPath,
+                        topDown: topDown,
+                        maxDepth: maxDepth,
+                        currentDepth: currentDepth + 1
+                    )
+                )
+            }
+        }
+    }
+
+    if !topDown {
+        result.append(path)
+    }
+
+    return result
+}
+
+@_cdecl("kk_file_walkTopDown")
+public func kk_file_walkTopDown(_ fileRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkTopDown received invalid File handle")
+    }
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: true))
+}
+
+@_cdecl("kk_file_walkBottomUp")
+public func kk_file_walkBottomUp(_ fileRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walkBottomUp received invalid File handle")
+    }
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: false))
+}
+
+/// `directionRaw` is the ordinal of `FileWalkDirection`: 0 = TOP_DOWN, 1 = BOTTOM_UP.
+@_cdecl("kk_file_walk_with_direction")
+public func kk_file_walk_with_direction(_ fileRaw: Int, _ directionRaw: Int) -> Int {
+    guard let file = runtimeFileBox(from: fileRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_walk_with_direction received invalid File handle")
+    }
+    let topDown = kk_unbox_int(directionRaw) != 1
+    return registerRuntimeObject(RuntimeFileTreeWalkBox(root: file.path, topDown: topDown))
+}
+
+@_cdecl("kk_file_tree_walk_to_list")
+public func kk_file_tree_walk_to_list(_ walkRaw: Int) -> Int {
+    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_to_list received invalid FileTreeWalk handle")
+    }
+    let paths = fileTreeWalkFiles(at: walk.root, topDown: walk.topDown, maxDepth: walk.maxDepth)
+    let elements = paths.map { registerRuntimeObject(RuntimeFileBox($0)) }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
+}
+
+@_cdecl("kk_file_tree_walk_max_depth")
+public func kk_file_tree_walk_max_depth(_ walkRaw: Int, _ depthRaw: Int) -> Int {
+    guard let walk = runtimeFileTreeWalkBox(from: walkRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_tree_walk_max_depth received invalid FileTreeWalk handle")
+    }
+    let newWalk = RuntimeFileTreeWalkBox(root: walk.root, topDown: walk.topDown)
+    newWalk.maxDepth = kk_unbox_int(depthRaw)
+    return registerRuntimeObject(newWalk)
 }
 
 // MARK: - STDLIB-IO-FN-015: File.copyTo(target, overwrite, bufferSize)
