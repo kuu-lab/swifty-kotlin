@@ -416,7 +416,7 @@ extension CallLowerer {
             memberName: fallbackName,
             receiverExpr: receiverExpr,
             receiverType: receiverType,
-            argumentCount: argumentCount,
+            argumentCount: callArgumentCount,
             hasHOFLambdaArg: hasHOFLambdaArg,
             sema: sema,
             interner: interner
