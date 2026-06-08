@@ -6233,16 +6233,6 @@ private func isValidBigDecimalFormat(_ s: String) -> Bool {
     return i == s.endIndex
 }
 
-@_cdecl("kk_string_toBigDecimal")
-public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
-          let str = extractString(from: ptr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigDecimal received invalid string handle")
-    }
-    return runtimeStringToBigDecimal(str, outThrown: outThrown)
-}
-
 @_cdecl("kk_string_toBigDecimal_flat")
 public func kk_string_toBigDecimal_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -6265,16 +6255,6 @@ private func runtimeStringToBigDecimal(_ str: String, outThrown: UnsafeMutablePo
     }
     let box = RuntimeBigNumberBox(value: str, kind: .decimal)
     return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_string_toBigInteger")
-public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
-          let str = extractString(from: ptr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
-    }
-    return runtimeStringToBigInteger(str, outThrown: outThrown)
 }
 
 @_cdecl("kk_string_toBigInteger_flat")

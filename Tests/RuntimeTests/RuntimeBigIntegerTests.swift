@@ -32,19 +32,6 @@ final class RuntimeBigIntegerTests: XCTestCase {
 
     func testStringToBigIntegerAcceptsSignedDigits() {
         var thrown = 0
-        let raw = kk_string_toBigInteger(runtimeString("-12345678901234567890"), &thrown)
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "-12345678901234567890")
-    }
-
-    func testStringToBigIntegerRejectsDecimalPoint() {
-        var thrown = 0
-        _ = kk_string_toBigInteger(runtimeString("12.5"), &thrown)
-        XCTAssertNotEqual(thrown, 0)
-    }
-
-    func testStringToBigIntegerFlatAcceptsSignedDigits() {
-        var thrown = 0
         let raw = withFlatString("-12345678901234567890") { data, length, byteCount, hash in
             kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
         }
@@ -52,7 +39,7 @@ final class RuntimeBigIntegerTests: XCTestCase {
         XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "-12345678901234567890")
     }
 
-    func testStringToBigIntegerFlatRejectsDecimalPoint() {
+    func testStringToBigIntegerRejectsDecimalPoint() {
         var thrown = 0
         _ = withFlatString("12.5") { data, length, byteCount, hash in
             kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
