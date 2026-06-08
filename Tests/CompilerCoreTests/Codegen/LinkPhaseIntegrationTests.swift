@@ -321,6 +321,147 @@ final class LinkPhaseIntegrationTests: XCTestCase {
         }
     }
 
+    func testStdlibSearchPathUsesRepoKotlinStringConversionSources() throws {
+        let stdlibPaths = try repoKotlinStdlibSourcePaths()
+        let stdlibBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        let stdlibCtx = makeCompilationContext(
+            inputs: stdlibPaths,
+            moduleName: "KotlinStdlib",
+            emit: .library,
+            outputPath: stdlibBase,
+            includeStdlib: false
+        )
+        try runToKIR(stdlibCtx)
+        try LoweringPhase().run(stdlibCtx)
+        try CodegenPhase().run(stdlibCtx)
+
+        let metadataPath = URL(fileURLWithPath: stdlibBase + ".kklib")
+            .appendingPathComponent("metadata.bin")
+            .path
+        let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
+        let records = MetadataDecoder().decode(metadata)
+        func sourceLinks(for fqName: String) -> Set<String> {
+            Set(records.filter { $0.kind == .function && $0.fqName == fqName }
+                .compactMap(\.externalLinkName))
+        }
+
+        for name in [
+            "toInt", "toIntOrNull", "toLong", "toLongOrNull", "toFloat", "toFloatOrNull",
+            "toDouble", "toDoubleOrNull", "toShort", "toShortOrNull", "toByte", "toByteOrNull",
+            "toUByteOrNull", "toUShortOrNull", "toUIntOrNull", "toULongOrNull",
+            "toBoolean", "toBooleanStrict", "toBooleanStrictOrNull",
+        ] {
+            let publicLinks = sourceLinks(for: "kotlin.text.\(name)")
+            XCTAssertFalse(publicLinks.isEmpty, "Expected source stdlib to export kotlin.text.\(name)")
+            XCTAssertTrue(
+                publicLinks.allSatisfy { $0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should stay source-backed, got \(publicLinks)"
+            )
+            XCTAssertFalse(
+                publicLinks.contains { $0.hasPrefix("kk_") && !$0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should not expose the runtime bridge directly"
+            )
+        }
+
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toInt_flat"), ["kk_string_toInt_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toInt_radix_flat"), ["kk_string_toInt_radix_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toIntOrNull_flat"), ["kk_string_toIntOrNull_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toIntOrNull_radix_flat"),
+            ["kk_string_toIntOrNull_radix_flat"]
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toLong_flat"), ["kk_string_toLong_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toLongOrNull_flat"), ["kk_string_toLongOrNull_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toFloat_flat"), ["kk_string_toFloat_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toFloatOrNull_flat"),
+            ["kk_string_toFloatOrNull_flat"]
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toDouble_flat"), ["kk_string_toDouble_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toDoubleOrNull_flat"),
+            ["kk_string_toDoubleOrNull_flat"]
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toShort_flat"), ["kk_string_toShort_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toShortOrNull_flat"),
+            ["kk_string_toShortOrNull_flat"]
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toByte_flat"), ["kk_string_toByte_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toByte_radix_flat"), ["kk_string_toByte_radix_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toByteOrNull_flat"), ["kk_string_toByteOrNull_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toUByteOrNull_radix_flat"),
+            ["kk_string_toUByteOrNull_radix_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toUShortOrNull_radix_flat"),
+            ["kk_string_toUShortOrNull_radix_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toUIntOrNull_radix_flat"),
+            ["kk_string_toUIntOrNull_radix_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toULongOrNull_radix_flat"),
+            ["kk_string_toULongOrNull_radix_flat"]
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_toBoolean_flat"), ["kk_string_toBoolean_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toBooleanStrict_flat"),
+            ["kk_string_toBooleanStrict_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_toBooleanStrictOrNull_flat"),
+            ["kk_string_toBooleanStrictOrNull_flat"]
+        )
+
+        let appSource = """
+        fun main(): Int {
+            if ("42".toInt() != 42) return 1
+            if ("ff".toInt(16) != 255) return 2
+            if ("bad".toIntOrNull() != null) return 3
+            if ("42".toLong() != 42L) return 4
+            if ("3.5".toDouble().toInt() != 3) return 5
+            if ("3.5".toFloat().toInt() != 3) return 6
+            if ("127".toByte().toInt() != 127) return 7
+            if ("32767".toShort().toInt() != 32767) return 8
+            if ("200".toByteOrNull() != null) return 9
+            if ("true".toBooleanStrictOrNull() != true) return 10
+            if ("True".toBooleanStrictOrNull() != null) return 11
+            if (!"True".toBoolean()) return 12
+            return 42
+        }
+        """
+        try withTemporaryFile(contents: appSource) { appPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let appCtx = makeCompilationContext(
+                inputs: [appPath],
+                moduleName: "StdlibStringConversionApp",
+                emit: .executable,
+                outputPath: outputPath,
+                stdlibSearchPaths: [stdlibBase + ".kklib"]
+            )
+            try runToKIR(appCtx)
+            try LoweringPhase().run(appCtx)
+            try CodegenPhase().run(appCtx)
+            assertLinkSucceeds(appCtx)
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            do {
+                _ = try CommandRunner.run(executable: outputPath, arguments: [])
+                XCTFail("Expected non-zero exit")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                XCTAssertEqual(failed.exitCode, 42)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
     func testStdlibSearchPathUsesRepoKotlinPreconditionSources() throws {
         let stdlibPaths = try repoKotlinStdlibSourcePaths()
         let stdlibBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path

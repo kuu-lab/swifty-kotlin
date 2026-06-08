@@ -522,3 +522,69 @@ external fun __string_lastIndexOf_ignoreCase_flat(
     startIndex: Int,
     ignoreCase: Boolean
 ): Int
+
+@KSwiftKRuntimeName("kk_string_toInt_flat")
+external fun __string_toInt_flat(s: String): Int
+
+@KSwiftKRuntimeName("kk_string_toInt_radix_flat")
+external fun __string_toInt_radix_flat(s: String, radix: Int): Int
+
+@KSwiftKRuntimeName("kk_string_toIntOrNull_flat")
+external fun __string_toIntOrNull_flat(s: String): Int?
+
+@KSwiftKRuntimeName("kk_string_toIntOrNull_radix_flat")
+external fun __string_toIntOrNull_radix_flat(s: String, radix: Int): Int?
+
+@KSwiftKRuntimeName("kk_string_toLong_flat")
+external fun __string_toLong_flat(s: String): Long
+
+@KSwiftKRuntimeName("kk_string_toLongOrNull_flat")
+external fun __string_toLongOrNull_flat(s: String): Long?
+
+@KSwiftKRuntimeName("kk_string_toFloat_flat")
+external fun __string_toFloat_flat(s: String): Float
+
+@KSwiftKRuntimeName("kk_string_toFloatOrNull_flat")
+external fun __string_toFloatOrNull_flat(s: String): Float?
+
+@KSwiftKRuntimeName("kk_string_toDouble_flat")
+external fun __string_toDouble_flat(s: String): Double
+
+@KSwiftKRuntimeName("kk_string_toDoubleOrNull_flat")
+external fun __string_toDoubleOrNull_flat(s: String): Double?
+
+@KSwiftKRuntimeName("kk_string_toBoolean_flat")
+external fun __string_toBoolean_flat(s: String?): Boolean
+
+@KSwiftKRuntimeName("kk_string_toBooleanStrict_flat")
+external fun __string_toBooleanStrict_flat(s: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_toBooleanStrictOrNull_flat")
+external fun __string_toBooleanStrictOrNull_flat(s: String): Boolean?
+
+@KSwiftKRuntimeName("kk_string_toShort_flat")
+external fun __string_toShort_flat(s: String): Short
+
+@KSwiftKRuntimeName("kk_string_toShortOrNull_flat")
+external fun __string_toShortOrNull_flat(s: String): Short?
+
+@KSwiftKRuntimeName("kk_string_toByte_flat")
+external fun __string_toByte_flat(s: String): Byte
+
+@KSwiftKRuntimeName("kk_string_toByte_radix_flat")
+external fun __string_toByte_radix_flat(s: String, radix: Int): Byte
+
+@KSwiftKRuntimeName("kk_string_toByteOrNull_flat")
+external fun __string_toByteOrNull_flat(s: String): Byte?
+
+@KSwiftKRuntimeName("kk_string_toUByteOrNull_radix_flat")
+external fun __string_toUByteOrNull_radix_flat(s: String, radix: Int): UByte?
+
+@KSwiftKRuntimeName("kk_string_toUShortOrNull_radix_flat")
+external fun __string_toUShortOrNull_radix_flat(s: String, radix: Int): UShort?
+
+@KSwiftKRuntimeName("kk_string_toUIntOrNull_radix_flat")
+external fun __string_toUIntOrNull_radix_flat(s: String, radix: Int): UInt?
+
+@KSwiftKRuntimeName("kk_string_toULongOrNull_radix_flat")
+external fun __string_toULongOrNull_radix_flat(s: String, radix: Int): ULong?
