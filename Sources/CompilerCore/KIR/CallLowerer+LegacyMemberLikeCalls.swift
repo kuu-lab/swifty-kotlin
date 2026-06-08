@@ -1755,10 +1755,18 @@ extension CallLowerer {
                     ("kk_string_chunked", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
-                case "encodeToByteArray", "toByteArray":
+                case "encodeToByteArray":
                     if loweredArgIDs.count == 1 {
                         ("kk_string_encodeToByteArray_charset", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
+                        ("kk_string_encodeToByteArray_range", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                    }
+                case "toByteArray":
+                    if loweredArgIDs.count == 1 {
+                        // toByteArray(charset) — Sema types this as List<Int>, so use the ListBox-returning function.
+                        ("kk_string_toByteArray_charset", [loweredReceiverID, loweredArgIDs[0]])
+                    } else {
+                        // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
                         ("kk_string_encodeToByteArray_range", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     }
                 case "commonPrefixWith":
