@@ -1071,10 +1071,21 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringSplitProducesListOfStrings() {
-        let splitRaw = kk_string_split(
-            rawFromRuntimeString("1,2,3"),
-            rawFromRuntimeString(",")
-        )
+        var splitRaw = 0
+        withFlatString("1,2,3") { data, length, byteCount, hash in
+            withFlatString(",") { delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
+                splitRaw = kk_string_split_flat(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    delimiterData,
+                    delimiterLength,
+                    delimiterByteCount,
+                    delimiterHash
+                )
+            }
+        }
         let list = runtimeListBox(from: splitRaw)
         XCTAssertEqual(list?.elements.count, 3)
         XCTAssertEqual(list?.elements.map(runtimeStringValue), ["1", "2", "3"])

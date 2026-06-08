@@ -105,13 +105,13 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testStringFunctionCount() {
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.stringFunctions.count, 245)
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.stringFunctions.count, 243)
     }
 
     func testRegexFunctionCount() {
         // kk_regex_create, kk_string_matches_regex_flat, kk_string_contains_regex_flat,
         // kk_regex_find, kk_regex_findAll, kk_string_replace_regex,
-        // kk_string_split_regex, kk_string_toRegex, kk_regex_pattern,
+        // kk_string_split_regex_flat, kk_string_toRegex, kk_regex_pattern,
         // kk_match_result_value, kk_match_result_groupValues,
         // kk_regex_replace_lambda, kk_regex_matchEntire,
         // kk_regex_create_with_option, kk_regex_create_with_options,

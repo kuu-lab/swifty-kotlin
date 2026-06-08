@@ -541,7 +541,7 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_string_toRegex", arguments: [patternExpr])
         appendRegexCall("kk_regex_find", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_findAll", arguments: [regexExpr, inputExpr])
-        appendRegexCall("kk_string_split_regex", arguments: [inputExpr, regexExpr])
+        appendRegexCall("kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_regex_matchEntire", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_containsMatchIn", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_from_literal", arguments: [optionExpr, patternExpr])
@@ -583,7 +583,6 @@ extension CodegenBackendIntegrationTests {
             "kk_string_toRegex",
             "kk_regex_find",
             "kk_regex_findAll",
-            "kk_string_split_regex",
             "kk_regex_matchEntire",
             "kk_regex_containsMatchIn",
             "kk_regex_from_literal",
@@ -594,6 +593,9 @@ extension CodegenBackendIntegrationTests {
             XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw Regex String call: \(rawName)")
             XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat Regex String call: \(rawName)_flat")
         }
+
+        XCTAssertFalse(ir.contains("@kk_string_split_regex("), "Unexpected raw Regex String call: kk_string_split_regex")
+        XCTAssertTrue(ir.contains("@kk_string_split_regex_flat"), "Missing flat Regex String call: kk_string_split_regex_flat")
 
         let removedRawStringPredicateNames = ["matches", "contains"].map { "kk_string_\($0)_regex" }
         for rawName in removedRawStringPredicateNames {

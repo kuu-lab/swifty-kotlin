@@ -304,13 +304,6 @@ public func kk_string_isNormalized_flat(
     return normalized.unicodeScalars.elementsEqual(source.unicodeScalars) ? 1 : 0
 }
 
-@_cdecl("kk_string_split")
-public func kk_string_split(_ strRaw: Int, _ delimRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-    return runtimeStringSplitRaw(source, delimiter: delimiter)
-}
-
 @_cdecl("kk_string_split_flat")
 public func kk_string_split_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -340,18 +333,6 @@ private func runtimeStringSplitRaw(_ source: String, delimiter: String) -> Int {
 }
 
 // MARK: - STDLIB-TEXT-EDGE-001: CharSequence.split with ignoreCase and limit
-
-@_cdecl("kk_string_split_limit")
-public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-    return runtimeStringSplitLimitRaw(
-        source,
-        delimiter: delimiter,
-        ignoreCase: ignoreCaseRaw != 0,
-        limit: limitRaw
-    )
-}
 
 @_cdecl("kk_string_split_limit_flat")
 public func kk_string_split_limit_flat(
@@ -6220,13 +6201,6 @@ public func kk_string_dropWhile(
         dropIndex += 1
     }
     return runtimeMakeStringRaw(runtimeStringFromScalars(Array(scalars.dropFirst(dropIndex))))
-}
-
-@_cdecl("kk_string_splitToSequence")
-public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let delimiter = runtimeStringFromRawOrPanic(delimRaw, caller: #function)
-    return runtimeStringSplitToSequenceRaw(source, delimiter: delimiter)
 }
 
 @_cdecl("kk_string_splitToSequence_flat")

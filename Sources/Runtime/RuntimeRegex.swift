@@ -386,11 +386,6 @@ public func kk_string_replace_regex(_ strRaw: Int, _ regexRaw: Int, _ replacemen
     return regexMakeStringRaw(result)
 }
 
-@_cdecl("kk_string_split_regex")
-public func kk_string_split_regex(_ strRaw: Int, _ regexRaw: Int) -> Int {
-    runtimeStringSplitRegex(regexStringFromRaw(strRaw) ?? "", regexRaw)
-}
-
 @_cdecl("kk_string_split_regex_flat")
 public func kk_string_split_regex_flat(
     _ data: UnsafePointer<UInt8>?,

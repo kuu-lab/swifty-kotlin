@@ -1912,15 +1912,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_split_regex",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "regex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_split_regex_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),

@@ -1210,15 +1210,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_split",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "delimRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_split_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -1229,17 +1220,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delimiterLength", type: .intptr),
                 RuntimeABIParameter(name: "delimiterByteCount", type: .intptr),
                 RuntimeABIParameter(name: "delimiterHash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_split_limit",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "delimRaw", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-                RuntimeABIParameter(name: "limitRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -2694,15 +2674,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_splitToSequence",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "delimRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
