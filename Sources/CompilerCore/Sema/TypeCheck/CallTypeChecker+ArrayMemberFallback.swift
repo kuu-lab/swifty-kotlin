@@ -126,6 +126,14 @@ extension CallTypeChecker {
                     expectedType: sema.types.intType
                 )
             }
+            if (memberName == "fold" || memberName == "foldIndexed"), args.indices.contains(0) {
+                _ = driver.inferExpr(
+                    args[0].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: sema.types.anyType
+                )
+            }
             if let expectation = arrayMemberLambdaExpectation(
                 memberName: memberName,
                 argCount: args.count,
@@ -184,6 +192,10 @@ extension CallTypeChecker {
         let arrayMembers: Set = [
             "toList", "toMutableList",
             "map", "filter", "forEach", "any", "all", "none",
+            "find", "findLast",
+            "fold", "foldIndexed",
+            "reduce", "reduceOrNull",
+            "count",
             "copyOf", "copyOfRange", "fill",
             "size", "get", "contains", "isEmpty",
             "binarySearch",
@@ -198,8 +210,13 @@ extension CallTypeChecker {
             argCount == 0
         case "copyOf":
             (0...2).contains(argCount)
-        case "map", "filter", "forEach", "any", "all", "none", "fill", "get", "contains":
+        case "map", "filter", "forEach", "any", "all", "none", "fill", "get", "contains",
+             "find", "findLast", "reduce", "reduceOrNull":
             argCount == 1
+        case "fold", "foldIndexed":
+            argCount == 2
+        case "count":
+            (0...1).contains(argCount)
         case "binarySearch":
             (1...4).contains(argCount)
         case "copyOfRange":
@@ -229,6 +246,16 @@ extension CallTypeChecker {
             return sema.types.booleanType
         case "forEach", "fill":
             return sema.types.unitType
+        case "count":
+            return sema.types.intType
+        case "find", "findLast":
+            return sema.types.makeNullable(elementType)
+        case "reduce":
+            return elementType
+        case "reduceOrNull":
+            return sema.types.makeNullable(elementType)
+        case "fold", "foldIndexed":
+            return sema.types.anyType
         case "concatToString":
             return sema.types.stringType
         case "get":
@@ -282,12 +309,39 @@ extension CallTypeChecker {
         receiverElementType: TypeID,
         sema: SemaModule
     ) -> (argumentIndex: Int, expectedType: TypeID)? {
-        let boolPredicateMembers: Set = ["filter", "any", "all", "none"]
-        let oneParamMembers: Set = ["map", "filter", "forEach", "any", "all", "none"]
+        let boolPredicateMembers: Set = ["filter", "any", "all", "none", "find", "findLast", "count"]
+        let oneParamMembers: Set = ["map", "filter", "forEach", "any", "all", "none", "find", "findLast", "count"]
         if memberName == "copyOf", argCount == 2 {
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [sema.types.intType],
                 returnType: receiverElementType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
+        }
+        if (memberName == "reduce" || memberName == "reduceOrNull"), argCount == 1 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType, receiverElementType],
+                returnType: receiverElementType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+        if memberName == "fold", argCount == 2 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [sema.types.anyType, receiverElementType],
+                returnType: sema.types.anyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 1, expectedType: expectedType)
+        }
+        if memberName == "foldIndexed", argCount == 2 {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [sema.types.intType, sema.types.anyType, receiverElementType],
+                returnType: sema.types.anyType,
                 isSuspend: false,
                 nullability: .nonNull
             )))

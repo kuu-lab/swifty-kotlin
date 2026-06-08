@@ -1645,6 +1645,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
                 RuntimeABIParameter(name: "fromIndex", type: .intptr),
                 RuntimeABIParameter(name: "toIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Collection"

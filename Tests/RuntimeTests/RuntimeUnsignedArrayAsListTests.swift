@@ -172,23 +172,23 @@ final class RuntimeUnsignedArrayAsListTests: IsolatedRuntimeXCTestCase {
 
     func testUnsignedPrimitiveArrayCopyOfRangeCopiesElements() {
         let ubyteRaw = makeRuntimeArray([1, 2, 3])
-        let ubyteCopy = kk_array_copyOfRange(ubyteRaw, 1, 3)
+        let ubyteCopy = kk_array_copyOfRange(ubyteRaw, 1, 3, nil)
         XCTAssertNotEqual(ubyteCopy, ubyteRaw)
         XCTAssertEqual(arrayElements(from: ubyteCopy), [2, 3])
 
         let ushortRaw = makeRuntimeArray([10, 20, 30])
-        let ushortCopy = kk_array_copyOfRange(ushortRaw, 0, 2)
+        let ushortCopy = kk_array_copyOfRange(ushortRaw, 0, 2, nil)
         XCTAssertNotEqual(ushortCopy, ushortRaw)
         XCTAssertEqual(arrayElements(from: ushortCopy), [10, 20])
 
         let uintRaw = makeRuntimeArray([100, 200, 300])
-        let uintCopy = kk_array_copyOfRange(uintRaw, 1, 3)
+        let uintCopy = kk_array_copyOfRange(uintRaw, 1, 3, nil)
         runtimeArrayBox(from: uintCopy)?.elements[0] = 900
         XCTAssertEqual(arrayElements(from: uintRaw), [100, 200, 300])
         XCTAssertEqual(arrayElements(from: uintCopy), [900, 300])
 
         let ulongRaw = makeRuntimeArray([1000, 2000, 3000])
-        let ulongCopy = kk_array_copyOfRange(ulongRaw, 0, 2)
+        let ulongCopy = kk_array_copyOfRange(ulongRaw, 0, 2, nil)
         runtimeArrayBox(from: ulongCopy)?.elements[1] = 9000
         XCTAssertEqual(arrayElements(from: ulongRaw), [1000, 2000, 3000])
         XCTAssertEqual(arrayElements(from: ulongCopy), [1000, 9000])

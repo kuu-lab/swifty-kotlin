@@ -3379,8 +3379,11 @@ extension CallLowerer {
                         callee: interner.intern("kk_array_copyOfRange"),
                         arguments: [loweredReceiverID] + normalizedArgIDs,
                         result: result,
-                        canThrow: false,
-                        thrownResult: nil
+                        canThrow: true,
+                        thrownResult: arena.appendExpr(
+                            .temporary(Int32(arena.expressions.count)),
+                            type: sema.types.nullableAnyType
+                        )
                     ))
                     return result
                 }
