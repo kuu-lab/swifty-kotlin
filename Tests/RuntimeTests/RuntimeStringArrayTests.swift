@@ -1571,6 +1571,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list?.elements.count, 0)
     }
 
+    func testStringIterableHelpersDoNotAcceptLegacyRawStringHandles() {
+        let legacyRaw = rawFromRuntimeString("abc")
+
+        let list = runtimeListBox(from: kk_string_iterable_toList(legacyRaw))
+        XCTAssertEqual(list?.elements.count, 0)
+
+        let iterator = kk_string_iterable_iterator(legacyRaw)
+        XCTAssertEqual(kk_string_iterator_hasNext(iterator), 0)
+    }
+
     func testStringAsIterablePrintDoesNotMaterialiseList() {
         let iterableRaw = flatStringAsIterable("aé🐻")
         let baselineObjectCount = kk_runtime_heap_object_count()

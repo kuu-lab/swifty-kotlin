@@ -841,11 +841,6 @@ private func runtimeStringAsIterableRaw(_ source: String) -> Int {
 @_cdecl("kk_string_iterable_toList")
 public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
     guard let box = runtimeStringIterableBox(from: iterableRaw) else {
-        // Validate that the raw value is a valid string handle before falling
-        // back, to avoid reinterpreting an unrelated object pointer as a string.
-        if extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) != nil {
-            return runtimeStringToCharListRaw(runtimeStringFromRawOrPanic(iterableRaw, caller: #function))
-        }
         // Unrecognised input — return an empty list.
         return runtimeStringToCharListRaw("")
     }
@@ -857,11 +852,6 @@ public func kk_string_iterable_toList(_ iterableRaw: Int) -> Int {
 public func kk_string_iterable_iterator(_ iterableRaw: Int) -> Int {
     if let box = runtimeStringIterableBox(from: iterableRaw) {
         return runtimeStringIteratorRaw(box.source)
-    }
-    // Validate that the raw value is a valid string handle before falling
-    // back, to avoid reinterpreting an unrelated object pointer as a string.
-    if let string = extractString(from: UnsafeMutableRawPointer(bitPattern: iterableRaw)) {
-        return runtimeStringIteratorRaw(string)
     }
     // Return an empty iterator for unrecognised inputs (including null
     // sentinel) rather than misinterpreting them as string handles.
