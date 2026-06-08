@@ -2376,6 +2376,15 @@ final class CallTypeChecker {
                     }
                 }
             }
+        } else if let calleePath, calleePath.count > 1 {
+            // FQN call: e.g. kotlin.math.abs(x) — look up directly by fully qualified name
+            let fqnCandidates = sema.symbols.lookupAll(fqName: calleePath).filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+                return symbol.kind == .function || symbol.kind == .constructor
+            }
+            let (vis, invis) = ctx.filterByVisibility(fqnCandidates)
+            candidates = vis
+            callInvisible.append(contentsOf: invis)
         } else {
             candidates = []
         }

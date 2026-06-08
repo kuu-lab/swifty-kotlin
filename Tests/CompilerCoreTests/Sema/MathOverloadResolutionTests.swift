@@ -636,4 +636,55 @@ final class MathOverloadResolutionTests: XCTestCase {
         XCTAssertTrue(links.contains("kk_math_sqrt_float"), "Float sqrt should resolve to kk_math_sqrt_float")
         XCTAssertEqual(links.count, 2)
     }
+
+    // MARK: - FQN (fully-qualified) call resolution (PARITY-SEMA-003)
+
+    private func resolvedLinkForFQNCall(
+        lastComponent: String,
+        withSource source: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> String? {
+        var result: String?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(ctx.diagnostics.hasError,
+                           "Unexpected sema error for FQN call '\(lastComponent)'",
+                           file: file, line: line)
+            let ast = try XCTUnwrap(ctx.ast, file: file, line: line)
+            let sema = try XCTUnwrap(ctx.sema, file: file, line: line)
+            for exprIndex in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(exprIndex))
+                guard let expr = ast.arena.expr(exprID) else { continue }
+                // FQN call kotlin.math.abs(x) is a .memberCall node (not .call).
+                guard case let .memberCall(_, calleeMember, _, _, _) = expr,
+                      ctx.interner.resolve(calleeMember) == lastComponent
+                else { continue }
+                if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
+                    result = sema.symbols.externalLinkName(for: chosenCallee)
+                }
+                break
+            }
+        }
+        return result
+    }
+
+    func testFQNAbsIntOverload() throws {
+        let source = "fun f(x: Int): Int = kotlin.math.abs(x)"
+        let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
+        XCTAssertEqual(link, "kk_math_abs_int")
+    }
+
+    func testFQNAbsDoubleOverload() throws {
+        let source = "fun f(x: Double): Double = kotlin.math.abs(x)"
+        let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
+        XCTAssertEqual(link, "kk_math_abs")
+    }
+
+    func testFQNSqrtDoubleOverload() throws {
+        let source = "fun f(x: Double): Double = kotlin.math.sqrt(x)"
+        let link = try resolvedLinkForFQNCall(lastComponent: "sqrt", withSource: source)
+        XCTAssertEqual(link, "kk_math_sqrt")
+    }
 }

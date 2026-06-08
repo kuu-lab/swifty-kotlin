@@ -65,6 +65,80 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// FQN package-qualified top-level function call: e.g. kotlin.math.abs(x).
+    /// Fires before receiver inference to avoid SEMA-0022 on unresolvable package identifiers.
+    func tryInferFQNPackageTopLevelCall(
+        _ request: MemberCallInferenceRequest,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        let id = request.id
+        let receiverID = request.receiverID
+        let calleeName = request.calleeName
+        let args = request.args
+        let range = request.range
+        let ctx = request.ctx
+        let explicitTypeArgs = request.explicitTypeArgs
+        let sema = ctx.sema
+        let ast = ctx.ast
+
+        guard let receiverPath = qualifiedCalleePath(for: receiverID, ast: ast),
+              !receiverPath.isEmpty,
+              locals[receiverPath[0]] == nil
+        else { return nil }
+
+        let fqnPath = receiverPath + [calleeName]
+        let fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            return symbol.kind == .function || symbol.kind == .constructor
+        }
+        guard !fqnCandidates.isEmpty else { return nil }
+
+        let (vis, _) = ctx.filterByVisibility(fqnCandidates)
+        guard !vis.isEmpty else { return nil }
+
+        let argTypes = args.map { arg -> TypeID in
+            sema.bindings.exprType(for: arg.expr) ?? driver.inferExpr(arg.expr, ctx: ctx, locals: &locals)
+        }
+        let callArgs = zip(args, argTypes).map { arg, type in
+            CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
+        }
+        let call = CallExpr(
+            range: range,
+            calleeName: calleeName,
+            args: callArgs,
+            explicitTypeArgs: explicitTypeArgs
+        )
+        let resolved = ctx.resolver.resolveCall(
+            candidates: vis,
+            call: call,
+            expectedType: request.expectedType,
+            ctx: sema
+        )
+        guard let chosen = resolved.chosenCallee,
+              let signature = sema.symbols.functionSignature(for: chosen)
+        else { return nil }
+
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: resolved.substitutedTypeArguments
+                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                    .map(\.value),
+                parameterMapping: resolved.parameterMapping
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let resultType = sema.types.substituteTypeParameters(
+            in: signature.returnType,
+            substitution: resolved.substitutedTypeArguments,
+            typeVarBySymbol: typeVarBySymbol
+        )
+        sema.bindings.bindExprType(id, type: resultType)
+        return resultType
+    }
+
     func recoveredMemberCallReceiverType(
         receiverID: ExprID,
         receiverType: TypeID,
