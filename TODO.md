@@ -89,6 +89,19 @@
 - [x] STDLIB-IO-FN-024: `normalize` 関数の実装
 - [x] STDLIB-IO-FN-029: `readBytes` 関数の実装（InputStream版）
 - [x] STDLIB-IO-FN-033: `readText` 関数の実装（Reader版）
+- [ ] STDLIB-IO-FN-009: `bufferedWriter` 関数の実装（OutputStream版）
+- [ ] STDLIB-IO-FN-010: `bufferedWriter` 関数の実装（File版）
+- [ ] STDLIB-IO-FN-011: `byteInputStream` 関数の実装
+- [ ] STDLIB-IO-FN-012: `copyRecursively` 関数の実装
+- [ ] STDLIB-IO-FN-007: `bufferedReader` 関数の実装（InputStream版）
+- [ ] STDLIB-IO-FN-014: `copyTo` 関数の実装（Reader版）
+- [ ] STDLIB-IO-FN-016: `forEachBlock` 関数の実装
+- [ ] STDLIB-IO-FN-020: `inputStream` 関数の実装（ByteArray版）
+- [ ] STDLIB-IO-FN-017: `forEachLine` 関数の実装（Reader版）
+- [ ] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [ ] STDLIB-IO-FN-024: `normalize` 関数の実装
+- [ ] STDLIB-IO-FN-029: `readBytes` 関数の実装（InputStream版）
+- [ ] STDLIB-IO-FN-033: `readText` 関数の実装（Reader版）
 - [ ] STDLIB-IO-FN-030: `readBytes` 関数の実装（URL版）
 - [x] STDLIB-IO-FN-038: `toRelativeString` 関数の実装
 
