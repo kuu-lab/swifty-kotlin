@@ -2064,15 +2064,28 @@ public func kk_string_isNullOrBlank_flat(
 
 // MARK: - STDLIB-534: String?.orEmpty()
 
-@_cdecl("kk_string_orEmpty")
-public func kk_string_orEmpty(_ strRaw: Int) -> Int {
-    if strRaw == runtimeNullSentinelInt || strRaw == 0 {
-        var emptyByte: UInt8 = 0
-        return withUnsafePointer(to: &emptyByte) { ptr in
-            Int(bitPattern: kk_string_from_utf8(ptr, 0))
-        }
-    }
-    return strRaw
+@_cdecl("kk_string_orEmpty_flat")
+public func kk_string_orEmpty_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let value = runtimeStringFromFlatFields(
+        data: data,
+        length: length,
+        byteCount: byteCount,
+        hash: hash
+    )
+    return runtimeRegisterFlatString(
+        value,
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 // MARK: - System call wrappers for console I/O

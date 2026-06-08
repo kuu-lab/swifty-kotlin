@@ -93,6 +93,11 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             )
         }
         XCTAssertTrue(
+            externalLinks(for: "orEmpty", sema: sema, interner: interner)
+                .contains("kk_string_orEmpty_flat"),
+            "String?.orEmpty should link to kk_string_orEmpty_flat"
+        )
+        XCTAssertTrue(
             externalLinks(for: "indexOfAny", sema: sema, interner: interner)
                 .contains("kk_string_indexOfAny_chars_flat"),
             "CharSequence.indexOfAny(chars, startIndex, ignoreCase) should link to kk_string_indexOfAny_chars_flat"

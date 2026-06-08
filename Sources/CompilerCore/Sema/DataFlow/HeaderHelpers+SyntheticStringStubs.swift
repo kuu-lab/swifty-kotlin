@@ -4052,7 +4052,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "orEmpty",
-            externalLinkName: "kk_string_orEmpty",
+            externalLinkName: "kk_string_orEmpty_flat",
             receiverType: nullableStringType,
             parameters: [],
             returnType: stringType,

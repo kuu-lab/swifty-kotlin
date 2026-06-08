@@ -1242,7 +1242,7 @@ extension CallLowerer {
                 if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_orEmpty"),
+                        callee: interner.intern("kk_string_orEmpty_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,

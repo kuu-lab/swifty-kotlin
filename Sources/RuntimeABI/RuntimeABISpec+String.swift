@@ -2806,11 +2806,17 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-534: String?.orEmpty()
         RuntimeABIFunctionSpec(
-            name: "kk_string_orEmpty",
+            name: "kk_string_orEmpty_flat",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
-            returnType: .intptr,
+            returnType: .nullableUInt8Pointer,
             section: "String"
         ),
         // STDLIB-316: String.chunked / String.windowed flattened entries

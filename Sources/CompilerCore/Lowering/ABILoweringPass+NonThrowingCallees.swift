@@ -937,7 +937,7 @@ extension ABILoweringPass {
             interner.intern("kk_list_slice_iterable"),
             interner.intern("kk_list_orEmpty"),
             interner.intern("kk_map_orEmpty"),
-            interner.intern("kk_string_orEmpty"),
+            interner.intern("kk_string_orEmpty_flat"),
             interner.intern("kk_array_of"),
             interner.intern("kk_array_of_nulls"),
             interner.intern("kk_array_size"),

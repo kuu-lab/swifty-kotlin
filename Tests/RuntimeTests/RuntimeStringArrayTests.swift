@@ -958,6 +958,27 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testFlatStringOrEmptyUsesDataNull() {
+        var nullLength = -1
+        var nullByteCount = -1
+        var nullHash = -1
+        let nullData = kk_string_orEmpty_flat(nil, 0, 0, 0, &nullLength, &nullByteCount, &nullHash)
+        XCTAssertNotNil(nullData)
+        XCTAssertEqual(
+            flatStringValue(
+                data: nullData.map { UnsafePointer($0) },
+                length: nullLength,
+                byteCount: nullByteCount,
+                hash: nullHash
+            ),
+            ""
+        )
+        XCTAssertEqual(nullLength, 0)
+        XCTAssertEqual(nullByteCount, 0)
+
+        XCTAssertEqual(flatStringReturnValue("hi", using: kk_string_orEmpty_flat), "hi")
+    }
+
     func testFlatStringParseScalarRuntimeAPIsUseFlattenedStringFields() {
         XCTAssertEqual(kk_unbox_bool(kk_string_toBoolean_flat(nil, 0, 0, 0)), 0)
 
