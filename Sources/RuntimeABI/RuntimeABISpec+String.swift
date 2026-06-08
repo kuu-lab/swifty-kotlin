@@ -458,6 +458,31 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_any_member_to_string",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+            ],
+            returnType: .opaquePointer,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_any_member_hashCode",
+            parameters: [
+                RuntimeABIParameter(name: "raw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_any_member_equals",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_structural_eq",
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),

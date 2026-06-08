@@ -214,6 +214,15 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_max_depth",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "depthRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_file_tree_walk_to_list",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
@@ -222,10 +231,23 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_max_depth",
+            name: "kk_file_tree_walk_forEach",
             parameters: [
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "depthRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_tree_walk_sortedBy",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "FileIO"
@@ -275,17 +297,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "walkRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_file_tree_walk_forEach",
-            parameters: [
-                RuntimeABIParameter(name: "walkRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "FileIO"

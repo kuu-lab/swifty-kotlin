@@ -1,7 +1,7 @@
 symbol s0 kind=package fq=kotlin vis=public flags=synthetic
 symbol s1 kind=class fq=kotlin.Any vis=public flags=synthetic
 symbol s2 kind=interface fq=kotlin.Annotation vis=public flags=synthetic
-symbol s3 kind=package fq=kotlin.properties vis=public flags=synthetic
+symbol s3 kind=function fq=kotlin.Any.toString vis=public flags=synthetic|openType sig=recv=Class#1 params=[] ret=String suspend=0 defaults=[] vararg=[]
 symbol s4 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
 symbol s5 kind=typeParameter fq=kotlin.sequences.Sequence.T vis=private flags=_
 symbol s6 kind=interface fq=kotlin.collections.List vis=public flags=synthetic

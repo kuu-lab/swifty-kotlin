@@ -1046,8 +1046,9 @@ extension DataFlowSemaPhase {
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKotlinIOExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
+        // FileTreeWalk runs after FileIO and FileWalkDirection so File and direction enum are available
         registerSyntheticFileTreeWalkStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticOnErrorActionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
         registerLateListIndexedMembers(symbols: symbols, types: types, interner: interner)
@@ -1094,6 +1095,58 @@ extension DataFlowSemaPhase {
 
         symbols.setDirectSupertypes([anySymbol], for: annotationSymbol)
         types.setNominalDirectSupertypes([anySymbol], for: annotationSymbol)
+
+        // Register toString(), hashCode(), equals() as members of kotlin.Any so that
+        // member calls on user-defined class instances resolve instead of producing <error>.
+        guard let anyInfo = symbols.symbol(anySymbol) else { return }
+        let anyClassType = types.make(.classType(ClassType(
+            classSymbol: anySymbol, args: [], nullability: .nonNull)))
+        let stringType = types.stringType
+        let intType = types.intType
+        let booleanType = types.booleanType
+        let nullableAnyType = types.nullableAnyType
+
+        let anyMemberSpecs: [(name: String, link: String, params: [TypeID], ret: TypeID)] = [
+            ("toString", "kk_any_member_to_string", [], stringType),
+            ("hashCode", "kk_any_member_hashCode", [], intType),
+            ("equals",   "kk_any_member_equals",   [nullableAnyType], booleanType),
+        ]
+        for spec in anyMemberSpecs {
+            let memberName = interner.intern(spec.name)
+            let memberFQName = anyInfo.fqName + [memberName]
+            if !symbols.lookupAll(fqName: memberFQName).isEmpty { continue }
+
+            var paramSymbols: [SymbolID] = []
+            for (i, paramType) in spec.params.enumerated() {
+                let pName = interner.intern("p\(i)")
+                let pSym = symbols.define(
+                    kind: .valueParameter, name: pName,
+                    fqName: memberFQName + [pName],
+                    declSite: nil, visibility: .private, flags: [.synthetic])
+                symbols.setPropertyType(paramType, for: pSym)
+                paramSymbols.append(pSym)
+            }
+
+            let memberSymbol = symbols.define(
+                kind: .function, name: memberName,
+                fqName: memberFQName,
+                declSite: nil, visibility: .public, flags: [.synthetic, .openType])
+            symbols.setParentSymbol(anySymbol, for: memberSymbol)
+            symbols.setExternalLinkName(spec.link, for: memberSymbol)
+            for pSym in paramSymbols {
+                symbols.setParentSymbol(memberSymbol, for: pSym)
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: anyClassType,
+                    parameterTypes: spec.params,
+                    returnType: spec.ret,
+                    isSuspend: false,
+                    valueParameterSymbols: paramSymbols,
+                    valueParameterHasDefaultValues: Array(repeating: false, count: paramSymbols.count),
+                    valueParameterIsVararg: Array(repeating: false, count: paramSymbols.count)),
+                for: memberSymbol)
+        }
     }
 
     func registerSyntheticContractStubs(
