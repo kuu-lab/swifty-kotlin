@@ -442,6 +442,22 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
+        if loweredCallee == interner.intern("kk_string_zipTransform"),
+           finalArguments.count == 3
+        {
+            // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
+            // (parameterMapping only covers 2 original args; the extra closureBox at index 2 is not mapped).
+            // Re-split finalArguments[2] (the already-extracted fnPtr) to restore (fnPtr, closureRaw).
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[2],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments[2] = fnPtrExpr
+            finalArguments.append(envPtrExpr)
+        }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
