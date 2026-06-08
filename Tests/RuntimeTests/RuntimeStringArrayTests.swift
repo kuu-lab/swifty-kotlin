@@ -1719,6 +1719,15 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_string_iterator_hasNext(iterRaw), 0)
     }
 
+    func testStringIteratorNextReturnsRawCharScalars() {
+        let iterableRaw = flatStringAsIterable("hi")
+        let iterRaw = kk_string_iterable_iterator(iterableRaw)
+
+        XCTAssertEqual(kk_string_iterator_next(iterRaw), 104)
+        XCTAssertEqual(kk_string_iterator_next(iterRaw), 105)
+        XCTAssertEqual(kk_string_iterator_next(iterRaw), 0)
+    }
+
     func testStringAsIterableWithNonASCII() {
         let iterableRaw = flatStringAsIterable("aé🐻")
         let listRaw = kk_string_iterable_toList(iterableRaw)

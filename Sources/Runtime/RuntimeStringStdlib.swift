@@ -939,7 +939,7 @@ public func kk_string_iterator_flat(
 }
 
 private func runtimeStringIteratorRaw(_ source: String) -> Int {
-    let charRaws = source.unicodeScalars.map { kk_box_char(Int($0.value)) }
+    let charRaws = source.unicodeScalars.map { Int($0.value) }
     let box = RuntimeStringIteratorBox(charRaws: charRaws)
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
     runtimeStorage.withGCLock { state in
