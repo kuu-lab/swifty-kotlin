@@ -252,4 +252,181 @@ final class FileTreeWalkClassTests: XCTestCase {
                 + "\(errors.map { "\($0.code): \($0.message)" })"
         )
     }
+
+    // MARK: - Builder member functions (filter / onEnter / onLeave / onFail / forEach)
+
+    func testFileTreeWalkHasFilterMember() throws {
+        let (sema, interner) = try makeSema()
+        let walkFQName = ["kotlin", "io", "FileTreeWalk"].map { interner.intern($0) }
+        let filterFQName = walkFQName + [interner.intern("filter")]
+        let filterSymbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: filterFQName).first,
+            "FileTreeWalk.filter must be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(filterSymbol)?.kind, .function)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: filterSymbol),
+            "kk_file_tree_walk_filter"
+        )
+        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: filterSymbol))
+        XCTAssertEqual(sig.parameterTypes.count, 1, "filter takes one predicate parameter")
+    }
+
+    func testFileTreeWalkHasOnEnterMember() throws {
+        let (sema, interner) = try makeSema()
+        let walkFQName = ["kotlin", "io", "FileTreeWalk"].map { interner.intern($0) }
+        let onEnterFQName = walkFQName + [interner.intern("onEnter")]
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: onEnterFQName).first,
+            "FileTreeWalk.onEnter must be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: symbol),
+            "kk_file_tree_walk_onEnter"
+        )
+        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        XCTAssertEqual(sig.parameterTypes.count, 1)
+    }
+
+    func testFileTreeWalkHasOnLeaveMember() throws {
+        let (sema, interner) = try makeSema()
+        let walkFQName = ["kotlin", "io", "FileTreeWalk"].map { interner.intern($0) }
+        let onLeaveFQName = walkFQName + [interner.intern("onLeave")]
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: onLeaveFQName).first,
+            "FileTreeWalk.onLeave must be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: symbol),
+            "kk_file_tree_walk_onLeave"
+        )
+        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        XCTAssertEqual(sig.parameterTypes.count, 1)
+    }
+
+    func testFileTreeWalkHasOnFailMember() throws {
+        let (sema, interner) = try makeSema()
+        let walkFQName = ["kotlin", "io", "FileTreeWalk"].map { interner.intern($0) }
+        let onFailFQName = walkFQName + [interner.intern("onFail")]
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: onFailFQName).first,
+            "FileTreeWalk.onFail must be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: symbol),
+            "kk_file_tree_walk_onFail"
+        )
+        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        XCTAssertEqual(sig.parameterTypes.count, 1, "onFail takes (File, Throwable) -> Unit")
+    }
+
+    func testFileTreeWalkHasForEachMember() throws {
+        let (sema, interner) = try makeSema()
+        let walkFQName = ["kotlin", "io", "FileTreeWalk"].map { interner.intern($0) }
+        let forEachFQName = walkFQName + [interner.intern("forEach")]
+        let symbol = try XCTUnwrap(
+            sema.symbols.lookupAll(fqName: forEachFQName).first,
+            "FileTreeWalk.forEach must be registered"
+        )
+        XCTAssertEqual(sema.symbols.symbol(symbol)?.kind, .function)
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: symbol),
+            "kk_file_tree_walk_forEach"
+        )
+        let sig = try XCTUnwrap(sema.symbols.functionSignature(for: symbol))
+        XCTAssertEqual(sig.parameterTypes.count, 1, "forEach takes (File) -> Unit")
+        XCTAssertEqual(sig.returnType, sema.types.unitType, "forEach returns Unit")
+    }
+
+    // MARK: - Builder chain type-checking
+
+    func testFilterChainResolves() throws {
+        let source = """
+        import java.io.File
+        import kotlin.io.FileTreeWalk
+
+        fun f(): FileTreeWalk = File("/tmp").walkTopDown().filter { it.isDirectory }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "walkTopDown().filter{} chain must type-check, got: "
+                + "\(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    func testOnEnterChainResolves() throws {
+        let source = """
+        import java.io.File
+        import kotlin.io.FileTreeWalk
+
+        fun f(): FileTreeWalk = File("/tmp").walkTopDown().onEnter { it.name != "skip" }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "walkTopDown().onEnter{} chain must type-check, got: "
+                + "\(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    func testOnLeaveChainResolves() throws {
+        let source = """
+        import java.io.File
+        import kotlin.io.FileTreeWalk
+
+        fun f(): FileTreeWalk = File("/tmp").walkTopDown().onLeave { _ -> }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "walkTopDown().onLeave{} chain must type-check, got: "
+                + "\(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    func testForEachTerminalChainResolves() throws {
+        let source = """
+        import java.io.File
+
+        fun f() {
+            File("/tmp").walkTopDown().maxDepth(3).forEach { println(it.name) }
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "walkTopDown().maxDepth().forEach{} chain must type-check, got: "
+                + "\(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
+
+    func testFullBuilderChainResolves() throws {
+        let source = """
+        import java.io.File
+
+        fun f() {
+            File("/tmp")
+                .walkTopDown()
+                .maxDepth(5)
+                .onEnter { d -> d.name != "skip" }
+                .onLeave { _ -> }
+                .forEach { println(it.name) }
+        }
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        XCTAssertTrue(
+            errors.isEmpty,
+            "full builder chain must type-check, got: "
+                + "\(errors.map { "\($0.code): \($0.message)" })"
+        )
+    }
 }
