@@ -66,4 +66,17 @@ final class KotlinCompilationFileIOTests: XCTestCase {
         }
         """)
     }
+
+    // STDLIB-IO-PROP-003: `File.invariantSeparatorsPath` compiles through
+    // Sema → KIR with explicit kotlin.io import.
+    func testCompile_file_invariantSeparatorsPathPropertyResolves() throws {
+        try assertKotlinCompilesToKIR("""
+        import java.io.File
+        import kotlin.io.invariantSeparatorsPath
+
+        fun normalize(file: File): String {
+            return file.invariantSeparatorsPath
+        }
+        """)
+    }
 }
