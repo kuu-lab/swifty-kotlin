@@ -331,12 +331,11 @@ public func kk_file_appendBytes(_ fileRaw: Int, _ arrayRaw: Int, _ outThrown: Un
     guard let file = runtimeFileBox(from: fileRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_file_appendBytes received invalid File handle")
     }
-    guard let list = runtimeListBox(from: arrayRaw) else {
+    guard let bytes = runtimeByteArrayBytes(from: arrayRaw) else {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: expected ByteArray/List<Int> array")
         return 0
     }
     do {
-        let bytes = list.elements.map { UInt8(bitPattern: Int8(truncatingIfNeeded: $0)) }
         let data = Data(bytes)
         let url = URL(fileURLWithPath: file.path)
         if FileManager.default.fileExists(atPath: file.path) {
