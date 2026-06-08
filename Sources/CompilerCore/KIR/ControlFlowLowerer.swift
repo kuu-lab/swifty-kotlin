@@ -1,4 +1,3 @@
-import Foundation
 
 final class ControlFlowLowerer {
     unowned let driver: KIRLoweringDriver

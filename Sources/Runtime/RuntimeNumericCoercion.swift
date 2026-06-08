@@ -1,4 +1,3 @@
-import Foundation
 
 // Range-based coercion functions (STDLIB-CONV-006) plus UByte / UShort /
 // Char conversions (STDLIB-PRIM-002).

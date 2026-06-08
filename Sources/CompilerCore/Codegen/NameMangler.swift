@@ -1,4 +1,3 @@
-import Foundation
 
 enum MangledDeclKind {
     case automatic

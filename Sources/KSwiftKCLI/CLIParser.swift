@@ -1,5 +1,4 @@
 import CompilerCore
-import Foundation
 
 enum CLIParseError: Error, Equatable {
     case usageRequested

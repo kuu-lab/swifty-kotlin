@@ -1,4 +1,3 @@
-import Foundation
 
 /// `kk_list_max{Of,With,OfWith}` / `kk_list_min{Of,With,OfWith}`
 /// (and `OrNull` variants) — STDLIB-301b/c/d.

@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {

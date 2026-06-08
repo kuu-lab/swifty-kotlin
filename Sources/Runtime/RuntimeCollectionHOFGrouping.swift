@@ -1,4 +1,3 @@
-import Foundation
 
 // `Grouping` runtime helpers (STDLIB-285/286).
 //

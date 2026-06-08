@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// Comparable<in T> sub-helpers (compareTo operator, primitive compatibility, null-safe extensions).

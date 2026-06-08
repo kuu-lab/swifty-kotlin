@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsArray<T>.toList` conversion surface.
 extension DataFlowSemaPhase {

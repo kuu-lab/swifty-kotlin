@@ -1,4 +1,3 @@
-import Foundation
 
 // Init block, secondary constructor, and function declaration type checking.
 

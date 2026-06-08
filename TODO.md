@@ -149,6 +149,8 @@
 - [ ] STDLIB-IO-FN-017: `forEachLine` 関数の実装（Reader版）
 - [x] STDLIB-IO-FN-020: `inputStream` 関数の実装（ByteArray版）
 - [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [ ] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
+- [x] STDLIB-IO-FN-021: `inputStream` 関数の実装（ByteArray範囲版）
 - [x] STDLIB-IO-FN-022: `iterator` 関数の実装
 - [x] STDLIB-IO-FN-024: `normalize` 関数の実装
 - [x] STDLIB-IO-FN-027: `printWriter` 関数の実装
@@ -690,6 +692,9 @@
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
+- [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
+- [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-097: `toFloat` 関数の実装
 - [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-099: `toInt` 関数の実装

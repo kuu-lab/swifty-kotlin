@@ -1,5 +1,4 @@
-// swiftlint:disable cyclomatic_complexity
-import Foundation
+// swiftlint:disable function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
     func tryInferMemberCallEarlyReceiverSpecials(
@@ -325,4 +324,3 @@ extension CallTypeChecker {
         return nil
     }
 }
-// swiftlint:enable cyclomatic_complexity

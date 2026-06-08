@@ -1,4 +1,4 @@
-import Foundation
+// swiftlint:disable file_length
 
 /// Centralized FQ-name suffixes used to discriminate the binarySearch
 /// overloads from the element-based one. Module-internal so the helper

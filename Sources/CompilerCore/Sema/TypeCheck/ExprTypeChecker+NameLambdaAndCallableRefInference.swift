@@ -1,4 +1,3 @@
-import Foundation
 
 extension ExprTypeChecker {
     private func bindCompoundAssignmentOperatorCall(

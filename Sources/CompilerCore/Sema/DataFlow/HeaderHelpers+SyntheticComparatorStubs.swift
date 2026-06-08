@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for Comparator, compareBy, compareByDescending (STDLIB-175),
 /// thenBy, thenByDescending, thenDescending, thenComparator, reversed (STDLIB-176),

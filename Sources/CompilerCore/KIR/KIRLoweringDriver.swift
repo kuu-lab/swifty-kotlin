@@ -1,4 +1,3 @@
-import Foundation
 
 /// Dispatch hub for KIR lowering. Replaces the monolithic extension-based splitting
 /// of `BuildKIRPhase` with independent delegate classes.

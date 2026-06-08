@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsAny` external interface surface.
 extension DataFlowSemaPhase {

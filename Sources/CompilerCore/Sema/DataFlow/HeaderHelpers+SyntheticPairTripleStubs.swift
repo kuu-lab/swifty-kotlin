@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// Pair<A,B> and Triple<A,B,C> classes plus the toList() return-type patch.

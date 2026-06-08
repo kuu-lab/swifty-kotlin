@@ -1,4 +1,3 @@
-import Foundation
 
 extension BuildASTPhase {
     func isTypeLikeNameToken(_ kind: TokenKind) -> Bool {

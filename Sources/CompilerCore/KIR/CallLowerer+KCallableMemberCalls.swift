@@ -1,4 +1,3 @@
-import Foundation
 
 /// KProperty / KFunction reflection-aware member-call lowerings.
 ///

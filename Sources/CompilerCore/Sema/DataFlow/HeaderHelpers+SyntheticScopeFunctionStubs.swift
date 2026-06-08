@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for Kotlin scope functions (STDLIB-061, STDLIB-400, STDLIB-404).
 /// - with<T, R>(receiver: T, block: T.() -> R): R

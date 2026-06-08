@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 extension ExprLowerer {
     // swiftlint:disable:next cyclomatic_complexity function_body_length

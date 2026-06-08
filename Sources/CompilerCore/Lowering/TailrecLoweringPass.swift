@@ -1,4 +1,3 @@
-import Foundation
 
 /// Label base for tailrec loop-head labels, chosen to avoid collision
 /// with user labels and coroutine dispatch labels.

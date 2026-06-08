@@ -1,4 +1,3 @@
-import Foundation
 
 typealias LocalBindings = [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)]
 

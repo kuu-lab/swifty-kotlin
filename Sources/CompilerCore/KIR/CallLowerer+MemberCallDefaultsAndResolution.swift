@@ -1,4 +1,4 @@
-import Foundation
+// swiftlint:disable file_length
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
@@ -288,9 +288,9 @@ extension CallLowerer {
                     return collectionIterator
                 }
                 if callArgumentCount == 1,
-                   externalLinkName == "kk_op_step"
+                   (externalLinkName == "kk_op_step"
                     || externalLinkName == "kk_uint_step"
-                    || externalLinkName == "kk_ulong_step"
+                    || externalLinkName == "kk_ulong_step")
                 {
                     if externalLinkName == "kk_ulong_step"
                         || sema.bindings.isULongRangeExpr(receiverExpr)
@@ -314,13 +314,13 @@ extension CallLowerer {
                         return interner.intern("kk_list_binarySearch_comparator")
                     }
                 }
-                if externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch",
+                if (externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch"),
                    isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
                    argumentCount == 5
                 {
                     return interner.intern("kk_array_binarySearch_compare")
                 }
-                if externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch",
+                if (externalLinkName == "kk_list_binarySearch" || externalLinkName == "kk_array_binarySearch"),
                    isGenericArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
                    argumentCount == 5
                 {

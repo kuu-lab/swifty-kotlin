@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: Continuation0/1/2 classes and callContinuation0/1/2 extension functions.
 ///

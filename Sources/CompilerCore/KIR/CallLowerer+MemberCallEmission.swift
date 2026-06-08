@@ -1,5 +1,4 @@
 // swiftlint:disable file_length
-import Foundation
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {

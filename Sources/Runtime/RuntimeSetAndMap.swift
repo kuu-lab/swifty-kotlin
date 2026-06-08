@@ -1,4 +1,3 @@
-import Foundation
 
 // Set / Map runtime functions (STDLIB-001 + STDLIB-266 set operations).
 //

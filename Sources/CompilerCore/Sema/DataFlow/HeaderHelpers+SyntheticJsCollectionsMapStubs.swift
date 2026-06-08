@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS collections `JsMap<K, V>` external class surface.
 extension DataFlowSemaPhase {

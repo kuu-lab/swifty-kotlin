@@ -1,5 +1,4 @@
-// swiftlint:disable function_body_length cyclomatic_complexity
-import Foundation
+// swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
     func tryInferMemberCallScopeResultAndFileSpecials(
@@ -519,7 +518,7 @@ extension CallTypeChecker {
         // as `path.useLines { lines -> ... }` (1 arg) or
         // `path.useLines(Charsets.UTF_8) { lines -> ... }` (2 args: charset + block).
         // The lambda argument is always the last one.
-        if args.count == 1 || args.count == 2,
+        if (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "useLines",
            isPathType(receiverType, sema: sema, interner: interner)
         {
@@ -567,4 +566,3 @@ extension CallTypeChecker {
         return nil
     }
 }
-// swiftlint:enable cyclomatic_complexity function_body_length

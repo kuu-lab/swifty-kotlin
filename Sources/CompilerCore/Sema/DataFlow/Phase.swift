@@ -1,4 +1,3 @@
-import Foundation
 
 final class DataFlowSemaPhase: CompilerPhase {
     static let name = "DataFlowSema"

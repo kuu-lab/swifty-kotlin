@@ -1,4 +1,3 @@
-import Foundation
 
 extension TypeCheckHelpers {
     private struct MemberDispatchKey: Hashable {

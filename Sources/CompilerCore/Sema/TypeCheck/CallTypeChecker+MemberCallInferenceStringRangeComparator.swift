@@ -1,5 +1,4 @@
-// swiftlint:disable cyclomatic_complexity
-import Foundation
+// swiftlint:disable file_length function_body_length cyclomatic_complexity
 
 extension CallTypeChecker {
     func tryInferMemberCallStringRangeComparatorSpecials(
@@ -401,4 +400,3 @@ extension CallTypeChecker {
         return nil
     }
 }
-// swiftlint:enable cyclomatic_complexity

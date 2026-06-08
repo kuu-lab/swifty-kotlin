@@ -1,4 +1,3 @@
-import Foundation
 
 extension DataFlowSemaPhase {
     /// Registers synthetic enum stdlib stubs: kotlin.Enum<T>, EnumEntries<T>,

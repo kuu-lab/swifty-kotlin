@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsQualifier` annotation surface.
 extension DataFlowSemaPhase {

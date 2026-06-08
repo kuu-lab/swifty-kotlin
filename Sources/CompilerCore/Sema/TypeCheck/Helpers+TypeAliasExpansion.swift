@@ -1,4 +1,3 @@
-import Foundation
 
 // Typealias expansion and substitution helpers.
 

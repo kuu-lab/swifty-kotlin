@@ -1,4 +1,3 @@
-import Foundation
 
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {

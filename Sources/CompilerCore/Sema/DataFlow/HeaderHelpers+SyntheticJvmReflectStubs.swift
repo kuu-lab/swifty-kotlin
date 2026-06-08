@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic JVM reflection bridge stubs from `kotlin.jvm`.
 extension DataFlowSemaPhase {

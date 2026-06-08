@@ -1,4 +1,3 @@
-import Foundation
 
 /// Delegate kinds recognized by the compiler (P5-80, P5-79).
 enum StdlibDelegateKind: Equatable {

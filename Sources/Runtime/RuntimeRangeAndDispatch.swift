@@ -1,4 +1,3 @@
-import Foundation
 
 final class RuntimeRangeBox {
     let first: Int

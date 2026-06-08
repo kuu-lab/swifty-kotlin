@@ -1,4 +1,3 @@
-import Foundation
 
 enum GoldenHarnessGoldenSuite: String, CaseIterable, Sendable {
     case lexer = "Lexer"

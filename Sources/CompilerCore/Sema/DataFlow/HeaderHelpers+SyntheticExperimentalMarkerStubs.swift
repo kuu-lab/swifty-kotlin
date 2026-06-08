@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for Kotlin stdlib experimental opt-in markers discovered
 /// missing in STDLIB-EXPERIMENTAL-ABI-001.

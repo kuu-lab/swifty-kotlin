@@ -1,4 +1,3 @@
-import Foundation
 
 /// STDLIB-METAPROG-116: Basic metaprogramming annotation stubs.
 ///

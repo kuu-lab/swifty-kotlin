@@ -1,4 +1,3 @@
-import Foundation
 
 final class LLVMBackend {
     let target: TargetTriple

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: waitForMultipleFutures(...) top-level and Collection extension.
 ///

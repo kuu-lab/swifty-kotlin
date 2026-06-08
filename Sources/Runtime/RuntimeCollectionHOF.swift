@@ -1,4 +1,3 @@
-import Foundation
 
 let indexedValueRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325

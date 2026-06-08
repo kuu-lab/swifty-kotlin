@@ -1,4 +1,3 @@
-import Foundation
 
 extension LambdaLowerer {
     func syntheticLambdaName(for exprID: ExprID, interner: StringInterner) -> InternedString {

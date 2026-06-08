@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: withWorker(name, errorReporting, block) top-level function.
 ///

@@ -1,4 +1,3 @@
-import Foundation
 
 // Array / Pair / Triple runtime functions (STDLIB-001 + STDLIB-120/121)
 // plus primitive-array conversions (STDLIB-087, STDLIB-LIST-PRIM-ARRAY).

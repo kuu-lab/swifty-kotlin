@@ -1,4 +1,3 @@
-import Foundation
 
 final class CoroutineLoweringPass: LoweringPass {
     /// Internal visibility is required for cross-file extension decomposition

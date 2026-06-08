@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for Result<T>, runCatching, and related member functions (STDLIB-280/281/282/283).
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 
 // SAM (Single Abstract Method) conversion helpers for functional interfaces.
 

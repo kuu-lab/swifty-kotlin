@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsSymbol` annotation surface.
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic stubs for StringBuilder type (STDLIB-255/256/257).
 extension DataFlowSemaPhase {

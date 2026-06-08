@@ -1,4 +1,3 @@
-import Foundation
 
 final class BuildKIRPhase: CompilerPhase {
     static let name = "BuildKIR"

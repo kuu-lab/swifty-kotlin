@@ -1,4 +1,3 @@
-import Foundation
 
 extension LocalDeclTypeChecker {
     func inferIndexedAccessExpr(

@@ -1,4 +1,3 @@
-import Foundation
 
 /// Centralises the 12 mutable instance properties that were previously scattered
 /// across `BuildKIRPhase` and its extensions. Provides structured scope management

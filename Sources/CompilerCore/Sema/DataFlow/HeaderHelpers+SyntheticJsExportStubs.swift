@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `JsExport` annotation surface.
 extension DataFlowSemaPhase {

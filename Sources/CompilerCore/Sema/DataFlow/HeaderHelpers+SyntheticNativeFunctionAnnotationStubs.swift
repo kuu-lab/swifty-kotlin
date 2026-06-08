@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS native function annotation surfaces.
 extension DataFlowSemaPhase {

@@ -1,4 +1,3 @@
-import Foundation
 
 final class CallLowerer {
     unowned let driver: KIRLoweringDriver

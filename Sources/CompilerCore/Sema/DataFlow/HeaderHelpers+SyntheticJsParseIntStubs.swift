@@ -1,4 +1,3 @@
-import Foundation
 
 /// Synthetic Kotlin/JS `parseInt` external function surface.
 extension DataFlowSemaPhase {
