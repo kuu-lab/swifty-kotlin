@@ -1,0 +1,25 @@
+symbol s0 kind=function fq=kotlin.math.abs vis=public flags=synthetic sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s1 kind=function fq=kotlin.math.abs vis=public flags=synthetic sig=recv=_ params=[Double] ret=Double suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=kotlin.math.sqrt vis=public flags=synthetic sig=recv=_ params=[Double] ret=Double suspend=0 defaults=[0] vararg=[0]
+symbol s3 kind=function fq=golden.sema.testFQNAbsInt vis=public flags=_ sig=recv=_ params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=valueParameter fq=golden.sema.testFQNAbsInt.$0.x vis=private flags=_
+symbol s5 kind=function fq=golden.sema.testFQNAbsDouble vis=public flags=_ sig=recv=_ params=[Double] ret=Double suspend=0 defaults=[0] vararg=[0]
+symbol s6 kind=valueParameter fq=golden.sema.testFQNAbsDouble.$1.x vis=private flags=_
+symbol s7 kind=function fq=golden.sema.testFQNSqrt vis=public flags=_ sig=recv=_ params=[Double] ret=Double suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=valueParameter fq=golden.sema.testFQNSqrt.$2.x vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun testFQNAbsInt suspend=0 inline=0 sym=s3
+  decl d1 fun testFQNAbsDouble suspend=0 inline=0 sym=s5
+  decl d2 fun testFQNSqrt suspend=0 inline=0 sym=s7
+expr e0 name(kotlin) type=_
+expr e1 memberCall recv=e0 callee=math args=[] type=_
+expr e2 name(x) type=Int ref=s4
+expr e3 memberCall recv=e1 callee=abs args=[_:e2] type=Int call=s0 map=[0->0] targs=[]
+expr e4 name(kotlin) type=_
+expr e5 memberCall recv=e4 callee=math args=[] type=_
+expr e6 name(x) type=Double ref=s6
+expr e7 memberCall recv=e5 callee=abs args=[_:e6] type=Double call=s1 map=[0->0] targs=[]
+expr e8 name(kotlin) type=_
+expr e9 memberCall recv=e8 callee=math args=[] type=_
+expr e10 name(x) type=Double ref=s8
+expr e11 memberCall recv=e9 callee=sqrt args=[_:e10] type=Double call=s2 map=[0->0] targs=[]

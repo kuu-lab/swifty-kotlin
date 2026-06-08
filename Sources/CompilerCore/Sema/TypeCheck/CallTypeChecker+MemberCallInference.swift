@@ -30,6 +30,10 @@ extension CallTypeChecker {
             return result
         }
 
+        if let result = tryInferFQNPackageTopLevelCall(request, locals: &locals) {
+            return result
+        }
+
         let receiverType = driver.inferExpr(receiverID, ctx: ctx, locals: &locals)
         let recoveredReceiverType = recoveredMemberCallReceiverType(
             receiverID: receiverID,
