@@ -287,11 +287,24 @@ extension CoroutineLoweringPass {
     ) -> SpillPlan {
         var transitionSourceToExprs: [Int: Set<KIRExprID>] = [:]
         var allSpilledExprs: Set<KIRExprID> = []
-        let resultExprs = Set(transitionsByResumeLabel.values.compactMap(\.callResultExpr))
+
+        // Map each source instruction index to the callResultExpr of that specific
+        // transition. Only this expression is excluded from spilling (it will be
+        // reloaded via getCompletion when the coroutine resumes at the successor
+        // state). Other transitions' callResultExprs may still be live across this
+        // suspend point and must be spilled so they survive the suspension.
+        var ownResultExprBySourceIndex: [Int: KIRExprID] = [:]
+        for transition in transitionsByResumeLabel.values {
+            if let callResultExpr = transition.callResultExpr {
+                ownResultExprBySourceIndex[transition.sourceInstructionIndex] = callResultExpr
+            }
+        }
 
         for sourceIndex in transitionSourceIndexes {
             var spillExprs = liveOutByInstruction[sourceIndex] ?? []
-            spillExprs.subtract(resultExprs)
+            if let ownResultExpr = ownResultExprBySourceIndex[sourceIndex] {
+                spillExprs.remove(ownResultExpr)
+            }
             transitionSourceToExprs[sourceIndex] = spillExprs
             allSpilledExprs.formUnion(spillExprs)
         }
