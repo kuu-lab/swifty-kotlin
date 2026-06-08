@@ -6253,27 +6253,6 @@ public func kk_string_joinToString(
     return runtimeMakeStringRaw(result)
 }
 
-@_cdecl("kk_string_find")
-public func kk_string_find(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
-        if result != 0 { return Int(scalar.value) }
-    }
-    return runtimeNullSentinelInt
-}
-
 @_cdecl("kk_string_find_flat")
 public func kk_string_find_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -6297,31 +6276,6 @@ public func kk_string_find_flat(
         )
         if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
         if result != 0 { return Int(scalar.value) }
-    }
-    return runtimeNullSentinelInt
-}
-
-@_cdecl("kk_string_findLast")
-public func kk_string_findLast(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard fnPtr != 0 else { return runtimeNullSentinelInt }
-    var foundChar: UnicodeScalar?
-    for scalar in scalars {
-        var thrown = 0
-        let result = runtimeInvokeCollectionLambda1(
-            fnPtr: fnPtr,
-            closureRaw: closureRaw,
-            value: Int(scalar.value),
-            outThrown: &thrown
-        )
-        if thrown != 0 { outThrown?.pointee = thrown; return runtimeNullSentinelInt }
-        if result != 0 { foundChar = scalar }
-    }
-    if let char = foundChar {
-        return Int(char.value)
     }
     return runtimeNullSentinelInt
 }
