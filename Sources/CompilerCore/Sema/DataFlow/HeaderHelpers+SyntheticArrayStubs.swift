@@ -1854,6 +1854,63 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // --- joinToString (STDLIB-GAP-PH1) ---
+        let joinToStringName = interner.intern("joinToString")
+        let joinToStringFQName = arrayFQName + [joinToStringName]
+        if symbols.lookup(fqName: joinToStringFQName) == nil {
+            let arrayReceiverType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(arrayTypeParamType)],
+                nullability: .nonNull
+            )))
+            let joinToStringSym = symbols.define(
+                kind: .function,
+                name: joinToStringName,
+                fqName: joinToStringFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(arraySymbol, for: joinToStringSym)
+            symbols.setExternalLinkName("kk_array_joinToString", for: joinToStringSym)
+
+            let joinParams: [(name: String, type: TypeID)] = [
+                ("separator", types.stringType),
+                ("prefix", types.stringType),
+                ("postfix", types.stringType),
+            ]
+            var joinParamTypes: [TypeID] = []
+            var joinParamSymbols: [SymbolID] = []
+            for param in joinParams {
+                let paramName = interner.intern(param.name)
+                let paramSym = symbols.define(
+                    kind: .valueParameter,
+                    name: paramName,
+                    fqName: joinToStringFQName + [paramName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(joinToStringSym, for: paramSym)
+                joinParamTypes.append(param.type)
+                joinParamSymbols.append(paramSym)
+            }
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: arrayReceiverType,
+                    parameterTypes: joinParamTypes,
+                    returnType: types.stringType,
+                    isSuspend: false,
+                    valueParameterSymbols: joinParamSymbols,
+                    valueParameterHasDefaultValues: [true, true, true],
+                    valueParameterIsVararg: [false, false, false],
+                    typeParameterSymbols: [tParamSymbol],
+                    classTypeParameterCount: 1
+                ),
+                for: joinToStringSym
+            )
+        }
+
     }
 
     private func registerArrayIsArrayOfJvmExtension(
@@ -1931,63 +1988,6 @@ extension DataFlowSemaPhase {
             ),
             for: functionSymbol
         )
-
-        // --- joinToString (STDLIB-GAP-PH1) ---
-        let joinToStringName = interner.intern("joinToString")
-        let joinToStringFQName = arrayFQName + [joinToStringName]
-        if symbols.lookup(fqName: joinToStringFQName) == nil {
-            let arrayReceiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParamType)],
-                nullability: .nonNull
-            )))
-            let joinToStringSym = symbols.define(
-                kind: .function,
-                name: joinToStringName,
-                fqName: joinToStringFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: joinToStringSym)
-            symbols.setExternalLinkName("kk_array_joinToString", for: joinToStringSym)
-
-            let joinParams: [(name: String, type: TypeID)] = [
-                ("separator", types.stringType),
-                ("prefix", types.stringType),
-                ("postfix", types.stringType),
-            ]
-            var joinParamTypes: [TypeID] = []
-            var joinParamSymbols: [SymbolID] = []
-            for param in joinParams {
-                let paramName = interner.intern(param.name)
-                let paramSym = symbols.define(
-                    kind: .valueParameter,
-                    name: paramName,
-                    fqName: joinToStringFQName + [paramName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(joinToStringSym, for: paramSym)
-                joinParamTypes.append(param.type)
-                joinParamSymbols.append(paramSym)
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: arrayReceiverType,
-                    parameterTypes: joinParamTypes,
-                    returnType: types.stringType,
-                    isSuspend: false,
-                    valueParameterSymbols: joinParamSymbols,
-                    valueParameterHasDefaultValues: [true, true, true],
-                    valueParameterIsVararg: [false, false, false],
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: joinToStringSym
-            )
-        }
     }
 
     private func registerSyntheticArrayFactoryFunction(
