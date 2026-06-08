@@ -2059,7 +2059,7 @@ extension DataFlowSemaPhase {
         symbols.setExternalLinkName(externalLinkName, for: getterSymbol)
     }
 
-    private func registerFileMemberFunction(
+    func registerFileMemberFunction(
         named name: String,
         externalLinkName: String,
         ownerSymbol: SymbolID,

@@ -1,0 +1,77 @@
+symbol s0 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s1 kind=class fq=java.io.File vis=public flags=synthetic type=Class#1
+symbol s2 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#1 suspend=0 defaults=[0] vararg=[0]
+symbol s3 kind=property fq=java.io.File.name vis=public flags=synthetic type=String
+symbol s4 kind=property fq=java.io.File.path vis=public flags=synthetic type=String
+symbol s5 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#5
+symbol s6 kind=function fq=kotlin.io.FileTreeWalk.maxDepth vis=public flags=synthetic sig=recv=Class#5 params=[Int] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=function fq=kotlin.io.FileTreeWalk.onEnter vis=public flags=synthetic sig=recv=Class#5 params=[(Class#1) -> Boolean] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=function fq=kotlin.io.FileTreeWalk.onLeave vis=public flags=synthetic sig=recv=Class#5 params=[(Class#1) -> Unit] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=function fq=kotlin.io.FileTreeWalk.forEach vis=public flags=synthetic sig=recv=Class#5 params=[(Class#1) -> Unit] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=function fq=java.io.File.walkTopDown vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#5 suspend=0 defaults=[] vararg=[]
+symbol s11 kind=function fq=java.io.File.walkBottomUp vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#5 suspend=0 defaults=[] vararg=[]
+symbol s12 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s13 kind=local fq=__local_0.root vis=private flags=_ type=Class#1
+symbol s14 kind=local fq=__local_1.walk vis=private flags=_ type=Class#5
+symbol s15 kind=local fq=__local_2.filtered vis=private flags=_ type=Class#5
+symbol s16 kind=local fq=__local_3.withLeave vis=private flags=_ type=Class#5
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s12
+expr e0 name(File) type=_
+expr e1 string(/tmp/tree_test) type=String
+expr e2 call callee=e0 args=[_:e1] type=Class#1 call=s2 map=[0->0] targs=[]
+expr e3 localDecl root mutable=0 type=_ init=e2 type=Unit ref=s13
+expr e4 name(root) type=Class#1 ref=s13
+expr e5 memberCall recv=e4 callee=walkTopDown args=[] type=Class#5 call=s10 map=[] targs=[]
+expr e6 int(2) type=Int
+expr e7 memberCall recv=e5 callee=maxDepth args=[_:e6] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e8 name(println) type=_
+expr e9 name(f) type=_
+expr e10 memberCall recv=e9 callee=name args=[] type=_
+expr e11 call callee=e8 args=[_:e10] type=_
+expr e12 name(println) type=_
+expr e13 name(f) type=Class#1 ref=s-0
+expr e14 memberCall recv=e13 callee=name args=[] type=String ref=s3
+expr e15 call callee=e12 args=[_:e14] type=Unit call=s0 map=[0->0] targs=[]
+expr e16 lambda params=[f] body=e15 label=forEach type=(Class#1) -> Unit
+expr e17 memberCall recv=e7 callee=forEach args=[_:e16] type=Unit call=s9 map=[0->0] targs=[]
+expr e18 name(root) type=Class#1 ref=s13
+expr e19 memberCall recv=e18 callee=walkBottomUp args=[] type=Class#5 call=s11 map=[] targs=[]
+expr e20 localDecl walk mutable=0 type=_ init=e19 type=Unit ref=s14
+expr e21 name(walk) type=Class#5 ref=s14
+expr e22 name(dir) type=_
+expr e23 memberCall recv=e22 callee=name args=[] type=_
+expr e24 string(skip) type=_
+expr e25 binary(notEqual) lhs=e23 rhs=e24 type=_
+expr e26 name(dir) type=Class#1 ref=s-1
+expr e27 memberCall recv=e26 callee=name args=[] type=String ref=s3
+expr e28 string(skip) type=String
+expr e29 binary(notEqual) lhs=e27 rhs=e28 type=Boolean
+expr e30 lambda params=[dir] body=e29 label=onEnter type=(Class#1) -> Boolean
+expr e31 memberCall recv=e21 callee=onEnter args=[_:e30] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e32 localDecl filtered mutable=0 type=_ init=e31 type=Unit ref=s15
+expr e33 name(filtered) type=Class#5 ref=s15
+expr e34 name(println) type=_
+expr e35 name(dir) type=_
+expr e36 memberCall recv=e35 callee=name args=[] type=_
+expr e37 stringTemplate[lit(leaving: ),expr(e36)] type=_
+expr e38 call callee=e34 args=[_:e37] type=_
+expr e39 name(println) type=_
+expr e40 name(dir) type=Class#1 ref=s-2
+expr e41 memberCall recv=e40 callee=name args=[] type=String ref=s3
+expr e42 stringTemplate[lit(leaving: ),expr(e41)] type=String
+expr e43 call callee=e39 args=[_:e42] type=Unit call=s0 map=[0->0] targs=[]
+expr e44 lambda params=[dir] body=e43 label=onLeave type=(Class#1) -> Unit
+expr e45 memberCall recv=e33 callee=onLeave args=[_:e44] type=Class#5 call=s8 map=[0->0] targs=[]
+expr e46 localDecl withLeave mutable=0 type=_ init=e45 type=Unit ref=s16
+expr e47 name(withLeave) type=Class#5 ref=s16
+expr e48 name(println) type=_
+expr e49 name(f) type=_
+expr e50 memberCall recv=e49 callee=path args=[] type=_
+expr e51 call callee=e48 args=[_:e50] type=_
+expr e52 name(println) type=_
+expr e53 name(f) type=Class#1 ref=s-3
+expr e54 memberCall recv=e53 callee=path args=[] type=String ref=s4
+expr e55 call callee=e52 args=[_:e54] type=Unit call=s0 map=[0->0] targs=[]
+expr e56 lambda params=[f] body=e55 label=forEach type=(Class#1) -> Unit
+expr e57 memberCall recv=e47 callee=forEach args=[_:e56] type=Unit call=s9 map=[0->0] targs=[]

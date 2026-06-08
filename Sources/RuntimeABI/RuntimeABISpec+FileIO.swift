@@ -187,6 +187,69 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
+        // STDLIB-IO-TYPE-004: FileTreeWalk — walkTopDown / walkBottomUp and builder methods
+        RuntimeABIFunctionSpec(
+            name: "kk_file_walkTopDown",
+            parameters: [RuntimeABIParameter(name: "fileRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_walkBottomUp",
+            parameters: [RuntimeABIParameter(name: "fileRaw", type: .intptr)],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_treewalk_maxDepth",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "depthRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_treewalk_onEnter",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_treewalk_onLeave",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_treewalk_onFail",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_file_treewalk_forEach",
+            parameters: [
+                RuntimeABIParameter(name: "walkRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "FileIO"
+        ),
         // STDLIB-IO-FN-015: File.copyTo(target, overwrite, bufferSize)
         RuntimeABIFunctionSpec(
             name: "kk_file_copyTo",
