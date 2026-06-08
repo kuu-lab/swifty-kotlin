@@ -12,13 +12,6 @@ final class RuntimeRegexTests: XCTestCase {
         super.tearDown()
     }
 
-    private func makeRuntimeString(_ value: String) -> Int {
-        let utf8 = Array(value.utf8)
-        return utf8.withUnsafeBufferPointer { buffer in
-            Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
-        }
-    }
-
     private func withFlatString<T>(
         _ value: String,
         _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
@@ -49,8 +42,12 @@ final class RuntimeRegexTests: XCTestCase {
     }
 
     func testMatchResultValueAndGroupValues() {
-        let regexRaw = kk_regex_create(makeRuntimeString("(ab)(cd)"))
-        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("zzabcdyy"))
+        let regexRaw = withFlatString("(ab)(cd)") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+        let matchRaw = withFlatString("zzabcdyy") { data, length, byteCount, hash in
+            kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
+        }
 
         XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
         XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "abcd")
@@ -120,11 +117,19 @@ final class RuntimeRegexTests: XCTestCase {
     }
 
     func testMatchGroupCollectionGetAndRange() {
-        let regexRaw = kk_regex_create(makeRuntimeString("(?<lhs>ab)(?<rhs>cd)"))
-        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("zzabcdyy"))
+        let regexRaw = withFlatString("(?<lhs>ab)(?<rhs>cd)") { data, length, byteCount, hash in
+            kk_regex_create_flat(data, length, byteCount, hash)
+        }
+        let matchRaw = withFlatString("zzabcdyy") { data, length, byteCount, hash in
+            kk_regex_find_flat(regexRaw, data, length, byteCount, hash)
+        }
         let groupsRaw = kk_match_result_groups(matchRaw)
-        let lhsGroupRaw = kk_match_group_collection_get(groupsRaw, makeRuntimeString("lhs"))
-        let rhsGroupRaw = kk_match_group_collection_get(groupsRaw, makeRuntimeString("rhs"))
+        let lhsGroupRaw = withFlatString("lhs") { data, length, byteCount, hash in
+            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+        }
+        let rhsGroupRaw = withFlatString("rhs") { data, length, byteCount, hash in
+            kk_match_group_collection_get_flat(groupsRaw, data, length, byteCount, hash)
+        }
 
         XCTAssertNotEqual(lhsGroupRaw, runtimeNullSentinelInt)
         XCTAssertNotEqual(rhsGroupRaw, runtimeNullSentinelInt)

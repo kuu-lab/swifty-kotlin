@@ -1030,12 +1030,11 @@ extension ABILoweringPass {
             interner.intern("kk_sequence_union"),
             interner.intern("kk_sequence_subtract"),
             // Regex (STDLIB-100/101/102/103)
-            interner.intern("kk_regex_create"),
             interner.intern("kk_regex_create_flat"),
             interner.intern("kk_string_matches_regex_flat"),
             interner.intern("kk_string_contains_regex_flat"),
-            interner.intern("kk_regex_find"),
-            interner.intern("kk_regex_findAll"),
+            interner.intern("kk_regex_find_flat"),
+            interner.intern("kk_regex_findAll_flat"),
             interner.intern("kk_string_replace_regex"),
             interner.intern("kk_string_split_regex_flat"),
             interner.intern("kk_regex_matchEntire"),
@@ -1047,9 +1046,10 @@ extension ABILoweringPass {
             interner.intern("kk_match_result_value"),
             interner.intern("kk_match_result_groupValues"),
             // Regex (STDLIB-480)
-            interner.intern("kk_regex_create_with_option"),
-            interner.intern("kk_regex_create_with_options"),
-            interner.intern("kk_regex_containsMatchIn"),
+            interner.intern("kk_regex_create_with_option_flat"),
+            interner.intern("kk_regex_create_with_options_flat"),
+            interner.intern("kk_regex_containsMatchIn_flat"),
+            interner.intern("kk_regex_from_literal_flat"),
             // MatchResult.groups / MatchGroupCollection / MatchGroup
             interner.intern("kk_match_result_groups"),
             interner.intern("kk_match_group_collection_get"),

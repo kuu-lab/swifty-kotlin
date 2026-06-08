@@ -3375,9 +3375,9 @@ extension CallLowerer {
                 let calleeStr = interner.resolve(calleeName)
                 let runtimeCallee: String? = switch calleeStr {
                 case "find":
-                    "kk_regex_find"
+                    "kk_regex_find_flat"
                 case "findAll":
-                    "kk_regex_findAll"
+                    "kk_regex_findAll_flat"
                 default:
                     nil
                 }

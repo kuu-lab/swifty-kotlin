@@ -1817,14 +1817,6 @@ public enum RuntimeABISpec {
     /// Regex (STDLIB-100/101/102/103)
     public static let regexFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
-            name: "kk_regex_create",
-            parameters: [
-                RuntimeABIParameter(name: "pattern", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_regex_create_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -1860,15 +1852,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_find",
-            parameters: [
-                RuntimeABIParameter(name: "regex", type: .intptr),
-                RuntimeABIParameter(name: "input", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_regex_find_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
@@ -1876,15 +1859,6 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "length", type: .intptr),
                 RuntimeABIParameter(name: "byteCount", type: .intptr),
                 RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_findAll",
-            parameters: [
-                RuntimeABIParameter(name: "regex", type: .intptr),
-                RuntimeABIParameter(name: "input", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"
@@ -2008,15 +1982,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_regex_matchEntire",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_regex_matchEntire_flat",
             parameters: [
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
@@ -2029,15 +1994,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         // STDLIB-480: Regex(pattern, option) constructor
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_option",
-            parameters: [
-                RuntimeABIParameter(name: "patternRaw", type: .intptr),
-                RuntimeABIParameter(name: "optionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_option_flat",
             parameters: [
@@ -2052,15 +2008,6 @@ public enum RuntimeABISpec {
         ),
         // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
         RuntimeABIFunctionSpec(
-            name: "kk_regex_create_with_options",
-            parameters: [
-                RuntimeABIParameter(name: "patternRaw", type: .intptr),
-                RuntimeABIParameter(name: "optionsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_options_flat",
             parameters: [
                 RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
@@ -2073,15 +2020,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         // STDLIB-480: Regex.containsMatchIn(input)
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_containsMatchIn",
-            parameters: [
-                RuntimeABIParameter(name: "regexRaw", type: .intptr),
-                RuntimeABIParameter(name: "inputRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_containsMatchIn_flat",
             parameters: [
@@ -2156,15 +2094,6 @@ public enum RuntimeABISpec {
         // STDLIB-REGEX-094: Regex.matches(input)
         // STDLIB-REGEX-094: Regex.fromLiteral
         // First param is the Companion object receiver (ignored at runtime).
-        RuntimeABIFunctionSpec(
-            name: "kk_regex_from_literal",
-            parameters: [
-                RuntimeABIParameter(name: "companionRef", type: .intptr),
-                RuntimeABIParameter(name: "literalRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_from_literal_flat",
             parameters: [

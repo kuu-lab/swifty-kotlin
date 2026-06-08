@@ -224,11 +224,6 @@ private func makeMatchResult(from result: NSTextCheckingResult, in str: String, 
 
 // MARK: - STDLIB-100: Regex constructor, matches, contains
 
-@_cdecl("kk_regex_create")
-public func kk_regex_create(_ patternRaw: Int) -> Int {
-    runtimeRegexCreate(pattern: regexStringFromRaw(patternRaw) ?? "")
-}
-
 @_cdecl("kk_regex_create_flat")
 public func kk_regex_create_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -312,11 +307,6 @@ private func runtimeStringContainsRegex(_ rawStr: String, _ regexRaw: Int) -> In
 
 // MARK: - STDLIB-101: Regex.find / Regex.findAll
 
-@_cdecl("kk_regex_find")
-public func kk_regex_find(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    runtimeRegexFind(regexRaw, input: regexStringFromRaw(strRaw) ?? "")
-}
-
 @_cdecl("kk_regex_find_flat")
 public func kk_regex_find_flat(
     _ regexRaw: Int,
@@ -340,11 +330,6 @@ private func runtimeRegexFind(_ regexRaw: Int, input rawStr: String) -> Int {
     }
     let matchResult = makeMatchResult(from: result, in: str, regexBox: regexBox)
     return registerRuntimeObject(matchResult)
-}
-
-@_cdecl("kk_regex_findAll")
-public func kk_regex_findAll(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    runtimeRegexFindAll(regexRaw, input: regexStringFromRaw(strRaw) ?? "")
 }
 
 @_cdecl("kk_regex_findAll_flat")
@@ -457,11 +442,6 @@ public func kk_regex_replace_lambda(
 }
 
 // MARK: - STDLIB-350: Regex.matchEntire
-
-@_cdecl("kk_regex_matchEntire")
-public func kk_regex_matchEntire(_ regexRaw: Int, _ strRaw: Int) -> Int {
-    runtimeRegexMatchEntire(regexRaw, input: regexStringFromRaw(strRaw) ?? "")
-}
 
 @_cdecl("kk_regex_matchEntire_flat")
 public func kk_regex_matchEntire_flat(
@@ -577,11 +557,6 @@ private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int) -> In
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
 /// Iterates the set elements, unboxes each as an ordinal, and combines the
 /// corresponding `NSRegularExpression.Options`.
-@_cdecl("kk_regex_create_with_options")
-public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
-    runtimeRegexCreateWithOptions(pattern: regexStringFromRaw(patternRaw) ?? "", optionsSetRaw: optionsSetRaw)
-}
-
 @_cdecl("kk_regex_create_with_options_flat")
 public func kk_regex_create_with_options_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -609,11 +584,6 @@ private func runtimeRegexCreateWithOptions(pattern: String, optionsSetRaw: Int) 
         }
     }
     return registerRuntimeObject(createRegexBox(pattern: pattern, isLiteral: isLiteral, options: combined, optionOrdinals: storedOrdinals))
-}
-
-@_cdecl("kk_regex_containsMatchIn")
-public func kk_regex_containsMatchIn(_ regexRaw: Int, _ inputRaw: Int) -> Int {
-    runtimeRegexContainsMatchIn(regexRaw, input: regexStringFromRaw(inputRaw) ?? "")
 }
 
 @_cdecl("kk_regex_containsMatchIn_flat")
@@ -920,12 +890,6 @@ private func makeMatchResultWithOffset(
 /// Regex.Companion.fromLiteral(literal: String) -> Regex
 /// Creates a Regex that matches the literal string (all special chars are escaped).
 /// The first argument is the Companion object receiver (ignored; companion singleton).
-@_cdecl("kk_regex_from_literal")
-public func kk_regex_from_literal(_ companionRef: Int, _ literalRaw: Int) -> Int {
-    _ = companionRef
-    return runtimeRegexFromLiteral(regexStringFromRaw(literalRaw) ?? "")
-}
-
 @_cdecl("kk_regex_from_literal_flat")
 public func kk_regex_from_literal_flat(
     _ companionRef: Int,

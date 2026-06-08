@@ -13,7 +13,7 @@ import XCTest
 //   5. toRegex() String extension lowers to kk_string_toRegex_flat
 //   6. String.split(Regex) and String.contains(Regex) lower to the correct KIR callees
 //   7. Regex.replace with lambda lowers to kk_regex_replace_lambda
-//   8. Regex.fromLiteral (companion) lowers to kk_regex_from_literal in KIR
+//   8. Regex.fromLiteral (companion) lowers to kk_regex_from_literal_flat in KIR
 //
 // Scope: sema resolution + KIR lowering only. No runtime edits.
 // Does NOT overlap with STDLIB-REGEX-001 (API inventory) or STDLIB-REGEX-003 (runtime).
@@ -171,7 +171,7 @@ final class RegexSemaLoweringTests: XCTestCase {
                 "Expected .findAll(...) member call"
             )
             let binding = try XCTUnwrap(sema.bindings.callBinding(for: callExpr))
-            XCTAssertEqual(sema.symbols.externalLinkName(for: binding.chosenCallee), "kk_regex_findAll")
+            XCTAssertEqual(sema.symbols.externalLinkName(for: binding.chosenCallee), "kk_regex_findAll_flat")
         }
     }
 
@@ -264,7 +264,7 @@ final class RegexSemaLoweringTests: XCTestCase {
 
     // MARK: - 5. KIR lowering: constructor calls emit correct KIR callees
 
-    func testSingleArgRegexConstructorLowersToKkRegexCreate() throws {
+    func testSingleArgRegexConstructorLowersToKkRegexCreateFlat() throws {
         let source = """
         fun test() {
             val r = Regex("[a-z]+")
@@ -277,13 +277,13 @@ final class RegexSemaLoweringTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             XCTAssertTrue(
-                callees.contains("kk_regex_create"),
-                "KIR must contain kk_regex_create for single-arg constructor; found: \(callees)"
+                callees.contains("kk_regex_create_flat"),
+                "KIR must contain kk_regex_create_flat for single-arg constructor; found: \(callees)"
             )
         }
     }
 
-    func testTwoArgOptionRegexConstructorLowersToKkRegexCreateWithOption() throws {
+    func testTwoArgOptionRegexConstructorLowersToKkRegexCreateWithOptionFlat() throws {
         let source = """
         fun test() {
             val r = Regex("foo", RegexOption.IGNORE_CASE)
@@ -296,13 +296,13 @@ final class RegexSemaLoweringTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             XCTAssertTrue(
-                callees.contains("kk_regex_create_with_option"),
-                "KIR must contain kk_regex_create_with_option; found: \(callees)"
+                callees.contains("kk_regex_create_with_option_flat"),
+                "KIR must contain kk_regex_create_with_option_flat; found: \(callees)"
             )
         }
     }
 
-    func testSetOptionsRegexConstructorLowersToKkRegexCreateWithOptions() throws {
+    func testSetOptionsRegexConstructorLowersToKkRegexCreateWithOptionsFlat() throws {
         let source = """
         fun test() {
             val r = Regex("bar", setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE))
@@ -315,8 +315,8 @@ final class RegexSemaLoweringTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             XCTAssertTrue(
-                callees.contains("kk_regex_create_with_options"),
-                "KIR must contain kk_regex_create_with_options; found: \(callees)"
+                callees.contains("kk_regex_create_with_options_flat"),
+                "KIR must contain kk_regex_create_with_options_flat; found: \(callees)"
             )
         }
     }
@@ -351,7 +351,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_containsMatchIn"), "KIR must contain kk_regex_containsMatchIn; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_containsMatchIn_flat"), "KIR must contain kk_regex_containsMatchIn_flat; found: \(callees)")
         }
     }
 
@@ -368,7 +368,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_find"), "KIR must contain kk_regex_find; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_find_flat"), "KIR must contain kk_regex_find_flat; found: \(callees)")
         }
     }
 
@@ -384,7 +384,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_findAll"), "KIR must contain kk_regex_findAll; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_findAll_flat"), "KIR must contain kk_regex_findAll_flat; found: \(callees)")
         }
     }
 
@@ -401,7 +401,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_matchEntire"), "KIR must contain kk_regex_matchEntire; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_matchEntire_flat"), "KIR must contain kk_regex_matchEntire_flat; found: \(callees)")
         }
     }
 
@@ -545,7 +545,7 @@ final class RegexSemaLoweringTests: XCTestCase {
 
     // MARK: - 9. KIR lowering: Regex.fromLiteral (companion)
 
-    func testRegexFromLiteralLowersToKkRegexFromLiteral() throws {
+    func testRegexFromLiteralLowersToKkRegexFromLiteralFlat() throws {
         let source = """
         fun test() {
             val r = Regex.fromLiteral("hello.world")
@@ -557,7 +557,7 @@ final class RegexSemaLoweringTests: XCTestCase {
             try runToKIR(ctx)
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
-            XCTAssertTrue(callees.contains("kk_regex_from_literal"), "KIR must contain kk_regex_from_literal; found: \(callees)")
+            XCTAssertTrue(callees.contains("kk_regex_from_literal_flat"), "KIR must contain kk_regex_from_literal_flat; found: \(callees)")
         }
     }
 
