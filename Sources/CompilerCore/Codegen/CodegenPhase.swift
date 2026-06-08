@@ -394,6 +394,7 @@ final class CodegenPhase: CompilerPhase {
             functionLinkNames: functionLinkNamesBySymbol,
             inlineFunctionSymbols: inlineFunctionSymbols,
             includeSynthetic: false,
+            includeSyntheticNominalAnchors: true,
             excludedFileIDs: bundledFileIDs
         )
         return encoder.serialize(records)

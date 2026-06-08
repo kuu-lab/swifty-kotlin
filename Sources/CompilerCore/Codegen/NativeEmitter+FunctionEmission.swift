@@ -247,7 +247,10 @@ extension NativeEmitter {
             // aggregate field accessor sentinel. Codegen lowers it to extractvalue.
             // Lambda bodies may reach codegen with callee "length" when receiver type is not
             // available during KIR lowering (e.g. mapIndexed { _, v -> v.length }).
-            let effectiveName: String = if calleeName == "length", argumentCount == 1, !appendThrownChannel {
+            let effectiveName: String = if Self.isStringLengthAggregateAccessorName(calleeName),
+                                           argumentCount == 1,
+                                           !appendThrownChannel
+            {
                 "__string_struct_get_length"
             } else {
                 calleeName
@@ -3026,7 +3029,7 @@ extension NativeEmitter {
                     calleeFunction = fallbackInternal.function
                 } else if calleeName.isEmpty {
                     calleeFunction = nil
-                } else if calleeName == "length", argumentValues.count == 1 {
+                } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     calleeFunction = declareExternalFunction(
                         named: "__string_struct_get_length",
                         argumentCount: 1,
@@ -3326,7 +3329,7 @@ extension NativeEmitter {
                     fallbackInternal.function
                 } else if calleeName.isEmpty {
                     nil
-                } else if calleeName == "length", argumentValues.count == 1 {
+                } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
                     declareExternalFunction(
                         named: "__string_struct_get_length",
                         argumentCount: 1,
@@ -3827,11 +3830,17 @@ extension NativeEmitter {
     }
 
     private static func effectiveExternalCalleeNameForArity(_ calleeName: String, argumentCount: Int) -> String {
-        if calleeName == "length", argumentCount == 1 {
+        if isStringLengthAggregateAccessorName(calleeName), argumentCount == 1 {
             "__string_struct_get_length"
         } else {
             calleeName
         }
+    }
+
+    private static func isStringLengthAggregateAccessorName(_ calleeName: String) -> Bool {
+        calleeName == "length"
+            || calleeName == "__string_struct_get_length"
+            || calleeName == "kk_string_struct_get_length"
     }
 
     private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {

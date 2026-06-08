@@ -244,7 +244,7 @@ extension NativeEmitter {
 
         let lowered: LLVMCAPIBindings.LLVMValueRef?
         switch calleeName {
-        case "__string_struct_get_length", "length":
+        case "__string_struct_get_length", "kk_string_struct_get_length", "length":
             guard argumentValues.count == 1,
                   let firstType = argumentTypes.first.flatMap({ $0 }),
                   state.typeLowering != nil,

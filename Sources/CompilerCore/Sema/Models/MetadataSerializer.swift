@@ -134,6 +134,7 @@ final class MetadataEncoder {
         inlineFunctionSymbols: Set<SymbolID> = [],
         includeNonPublic: Bool = false,
         includeSynthetic: Bool = true,
+        includeSyntheticNominalAnchors: Bool = false,
         excludedFileIDs: Set<Int32> = []
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
@@ -142,7 +143,9 @@ final class MetadataEncoder {
                     return false
                 }
                 if !includeSynthetic && symbol.flags.contains(.synthetic) {
-                    return false
+                    if !(includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)) {
+                        return false
+                    }
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
@@ -174,6 +177,10 @@ final class MetadataEncoder {
 
         var records: [MetadataRecord] = []
         for symbol in exported {
+            let isSyntheticNominalAnchor = !includeSynthetic
+                && includeSyntheticNominalAnchors
+                && symbol.flags.contains(.synthetic)
+                && Self.nominalKinds.contains(symbol.kind)
             records.append(buildRecord(
                 for: symbol,
                 symbols: symbols,
@@ -181,7 +188,8 @@ final class MetadataEncoder {
                 moduleName: moduleName,
                 interner: interner,
                 functionLinkNames: functionLinkNames,
-                inlineFunctionSymbols: inlineFunctionSymbols
+                inlineFunctionSymbols: inlineFunctionSymbols,
+                metadataAnchorOnly: isSyntheticNominalAnchor
             ))
         }
         return records
@@ -370,7 +378,8 @@ final class MetadataEncoder {
         moduleName: String,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String] = [:],
-        inlineFunctionSymbols: Set<SymbolID> = []
+        inlineFunctionSymbols: Set<SymbolID> = [],
+        metadataAnchorOnly: Bool = false
     ) -> MetadataRecord {
         let mangler = NameMangler()
         let mangled = mangler.mangle(
@@ -381,6 +390,10 @@ final class MetadataEncoder {
             nameResolver: { interner.resolve($0) }
         )
         let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+
+        if metadataAnchorOnly {
+            return MetadataRecord(kind: symbol.kind, mangledName: mangled, fqName: fqName)
+        }
 
         var arity = 0
         var isSuspend = false

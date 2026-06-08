@@ -333,6 +333,18 @@ extension DataFlowSemaPhase {
             if consume(character: "E") {
                 return types.errorType
             }
+            if consume(prefix: "UB") {
+                return types.ubyteType
+            }
+            if consume(prefix: "US") {
+                return types.ushortType
+            }
+            if consume(prefix: "UI") {
+                return types.uintType
+            }
+            if consume(prefix: "UJ") {
+                return types.ulongType
+            }
             if consume(character: "U") {
                 return types.unitType
             }

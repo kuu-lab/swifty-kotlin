@@ -91,6 +91,38 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendLowersStringLengthRuntimePrimitiveToAggregateFieldExtract() throws {
+        let source = """
+        import kswiftk.internal.__string_struct_get_length
+
+        fun lengthViaPrimitive(value: String): Int {
+            return __string_struct_get_length(value)
+        }
+
+        fun main() {
+            println(lengthViaPrimitive("hello"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringLengthPrimitiveIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertTrue(ir.contains("extractvalue"), "String length primitive should read the aggregate length field")
+            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+        }
+    }
+
     func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
