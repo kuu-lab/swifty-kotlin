@@ -324,12 +324,60 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             sourceLinks(for: "kswiftk.internal.__string_indexOfLast_flat"),
             ["kk_string_indexOfLast_flat"]
         )
+        for name in ["lines", "lineSequence", "asSequence", "asIterable"] {
+            let publicLinks = sourceLinks(for: "kotlin.text.\(name)")
+            XCTAssertEqual(
+                publicLinks.count,
+                1,
+                "Expected source stdlib to export kotlin.text.\(name) as a real source-backed function"
+            )
+            XCTAssertTrue(
+                publicLinks.allSatisfy { $0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should link to its generated source function, got \(publicLinks)"
+            )
+            XCTAssertFalse(
+                publicLinks.contains { $0.hasPrefix("kk_") && !$0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should not expose the runtime bridge directly"
+            )
+        }
+        let withIndexRecords = functionRecords(for: "kotlin.text.withIndex")
+        XCTAssertEqual(
+            withIndexRecords.count,
+            2,
+            "Expected source stdlib to export both String and CharSequence kotlin.text.withIndex overloads"
+        )
+        XCTAssertTrue(
+            withIndexRecords.allSatisfy { ($0.externalLinkName ?? "").hasPrefix("kk_fn_") },
+            "Public kotlin.text.withIndex should stay source-backed, got \(withIndexRecords)"
+        )
+        XCTAssertFalse(
+            withIndexRecords.contains { ($0.externalLinkName ?? "").hasPrefix("kk_string_") },
+            "Public kotlin.text.withIndex should not expose the runtime bridge directly"
+        )
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_lines_flat"), ["kk_string_lines_flat"])
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_lineSequence_flat"),
+            ["kk_string_lineSequence_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_asSequence_flat"),
+            ["kk_string_asSequence_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_asIterable_flat"),
+            ["kk_string_asIterable_flat"]
+        )
+        XCTAssertEqual(
+            sourceLinks(for: "kswiftk.internal.__string_withIndex_flat"),
+            ["kk_string_withIndex_flat"]
+        )
 
         let appSource = """
         fun main(): Int {
             val empty = ""
             val blank = "   "
             val text = "abc"
+            val twoLines = "a\\nb"
             val charSequence: CharSequence = text
             val nullableNull: String? = null
             val nullableEmpty: String? = ""
@@ -368,6 +416,12 @@ final class LinkPhaseIntegrationTests: XCTestCase {
             if (!charSequence.none { it == 'z' }) return 29
             if (text.indexOfFirst { it == 'c' } != 2) return 30
             if (charSequence.indexOfLast { it == 'a' } != 0) return 31
+            println(twoLines.lines())
+            println(twoLines.lineSequence())
+            println(text.asSequence())
+            println(text.asIterable())
+            println(text.withIndex())
+            println(charSequence.withIndex())
             return 42
         }
         """
@@ -415,6 +469,19 @@ final class LinkPhaseIntegrationTests: XCTestCase {
                 "indexOfLast": "kk_string_indexOfLast_flat",
             ]
             for (name, link) in hofRuntimeLinks {
+                XCTAssertFalse(
+                    nonImportedLinks(["kotlin", "text", name]).contains(link),
+                    "Source stdlib import should suppress the synthetic public \(name) runtime fallback"
+                )
+            }
+            let viewRuntimeLinks = [
+                "lines": "kk_string_lines_flat",
+                "lineSequence": "kk_string_lineSequence_flat",
+                "asSequence": "kk_string_asSequence_flat",
+                "asIterable": "kk_string_asIterable_flat",
+                "withIndex": "kk_string_withIndex_flat",
+            ]
+            for (name, link) in viewRuntimeLinks {
                 XCTAssertFalse(
                     nonImportedLinks(["kotlin", "text", name]).contains(link),
                     "Source stdlib import should suppress the synthetic public \(name) runtime fallback"

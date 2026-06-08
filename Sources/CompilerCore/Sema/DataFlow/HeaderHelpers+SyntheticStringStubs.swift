@@ -1254,6 +1254,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2911,6 +2912,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: listStringType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2924,6 +2926,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: sequenceStringType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3931,6 +3934,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: sequenceCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3942,6 +3946,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3976,6 +3981,7 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3986,6 +3992,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
+            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

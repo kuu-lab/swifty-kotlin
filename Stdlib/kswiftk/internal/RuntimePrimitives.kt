@@ -571,6 +571,24 @@ external fun __string_indexOfLast_flat(s: String, predicate: (Char) -> Boolean):
 @KSwiftKRuntimeName("kk_string_indexOfLast_flat")
 external fun __string_indexOfLast_flat(s: CharSequence, predicate: (Char) -> Boolean): Int
 
+@KSwiftKRuntimeName("kk_string_lines_flat")
+external fun __string_lines_flat(s: String): List<String>
+
+@KSwiftKRuntimeName("kk_string_lineSequence_flat")
+external fun __string_lineSequence_flat(s: String): Sequence<String>
+
+@KSwiftKRuntimeName("kk_string_asSequence_flat")
+external fun __string_asSequence_flat(s: String): Sequence<Char>
+
+@KSwiftKRuntimeName("kk_string_asIterable_flat")
+external fun __string_asIterable_flat(s: String): Iterable<Char>
+
+@KSwiftKRuntimeName("kk_string_withIndex_flat")
+external fun __string_withIndex_flat(s: String): Iterable<IndexedValue<Char>>
+
+@KSwiftKRuntimeName("kk_string_withIndex_flat")
+external fun __string_withIndex_flat(s: CharSequence): Iterable<IndexedValue<Char>>
+
 @KSwiftKRuntimeName("kk_string_toInt_flat")
 external fun __string_toInt_flat(s: String): Int
 
