@@ -256,7 +256,7 @@ extension CodegenBackendIntegrationTests {
             body: [
                 .constValue(result: leftExpr, value: .stringLiteral(left)),
                 .constValue(result: rightExpr, value: .stringLiteral(right)),
-                .call(symbol: nil, callee: interner.intern("kk_string_concat"), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_string_concat_flat"), arguments: [leftExpr, rightExpr], result: concatResult, canThrow: false, thrownResult: nil),
                 .constValue(result: paddedExpr, value: .stringLiteral(padded)),
                 .call(symbol: nil, callee: interner.intern("kk_string_trim_flat"), arguments: [paddedExpr], result: trimResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_trimStart_flat"), arguments: [paddedExpr], result: trimStartResult, canThrow: false, thrownResult: nil),

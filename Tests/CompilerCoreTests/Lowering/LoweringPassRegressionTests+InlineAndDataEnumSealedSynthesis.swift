@@ -332,7 +332,7 @@ extension LoweringPassRegressionTests {
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
         XCTAssertTrue(valueOfCallees.contains("kk_string_equals_flat"), "valueOf should call kk_string_equals_flat")
         XCTAssertTrue(valueOfCallees.contains("kk_unbox_bool"), "valueOf should unbox the flat String.equals result")
-        XCTAssertTrue(valueOfCallees.contains("kk_string_concat"), "valueOf should call kk_string_concat to build 'ClassName.value' for error message")
+        XCTAssertTrue(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
         XCTAssertTrue(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
         // Verify valueOf body contains the class name prefix string "Color."

@@ -73,7 +73,7 @@ final class BuildKIRRegressionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callees.contains("kk_string_concat"))
+            XCTAssertTrue(callees.contains("kk_string_concat_flat"))
             XCTAssertFalse(body.contains { instruction in
                 guard case let .binary(op, _, _, _) = instruction else {
                     return false

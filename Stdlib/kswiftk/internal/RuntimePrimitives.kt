@@ -441,7 +441,7 @@ external fun __string_compareTo_flat(s1: String, s2: String): Int
 @KSwiftKRuntimeName("kk_string_compareToIgnoreCase_flat")
 external fun __string_compareToIgnoreCase_flat(s1: String, s2: String, ignoreCase: Boolean): Int
 
-@KSwiftKRuntimeName("kk_string_concat")
+@KSwiftKRuntimeName("kk_string_concat_flat")
 external fun __string_concat(s1: String, s2: String): String
 
 @KSwiftKRuntimeName("kk_string_isEmpty_flat")

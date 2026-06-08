@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-011: Validates that `String.concat(str)` resolves through
 /// Sema for plain String receivers as well as literal / expression contexts.
-/// The runtime link involved is `kk_string_concat`.
+/// The runtime link involved is `kk_string_concat_flat`.
 final class StringConcatFunctionTests: XCTestCase {
     func testStringConcatResolvesInSource() throws {
         let ctx = makeContextFromSource("""
@@ -52,7 +52,7 @@ final class StringConcatFunctionTests: XCTestCase {
                 "String.concat(str) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_concat")
+        XCTAssertEqual(resolvedLink, "kk_string_concat_flat")
     }
 
     func testStringConcatCallBindingResolvesToRuntimeLink() throws {
@@ -79,8 +79,8 @@ final class StringConcatFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_concat",
-                "String.concat(str) member call must resolve to kk_string_concat"
+                "kk_string_concat_flat",
+                "String.concat(str) member call must resolve to kk_string_concat_flat"
             )
         }
     }

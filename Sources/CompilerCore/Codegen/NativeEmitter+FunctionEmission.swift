@@ -482,52 +482,6 @@ extension NativeEmitter {
             }
         }
 
-        func flattenedStringParameterTypes(argumentCount: Int) -> [LLVMCAPIBindings.LLVMTypeRef?]? {
-            guard let typeLowering else {
-                return nil
-            }
-            var parameterTypes: [LLVMCAPIBindings.LLVMTypeRef?] = []
-            for _ in 0..<argumentCount {
-                parameterTypes.append(contentsOf: [
-                    typeLowering.dataPointerType,
-                    int64Type,
-                    int64Type,
-                    int64Type,
-                ])
-            }
-            return parameterTypes
-        }
-
-        func flattenedStringArguments(
-            values argumentValues: [LLVMCAPIBindings.LLVMValueRef],
-            types argumentTypes: [TypeID?],
-            stringArgumentCount: Int,
-            suffix: String
-        ) -> [LLVMCAPIBindings.LLVMValueRef]? {
-            guard argumentValues.count >= stringArgumentCount,
-                  argumentTypes.count >= stringArgumentCount
-            else {
-                return nil
-            }
-            var flattened: [LLVMCAPIBindings.LLVMValueRef] = []
-            for index in 0..<stringArgumentCount {
-                let stringValue: LLVMCAPIBindings.LLVMValueRef
-                if isStringAggregateType(argumentTypes[index]) {
-                    stringValue = argumentValues[index]
-                } else if let bridged = bridgeRuntimeRawToStringAggregate(
-                    argumentValues[index],
-                    suffix: "\(suffix)_arg\(index)_raw"
-                ) {
-                    stringValue = bridged
-                } else {
-                    return nil
-                }
-                guard let fields = stringAggregateFields(stringValue, suffix: "\(suffix)_arg\(index)") else { return nil }
-                flattened.append(contentsOf: fields)
-            }
-            return flattened
-        }
-
         func flattenedRuntimeParameterTypes(
             argumentCount: Int,
             stringArgumentPositions: [Int]
@@ -735,6 +689,12 @@ extension NativeEmitter {
             }
 
             var flatStringReturnCallSpecs: [String: FlatStringReturnCallSpec] = [
+                "kk_string_concat_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_concat_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
                 "kk_string_trim_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trim_flat",
                     stringArgumentCount: 1,
@@ -2061,79 +2021,7 @@ extension NativeEmitter {
                 return true
             }
 
-            switch calleeName {
-            case "kk_string_concat":
-                guard let result,
-                      isStringAggregateType(module.arena.exprType(result)),
-                      let flattenedArgs = flattenedStringArguments(
-                          values: argumentValues,
-                          types: argumentTypes,
-                          stringArgumentCount: 2,
-                          suffix: "concat_\(instructionIndex)"
-                      ),
-                      var parameterTypes = flattenedStringParameterTypes(argumentCount: 2),
-                      let lengthSlot = allocateI64Slot(name: "string_concat_length_\(instructionIndex)"),
-                      let byteCountSlot = allocateI64Slot(name: "string_concat_bytes_\(instructionIndex)"),
-                      let hashSlot = allocateI64Slot(name: "string_concat_hash_\(instructionIndex)")
-                else {
-                    return false
-                }
-                parameterTypes.append(contentsOf: [
-                    outThrownPointerType,
-                    outThrownPointerType,
-                    outThrownPointerType,
-                ])
-                guard let concatFunction = declareExternalFunction(
-                    named: "kk_string_concat_flat",
-                    parameterTypes: parameterTypes,
-                    returnType: typeLowering.dataPointerType
-                ),
-                    let data = bindings.buildCall(
-                        builder,
-                        functionType: concatFunction.type,
-                        callee: concatFunction.value,
-                        arguments: flattenedArgs + [lengthSlot, byteCountSlot, hashSlot],
-                        name: "string_concat_data_\(instructionIndex)"
-                    ),
-                    let length = bindings.buildLoad(
-                        builder,
-                        type: int64Type,
-                        pointer: lengthSlot,
-                        name: "string_concat_length_val_\(instructionIndex)"
-                    ),
-                    let byteCount = bindings.buildLoad(
-                        builder,
-                        type: int64Type,
-                        pointer: byteCountSlot,
-                        name: "string_concat_bytes_val_\(instructionIndex)"
-                    ),
-                    let hash = bindings.buildLoad(
-                        builder,
-                        type: int64Type,
-                        pointer: hashSlot,
-                        name: "string_concat_hash_val_\(instructionIndex)"
-                    )
-                else {
-                    return false
-                }
-                let aggregate = buildStringAggregate(
-                    builder: builder,
-                    lowering: typeLowering,
-                    data: data,
-                    length: length,
-                    byteCount: byteCount,
-                    hash: hash,
-                    name: "string_concat_\(instructionIndex)"
-                )
-                storeResult(result, aggregate)
-                if usesThrownChannel {
-                    storeThrownResultZero(thrownResult)
-                }
-                return true
-
-            default:
-                return false
-            }
+            return false
         }
 
         func resolveUnnamedInternalFunction(
@@ -3887,7 +3775,7 @@ extension NativeEmitter {
         case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
         case "__readlnOrNull": "kk_readlnOrNull"
         case "__string_compareTo_flat": "kk_string_compareTo_flat"
-        case "__string_concat": "kk_string_concat"
+        case "__string_concat": "kk_string_concat_flat"
         case "__string_isEmpty_flat": "kk_string_isEmpty_flat"
         case "__string_isNotEmpty_flat": "kk_string_isNotEmpty_flat"
         case "__string_isBlank_flat": "kk_string_isBlank_flat"

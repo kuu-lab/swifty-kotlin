@@ -295,8 +295,8 @@ extension CallLowerer {
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
             // Kotlin String.plus(other: Any?) calls toString() on the RHS
             // when it is not already a String. Insert a kk_any_to_string
-            // coercion so that kk_string_concat always receives two string
-            // pointers.
+            // coercion so that kk_string_concat_flat always receives two string
+            // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
             let nullableStringType = sema.types.makeNullable(sema.types.stringType)
             let effectiveRHS: KIRExprID
@@ -344,7 +344,7 @@ extension CallLowerer {
             instructions.append(
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat"),
+                    callee: interner.intern("kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: result,
                     canThrow: false,
@@ -904,7 +904,7 @@ extension CallLowerer {
             return unit
         }
         // Determine the runtime op stub.
-        // Use kk_string_concat for String += String (matching lowerBinaryExpr pattern),
+        // Use kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
@@ -932,7 +932,7 @@ extension CallLowerer {
             return false
         }()
         let opName = if op == .plusAssign, isStringElement {
-            "kk_string_concat"
+            "kk_string_concat_flat"
         } else {
             switch op {
             case .plusAssign: "kk_op_add"

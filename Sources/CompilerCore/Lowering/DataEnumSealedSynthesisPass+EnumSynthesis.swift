@@ -389,7 +389,7 @@ extension DataEnumSealedSynthesisPass {
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_string_concat"),
+            callee: interner.intern("kk_string_concat_flat"),
             arguments: [prefixExpr, paramRef],
             result: qualifiedNameExpr,
             canThrow: false,

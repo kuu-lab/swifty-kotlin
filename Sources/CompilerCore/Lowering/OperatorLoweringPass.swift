@@ -495,7 +495,7 @@ final class OperatorLoweringPass: LoweringPass {
             let result = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_concat"),
+                callee: interner.intern("kk_string_concat_flat"),
                 arguments: [lhs, rhs],
                 result: result,
                 canThrow: false,
