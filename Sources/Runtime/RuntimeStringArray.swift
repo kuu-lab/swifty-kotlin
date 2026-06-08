@@ -1701,6 +1701,24 @@ public func kk_println_string_flat(
     return 0
 }
 
+/// Runtime support for printing aggregate String values without a trailing newline.
+@_cdecl("kk_print_string_flat")
+public func kk_print_string_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int
+) -> Int {
+    _ = (length, hash)
+    guard let data, byteCount >= 0 else {
+        Swift.print("null", terminator: "")
+        return 0
+    }
+    let buffer = UnsafeBufferPointer(start: data, count: byteCount)
+    Swift.print(String(decoding: buffer, as: UTF8.self), terminator: "")
+    return 0
+}
+
 /// Runtime support for kotlin.io.print(message) (no newline).
 @_cdecl("kk_print_any")
 public func kk_print_any(_ obj: UnsafeMutableRawPointer?) {

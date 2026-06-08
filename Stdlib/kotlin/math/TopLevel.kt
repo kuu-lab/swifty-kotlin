@@ -1,5 +1,7 @@
 package kotlin.math
 
+import kswiftk.internal.*
+
 fun abs(x: Int): Int = if (x < 0) -x else x
 
 fun abs(n: Long): Long = if (n < 0L) -n else n
@@ -1048,27 +1050,19 @@ fun nextDown(x: Float): Float {
 }
 
 fun roundToInt(x: Float): Int {
-    if (floatIsNaN(x)) throw IllegalArgumentException("Cannot convert NaN to Int")
-    if (floatIsInfinite(x)) throw IllegalArgumentException("Cannot convert Infinity to Int")
-    return round(x).toInt()
+    return __floatRoundToInt(x)
 }
 
 fun roundToInt(x: Double): Int {
-    if (doubleIsNaN(x)) throw IllegalArgumentException("Cannot convert NaN to Int")
-    if (doubleIsInfinite(x)) throw IllegalArgumentException("Cannot convert Infinity to Int")
-    return round(x).toInt()
+    return __doubleRoundToInt(x)
 }
 
 fun roundToLong(x: Float): Long {
-    if (floatIsNaN(x)) throw IllegalArgumentException("Cannot convert NaN to Long")
-    if (floatIsInfinite(x)) throw IllegalArgumentException("Cannot convert Infinity to Long")
-    return round(x).toLong()
+    return __floatRoundToLong(x)
 }
 
 fun roundToLong(x: Double): Long {
-    if (doubleIsNaN(x)) throw IllegalArgumentException("Cannot convert NaN to Long")
-    if (doubleIsInfinite(x)) throw IllegalArgumentException("Cannot convert Infinity to Long")
-    return round(x).toLong()
+    return __doubleRoundToLong(x)
 }
 
 fun max(a: Double, b: Double): Double {

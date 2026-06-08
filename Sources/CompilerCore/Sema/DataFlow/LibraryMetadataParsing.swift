@@ -457,7 +457,11 @@ extension DataFlowSemaPhase {
             }
 
             var contextReceivers: [TypeID] = []
-            if consume(character: "C") {
+            if peek() == "C",
+               index + 1 < source.count,
+               source[index + 1].isNumber
+            {
+                _ = consume(character: "C")
                 guard let contextArity = parseNumber(), consume(character: "<") else {
                     return nil
                 }
@@ -540,6 +544,8 @@ extension DataFlowSemaPhase {
                 types.nullableAnyType
             case let .primitive(primitive, _):
                 types.make(.primitive(primitive, .nullable))
+            case .stringStruct:
+                types.makeNullable(type)
             case let .classType(classType):
                 types.make(.classType(ClassType(
                     classSymbol: classType.classSymbol,

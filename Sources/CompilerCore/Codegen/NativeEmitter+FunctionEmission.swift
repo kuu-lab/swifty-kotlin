@@ -1851,9 +1851,10 @@ extension NativeEmitter {
         func resolveUnnamedInternalFunction(
             named calleeName: String,
             argumentCount: Int,
+            argumentTypes: [TypeID?],
             appendThrownChannel _: Bool
         ) -> (symbol: SymbolID, function: LLVMFunction)? {
-            var match: (symbol: SymbolID, function: LLVMFunction)?
+            var candidates: [(symbol: SymbolID, function: LLVMFunction, parameters: [TypeID])] = []
             // Match by KIR param count (user args only); outThrown is appended by codegen.
             let expectedParameterCount = argumentCount
             for declaration in module.arena.declarations {
@@ -1872,12 +1873,26 @@ extension NativeEmitter {
                 guard kirName == calleeName || cName == calleeName else {
                     continue
                 }
-                if match != nil {
-                    return nil
-                }
-                match = (candidate.symbol, llvmFunction)
+                candidates.append((candidate.symbol, llvmFunction, candidate.params.map(\.type)))
             }
-            return match
+            let exactMatches = candidates.filter { candidate in
+                guard argumentTypes.count == candidate.parameters.count else {
+                    return false
+                }
+                return zip(argumentTypes, candidate.parameters).allSatisfy { argumentType, parameterType in
+                    guard let argumentType else {
+                        return false
+                    }
+                    return argumentType == parameterType
+                }
+            }
+            if exactMatches.count == 1, let match = exactMatches.first {
+                return (match.symbol, match.function)
+            }
+            if candidates.count == 1, let match = candidates.first {
+                return (match.symbol, match.function)
+            }
+            return nil
         }
 
         func internalSignature(for symbol: SymbolID?) -> (parameters: [TypeID], returnType: TypeID)? {
@@ -2416,9 +2431,14 @@ extension NativeEmitter {
 
                 let calleeName = interner.resolve(callee)
                 let argumentValues = arguments.map(resolveValue)
+                let argumentTypes = arguments.map(module.arena.exprType)
+                let externalCalleeName = Self.runtimePrimitiveAlias(
+                    for: calleeName,
+                    argumentCount: argumentValues.count
+                ) ?? calleeName
 
                 if emitFlatStringRuntimeCall(
-                    calleeName: calleeName,
+                    calleeName: externalCalleeName,
                     arguments: arguments,
                     argumentValues: argumentValues,
                     result: result,
@@ -2546,6 +2566,43 @@ extension NativeEmitter {
                     continue
                 }
 
+                if (calleeName == "print" || calleeName == "kk_print_any"),
+                   arguments.count == 1,
+                   isStringAggregateExpr(arguments[0]),
+                   let typeLowering,
+                   let stringFields = stringAggregateFields(
+                       argumentValues[0],
+                       suffix: "print_\(instructionIndex)"
+                   ),
+                   let printFunction = declareExternalFunction(
+                       named: "kk_print_string_flat",
+                       parameterTypes: [
+                           typeLowering.dataPointerType,
+                           int64Type,
+                           int64Type,
+                           int64Type,
+                       ],
+                       returnType: int64Type
+                   )
+                {
+                    _ = bindings.buildCall(
+                        builder,
+                        functionType: printFunction.type,
+                        callee: printFunction.value,
+                        arguments: stringFields,
+                        name: "print_string_\(instructionIndex)"
+                    )
+                    if usesThrownChannel, let thrownResult {
+                        if let alloca = copyTargetAllocas[thrownResult.rawValue] {
+                            _ = bindings.buildStore(builder, value: zeroValue, pointer: alloca)
+                        } else {
+                            storeResult(thrownResult, zeroValue)
+                        }
+                    }
+                    storeResult(result, zeroValue)
+                    continue
+                }
+
                 if calleeName == "println" || calleeName == "kk_println_any" {
                     let printValue = argumentValues.first ?? zeroValue
                     if let printFunction = declareExternalFunction(
@@ -2573,9 +2630,9 @@ extension NativeEmitter {
                 }
 
                 if emitBuiltinCall(
-                    calleeName: calleeName,
+                    calleeName: externalCalleeName,
                     argumentValues: argumentValues,
-                    argumentTypes: arguments.map(module.arena.exprType),
+                    argumentTypes: argumentTypes,
                     result: result,
                     instructionIndex: instructionIndex
                 ) {
@@ -2633,6 +2690,7 @@ extension NativeEmitter {
                     resolveUnnamedInternalFunction(
                         named: calleeName,
                         argumentCount: argumentValues.count,
+                        argumentTypes: argumentTypes,
                         appendThrownChannel: usesThrownChannel
                     )
                 } else {
@@ -2659,7 +2717,7 @@ extension NativeEmitter {
                     )
                 } else {
                     calleeFunction = declareExternalFunction(
-                        named: calleeName,
+                        named: externalCalleeName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
                     )
@@ -2670,7 +2728,6 @@ extension NativeEmitter {
                     continue
                 }
 
-                let argumentTypes = arguments.map(module.arena.exprType)
                 var callArguments = argumentValues
                 let internalSignature = internalSignature(for: effectiveSymbol)
                 if isInternalCall, let parameterTypes = internalSignature?.parameters {
@@ -2871,6 +2928,11 @@ extension NativeEmitter {
 
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
+                let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+                let externalCalleeName = Self.runtimePrimitiveAlias(
+                    for: calleeName,
+                    argumentCount: argumentValues.count
+                ) ?? calleeName
 
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
                     symbol
@@ -2881,6 +2943,7 @@ extension NativeEmitter {
                     resolveUnnamedInternalFunction(
                         named: calleeName,
                         argumentCount: argumentValues.count,
+                        argumentTypes: argumentTypes,
                         appendThrownChannel: usesThrownChannel
                     )
                 } else {
@@ -2906,7 +2969,7 @@ extension NativeEmitter {
                     )
                 } else {
                     declareExternalFunction(
-                        named: calleeName,
+                        named: externalCalleeName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
                     )
@@ -3354,6 +3417,63 @@ extension NativeEmitter {
             "kk_string_struct_get_length"
         } else {
             calleeName
+        }
+    }
+
+    private static func runtimePrimitiveAlias(for calleeName: String, argumentCount: Int) -> String? {
+        switch calleeName {
+        case "and": "kk_bitwise_and"
+        case "or": "kk_bitwise_or"
+        case "xor": "kk_bitwise_xor"
+        case "__exitProcess": "kk_system_exitProcess"
+        case "__getTimeMicros": "kk_system_getTimeMicros"
+        case "__getTimeMillis": "kk_system_getTimeMillis"
+        case "__getTimeNanos": "kk_system_getTimeNanos"
+        case "__synchronized": "kk_synchronized"
+        case "__doubleToBits": "kk_double_toBits"
+        case "__doubleToRawBits": "kk_double_toRawBits"
+        case "__floatToBits": "kk_float_toBits"
+        case "__floatToRawBits": "kk_float_toRawBits"
+        case "__doubleFromBits": "kk_double_fromBits"
+        case "__floatFromBits": "kk_float_fromBits"
+        case "__doubleIsNaN": "kk_double_isNaN"
+        case "__doubleIsInfinite": "kk_double_isInfinite"
+        case "__floatIsNaN": "kk_float_isNaN"
+        case "__floatIsInfinite": "kk_float_isInfinite"
+        case "__doubleRoundToInt": "kk_double_roundToInt"
+        case "__floatRoundToInt": "kk_float_roundToInt"
+        case "__doubleRoundToLong": "kk_double_roundToLong"
+        case "__floatRoundToLong": "kk_float_roundToLong"
+        case "__intCountOneBits": "kk_int_countOneBits"
+        case "__intCountLeadingZeroBits": "kk_int_countLeadingZeroBits"
+        case "__intCountTrailingZeroBits": "kk_int_countTrailingZeroBits"
+        case "__intHighestOneBit": "kk_int_highestOneBit"
+        case "__intLowestOneBit": "kk_int_lowestOneBit"
+        case "__intRotateLeft": "kk_int_rotateLeft"
+        case "__intRotateRight": "kk_int_rotateRight"
+        case "__longHighestOneBit": "kk_long_highestOneBit"
+        case "__longLowestOneBit": "kk_long_lowestOneBit"
+        case "__longRotateLeft": "kk_long_rotateLeft"
+        case "__longRotateRight": "kk_long_rotateRight"
+        case "__requireLazy": "kk_require_lazy"
+        case "__checkLazy": "kk_check_lazy"
+        case "__assert": "kk_precondition_assert"
+        case "__assertLazy": "kk_precondition_assert_lazy"
+        case "__todo": argumentCount == 0 ? "kk_todo_noarg" : "kk_todo"
+        case "__println": argumentCount == 0 ? "kk_println_newline" : "kk_println_any"
+        case "__print": argumentCount == 0 ? "kk_print_noarg" : "kk_print_any"
+        case "__readlnOrNull": "kk_readlnOrNull"
+        case "__string_struct_get_length": "kk_string_struct_get_length"
+        case "__string_compareTo_flat": "kk_string_compareTo_flat"
+        case "__string_concat": "kk_string_concat"
+        case "__string_get_flat": "kk_string_get_flat"
+        case "__testAssertEquals": "kk_test_assertEquals"
+        case "__testAssertEqualsMessage": "kk_test_assertEquals_message"
+        case "__testAssertTrue": "kk_test_assertTrue"
+        case "__testAssertTrueMessage": "kk_test_assertTrue_message"
+        case "__testAssertNull": "kk_test_assertNull"
+        case "__testAssertNullMessage": "kk_test_assertNull_message"
+        default: nil
         }
     }
 }

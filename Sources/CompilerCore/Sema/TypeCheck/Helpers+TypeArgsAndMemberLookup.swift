@@ -58,6 +58,8 @@ extension TypeCheckHelpers {
         switch types.kind(of: typeID) {
         case let .primitive(p, _):
             return types.make(.primitive(p, .nullable))
+        case .stringStruct:
+            return types.makeNullable(typeID)
         case let .classType(ct):
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
         case let .typeParam(tp):

@@ -8,7 +8,7 @@ val String.length: Int
     get() = __string_struct_get_length(this)
 
 val String.indices: IntRange
-    get() = 0 until this.length
+    get() = 0..this.lastIndex
 
 val String.lastIndex: Int
     get() = this.length - 1
@@ -28,11 +28,14 @@ fun String.isEmpty(): Boolean = this.length == 0
 fun String.isNotEmpty(): Boolean = this.length > 0
 
 fun String.isBlank(): Boolean {
-    for (i in 0 until this.length) {
+    var i = 0
+    val end = this.length
+    while (i < end) {
         val char = __string_get_flat(this, i)
         if (!char.isWhitespace()) {
             return false
         }
+        i++
     }
     return true
 }

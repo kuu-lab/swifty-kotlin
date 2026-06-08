@@ -1111,6 +1111,13 @@ extension DataFlowSemaPhase {
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticScopeFunctionStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticTestFrameworkStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            kotlinPkg: kotlinPkg
+        )
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)

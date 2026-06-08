@@ -1,5 +1,7 @@
 package kotlin
 
+import kswiftk.internal.*
+
 fun require(condition: Boolean): Unit {
     if (!condition) {
         throw IllegalArgumentException("Failed requirement.")
@@ -34,6 +36,6 @@ fun assert(value: Boolean, lazyMessage: () -> Any): Unit {
 
 fun error(message: Any): Nothing = throw IllegalStateException(message.toString())
 
-fun TODO(): Nothing = throw NotImplementedError("An operation is not implemented.")
+fun TODO(): Nothing = __todo()
 
-fun TODO(reason: String): Nothing = throw NotImplementedError("An operation is not implemented: $reason")
+fun TODO(reason: String): Nothing = __todo(reason)
