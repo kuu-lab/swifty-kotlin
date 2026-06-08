@@ -125,7 +125,7 @@ extension BuildASTPhase {
             var initializerStartIndex: Int?
             var isDelegated = false
             var assignDepth = BuildASTPhase.BracketDepth()
-            var index = statementTokens.startIndex
+            var index = statementTokens.index(after: nameIndex)
             while index < statementTokens.endIndex {
                 let token = statementTokens[index]
                 if assignDepth.isAtTopLevel {

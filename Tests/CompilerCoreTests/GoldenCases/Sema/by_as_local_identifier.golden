@@ -1,0 +1,16 @@
+symbol s0 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s1 kind=function fq=useSoftKeywordAsByIdentifier vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s2 kind=local fq=__local_0.by vis=private flags=_ type=Int
+symbol s3 kind=local fq=__local_1.by2 vis=private flags=mutable type=String
+symbol s4 kind=local fq=__local_2.by3 vis=private flags=_ type=Int
+file f0 package=_
+  decl d0 fun useSoftKeywordAsByIdentifier suspend=0 inline=0 sym=s1
+expr e0 int(1) type=Int
+expr e1 localDecl by mutable=0 type=_ init=e0 type=Unit ref=s2
+expr e2 string(hello) type=String
+expr e3 localDecl by2 mutable=1 type=_ init=e2 type=Unit ref=s3
+expr e4 int(5) type=Int
+expr e5 localDecl by3 mutable=0 type=t0 init=e4 type=Unit ref=s4
+expr e6 name(println) type=_
+expr e7 name(by) type=Int ref=s2
+expr e8 call callee=e6 args=[_:e7] type=Unit call=s0 map=[0->0] targs=[]
