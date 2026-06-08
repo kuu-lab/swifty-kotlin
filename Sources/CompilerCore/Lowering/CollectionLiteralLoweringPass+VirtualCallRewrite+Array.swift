@@ -176,8 +176,8 @@ extension CollectionLiteralLoweringPass {
                 callee: lookup.kkArrayCopyOfRangeName,
                 arguments: [receiver] + arguments,
                 result: copyResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: origThrownResult
             ))
             if let result {
                 arrayExprIDs.insert(result.rawValue)

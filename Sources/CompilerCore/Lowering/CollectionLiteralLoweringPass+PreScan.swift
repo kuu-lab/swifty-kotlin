@@ -336,6 +336,12 @@ extension CollectionLiteralLoweringPass {
             // directly.  Track these results as sequence expressions so that
             // downstream toList/filter rewrites fire correctly.
             sequenceExprIDs.insert(result.rawValue)
+        } else if callee == lookup.kkArrayMapName || callee == lookup.kkArrayFilterName {
+            // The KIR builder resolves array HOF calls (map/filter) to kk_array_*
+            // directly when the receiver type is statically known.  Track their
+            // results as list expressions so that downstream size/isEmpty/forEach
+            // rewrites fire correctly (STDLIB-004).
+            listExprIDs.insert(result.rawValue)
         } else if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
