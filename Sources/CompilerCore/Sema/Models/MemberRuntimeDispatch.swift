@@ -242,7 +242,7 @@ enum MemberRuntimeDispatch {
         case "findLast":
             return rangeRuntimeName(kind: kind, member: "findLast")
         case "first":
-            if key.arity > 1 {
+            if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "first_predicate")
             }
             return rangeRuntimeName(kind: kind, member: "first", longMember: "first")
@@ -254,7 +254,7 @@ enum MemberRuntimeDispatch {
             }
             return rangeRuntimeName(kind: kind, member: "firstOrNull_predicate")
         case "last":
-            if key.arity > 1 {
+            if key.arity > 0 {
                 return rangeRuntimeName(kind: kind, member: "last_predicate")
             }
             return rangeRuntimeName(kind: kind, member: "last", longMember: "last")

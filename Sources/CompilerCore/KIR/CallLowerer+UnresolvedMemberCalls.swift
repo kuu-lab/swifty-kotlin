@@ -8,10 +8,16 @@ extension CallLowerer {
         receiverExpr: ExprID,
         receiverType: TypeID,
         argumentCount: Int,
+        sourceArgumentCount: Int? = nil,
         hasHOFLambdaArg: Bool = false,
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString? {
+        // HOF arity is the number of source-level arguments (excluding the receiver).
+        // When the caller already prepended the receiver into argumentCount, the source
+        // count must be supplied separately so StdlibSurfaceSpec arity entries (which
+        // count lambda args only) are matched correctly.
+        let hofArity = sourceArgumentCount ?? argumentCount
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
             receiverExpr: receiverExpr,
@@ -22,7 +28,7 @@ extension CallLowerer {
            let runtimeLinkName = MemberRuntimeDispatch.rangeRuntimeLinkName(for: MemberDispatchKey(
                receiverKind: rangeKind,
                memberName: memberName,
-               arity: argumentCount,
+               arity: hofArity,
                lambdaShape: hasHOFLambdaArg ? .hofLambda : .none
            ))
         {
@@ -33,10 +39,18 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         ),
+           // Only allow the early-return for kinds that map cleanly to their own
+           // surface-spec entries (.list, .map, .sequence).  .set, .collection,
+           // and .iterable all map to .list inside stdlibSurfaceOwnerKind, so
+           // collectionRuntimeLinkName would return a *List* runtime function for
+           // those receivers when hofArity==1 (SOURCE count), bypassing the
+           // isSetLikeType block and the CollectionLiteralLoweringPass Set-HOF
+           // rewrite that correctly routes them to kk_set_filter etc.
+           collectionKind == .list || collectionKind == .map || collectionKind == .sequence,
            let runtimeLinkName = MemberRuntimeDispatch.collectionRuntimeLinkName(for: MemberDispatchKey(
                receiverKind: collectionKind,
                memberName: memberName,
-               arity: argumentCount,
+               arity: hofArity,
                lambdaShape: hasHOFLambdaArg ? .hofLambda : .none
            ))
         {
