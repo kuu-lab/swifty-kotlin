@@ -4526,7 +4526,10 @@ extension DataFlowSemaPhase {
             return existingSignature.receiverType == receiverType
                 && existingSignature.parameterTypes == parameters.map(\.type)
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            let existingFlags = symbols.symbol(existing)?.flags ?? []
+            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             if !annotations.isEmpty {
                 symbols.setAnnotations(annotations, for: existing)
             }

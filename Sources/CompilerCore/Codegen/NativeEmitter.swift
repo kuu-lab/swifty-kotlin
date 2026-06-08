@@ -34,6 +34,7 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let typeSystem: TypeSystem?
+    let symbols: SymbolTable?
     let interner: StringInterner
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
@@ -49,6 +50,7 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
         interner: StringInterner,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
@@ -62,6 +64,7 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.typeSystem = typeSystem
+        self.symbols = symbols
         self.interner = interner
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
@@ -184,14 +187,17 @@ struct NativeEmitter {
         }
 
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
-        let runtimeCallbackRawReturnSymbols = Set(
+        let runtimeCallbackRawABISymbols = Set(
             module.arena.callableValueInfoByExprID.values
-                .filter(\.hasClosureParam)
                 .map(\.symbol)
         )
 
+        func usesRuntimeCallbackRawABI(_ function: KIRFunction) -> Bool {
+            runtimeCallbackRawABISymbols.contains(function.symbol)
+        }
+
         func returnsRawStringRuntimeCallback(_ function: KIRFunction) -> Bool {
-            guard runtimeCallbackRawReturnSymbols.contains(function.symbol),
+            guard usesRuntimeCallbackRawABI(function),
                   let typeSystem,
                   case .stringStruct = typeSystem.kind(of: function.returnType)
             else {
@@ -211,9 +217,11 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = function.params.map {
-                loweredLLVMType(for: $0.type, lowering: typeLowering, defaultType: int64Type)
-            }
+            var parameterTypes = usesRuntimeCallbackRawABI(function)
+                ? Array(repeating: int64Type, count: function.params.count)
+                : function.params.map {
+                    loweredLLVMType(for: $0.type, lowering: typeLowering, defaultType: int64Type)
+                }
             parameterTypes.append(outThrownPointerType)
             let returnType = returnsRawStringRuntimeCallback(function)
                 ? int64Type
@@ -257,7 +265,8 @@ struct NativeEmitter {
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,
-                    runtimeCallbackRawReturnSymbols: runtimeCallbackRawReturnSymbols,
+                    runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
+                    usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI(function),
                     returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback(function),
                     diContext: diContext
                 )

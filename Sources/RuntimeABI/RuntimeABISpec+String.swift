@@ -227,6 +227,78 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
+        flatStringReturnSpec(
+            name: "kk_string_substringBefore_flat",
+            trailingStringPrefixes: ["delimiter", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringBefore_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringBeforeLast_flat",
+            trailingStringPrefixes: ["delimiter", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringBeforeLast_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringAfter_flat",
+            trailingStringPrefixes: ["delimiter", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringAfter_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringAfterLast_flat",
+            trailingStringPrefixes: ["delimiter", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_substringAfterLast_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceAfter_flat",
+            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceAfter_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceAfterLast_flat",
+            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceAfterLast_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceBefore_flat",
+            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceBefore_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceBeforeLast_flat",
+            trailingStringPrefixes: ["delimiter", "replacement", "missing"]
+        ),
+        flatStringReturnSpec(
+            name: "kk_string_replaceBeforeLast_char_flat",
+            delimiterParameter: RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
+            trailingStringPrefixes: ["replacement", "missing"]
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_take_flat",
             parameters: [
@@ -3131,4 +3203,46 @@ public extension RuntimeABISpec {
             section: "String"
         ),
     ]
+
+    private static func flatStringReturnSpec(
+        name: String,
+        delimiterParameter: RuntimeABIParameter? = nil,
+        trailingStringPrefixes: [String]
+    ) -> RuntimeABIFunctionSpec {
+        var parameters = flatStringParameters(prefix: "")
+        if let delimiterParameter {
+            parameters.append(delimiterParameter)
+        }
+        for prefix in trailingStringPrefixes {
+            parameters.append(contentsOf: flatStringParameters(prefix: prefix))
+        }
+        parameters.append(contentsOf: flatStringOutParameters())
+        return RuntimeABIFunctionSpec(
+            name: name,
+            parameters: parameters,
+            returnType: .nullableUInt8Pointer,
+            section: "String"
+        )
+    }
+
+    private static func flatStringParameters(prefix: String) -> [RuntimeABIParameter] {
+        let dataName = prefix.isEmpty ? "data" : "\(prefix)Data"
+        let lengthName = prefix.isEmpty ? "length" : "\(prefix)Length"
+        let byteCountName = prefix.isEmpty ? "byteCount" : "\(prefix)ByteCount"
+        let hashName = prefix.isEmpty ? "hash" : "\(prefix)Hash"
+        return [
+            RuntimeABIParameter(name: dataName, type: .nullableConstUInt8Pointer),
+            RuntimeABIParameter(name: lengthName, type: .intptr),
+            RuntimeABIParameter(name: byteCountName, type: .intptr),
+            RuntimeABIParameter(name: hashName, type: .intptr),
+        ]
+    }
+
+    private static func flatStringOutParameters() -> [RuntimeABIParameter] {
+        [
+            RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
+            RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
+        ]
+    }
 }

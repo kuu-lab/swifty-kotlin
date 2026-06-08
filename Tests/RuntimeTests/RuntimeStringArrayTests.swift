@@ -293,7 +293,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         rhsByteCount,
                         rhsHash
                     ),
-                    -1
+                    -23
                 )
             }
         }
@@ -313,7 +313,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         rhsByteCount,
                         rhsHash
                     ),
-                    1
+                    23
                 )
             }
         }
@@ -610,6 +610,68 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                         1
                     ),
                     -1
+                )
+            }
+            withFlatString("") { emptyData, emptyLength, emptyByteCount, emptyHash in
+                XCTAssertEqual(
+                    kk_string_indexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        emptyData,
+                        emptyLength,
+                        emptyByteCount,
+                        emptyHash,
+                        length + 1,
+                        0
+                    ),
+                    length
+                )
+                XCTAssertEqual(
+                    kk_string_indexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        emptyData,
+                        emptyLength,
+                        emptyByteCount,
+                        emptyHash,
+                        length + 1,
+                        1
+                    ),
+                    -1
+                )
+                XCTAssertEqual(
+                    kk_string_lastIndexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        emptyData,
+                        emptyLength,
+                        emptyByteCount,
+                        emptyHash,
+                        length + 1,
+                        0
+                    ),
+                    length
+                )
+                XCTAssertEqual(
+                    kk_string_lastIndexOf_ignoreCase_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        emptyData,
+                        emptyLength,
+                        emptyByteCount,
+                        emptyHash,
+                        length + 1,
+                        1
+                    ),
+                    length - 1
                 )
             }
             XCTAssertEqual(

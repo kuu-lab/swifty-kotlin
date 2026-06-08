@@ -438,8 +438,87 @@ external fun __string_struct_get_length(s: String): Int
 @KSwiftKRuntimeName("kk_string_compareTo_flat")
 external fun __string_compareTo_flat(s1: String, s2: String): Int
 
+@KSwiftKRuntimeName("kk_string_compareToIgnoreCase_flat")
+external fun __string_compareToIgnoreCase_flat(s1: String, s2: String, ignoreCase: Boolean): Int
+
 @KSwiftKRuntimeName("kk_string_concat")
 external fun __string_concat(s1: String, s2: String): String
 
+@KSwiftKRuntimeName("kk_string_isEmpty_flat")
+external fun __string_isEmpty_flat(s: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_isNotEmpty_flat")
+external fun __string_isNotEmpty_flat(s: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_isBlank_flat")
+external fun __string_isBlank_flat(s: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_isNotBlank_flat")
+external fun __string_isNotBlank_flat(s: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_isNullOrEmpty_flat")
+external fun __string_isNullOrEmpty_flat(s: String?): Boolean
+
+@KSwiftKRuntimeName("kk_string_isNullOrBlank_flat")
+external fun __string_isNullOrBlank_flat(s: String?): Boolean
+
 @KSwiftKRuntimeName("kk_string_get_flat")
 external fun __string_get_flat(s: String, index: Int): Char
+
+@KSwiftKRuntimeName("kk_string_getOrNull_flat")
+external fun __string_getOrNull_flat(s: String, index: Int): Char?
+
+@KSwiftKRuntimeName("kk_string_first_flat")
+external fun __string_first_flat(s: String): Char
+
+@KSwiftKRuntimeName("kk_string_last_flat")
+external fun __string_last_flat(s: String): Char
+
+@KSwiftKRuntimeName("kk_string_single_flat")
+external fun __string_single_flat(s: String): Char
+
+@KSwiftKRuntimeName("kk_string_firstOrNull_flat")
+external fun __string_firstOrNull_flat(s: String): Char?
+
+@KSwiftKRuntimeName("kk_string_lastOrNull_flat")
+external fun __string_lastOrNull_flat(s: String): Char?
+
+@KSwiftKRuntimeName("kk_string_singleOrNull_flat")
+external fun __string_singleOrNull_flat(s: String): Char?
+
+@KSwiftKRuntimeName("kk_string_startsWith_flat")
+external fun __string_startsWith_flat(s: String, prefix: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_endsWith_flat")
+external fun __string_endsWith_flat(s: String, suffix: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_contains_str_flat")
+external fun __string_contains_flat(s: String, other: String): Boolean
+
+@KSwiftKRuntimeName("kk_string_contains_ignoreCase_flat")
+external fun __string_contains_ignoreCase_flat(s: String, other: String, ignoreCase: Boolean): Boolean
+
+@KSwiftKRuntimeName("kk_string_indexOf_flat")
+external fun __string_indexOf_flat(s: String, other: String): Int
+
+@KSwiftKRuntimeName("kk_string_indexOf_from_flat")
+external fun __string_indexOf_from_flat(s: String, other: String, startIndex: Int): Int
+
+@KSwiftKRuntimeName("kk_string_indexOf_ignoreCase_flat")
+external fun __string_indexOf_ignoreCase_flat(
+    s: String,
+    other: String,
+    startIndex: Int,
+    ignoreCase: Boolean
+): Int
+
+@KSwiftKRuntimeName("kk_string_lastIndexOf_flat")
+external fun __string_lastIndexOf_flat(s: String, other: String): Int
+
+@KSwiftKRuntimeName("kk_string_lastIndexOf_ignoreCase_flat")
+external fun __string_lastIndexOf_ignoreCase_flat(
+    s: String,
+    other: String,
+    startIndex: Int,
+    ignoreCase: Boolean
+): Int

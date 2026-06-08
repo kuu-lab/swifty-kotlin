@@ -73,6 +73,18 @@ private func runtimeStringBuilderNew(initial: String) -> Int {
     registerRuntimeObject(RuntimeStringBuilderBox(initial))
 }
 
+private func runtimeStringBuilderObjectStringFromFlat(
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    guard data != nil else {
+        return "null"
+    }
+    return runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+}
+
 @_cdecl("kk_string_builder_append_obj")
 public func kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
@@ -88,7 +100,7 @@ public func kk_string_builder_append_obj_flat(
 ) -> Int {
     runtimeStringBuilderAppend(
         sbRaw,
-        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        value: runtimeStringBuilderObjectStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     )
 }
 
@@ -130,7 +142,7 @@ public func kk_string_builder_append_line_obj_flat(
 ) -> Int {
     runtimeStringBuilderAppendLine(
         sbRaw,
-        value: runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
+        value: runtimeStringBuilderObjectStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     )
 }
 

@@ -219,6 +219,108 @@ final class LinkPhaseIntegrationTests: XCTestCase {
         }
     }
 
+    func testStdlibSearchPathUsesRepoKotlinStringPredicateSources() throws {
+        let stdlibPaths = try repoKotlinStdlibSourcePaths()
+        let stdlibBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        let stdlibCtx = makeCompilationContext(
+            inputs: stdlibPaths,
+            moduleName: "KotlinStdlib",
+            emit: .library,
+            outputPath: stdlibBase,
+            includeStdlib: false
+        )
+        try runToKIR(stdlibCtx)
+        try LoweringPhase().run(stdlibCtx)
+        try CodegenPhase().run(stdlibCtx)
+
+        let metadataPath = URL(fileURLWithPath: stdlibBase + ".kklib")
+            .appendingPathComponent("metadata.bin")
+            .path
+        let metadata = try String(contentsOfFile: metadataPath, encoding: .utf8)
+        let records = MetadataDecoder().decode(metadata)
+        func sourceLinks(for fqName: String) -> Set<String> {
+            Set(records.filter { $0.kind == .function && $0.fqName == fqName }
+                .compactMap(\.externalLinkName))
+        }
+
+        for name in ["isEmpty", "isNotEmpty", "isBlank", "isNotBlank", "isNullOrEmpty", "isNullOrBlank"] {
+            let publicLinks = sourceLinks(for: "kotlin.text.\(name)")
+            XCTAssertEqual(
+                publicLinks.count,
+                1,
+                "Expected source stdlib to export kotlin.text.\(name) as a real source-backed function"
+            )
+            XCTAssertTrue(
+                publicLinks.allSatisfy { $0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should link to its generated source function, got \(publicLinks)"
+            )
+            XCTAssertFalse(
+                publicLinks.contains { $0.hasPrefix("kk_") && !$0.hasPrefix("kk_fn_") },
+                "Public kotlin.text.\(name) should stay source-backed; only the internal bridge should expose a runtime link"
+            )
+        }
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isEmpty_flat"), ["kk_string_isEmpty_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNotEmpty_flat"), ["kk_string_isNotEmpty_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isBlank_flat"), ["kk_string_isBlank_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNotBlank_flat"), ["kk_string_isNotBlank_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNullOrEmpty_flat"), ["kk_string_isNullOrEmpty_flat"])
+        XCTAssertEqual(sourceLinks(for: "kswiftk.internal.__string_isNullOrBlank_flat"), ["kk_string_isNullOrBlank_flat"])
+
+        let appSource = """
+        fun main(): Int {
+            val empty = ""
+            val blank = "   "
+            val text = "abc"
+            val nullableNull: String? = null
+            val nullableEmpty: String? = ""
+            val nullableBlank: String? = "   "
+
+            if (!empty.isEmpty()) return 1
+            if (text.isEmpty()) return 2
+            if (!text.isNotEmpty()) return 3
+            if (empty.isNotEmpty()) return 4
+            if (!blank.isBlank()) return 5
+            if (text.isBlank()) return 6
+            if (!text.isNotBlank()) return 7
+            if (blank.isNotBlank()) return 8
+            if (!nullableNull.isNullOrEmpty()) return 9
+            if (!nullableNull.isNullOrBlank()) return 10
+            if (!nullableEmpty.isNullOrEmpty()) return 11
+            if (!nullableEmpty.isNullOrBlank()) return 12
+            if (nullableBlank.isNullOrEmpty()) return 13
+            if (!nullableBlank.isNullOrBlank()) return 14
+            return 42
+        }
+        """
+        try withTemporaryFile(contents: appSource) { appPath in
+            let outputPath = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let appCtx = makeCompilationContext(
+                inputs: [appPath],
+                moduleName: "StdlibStringPredicateApp",
+                emit: .executable,
+                outputPath: outputPath,
+                stdlibSearchPaths: [stdlibBase + ".kklib"]
+            )
+            try runToKIR(appCtx)
+            try LoweringPhase().run(appCtx)
+            try CodegenPhase().run(appCtx)
+            assertLinkSucceeds(appCtx)
+
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outputPath))
+            do {
+                _ = try CommandRunner.run(executable: outputPath, arguments: [])
+                XCTFail("Expected non-zero exit")
+                return
+            } catch let CommandRunnerError.nonZeroExit(failed) {
+                XCTAssertEqual(failed.exitCode, 42)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
     func testStdlibSearchPathUsesRepoKotlinPreconditionSources() throws {
         let stdlibPaths = try repoKotlinStdlibSourcePaths()
         let stdlibBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path

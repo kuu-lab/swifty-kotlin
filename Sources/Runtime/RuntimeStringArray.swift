@@ -441,9 +441,7 @@ public func kk_string_compareTo_flat(
         byteCount: rhsByteCount,
         hash: rhsHash
     )
-    if lhs < rhs { return -1 }
-    if lhs > rhs { return 1 }
-    return 0
+    return runtimeCompareStrings(lhs, rhs)
 }
 
 @_cdecl("kk_op_is")

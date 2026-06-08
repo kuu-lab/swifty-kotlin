@@ -2794,6 +2794,291 @@ private func runtimeSubstringMissingDelimiterValue(
     return runtimeStringFromRawOrPanic(missingDelimiterValueRaw, caller: caller)
 }
 
+@inline(__always)
+private func runtimeFlatMissingDelimiterValue(
+    source: String,
+    data: UnsafePointer<UInt8>?,
+    length: Int,
+    byteCount: Int,
+    hash: Int
+) -> String {
+    guard data != nil else {
+        return source
+    }
+    return runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+}
+
+@_cdecl("kk_string_substringBefore_flat")
+public func kk_string_substringBefore_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value = source.range(of: delimiter).map { String(source[..<$0.lowerBound]) } ?? missing
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBefore_char_flat")
+public func kk_string_substringBefore_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value = source.range(of: delimiter).map { String(source[..<$0.lowerBound]) } ?? missing
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBeforeLast_flat")
+public func kk_string_substringBeforeLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value = source.range(of: delimiter, options: .backwards).map { String(source[..<$0.lowerBound]) } ?? missing
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringBeforeLast_char_flat")
+public func kk_string_substringBeforeLast_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value = source.range(of: delimiter, options: .backwards).map { String(source[..<$0.lowerBound]) } ?? missing
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfter_flat")
+public func kk_string_substringAfter_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringSubstringAfter(source: source, delimiter: delimiter, missingDelimiterValue: missing),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_substringAfter_char_flat")
+public func kk_string_substringAfter_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringSubstringAfter(source: source, delimiter: delimiter, missingDelimiterValue: missing),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_substringAfterLast_flat")
+public func kk_string_substringAfterLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value: String
+    if delimiter.isEmpty {
+        value = source
+    } else if let range = source.range(of: delimiter, options: .backwards) {
+        value = String(source[range.upperBound...])
+    } else {
+        value = missing
+    }
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
+@_cdecl("kk_string_substringAfterLast_char_flat")
+public func kk_string_substringAfterLast_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    let value = source.range(of: delimiter, options: .backwards).map { String(source[$0.upperBound...]) } ?? missing
+    return runtimeReturnFlatString(value, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_replaceAfter")
 public func kk_string_replaceAfter(
     _ strRaw: Int,
@@ -2978,6 +3263,414 @@ public func kk_string_replaceBeforeLast_char(
     )
 }
 
+@_cdecl("kk_string_replaceAfter_flat")
+public func kk_string_replaceAfter_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceAfter(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceAfter_char_flat")
+public func kk_string_replaceAfter_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceAfter(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceAfterLast_flat")
+public func kk_string_replaceAfterLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceAfterLast(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceAfterLast_char_flat")
+public func kk_string_replaceAfterLast_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceAfterLast(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceBefore_flat")
+public func kk_string_replaceBefore_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceBefore(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceBefore_char_flat")
+public func kk_string_replaceBefore_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceBefore(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceBeforeLast_flat")
+public func kk_string_replaceBeforeLast_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterData: UnsafePointer<UInt8>?,
+    _ delimiterLength: Int,
+    _ delimiterByteCount: Int,
+    _ delimiterHash: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = runtimeStringFromFlat(
+        data: delimiterData,
+        length: delimiterLength,
+        byteCount: delimiterByteCount,
+        hash: delimiterHash
+    )
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceBeforeLast(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_replaceBeforeLast_char_flat")
+public func kk_string_replaceBeforeLast_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ delimiterRaw: Int,
+    _ replacementData: UnsafePointer<UInt8>?,
+    _ replacementLength: Int,
+    _ replacementByteCount: Int,
+    _ replacementHash: Int,
+    _ missingData: UnsafePointer<UInt8>?,
+    _ missingLength: Int,
+    _ missingByteCount: Int,
+    _ missingHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let delimiter = String(runtimeCharacterFromRaw(delimiterRaw))
+    let replacement = runtimeStringFromFlat(
+        data: replacementData,
+        length: replacementLength,
+        byteCount: replacementByteCount,
+        hash: replacementHash
+    )
+    let missing = runtimeFlatMissingDelimiterValue(
+        source: source,
+        data: missingData,
+        length: missingLength,
+        byteCount: missingByteCount,
+        hash: missingHash
+    )
+    return runtimeReturnFlatString(
+        runtimeStringReplaceBeforeLast(
+            source: source,
+            delimiter: delimiter,
+            replacement: replacement,
+            missingDelimiterValue: missing
+        ),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
 func runtimeStringLastIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let source = runtimeStringScalars(strRaw)
     let other = runtimeStringScalars(otherRaw)
@@ -3092,12 +3785,15 @@ public func kk_string_indexOf_ignoreCase_flat(
     )
     let ignoreCase = ignoreCaseRaw != 0
 
+    let sourceScalars = Array(source.unicodeScalars)
     if other.isEmpty {
-        let start = max(0, min(startIndexRaw, source.unicodeScalars.count))
+        if ignoreCase, startIndexRaw > sourceScalars.count {
+            return -1
+        }
+        let start = max(0, min(startIndexRaw, sourceScalars.count))
         return start
     }
 
-    let sourceScalars = Array(source.unicodeScalars)
     let otherScalars = Array(other.unicodeScalars)
     let start = max(0, min(startIndexRaw, sourceScalars.count))
 
@@ -3146,6 +3842,13 @@ public func kk_string_lastIndexOf_ignoreCase_flat(
     let otherScalars = Array(other.unicodeScalars)
 
     if other.isEmpty {
+        if ignoreCase {
+            guard !sourceScalars.isEmpty else {
+                return startIndexRaw < 0 ? -1 : 0
+            }
+            let start = max(0, min(startIndexRaw, sourceScalars.count - 1))
+            return start
+        }
         let start = max(0, min(startIndexRaw, sourceScalars.count))
         return start
     }
@@ -4888,7 +5591,7 @@ private func runtimeSplitStringLimit(
     }
 }
 
-private func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
+func runtimeCompareStrings(_ lhs: String, _ rhs: String) -> Int {
     let lhsScalars = Array(lhs.unicodeScalars)
     let rhsScalars = Array(rhs.unicodeScalars)
     let sharedCount = Swift.min(lhsScalars.count, rhsScalars.count)
@@ -6483,6 +7186,14 @@ struct KSwiftStringStruct {
 
 @_cdecl("kk_string_struct_get_length")
 public func kk_string_struct_get_length(_ structRaw: Int) -> Int {
+    if let rawPointer = UnsafeMutableRawPointer(bitPattern: structRaw) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: rawPointer))
+        }
+        if isObjectPointer, let box = tryCast(rawPointer, to: RuntimeStringBox.self) {
+            return box.value.count
+        }
+    }
     guard let structPointer = UnsafeMutablePointer<KSwiftStringStruct>(bitPattern: UInt(structRaw)) else {
         return 0
     }
