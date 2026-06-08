@@ -1104,14 +1104,14 @@ extension ABILoweringPass {
             interner.intern("kk_kotlin_version_isAtLeast"),
             interner.intern("kk_kotlin_version_isAtLeast_patch"),
             // StringBuilder enhancements (STDLIB-311) — buildString DSL helpers
-            interner.intern("kk_string_builder_append"),
-            interner.intern("kk_string_builder_append_line"),
+            interner.intern("kk_string_builder_append_flat"),
+            interner.intern("kk_string_builder_append_line_flat"),
             interner.intern("kk_string_builder_append_line_noarg"),
             // buildString DSL insert/delete clamp out-of-range indices instead of throwing.
             interner.intern("kk_string_builder_insert"),
             interner.intern("kk_string_builder_delete"),
             interner.intern("kk_string_builder_length"),
-            interner.intern("kk_string_builder_append_range"),
+            interner.intern("kk_string_builder_append_range_flat"),
             // Grouping (STDLIB-285/286) — groupingBy is non-throwing (just creates box)
             interner.intern("kk_list_groupingBy"),
             // List plus/minus operators (STDLIB-345)

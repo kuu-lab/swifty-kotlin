@@ -1184,22 +1184,22 @@ extension NativeEmitter {
                     extraArgumentCount: 1,
                     stringArgumentPositions: [1]
                 ),
-                "kk_string_builder_append": FlatScalarReturnCallSpec(
+                "kk_string_builder_append_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_append_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_builder_append_line": FlatScalarReturnCallSpec(
+                "kk_string_builder_append_line_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_append_line_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_builder_append_range": FlatScalarReturnCallSpec(
+                "kk_string_builder_append_range_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_append_range_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2
                 ),
-                "kk_string_builder_insert": FlatScalarReturnCallSpec(
+                "kk_string_builder_insert_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_builder_insert_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,

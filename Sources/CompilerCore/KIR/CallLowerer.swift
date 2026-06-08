@@ -657,13 +657,13 @@ final class CallLowerer {
         if sema.bindings.builderDSLKind(for: exprID) == .buildString {
             let builderRuntimeCallee: String? = switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
             case ("append", 1):
-                "kk_string_builder_append"
+                "kk_string_builder_append_flat"
             case ("appendLine", 0):
                 "kk_string_builder_append_line_noarg"
             case ("appendLine", 1):
-                "kk_string_builder_append_line"
+                "kk_string_builder_append_line_flat"
             case ("appendRange", 3):
-                "kk_string_builder_append_range"
+                "kk_string_builder_append_range_flat"
             default:
                 nil
             }
