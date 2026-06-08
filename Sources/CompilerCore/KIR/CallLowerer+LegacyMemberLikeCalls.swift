@@ -1487,8 +1487,10 @@ extension CallLowerer {
                 }
                 if calleeName == interner.intern("zipWithNext") {
                     // String.zipWithNext overload dispatch: no-arg → kk_string_zipWithNext_flat,
-                    // transform → kk_string_zipWithNextTransform.
-                    let runtimeCallee = args.isEmpty ? "kk_string_zipWithNext_flat" : "kk_string_zipWithNextTransform"
+                    // transform → kk_string_zipWithNextTransform_flat.
+                    let runtimeCallee = args.isEmpty
+                        ? "kk_string_zipWithNext_flat"
+                        : "kk_string_zipWithNextTransform_flat"
                     let callArguments = args.isEmpty ? [loweredReceiverID] : [loweredReceiverID] + normalizedArgIDs
                     instructions.append(.call(
                         symbol: nil,
@@ -1501,10 +1503,10 @@ extension CallLowerer {
                     return result
                 }
                 if calleeName == interner.intern("zip"), args.count >= 1 {
-                    // String.zip overload dispatch: 1-arg (other) → kk_string_zip,
-                    // 2-arg (other + transform) → kk_string_zipTransform.
+                    // String.zip overload dispatch: 1-arg (other) → kk_string_zip_flat,
+                    // 2-arg (other + transform) → kk_string_zipTransform_flat.
                     let hasTransform = args.count >= 2
-                    let runtimeCallee = hasTransform ? "kk_string_zipTransform" : "kk_string_zip"
+                    let runtimeCallee = hasTransform ? "kk_string_zipTransform_flat" : "kk_string_zip_flat"
                     let callArguments = [loweredReceiverID] + normalizedArgIDs
                     instructions.append(.call(
                         symbol: nil,
@@ -1777,7 +1779,7 @@ extension CallLowerer {
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
-                    ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_splitToSequence_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
                     ("kk_string_find", [loweredReceiverID] + normalizedArgIDs)
                 case "findLast":
@@ -1791,7 +1793,7 @@ extension CallLowerer {
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
-                    ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_chunked_sequence_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "encodeToByteArray":
                     if loweredArgIDs.count == 1 {
                         ("kk_string_encodeToByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
@@ -1801,10 +1803,10 @@ extension CallLowerer {
                 case "toByteArray":
                     if loweredArgIDs.count == 1 {
                         // toByteArray(charset) — Sema types this as List<Int>, so use the ListBox-returning function.
-                        ("kk_string_toByteArray_charset", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
                         // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
-                        ("kk_string_encodeToByteArray_range", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                        ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     }
                 case "commonPrefixWith":
                     if loweredArgIDs.count >= 2 {
@@ -1992,9 +1994,12 @@ extension CallLowerer {
                calleeStr == "chunkedSequence",
                normalizedArgIDs.count >= 3
             {
+                let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+                    ? "kk_string_chunked_sequence_transform_flat"
+                    : "kk_string_chunked_sequence_transform"
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_chunked_sequence_transform"),
+                    callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
                     result: result,
                     canThrow: true,
@@ -2116,9 +2121,12 @@ extension CallLowerer {
                 } else {
                     callArguments = [loweredReceiverID] + normalizedArgIDs
                 }
+                let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+                    ? "kk_string_chunked_sequence_transform_flat"
+                    : "kk_string_chunked_sequence_transform"
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_chunked_sequence_transform"),
+                    callee: interner.intern(runtimeCallee),
                     arguments: callArguments,
                     result: result,
                     canThrow: true,
@@ -2220,9 +2228,12 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "windowedSequence"
             {
+                let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+                    ? "kk_string_windowedSequence_partial_flat"
+                    : "kk_string_windowedSequence_partial"
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_windowedSequence_partial"),
+                    callee: interner.intern(runtimeCallee),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
                     result: result,
                     canThrow: false,
@@ -2311,9 +2322,12 @@ extension CallLowerer {
                     callArguments = nil
                 }
                 if let callArguments {
+                    let runtimeCallee = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+                        ? "kk_string_windowedSequence_transform_flat"
+                        : "kk_string_windowedSequence_transform"
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_windowedSequence_transform"),
+                        callee: interner.intern(runtimeCallee),
                         arguments: callArguments,
                         result: result,
                         canThrow: true,

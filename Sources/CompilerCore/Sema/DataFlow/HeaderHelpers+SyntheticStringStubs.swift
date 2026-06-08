@@ -2619,7 +2619,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "splitToSequence",
-            externalLinkName: "kk_string_splitToSequence",
+            externalLinkName: "kk_string_splitToSequence_flat",
             receiverType: stringType,
             parameters: [("delimiter", stringType, false, false)],
             returnType: sequenceStringType,
@@ -3274,7 +3274,9 @@ extension DataFlowSemaPhase {
         for receiverType in [charSequenceType, stringType] {
             registerSyntheticStringExtensionFunction(
                 named: "chunkedSequence",
-                externalLinkName: "kk_string_chunked_sequence",
+                externalLinkName: receiverType == stringType
+                    ? "kk_string_chunked_sequence_flat"
+                    : "kk_string_chunked_sequence",
                 receiverType: receiverType,
                 parameters: [
                     ("size", intType, false, false),
@@ -3340,7 +3342,12 @@ extension DataFlowSemaPhase {
                 if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                     symbols.setParentSymbol(packageSymbol, for: functionSymbol)
                 }
-                symbols.setExternalLinkName("kk_string_chunked_sequence_transform", for: functionSymbol)
+                symbols.setExternalLinkName(
+                    receiverType == stringType
+                        ? "kk_string_chunked_sequence_transform_flat"
+                        : "kk_string_chunked_sequence_transform",
+                    for: functionSymbol
+                )
                 let sizeParameter = symbols.define(
                     kind: .valueParameter,
                     name: interner.intern("size"),
@@ -3433,6 +3440,20 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        registerSyntheticStringExtensionFunction(
+            named: "windowedSequence",
+            externalLinkName: "kk_string_windowedSequence_partial_flat",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+                ("step", intType, false, false),
+                ("partialWindows", boolType, false, false),
+            ],
+            returnType: sequenceStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-SEQ-004: CharSequence.windowedSequence(size, step, partialWindows, transform) ---
 
@@ -3467,13 +3488,16 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: windowedSequenceRType
         )
-        let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
+        func registerWindowedSequenceTransform(receiverType: TypeID, externalLinkName: String) {
+            let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
+                guard let sig = symbols.functionSignature(for: symID) else {
+                    return false
+                }
+                return sig.receiverType == receiverType && sig.parameterTypes.count == 4
             }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 4
-        }
-        if !hasWindowedSequenceTransform {
+            if hasWindowedSequenceTransform {
+                return
+            }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: interner.intern("windowedSequence"),
@@ -3485,7 +3509,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_windowedSequence_transform", for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
 
             let sizeParamName = interner.intern("size")
             let sizeParamSymbol = symbols.define(
@@ -3533,7 +3557,7 @@ extension DataFlowSemaPhase {
 
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: charSequenceType,
+                    receiverType: receiverType,
                     parameterTypes: [intType, intType, boolType, windowedSequenceTransformType],
                     returnType: windowedSequenceTransformReturnType,
                     valueParameterSymbols: [
@@ -3550,6 +3574,14 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
+        registerWindowedSequenceTransform(
+            receiverType: charSequenceType,
+            externalLinkName: "kk_string_windowedSequence_transform"
+        )
+        registerWindowedSequenceTransform(
+            receiverType: stringType,
+            externalLinkName: "kk_string_windowedSequence_transform_flat"
+        )
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
         // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
@@ -3666,7 +3698,12 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 1
             }
             if let existingZipWithNextTransform {
-                symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: existingZipWithNextTransform)
+                symbols.setExternalLinkName(
+                    receiverType == stringType
+                        ? "kk_string_zipWithNextTransform_flat"
+                        : "kk_string_zipWithNextTransform",
+                    for: existingZipWithNextTransform
+                )
                 return
             }
 
@@ -3703,7 +3740,12 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: transformMemberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: transformMemberSymbol)
+            symbols.setExternalLinkName(
+                receiverType == stringType
+                    ? "kk_string_zipWithNextTransform_flat"
+                    : "kk_string_zipWithNextTransform",
+                for: transformMemberSymbol
+            )
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
                 kind: .valueParameter,
@@ -3896,7 +3938,7 @@ extension DataFlowSemaPhase {
         // zip(other: CharSequence): List<Pair<Char, Char>>
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip",
+            externalLinkName: "kk_string_zip_flat",
             receiverType: stringType,
             parameters: [
                 ("other", charSequenceType, false, false),
@@ -3927,7 +3969,12 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 2
             }
             if let existingZipTransform {
-                symbols.setExternalLinkName("kk_string_zipTransform", for: existingZipTransform)
+                symbols.setExternalLinkName(
+                    receiverType == stringType
+                        ? "kk_string_zipTransform_flat"
+                        : "kk_string_zipTransform",
+                    for: existingZipTransform
+                )
                 return
             }
 
@@ -3964,7 +4011,12 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName("kk_string_zipTransform", for: memberSymbol)
+            symbols.setExternalLinkName(
+                receiverType == stringType
+                    ? "kk_string_zipTransform_flat"
+                    : "kk_string_zipTransform",
+                for: memberSymbol
+            )
             let otherParamName = interner.intern("other")
             let otherParamSymbol = symbols.define(
                 kind: .valueParameter,

@@ -187,8 +187,8 @@ extension BuildKIRRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            XCTAssertTrue(callNames.contains("kk_string_zip"))
-            XCTAssertTrue(callNames.contains("kk_string_zipTransform"))
+            XCTAssertTrue(callNames.contains("kk_string_zip_flat"))
+            XCTAssertTrue(callNames.contains("kk_string_zipTransform_flat"))
             XCTAssertFalse(callNames.contains("zip"))
         }
     }

@@ -774,7 +774,7 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 2
                 ),
-                "kk_string_splitToSequence": FlatScalarReturnCallSpec(
+                "kk_string_splitToSequence_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_splitToSequence_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
@@ -784,12 +784,12 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_chunked_sequence": FlatScalarReturnCallSpec(
+                "kk_string_chunked_sequence_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_chunked_sequence_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1
                 ),
-                "kk_string_chunked_sequence_transform": FlatScalarReturnCallSpec(
+                "kk_string_chunked_sequence_transform_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_chunked_sequence_transform_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3,
@@ -810,12 +810,12 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_windowedSequence_partial": FlatScalarReturnCallSpec(
+                "kk_string_windowedSequence_partial_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_windowedSequence_partial_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 3
                 ),
-                "kk_string_windowedSequence_transform": FlatScalarReturnCallSpec(
+                "kk_string_windowedSequence_transform_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_windowedSequence_transform_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 5,
@@ -826,18 +826,18 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_string_zipWithNextTransform": FlatScalarReturnCallSpec(
+                "kk_string_zipWithNextTransform_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_zipWithNextTransform_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_zip": FlatScalarReturnCallSpec(
+                "kk_string_zip_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_zip_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_zipTransform": FlatScalarReturnCallSpec(
+                "kk_string_zipTransform_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_zipTransform_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 2,
