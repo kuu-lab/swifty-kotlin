@@ -747,6 +747,9 @@ public extension RuntimeABISpec {
             p("collectionRaw", .intptr),
             p("index", .intptr),
         ]),
+        abiParitySpec("kk_match_group_collection_size", parameters: [
+            p("collectionRaw", .intptr),
+        ]),
         abiParitySpec("kk_match_result_component1", parameters: [
             p("matchRaw", .intptr),
         ]),

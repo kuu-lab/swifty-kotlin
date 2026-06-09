@@ -2521,6 +2521,23 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_match_group_collection_get_at",
+            parameters: [
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_match_group_collection_size",
+            parameters: [
+                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_match_group_value",
             parameters: [
                 RuntimeABIParameter(name: "groupRaw", type: .intptr),

@@ -159,7 +159,7 @@
 - [ ] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
 
 #### kotlin.text 型の実装
-- [ ] STDLIB-TEXT-TYPE-008: `MatchGroupCollection` インターフェースの実装
+- [x] STDLIB-TEXT-TYPE-008: `MatchGroupCollection` インターフェースの実装
 - [ ] STDLIB-TEXT-TYPE-010: `MatchResult` インターフェースの実装
 
 #### kotlin.text プロパティの実装

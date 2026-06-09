@@ -997,6 +997,8 @@ extension ABILoweringPass {
             // MatchResult.groups / MatchGroupCollection / MatchGroup
             interner.intern("kk_match_result_groups"),
             interner.intern("kk_match_group_collection_get"),
+            interner.intern("kk_match_group_collection_get_at"),
+            interner.intern("kk_match_group_collection_size"),
             interner.intern("kk_match_group_value"),
             interner.intern("kk_match_group_range"),
             // STDLIB-REGEX-095: MatchResult complete implementation
@@ -1004,7 +1006,6 @@ extension ABILoweringPass {
             interner.intern("kk_match_result_component1"),
             interner.intern("kk_match_result_component2"),
             interner.intern("kk_match_result_next"),
-            interner.intern("kk_match_group_collection_get_at"),
             // STDLIB-REGEX-097: Regex.groupNames
             interner.intern("kk_regex_group_names"),
             // Reverse numeric conversions (STDLIB-151)
