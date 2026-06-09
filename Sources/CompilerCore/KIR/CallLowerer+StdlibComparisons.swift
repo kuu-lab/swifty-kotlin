@@ -18,18 +18,21 @@ extension CallLowerer {
             return nil
         }
 
-        let isStdlibMaxOfCall = chosenSymbol.fqName.count >= 3
+        let isStdlibComparisonsFn = chosenSymbol.fqName.count >= 3
             && chosenSymbol.fqName[0] == interner.intern("kotlin")
             && chosenSymbol.fqName[1] == interner.intern("comparisons")
-            && interner.resolve(chosenSymbol.name) == "maxOf"
+        let chosenCalleeName = interner.resolve(chosenSymbol.name)
+        let isStdlibMaxOfCall = isStdlibComparisonsFn && chosenCalleeName == "maxOf"
+        let isStdlibMinOfCall = isStdlibComparisonsFn && chosenCalleeName == "minOf"
 
         guard let specialKind = sema.bindings.stdlibSpecialCallKind(for: exprID) else {
-            if isStdlibMaxOfCall {
-                return lowerRemainingMaxOfCallExpr(
+            if isStdlibMaxOfCall || isStdlibMinOfCall {
+                return lowerRemainingComparisonCallExpr(
                     exprID,
                     args: args,
                     callBinding: callBinding,
                     chosenCallee: chosenCallee,
+                    isMin: isStdlibMinOfCall,
                     ast: ast,
                     sema: sema,
                     arena: arena,
@@ -93,11 +96,15 @@ extension CallLowerer {
         }
     }
 
-    private func lowerRemainingMaxOfCallExpr(
+    /// Lowers the vararg / generic `maxOf` and `minOf` overloads that are not
+    /// covered by the fixed-arity primitive special-call kinds. `isMin` selects
+    /// the comparison direction (`<` for `minOf`, `>` for `maxOf`).
+    private func lowerRemainingComparisonCallExpr(
         _ exprID: ExprID,
         args: [CallArgument],
         callBinding: CallBinding?,
         chosenCallee: SymbolID,
+        isMin: Bool,
         ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -116,22 +123,25 @@ extension CallLowerer {
             ?? sema.types.anyType
         let boolType = sema.types.booleanType
         let intType = sema.types.intType
+        // The element comparison: pick the candidate when it is strictly less
+        // (minOf) / greater (maxOf) than the running result.
+        let primitiveOp: KIRBinaryOp = isMin ? .lessThan : .greaterThan
 
-        let isGenericComparableMaxOf = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
+        let isGenericComparable = signature.typeParameterUpperBoundsList.contains(where: { upperBounds in
             upperBounds.contains(where: { bound in
                 isComparableUpperBound(bound, sema: sema)
             })
         })
-        let isComparatorMaxOf = !isGenericComparableMaxOf
+        let isComparatorOverload = !isGenericComparable
             && signature.parameterTypes.contains(where: { paramType in
                 isComparatorType(paramType, sema: sema, interner: interner)
             })
-        let isUnsignedMaxOf = !isGenericComparableMaxOf
-            && !isComparatorMaxOf
+        let isPrimitiveOverload = !isGenericComparable
+            && !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
-            && signature.parameterTypes.allSatisfy({ isUnsignedType($0, sema: sema) })
+            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
 
-        guard isGenericComparableMaxOf || isComparatorMaxOf || isUnsignedMaxOf else {
+        guard isGenericComparable || isComparatorOverload || isPrimitiveOverload else {
             return nil
         }
 
@@ -153,7 +163,7 @@ extension CallLowerer {
         let falseExpr = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseExpr, value: .boolLiteral(false)))
 
-        func selectGreater(lhs: KIRExprID, rhs: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
+        func selectCandidate(lhs: KIRExprID, rhs: KIRExprID, conditionExpr: KIRExprID) -> KIRExprID {
             let useRightLabel = driver.ctx.makeLoopLabel()
             let endLabel = driver.ctx.makeLoopLabel()
             let resultExpr = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: resultType)
@@ -168,15 +178,15 @@ extension CallLowerer {
         }
 
         enum ComparisonStrategy {
-            case unsigned
+            case primitive
             case genericComparable
             case comparator(comparatorArgIndex: Int, trampolineCallee: InternedString)
         }
 
         let comparisonStrategy: ComparisonStrategy
-        if isUnsignedMaxOf {
-            comparisonStrategy = .unsigned
-        } else if isGenericComparableMaxOf {
+        if isPrimitiveOverload {
+            comparisonStrategy = .primitive
+        } else if isGenericComparable {
             comparisonStrategy = .genericComparable
         } else {
             guard let callBinding else {
@@ -220,12 +230,12 @@ extension CallLowerer {
             let candidateExpr = loweredArgIDs[argIndex]
             let conditionExpr: KIRExprID
             switch comparisonStrategy {
-            case .unsigned:
+            case .primitive:
                 conditionExpr = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
                     type: boolType
                 )
-                instructions.append(.binary(op: .greaterThan, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
+                instructions.append(.binary(op: primitiveOp, lhs: candidateExpr, rhs: currentExpr, result: conditionExpr))
             case .genericComparable:
                 let compareResultExpr = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
@@ -244,7 +254,7 @@ extension CallLowerer {
                     type: boolType
                 )
                 instructions.append(.binary(
-                    op: .greaterThan,
+                    op: primitiveOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr
@@ -267,13 +277,13 @@ extension CallLowerer {
                     type: boolType
                 )
                 instructions.append(.binary(
-                    op: .greaterThan,
+                    op: primitiveOp,
                     lhs: compareResultExpr,
                     rhs: zeroExpr,
                     result: conditionExpr
                 ))
             }
-            currentExpr = selectGreater(lhs: candidateExpr, rhs: currentExpr, conditionExpr: conditionExpr)
+            currentExpr = selectCandidate(lhs: candidateExpr, rhs: currentExpr, conditionExpr: conditionExpr)
         }
         return currentExpr
     }
@@ -306,12 +316,20 @@ extension CallLowerer {
         return interner.resolve(symbol.name) == "Comparator"
     }
 
-    private func isUnsignedType(
+    /// True for the numeric primitive types whose ordering can be lowered to a
+    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
+    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
+    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.ubyte, .nonNull),
+        case .primitive(.int, .nonNull),
+             .primitive(.long, .nonNull),
+             .primitive(.float, .nonNull),
+             .primitive(.double, .nonNull),
+             .primitive(.ubyte, .nonNull),
              .primitive(.ushort, .nonNull),
              .primitive(.uint, .nonNull),
              .primitive(.ulong, .nonNull):

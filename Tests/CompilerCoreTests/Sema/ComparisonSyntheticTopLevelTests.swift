@@ -441,4 +441,46 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
         }
     }
+
+    // STDLIB-COMP-FN-043: minOf(a: Int, vararg other: Int) — 4+ args resolve to the vararg overload
+    func testVarargMinOfIntResolvesToVarargOverload() throws {
+        let source = """
+        fun sample(): Int = minOf(5, 2, 8, 1)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
+            XCTAssertEqual(sig.returnType, sema.types.intType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
 }
