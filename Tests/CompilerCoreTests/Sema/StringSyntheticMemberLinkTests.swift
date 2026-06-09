@@ -139,6 +139,22 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
         )
+        // STDLIB-TEXT-FN-055: replace overloads
+        XCTAssertTrue(
+            externalLinks(for: "replace", sema: sema, interner: interner)
+                .contains("kk_string_replace_char"),
+            "String.replace(Char, Char) should link to kk_string_replace_char"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "replace", sema: sema, interner: interner)
+                .contains("kk_string_replace_ignoreCase"),
+            "String.replace(String, String, ignoreCase) should link to kk_string_replace_ignoreCase"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "replace", sema: sema, interner: interner)
+                .contains("kk_string_replace_char_ignoreCase"),
+            "String.replace(Char, Char, ignoreCase) should link to kk_string_replace_char_ignoreCase"
+        )
     }
 
     func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {

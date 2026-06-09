@@ -425,6 +425,53 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-055: replace(oldChar, newChar) — Char/Char overload
+        registerSyntheticStringExtensionFunction(
+            named: "replace",
+            externalLinkName: "kk_string_replace_char",
+            receiverType: stringType,
+            parameters: [
+                ("oldChar", charType, false, false),
+                ("newChar", charType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-TEXT-FN-055: replace(oldValue, newValue, ignoreCase) — String/String with ignoreCase
+        registerSyntheticStringExtensionFunction(
+            named: "replace",
+            externalLinkName: "kk_string_replace_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("oldValue", stringType, false, false),
+                ("newValue", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // STDLIB-TEXT-FN-055: replace(oldChar, newChar, ignoreCase) — Char/Char with ignoreCase
+        registerSyntheticStringExtensionFunction(
+            named: "replace",
+            externalLinkName: "kk_string_replace_char_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("oldChar", charType, false, false),
+                ("newChar", charType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "startsWith",
             externalLinkName: "kk_string_startsWith",
