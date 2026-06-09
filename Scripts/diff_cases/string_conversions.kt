@@ -9,5 +9,7 @@ fun main() {
     println("200".toByteOrNull())  // null (out of range)
 
     println("32767".toShort())  // 32767
+    println("32767".toShortOrNull())  // 32767
+    println("99999".toShortOrNull())  // null (out of Short range)
     println("abc".toShortOrNull())  // null
 }
