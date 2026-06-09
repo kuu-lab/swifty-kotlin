@@ -411,9 +411,37 @@ extension CallLowerer {
         case .multiply:
             kirOp = .multiply
         case .divide:
-            kirOp = .divide
+            // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
+            // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
+            if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
+               prim == .float || prim == .double {
+                kirOp = .divide
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_div"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         case .modulo:
-            kirOp = .modulo
+            if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
+               prim == .float || prim == .double {
+                kirOp = .modulo
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_mod"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         case .equal:
             kirOp = .equal
         case .notEqual:
