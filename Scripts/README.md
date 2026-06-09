@@ -115,6 +115,23 @@ bash Scripts/diff_kotlinc.sh --parallel --jobs 4 Scripts/diff_cases
 bash Scripts/diff_kotlinc.sh --no-parallel Scripts/diff_cases
 ```
 
+`DIFF_PARALLEL`/`DIFF_WORKERS` parallelize within one machine. To split the case
+set across several machines (CI shards the regression over 4 runners this way),
+use interleaved sharding — case `i` runs only when `i % count == index`:
+
+```bash
+# 4 shards; each prints/reports only its ~1/4 of the cases.
+DIFF_SHARD_INDEX=0 DIFF_SHARD_COUNT=4 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+DIFF_SHARD_INDEX=1 DIFF_SHARD_COUNT=4 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+# ...and shards 2, 3 on other machines. Combine with --jobs for per-machine parallelism.
+
+# Equivalent flags
+bash Scripts/diff_kotlinc.sh --shard-index 0 --shard-count 4 Scripts/diff_cases
+```
+
+Sharding and `DIFF_WORKERS` compose: a shard still runs its slice across the
+configured workers. `DIFF_SHARD_COUNT=1` (the default) disables sharding.
+
 Render a markdown summary from that report:
 
 ```bash

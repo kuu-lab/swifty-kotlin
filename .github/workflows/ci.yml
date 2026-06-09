@@ -124,14 +124,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  diff-regression:
-    name: kotlinc Diff Regression
+  diff-regression-shards:
+    name: kotlinc Diff Regression Shard (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     # Kotlin/Java tool downloads occasionally spike on GitHub-hosted runners.
     timeout-minutes: 60
+    strategy:
+      # Run every shard even if one fails so we get a complete picture per PR.
+      fail-fast: false
+      matrix:
+        # 714 diff cases striped across 4 runners (~179 each). Cases are split
+        # interleaved (case i runs when i % DIFF_SHARD_COUNT == shard) by
+        # Scripts/diff_kotlinc.sh, so each shard gets a balanced cost mix.
+        shard: [0, 1, 2, 3]
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
+      # MUST equal the number of entries in matrix.shard above.
+      DIFF_SHARD_COUNT: "4"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Swift and LLVM
@@ -190,6 +200,7 @@ jobs:
           DIFF_COMPILE_TIMEOUT: "180"
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
+          DIFF_SHARD_INDEX: ${{ matrix.shard }}
         run: |
           NCPU=$(nproc)
           DIFF_PARALLEL="$NCPU" DIFF_WORKERS="$NCPU" \
@@ -208,9 +219,27 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: kotlinc-diff-regression-${{ github.run_id }}
+          name: kotlinc-diff-regression-${{ github.run_id }}-shard${{ matrix.shard }}
           path: |
             ${{ runner.temp }}/diff_kotlinc_report.tsv
             ${{ runner.temp }}/diff_kotlinc_artifacts
           if-no-files-found: ignore
           retention-days: 30
+
+  # Stable aggregate gate: keeps a single "kotlinc Diff Regression" status check
+  # regardless of how many shards run, so branch protection rules don't need to
+  # list each shard. Succeeds only when every shard succeeded.
+  diff-regression:
+    name: kotlinc Diff Regression
+    runs-on: ubuntu-latest
+    needs: diff-regression-shards
+    if: always()
+    steps:
+      - name: Verify all shards passed
+        run: |
+          result="${{ needs.diff-regression-shards.result }}"
+          echo "Aggregate shard result: $result"
+          if [[ "$result" != "success" ]]; then
+            echo "One or more kotlinc diff regression shards did not pass." >&2
+            exit 1
+          fi
