@@ -1031,6 +1031,36 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-104: CharSequence.toMutableList(): MutableList<Char>
+        // The return type is modelled as MutableList<Char> when the symbol is
+        // available, falling back to List<Char> otherwise — the runtime produces
+        // a fresh, mutable list either way.
+        let mutableListCharType: TypeID = {
+            let mutableListFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("MutableList"),
+            ]
+            if let mutableListSymbol = symbols.lookup(fqName: mutableListFQName) {
+                return types.make(.classType(ClassType(
+                    classSymbol: mutableListSymbol,
+                    args: [.invariant(charType)],
+                    nullability: .nonNull
+                )))
+            }
+            return listCharType
+        }()
+        registerSyntheticStringExtensionFunction(
+            named: "toMutableList",
+            externalLinkName: "kk_string_toMutableList",
+            receiverType: stringType,
+            parameters: [],
+            returnType: mutableListCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
         // The return type is modelled as Set<Char> — the runtime produces a
         // sorted, deduplicated set backed by RuntimeSetBox.

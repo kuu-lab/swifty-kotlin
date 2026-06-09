@@ -1379,6 +1379,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toMutableList" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toMutableList"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "toSortedSet" {
                     instructions.append(.call(
                         symbol: nil,

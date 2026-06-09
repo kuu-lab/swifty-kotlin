@@ -125,6 +125,71 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // MARK: - toMutableList (STDLIB-TEXT-FN-104)
+
+    func testKotlinTextToMutableListEdgeCases() throws {
+        let source = """
+        fun main() {
+            // empty string -> empty mutable list
+            println("".toMutableList())
+
+            // single char
+            println("a".toMutableList())
+
+            // multiple chars
+            println("abc".toMutableList())
+
+            // result is mutable: add grows the list, removeAt shrinks it
+            val chars = "abc".toMutableList()
+            chars.add('d')
+            println(chars.size)
+            chars.removeAt(3)
+            println(chars)
+            chars.removeAt(0)
+            println(chars)
+            println(chars.size)
+
+            // each call returns an independent copy
+            val a = "xy".toMutableList()
+            val b = "xy".toMutableList()
+            a.add('z')
+            println(a.size)
+            println(b.size)
+            println(b)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextToMutableListEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                []
+                [a]
+                [a, b, c]
+                4
+                [a, b, c]
+                [b, c]
+                2
+                3
+                2
+                [x, y]
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testKotlinTextFirstNotNullOfEdgeCases() throws {
         let source = """
         fun firstFromSequence(value: CharSequence): String {
