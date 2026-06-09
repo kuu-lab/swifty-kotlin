@@ -53,6 +53,23 @@ public func kk_cpointer_toLong(_ handle: Int) -> Int {
     return Int(bitPattern: box.address)
 }
 
+@_cdecl("kk_cpointer_toKStringFromUtf32")
+public func kk_cpointer_toKStringFromUtf32(_ handle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else { return 0 }
+    guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else { return 0 }
+    guard box.address != 0, let utf32 = UnsafePointer<Int32>(bitPattern: box.address) else { return 0 }
+    var result = ""
+    var index = 0
+    while utf32[index] != 0 {
+        let codePoint = UInt32(bitPattern: utf32[index])
+        if let scalar = Unicode.Scalar(codePoint) {
+            result.unicodeScalars.append(scalar)
+        }
+        index += 1
+    }
+    return registerRuntimeObject(RuntimeStringBox(result))
+}
+
 @_cdecl("kk_copaque_pointer_new")
 public func kk_copaque_pointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCOpaquePointerBox(address: UInt(bitPattern: address)))
