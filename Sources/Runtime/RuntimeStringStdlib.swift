@@ -367,6 +367,19 @@ public func kk_string_toList(_ strRaw: Int) -> Int {
     return runtimeMakeListRaw(charRaws)
 }
 
+// MARK: - STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
+
+/// Converts a `String` to a fresh `MutableList<Char>` by iterating its Unicode
+/// scalars.  In the runtime, `List` and `MutableList` share the same
+/// `RuntimeListBox` representation, so this mirrors `kk_string_toList` while
+/// returning a value the caller can mutate.
+/// Implements `kotlin.text.CharSequence.toMutableList(): MutableList<Char>`.
+@_cdecl("kk_string_toMutableList")
+public func kk_string_toMutableList(_ strRaw: Int) -> Int {
+    let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
+    return runtimeMakeListRaw(charRaws)
+}
+
 @_cdecl("kk_string_toCharArray")
 public func kk_string_toCharArray(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
