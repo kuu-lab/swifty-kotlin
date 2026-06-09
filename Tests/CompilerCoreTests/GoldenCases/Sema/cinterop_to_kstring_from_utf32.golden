@@ -1,0 +1,10 @@
+symbol s0 kind=class fq=kotlinx.cinterop.CPointer vis=public flags=synthetic type=Class#0<T#1>
+symbol s1 kind=typeParameter fq=kotlinx.cinterop.CPointer.T vis=private flags=_
+symbol s2 kind=class fq=kotlinx.cinterop.IntVar vis=public flags=synthetic type=Class#2
+symbol s3 kind=function fq=kotlinx.cinterop.toKStringFromUtf32 vis=public flags=synthetic sig=recv=Class#0<Class#2> params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=golden.sema.decodeUtf32 vis=public flags=_ sig=recv=_ params=[Class#0<Class#2>] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=valueParameter fq=golden.sema.decodeUtf32.$0.ptr vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun decodeUtf32 suspend=0 inline=0 sym=s4
+expr e0 name(ptr) type=Class#0<Class#2> ref=s5
+expr e1 memberCall recv=e0 callee=toKStringFromUtf32 args=[] type=String call=s3 map=[] targs=[]
