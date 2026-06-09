@@ -1,0 +1,52 @@
+symbol s0 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
+symbol s1 kind=interface fq=kotlin.collections.MutableList vis=public flags=synthetic
+symbol s2 kind=interface fq=kotlin.collections.Map vis=public flags=synthetic
+symbol s3 kind=typeParameter fq=kotlin.collections.Map.K vis=private flags=_
+symbol s4 kind=typeParameter fq=kotlin.collections.Map.V vis=private flags=_
+symbol s5 kind=function fq=kotlin.collections.Map.get vis=public flags=synthetic|operatorFunction sig=recv=Class#2<T#3, out T#4> params=[T#3] ret=T#4? suspend=0 defaults=[] vararg=[]
+symbol s6 kind=interface fq=kotlin.collections.MutableMap vis=public flags=synthetic
+symbol s7 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s8 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=function fq=kotlin.sequences.sequenceOf vis=public flags=synthetic sig=recv=_ params=[T#10] ret=Class#0<out T#10> suspend=0 defaults=[0] vararg=[1]
+symbol s10 kind=typeParameter fq=kotlin.sequences.sequenceOf.T vis=private flags=synthetic
+symbol s11 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s12 kind=local fq=__local_0.seq vis=private flags=_ type=Class#0<out String>
+symbol s13 kind=local fq=__local_1.dest vis=private flags=_ type=Class#6<Int, Class#1<String>>
+symbol s14 kind=local fq=__local_2.result vis=private flags=_ type=Class#6<Int, Class#1<String>>
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s11
+expr e0 name(sequenceOf) type=_
+expr e1 string(a) type=String
+expr e2 string(bb) type=String
+expr e3 string(ccc) type=String
+expr e4 string(dd) type=String
+expr e5 string(e) type=String
+expr e6 call callee=e0 args=[_:e1,_:e2,_:e3,_:e4,_:e5] type=Class#0<out String> call=s9 map=[0->0,1->0,2->0,3->0,4->0] targs=[String]
+expr e7 localDecl seq mutable=0 type=_ init=e6 type=Unit ref=s12
+expr e8 name(mutableMapOf) type=_
+expr e9 call callee=e8 args=[] type=Class#6<Int, Class#1<String>>
+expr e10 localDecl dest mutable=0 type=_ init=e9 type=Unit ref=s13
+expr e11 name(seq) type=Class#0<out String> ref=s12
+expr e12 name(dest) type=Class#6<Int, Class#1<String>> ref=s13
+expr e13 name(it) type=_
+expr e14 memberCall recv=e13 callee=length args=[] type=_
+expr e15 name(it) type=String ref=s-0
+expr e16 memberCall recv=e15 callee=length args=[] type=Int call=s7 map=[] targs=[]
+expr e17 lambda params=[] body=e16 label=groupByTo type=(String) -> Int
+expr e18 memberCall recv=e11 callee=groupByTo args=[_:e12,_:e17] type=Class#6<Int, Class#1<String>>
+expr e19 localDecl result mutable=0 type=_ init=e18 type=Unit ref=s14
+expr e20 name(println) type=_
+expr e21 name(result) type=Class#6<Int, Class#1<String>> ref=s14
+expr e22 int(1) type=Int
+expr e23 indexedAccess receiver=e21 indices=[e22] type=Class#1<String>? call=s5 map=[0->0] targs=[Int,Class#1<String>]
+expr e24 call callee=e20 args=[_:e23] type=Unit call=s8 map=[0->0] targs=[]
+expr e25 name(println) type=_
+expr e26 name(result) type=Class#6<Int, Class#1<String>> ref=s14
+expr e27 int(2) type=Int
+expr e28 indexedAccess receiver=e26 indices=[e27] type=Class#1<String>? call=s5 map=[0->0] targs=[Int,Class#1<String>]
+expr e29 call callee=e25 args=[_:e28] type=Unit call=s8 map=[0->0] targs=[]
+expr e30 name(println) type=_
+expr e31 name(result) type=Class#6<Int, Class#1<String>> ref=s14
+expr e32 int(3) type=Int
+expr e33 indexedAccess receiver=e31 indices=[e32] type=Class#1<String>? call=s5 map=[0->0] targs=[Int,Class#1<String>]
+expr e34 call callee=e30 args=[_:e33] type=Unit call=s8 map=[0->0] targs=[]
