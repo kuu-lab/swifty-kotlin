@@ -163,7 +163,7 @@
 - [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [ ] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
 - [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
-- [ ] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
 - [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
