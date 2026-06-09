@@ -1504,6 +1504,33 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-036: minOf(Double, Double, Double)
+    func testCodegenCompilesMinOfDoubleThreeArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Double = 1.5
+            val b: Double = 7.25
+            val c: Double = 3.5
+            println(minOf(a, b, c))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfDoubleThreeArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1.5\n")
+        }
+    }
+
     // STDLIB-COMP-FN-039: minOf(Float, Float, Float)
     func testCodegenCompilesMinOfFloatThreeArgTopLevelCall() throws {
         let source = """
