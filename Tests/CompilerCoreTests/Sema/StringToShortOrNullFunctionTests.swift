@@ -6,7 +6,7 @@ import XCTest
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toShortOrNull` links to the
-///   runtime symbol `kk_string_toShortOrNull` declared in
+///   runtime symbol `kk_string_toShortOrNull_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Int?` (Short is widened to Int in ABI).
@@ -34,14 +34,14 @@ final class StringToShortOrNullFunctionTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLink(for: "toShortOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toShortOrNull",
-                "String.toShortOrNull should link to kk_string_toShortOrNull"
+                "kk_string_toShortOrNull_flat",
+                "String.toShortOrNull should link to kk_string_toShortOrNull_flat"
             )
 
             let links = externalLinks(for: "toShortOrNull", sema: sema, interner: ctx.interner)
             XCTAssertTrue(
-                links.contains("kk_string_toShortOrNull"),
-                "lookupAll for toShortOrNull must include kk_string_toShortOrNull; got: \(links)"
+                links.contains("kk_string_toShortOrNull_flat"),
+                "lookupAll for toShortOrNull must include kk_string_toShortOrNull_flat; got: \(links)"
             )
         }
     }

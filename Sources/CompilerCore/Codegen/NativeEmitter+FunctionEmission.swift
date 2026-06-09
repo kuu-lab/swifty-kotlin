@@ -1324,6 +1324,16 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
+                "kk_string_toRegex_with_option_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toRegex_with_option_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
+                "kk_string_toRegex_with_options_flat": FlatScalarReturnCallSpec(
+                    flatName: "kk_string_toRegex_with_options_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1
+                ),
                 "kk_regex_find_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_regex_find_flat",
                     stringArgumentCount: 1,

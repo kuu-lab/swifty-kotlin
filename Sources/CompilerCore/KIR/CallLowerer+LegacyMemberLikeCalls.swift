@@ -1446,7 +1446,9 @@ extension CallLowerer {
                             else { return false }
                             return knownNames.isSetLikeSymbol(sym)
                         }()
-                        let rtName = isSetArg ? "kk_string_toRegex_with_options" : "kk_string_toRegex_with_option"
+                        let rtName = isSetArg
+                            ? "kk_string_toRegex_with_options_flat"
+                            : "kk_string_toRegex_with_option_flat"
                         instructions.append(.call(
                             symbol: nil,
                             callee: interner.intern(rtName),

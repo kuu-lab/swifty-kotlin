@@ -79,7 +79,7 @@ final class RuntimeRegexTests: XCTestCase {
         // ordinal 0 = IGNORE_CASE
         let patternRaw = makeRuntimeString("hello")
         let optionRaw = kk_box_int(0)
-        let regexRaw = kk_string_toRegex_with_option(patternRaw, optionRaw)
+        let regexRaw = stringToRegexWithOptionFlat("hello", optionRaw)
         XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
         let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("say HELLO world"))
         XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
@@ -90,7 +90,7 @@ final class RuntimeRegexTests: XCTestCase {
         // ordinal 1 = MULTILINE
         let patternRaw = makeRuntimeString("^foo")
         let optionRaw = kk_box_int(1)
-        let regexRaw = kk_string_toRegex_with_option(patternRaw, optionRaw)
+        let regexRaw = stringToRegexWithOptionFlat("^foo", optionRaw)
         XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
         XCTAssertEqual(runtimeString(kk_regex_pattern(regexRaw)), "^foo")
     }
@@ -99,7 +99,7 @@ final class RuntimeRegexTests: XCTestCase {
         // Set<RegexOption> with ordinal 0 = IGNORE_CASE
         let patternRaw = makeRuntimeString("world")
         let setRaw = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_int(0)]))
-        let regexRaw = kk_string_toRegex_with_options(patternRaw, setRaw)
+        let regexRaw = stringToRegexWithOptionsFlat("world", setRaw)
         XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
         let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("Hello WORLD!"))
         XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
@@ -109,7 +109,7 @@ final class RuntimeRegexTests: XCTestCase {
     func testStringToRegexWithEmptyOptionsSet() {
         let patternRaw = makeRuntimeString("[0-9]+")
         let setRaw = registerRuntimeObject(RuntimeSetBox(elements: []))
-        let regexRaw = kk_string_toRegex_with_options(patternRaw, setRaw)
+        let regexRaw = stringToRegexWithOptionsFlat("[0-9]+", setRaw)
         XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
         let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("abc123def"))
         XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)

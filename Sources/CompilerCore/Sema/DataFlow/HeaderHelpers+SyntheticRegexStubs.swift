@@ -315,7 +315,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options) ---
         registerSyntheticStringExtensionFunction(
             named: "toRegex",
-            externalLinkName: "kk_string_toRegex_with_option",
+            externalLinkName: "kk_string_toRegex_with_option_flat",
             receiverType: stringType,
             parameters: [("option", regexOptionType, false, false)],
             returnType: regexType,
@@ -329,7 +329,7 @@ extension DataFlowSemaPhase {
         ) {
             registerSyntheticStringExtensionFunction(
                 named: "toRegex",
-                externalLinkName: "kk_string_toRegex_with_options",
+                externalLinkName: "kk_string_toRegex_with_options_flat",
                 receiverType: stringType,
                 parameters: [("options", setRegexOptionType, false, false)],
                 returnType: regexType,

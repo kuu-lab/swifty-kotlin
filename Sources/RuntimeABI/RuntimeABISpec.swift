@@ -1907,19 +1907,25 @@ public enum RuntimeABISpec {
         ),
         // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
         RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_option",
+            name: "kk_string_toRegex_with_option_flat",
             parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "option", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "optionRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex_with_options",
+            name: "kk_string_toRegex_with_options_flat",
             parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "options", type: .intptr),
+                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
+                RuntimeABIParameter(name: "length", type: .intptr),
+                RuntimeABIParameter(name: "byteCount", type: .intptr),
+                RuntimeABIParameter(name: "hash", type: .intptr),
+                RuntimeABIParameter(name: "optionsRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"

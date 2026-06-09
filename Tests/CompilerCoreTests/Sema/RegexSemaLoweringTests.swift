@@ -445,7 +445,7 @@ final class RegexSemaLoweringTests: XCTestCase {
 
     // MARK: - 8. KIR lowering: String.toRegex(option) / String.toRegex(options)
 
-    func testStringToRegexWithOptionLowersToKkStringToRegexWithOption() throws {
+    func testStringToRegexWithOptionLowersToFlatRuntimeCall() throws {
         let source = """
         fun test() {
             val r = "[a-z]+".toRegex(RegexOption.IGNORE_CASE)
@@ -458,13 +458,13 @@ final class RegexSemaLoweringTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             XCTAssertTrue(
-                callees.contains("kk_string_toRegex_with_option"),
-                "KIR must contain kk_string_toRegex_with_option; found: \(callees)"
+                callees.contains("kk_string_toRegex_with_option_flat"),
+                "KIR must contain kk_string_toRegex_with_option_flat; found: \(callees)"
             )
         }
     }
 
-    func testStringToRegexWithOptionsSetLowersToKkStringToRegexWithOptions() throws {
+    func testStringToRegexWithOptionsSetLowersToFlatRuntimeCall() throws {
         let source = """
         fun test() {
             val r = "[a-z]+".toRegex(setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE))
@@ -477,8 +477,8 @@ final class RegexSemaLoweringTests: XCTestCase {
             let module = try XCTUnwrap(ctx.kir)
             let callees = allCalleesInModule(module, interner: ctx.interner)
             XCTAssertTrue(
-                callees.contains("kk_string_toRegex_with_options"),
-                "KIR must contain kk_string_toRegex_with_options; found: \(callees)"
+                callees.contains("kk_string_toRegex_with_options_flat"),
+                "KIR must contain kk_string_toRegex_with_options_flat; found: \(callees)"
             )
         }
     }

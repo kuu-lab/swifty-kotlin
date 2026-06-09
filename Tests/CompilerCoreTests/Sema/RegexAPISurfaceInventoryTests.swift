@@ -752,6 +752,8 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
             (["kotlin", "text", "replaceFirst"], "kk_string_replaceFirst_regex"),
             (["kotlin", "text", "split"], "kk_string_split_regex_flat"),
             (["kotlin", "text", "toRegex"], "kk_string_toRegex_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_option_flat"),
+            (["kotlin", "text", "toRegex"], "kk_string_toRegex_with_options_flat"),
         ]
 
         for (fqPath, expectedLink) in mandatoryLinks {

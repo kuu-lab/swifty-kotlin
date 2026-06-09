@@ -1026,6 +1026,8 @@ extension CodegenBackendIntegrationTests {
         appendRegexCall("kk_string_matches_regex_flat", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_contains_regex_flat", arguments: [inputExpr, regexExpr])
         appendRegexCall("kk_string_toRegex_flat", arguments: [patternExpr])
+        appendRegexCall("kk_string_toRegex_with_option_flat", arguments: [patternExpr, optionExpr])
+        appendRegexCall("kk_string_toRegex_with_options_flat", arguments: [patternExpr, optionsSetExpr])
         appendRegexCall("kk_regex_find_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_regex_findAll_flat", arguments: [regexExpr, inputExpr])
         appendRegexCall("kk_string_split_regex_flat", arguments: [inputExpr, regexExpr])
@@ -1068,6 +1070,8 @@ extension CodegenBackendIntegrationTests {
             "kk_regex_create_with_option",
             "kk_regex_create_with_options",
             "kk_string_toRegex",
+            "kk_string_toRegex_with_option",
+            "kk_string_toRegex_with_options",
             "kk_regex_find",
             "kk_regex_findAll",
             "kk_regex_matchEntire",
