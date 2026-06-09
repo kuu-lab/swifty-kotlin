@@ -196,6 +196,29 @@ public func kk_js_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
     return registerRuntimeObject(runtimeInstantFromEpochMilliseconds(date.epochMilliseconds))
 }
 
+/// Maps a java.util.concurrent.TimeUnit ordinal to the matching kotlin.time.DurationUnit ordinal.
+///
+/// Kotlin/JVM: timeUnit.toDurationUnit()
+///
+/// Both enums share identical entry ordering
+/// (0=NANOSECONDS, 1=MICROSECONDS, 2=MILLISECONDS, 3=SECONDS, 4=MINUTES, 5=HOURS, 6=DAYS),
+/// so the conversion is a 1:1 ordinal mapping. The explicit switch mirrors Kotlin's
+/// exhaustive `when` and traps any out-of-range ordinal (compiler/runtime enum mismatch).
+@_cdecl("kk_time_unit_to_duration_unit")
+public func kk_time_unit_to_duration_unit(_ timeUnitOrdinal: Int) -> Int {
+    switch timeUnitOrdinal {
+    case 0: return 0 // NANOSECONDS
+    case 1: return 1 // MICROSECONDS
+    case 2: return 2 // MILLISECONDS
+    case 3: return 3 // SECONDS
+    case 4: return 4 // MINUTES
+    case 5: return 5 // HOURS
+    case 6: return 6 // DAYS
+    default:
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_unit_to_duration_unit received unknown TimeUnit ordinal \(timeUnitOrdinal)")
+    }
+}
+
 @_cdecl("kk_time_source_mark_now")
 public func kk_time_source_mark_now(_ receiver: Int) -> Int {
     let mark = RuntimeTimeMarkBox(uptimeNanoseconds: runtimeMonotonicNowNanoseconds())
