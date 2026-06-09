@@ -1393,6 +1393,31 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck"
         ),
+        // STDLIB-REFLECT-067: KClass type-kind introspection
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_is_inner",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_is_companion",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kclass_is_fun",
+            parameters: [
+                RuntimeABIParameter(name: "kclassRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck"
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_kclass_supertype_name",
             parameters: [
@@ -3319,6 +3344,14 @@ public enum RuntimeABISpec {
             name: "kk_java_duration_to_kotlin_duration",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_duration_unit_to_time_unit",
+            parameters: [
+                RuntimeABIParameter(name: "unitOrdinal", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration"

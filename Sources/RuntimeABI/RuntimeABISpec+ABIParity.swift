@@ -371,6 +371,9 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_cpointer_new", parameters: [
             p("address", .intptr),
         ]),
+        abiParitySpec("kk_cpointer_toLong", parameters: [
+            p("handle", .intptr),
+        ]),
         abiParitySpec("kk_file_appender_new", parameters: [
             p("pathRaw", .intptr),
         ]),
