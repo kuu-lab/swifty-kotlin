@@ -362,4 +362,44 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             }
         }
     }
+
+    // STDLIB-COMP-FN-009: maxOf(Byte, Byte, Byte) — Byte resolves to Int internally
+    func testThreeArgMaxOfByteResolvesToInt3Overload() throws {
+        let source = """
+        fun sample(a: Byte, b: Byte, c: Byte): Byte = maxOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 3
+                },
+                "Expected 3-arg maxOf call with Byte arguments"
+            )
+
+            // Byte maps to Int internally, so the result type is Int
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // Resolves via the Int3 special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .maxOfInt3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType, sema.types.intType])
+        }
+    }
 }
