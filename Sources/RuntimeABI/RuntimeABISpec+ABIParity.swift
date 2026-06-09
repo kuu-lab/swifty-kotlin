@@ -1045,10 +1045,16 @@ public extension RuntimeABISpec {
             p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
         ]),
-        abiParitySpec("kk_string_normalize", parameters: [
-            p("strRaw", .intptr),
+        abiParitySpec("kk_string_normalize_flat", parameters: [
+            p("receiverData", .nullableConstUInt8Pointer),
+            p("receiverLength", .intptr),
+            p("receiverByteCount", .intptr),
+            p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
-        ]),
+            p("outLength", .nullableIntptrPointer),
+            p("outByteCount", .nullableIntptrPointer),
+            p("outHash", .nullableIntptrPointer),
+        ], returnType: .nullableUInt8Pointer),
         abiParitySpec("kk_string_partition_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),

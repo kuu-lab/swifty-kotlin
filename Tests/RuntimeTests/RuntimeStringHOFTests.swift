@@ -61,6 +61,21 @@ private let zipTransformSumCodepoints: @convention(c) (Int, Int, Int, UnsafeMuta
     kk_box_char(kk_unbox_char(aRaw) + kk_unbox_char(bRaw))
 }
 
+private let zipTransformStringPairName: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, aRaw, bRaw, _ in
+    let a = UnicodeScalar(kk_unbox_char(aRaw)).map { String(Character($0)) } ?? "?"
+    let b = UnicodeScalar(kk_unbox_char(bRaw)).map { String(Character($0)) } ?? "?"
+    return registerRuntimeObject(RuntimeStringBox("\(a):\(b)"))
+}
+
+private let zipTransformRejectBoxedCharArgs: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, aRaw, bRaw, _ in
+    if aRaw > 0x10_FFFF || bRaw > 0x10_FFFF {
+        return kk_box_char(0)
+    }
+    return kk_box_char(aRaw + bRaw)
+}
+
 private let sumByDoubleWeightedA: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
     kk_double_to_bits(charRaw == Int(Unicode.Scalar("a").value) ? 1.5 : 0.25)
 }
@@ -78,9 +93,20 @@ private let mapBoxCharValue: @convention(c) (Int, Int, UnsafeMutablePointer<Int>
     kk_box_char(charRaw)
 }
 
+private let mapStringNameForChar: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
+    let value = charRaw == Int(Unicode.Scalar("a").value) ? "alpha" : "beta"
+    return registerRuntimeObject(RuntimeStringBox(value))
+}
+
 private let mapIndexedBoxIndexPlusChar: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
     _, index, charRaw, _ in
     kk_box_int(index + charRaw)
+}
+
+private let mapIndexedStringName: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = {
+    _, index, charRaw, _ in
+    let scalarText = UnicodeScalar(charRaw).map { String(Character($0)) } ?? "?"
+    return registerRuntimeObject(RuntimeStringBox("\(index):\(scalarText)"))
 }
 
 private let mapNotNullBoxOnlyB: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, charRaw, _ in
@@ -188,6 +214,26 @@ private func runtimeStringValueForHOF(_ raw: Int) -> String {
     return box.value
 }
 
+private func assertAggregateStringList(
+    _ list: RuntimeListBox?,
+    equals expected: [String],
+    file: StaticString = #filePath,
+    line: UInt = #line
+) {
+    guard let list else {
+        XCTFail("Expected a RuntimeListBox", file: file, line: line)
+        return
+    }
+    XCTAssertEqual(
+        list.values.map(\.tag),
+        Array(repeating: RuntimeValue.stringTag, count: expected.count),
+        file: file,
+        line: line
+    )
+    XCTAssertEqual(list.values.map { runtimeRenderAnyForPrint($0) }, expected, file: file, line: line)
+    XCTAssertEqual(list.elements.map(runtimeStringValueForHOF), expected, file: file, line: line)
+}
+
 final class RuntimeStringHOFTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -220,6 +266,29 @@ final class RuntimeStringHOFTests: XCTestCase {
             XCTAssertEqual(list.elements.count, 2)
             XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("a").value))
             XCTAssertEqual(kk_unbox_char(list.elements[1]), Int(Unicode.Scalar("b").value))
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(
+                list.values.map(\.payload0),
+                [Int(Unicode.Scalar("a").value), Int(Unicode.Scalar("b").value)]
+            )
+        }
+    }
+
+    func testStringMapFlatStoresAggregateStringResults() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_map_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(mapStringNameForChar, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            assertAggregateStringList(runtimeListBox(from: result), equals: ["alpha", "beta"])
         }
     }
 
@@ -247,6 +316,24 @@ final class RuntimeStringHOFTests: XCTestCase {
         }
     }
 
+    func testStringMapIndexedFlatStoresAggregateStringResults() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_mapIndexed_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(mapIndexedStringName, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            assertAggregateStringList(runtimeListBox(from: result), equals: ["0:a", "1:b"])
+        }
+    }
+
     func testStringMapNotNullFlatFiltersNullResults() {
         withFlatStringForHOF("abc") { data, length, byteCount, hash in
             var thrown = -1
@@ -267,6 +354,8 @@ final class RuntimeStringHOFTests: XCTestCase {
             }
             XCTAssertEqual(list.elements.count, 1)
             XCTAssertEqual(kk_unbox_char(list.elements[0]), Int(Unicode.Scalar("b").value))
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
+            XCTAssertEqual(list.values.map(\.payload0), [Int(Unicode.Scalar("b").value)])
         }
     }
 
@@ -284,6 +373,17 @@ final class RuntimeStringHOFTests: XCTestCase {
             )
 
             XCTAssertEqual(thrown, 0)
+            guard let pairPtr = UnsafeMutableRawPointer(bitPattern: result),
+                  let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
+            else {
+                XCTFail("Expected Pair from kk_string_partition_flat")
+                return
+            }
+            XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.stringTag)
+            XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag)
+            XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.firstValue), "b")
+            XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), "ac")
+            XCTAssertEqual(runtimeElementToString(result), "(b, ac)")
             XCTAssertEqual(runtimeStringValueForHOF(kk_pair_first(result)), "b")
             XCTAssertEqual(runtimeStringValueForHOF(kk_pair_second(result)), "ac")
         }
@@ -300,6 +400,41 @@ final class RuntimeStringHOFTests: XCTestCase {
 
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(result, "12")
+    }
+
+    func testStringTrimPredicateFlatReturnsFlattenedStringFields() {
+        let fnPtr = unsafeBitCast(isLetterXPredicateForIndexOfFirst, to: Int.self)
+
+        var trimThrown = -1
+        XCTAssertEqual(
+            flatStringHOFValue("xxabxx", entry: kk_string_trim_predicate_flat, fnPtr: fnPtr, thrown: &trimThrown),
+            "ab"
+        )
+        XCTAssertEqual(trimThrown, 0)
+
+        var trimStartThrown = -1
+        XCTAssertEqual(
+            flatStringHOFValue(
+                "xxabxx",
+                entry: kk_string_trimStart_predicate_flat,
+                fnPtr: fnPtr,
+                thrown: &trimStartThrown
+            ),
+            "abxx"
+        )
+        XCTAssertEqual(trimStartThrown, 0)
+
+        var trimEndThrown = -1
+        XCTAssertEqual(
+            flatStringHOFValue(
+                "xxabxx",
+                entry: kk_string_trimEnd_predicate_flat,
+                fnPtr: fnPtr,
+                thrown: &trimEndThrown
+            ),
+            "xxab"
+        )
+        XCTAssertEqual(trimEndThrown, 0)
     }
 
     func testStringFilterIndexedFlatReturnsFlattenedStringFields() {
@@ -1113,6 +1248,11 @@ final class RuntimeStringHOFTests: XCTestCase {
             }
 
             XCTAssertEqual(list.elements.count, 1)
+            assertCharPairValue(
+                list.values[0].legacyRawValue,
+                first: Int(Unicode.Scalar("a").value),
+                second: Int(Unicode.Scalar("b").value)
+            )
             XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
             XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("b").value))
         }
@@ -1138,6 +1278,49 @@ final class RuntimeStringHOFTests: XCTestCase {
             }
             XCTAssertEqual(list.elements.count, 1)
             XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 98)
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
+            XCTAssertEqual(list.values.map(\.payload0), [97 + 98])
+        }
+    }
+
+    func testStringZipWithNextTransformPassesRawCharArgs() {
+        withFlatStringForHOF("ab") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_zipWithNextTransform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(zipTransformRejectBoxedCharArgs, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_zipWithNextTransform_flat")
+                return
+            }
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag])
+            XCTAssertEqual(list.values.map(\.payload0), [97 + 98])
+        }
+    }
+
+    func testStringZipWithNextTransformFlatStoresAggregateStringResults() {
+        withFlatStringForHOF("abc") { data, length, byteCount, hash in
+            var thrown = -1
+            let result = kk_string_zipWithNextTransform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                unsafeBitCast(zipTransformStringPairName, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            assertAggregateStringList(runtimeListBox(from: result), equals: ["a:b", "b:c"])
         }
     }
 
@@ -1160,6 +1343,16 @@ final class RuntimeStringHOFTests: XCTestCase {
                 return
             }
             XCTAssertEqual(list.elements.count, 2)
+            assertCharPairValue(
+                list.values[0].legacyRawValue,
+                first: Int(Unicode.Scalar("a").value),
+                second: Int(Unicode.Scalar("X").value)
+            )
+            assertCharPairValue(
+                list.values[1].legacyRawValue,
+                first: Int(Unicode.Scalar("b").value),
+                second: Int(Unicode.Scalar("Y").value)
+            )
             XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[0])), Int(Unicode.Scalar("a").value))
             XCTAssertEqual(kk_unbox_char(kk_pair_second(list.elements[0])), Int(Unicode.Scalar("X").value))
             XCTAssertEqual(kk_unbox_char(kk_pair_first(list.elements[1])), Int(Unicode.Scalar("b").value))
@@ -1241,6 +1434,59 @@ final class RuntimeStringHOFTests: XCTestCase {
             XCTAssertEqual(kk_unbox_char(list.elements[0]), 97 + 65)
             // 'b'(98) + 'B'(66) = 164
             XCTAssertEqual(kk_unbox_char(list.elements[1]), 98 + 66)
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(list.values.map(\.payload0), [97 + 65, 98 + 66])
+        }
+    }
+
+    func testStringZipTransformPassesRawCharArgs() {
+        withFlatStringsForHOF("ab", "AB") {
+            data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
+            var thrown = 0
+            let result = kk_string_zipTransform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                otherData,
+                otherLength,
+                otherByteCount,
+                otherHash,
+                unsafeBitCast(zipTransformRejectBoxedCharArgs, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            guard let list = runtimeListBox(from: result) else {
+                XCTFail("Expected list from kk_string_zipTransform_flat")
+                return
+            }
+            XCTAssertEqual(list.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(list.values.map(\.payload0), [97 + 65, 98 + 66])
+        }
+    }
+
+    func testStringZipTransformStoresAggregateStringResults() {
+        withFlatStringsForHOF("ab", "XY") {
+            data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
+            var thrown = 0
+            let result = kk_string_zipTransform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                otherData,
+                otherLength,
+                otherByteCount,
+                otherHash,
+                unsafeBitCast(zipTransformStringPairName, to: Int.self),
+                0,
+                &thrown
+            )
+
+            XCTAssertEqual(thrown, 0)
+            assertAggregateStringList(runtimeListBox(from: result), equals: ["a:X", "b:Y"])
         }
     }
 
@@ -1275,5 +1521,25 @@ final class RuntimeStringHOFTests: XCTestCase {
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+    }
+
+    private func assertCharPairValue(
+        _ raw: Int,
+        first: Int,
+        second: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            XCTFail("Expected RuntimePairBox", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.charTag, file: file, line: line)
+        XCTAssertEqual(pairBox.firstValue.payload0, first, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.charTag, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.payload0, second, file: file, line: line)
     }
 }

@@ -14,6 +14,13 @@ extension CodegenBackendIntegrationTests {
 
             val words = listOf("a", "bb").map { it + "!" }
             println(words)
+
+            val mapper: (Int) -> String = { "Number: $it" }
+            val mappedWords = values.map(mapper)
+            println(mappedWords)
+
+            val prefix = "item="
+            listOf(1, 2).forEach { println(prefix + it.toString()) }
         }
         """
 
@@ -29,7 +36,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "[6, 7, 8]\n3\n[a!, bb!]\n")
+            XCTAssertEqual(normalizedStdout, "[6, 7, 8]\n3\n[a!, bb!]\n[Number: 1, Number: 2, Number: 3]\nitem=1\nitem=2\n")
         }
     }
 }

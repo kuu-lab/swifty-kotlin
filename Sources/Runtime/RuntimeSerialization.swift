@@ -302,7 +302,7 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
         return box.elements.map { runtimeValueToJSON($0) }
     }
     if let box = tryCast(ptr, to: RuntimePairBox.self) {
-        return [runtimeValueToJSON(box.first), runtimeValueToJSON(box.second)]
+        return [runtimeValueToJSON(box.firstValue), runtimeValueToJSON(box.secondValue)]
     }
     if let box = tryCast(ptr, to: RuntimeTripleBox.self) {
         return [
@@ -325,6 +325,17 @@ private func runtimeValueToJSON(_ rawValue: Int) -> Any {
     }
 
     return runtimeElementToString(rawValue)
+}
+
+private func runtimeValueToJSON(_ value: RuntimeValue) -> Any {
+    switch value.tag {
+    case RuntimeValue.stringTag:
+        return runtimeElementToString(value)
+    case RuntimeValue.charTag:
+        return value.payload0
+    default:
+        return runtimeValueToJSON(value.payload0)
+    }
 }
 
 private func jsonToRuntimeValue(_ value: Any) -> Int {

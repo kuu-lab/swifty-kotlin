@@ -701,15 +701,51 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
+                "kk_string_trim_predicate_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trim_predicate_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_trimStart_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trimStart_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
+                "kk_string_trimStart_predicate_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trimStart_predicate_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_trimEnd_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_trimEnd_flat",
                     stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_trimEnd_predicate_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trimEnd_predicate_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_trimIndent_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trimIndent_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_trimMargin_default_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trimMargin_default_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_trimMargin_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_trimMargin_flat",
+                    stringArgumentCount: 2,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
@@ -767,6 +803,18 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_ifBlank_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_ifEmpty_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_ifEmpty_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_takeWhile_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_takeWhile_flat",
                     stringArgumentCount: 1,
@@ -785,11 +833,36 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_replace": FlatStringReturnCallSpec(
+                "kk_string_replace_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replace_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false
+                ),
+                "kk_string_replaceFirst_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceFirst_flat",
+                    stringArgumentCount: 3,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_replaceRange_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceRange_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [0, 2],
+                    canThrow: true
+                ),
+                "kk_string_removeRange_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removeRange_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
+                "kk_string_removeRange_range_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_removeRange_range_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: true
                 ),
                 "kk_string_substring_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substring_flat",
@@ -803,11 +876,29 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
-                "kk_string_repeat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_repeat_flat",
+                "kk_string_padStart_default_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_padStart_default_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 1,
-                    canThrow: true
+                    canThrow: false
+                ),
+                "kk_string_padEnd_default_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_padEnd_default_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
+                "kk_string_padStart_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_padStart_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: false
+                ),
+                "kk_string_padEnd_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_padEnd_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: false
                 ),
                 "kk_string_repeat_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_repeat_flat",
@@ -863,104 +954,134 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substringBefore": FlatStringReturnCallSpec(
+                "kk_string_prependIndent_default_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_prependIndent_default_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_prependIndent_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_prependIndent_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_replaceIndent_default_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceIndent_default_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_replaceIndent_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceIndent_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_replaceIndentByMargin_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceIndentByMargin_flat",
+                    stringArgumentCount: 3,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_substringBefore_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBefore_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substringBefore_char": FlatStringReturnCallSpec(
+                "kk_string_substringBefore_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBefore_char_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2],
                     canThrow: false
                 ),
-                "kk_string_substringBeforeLast": FlatStringReturnCallSpec(
+                "kk_string_substringBeforeLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBeforeLast_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substringBeforeLast_char": FlatStringReturnCallSpec(
+                "kk_string_substringBeforeLast_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringBeforeLast_char_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2],
                     canThrow: false
                 ),
-                "kk_string_substringAfter": FlatStringReturnCallSpec(
+                "kk_string_substringAfter_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringAfter_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substringAfter_char": FlatStringReturnCallSpec(
+                "kk_string_substringAfter_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringAfter_char_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2],
                     canThrow: false
                 ),
-                "kk_string_substringAfterLast": FlatStringReturnCallSpec(
+                "kk_string_substringAfterLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringAfterLast_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_substringAfterLast_char": FlatStringReturnCallSpec(
+                "kk_string_substringAfterLast_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_substringAfterLast_char_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2],
                     canThrow: false
                 ),
-                "kk_string_replaceAfter": FlatStringReturnCallSpec(
+                "kk_string_replaceAfter_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceAfter_flat",
                     stringArgumentCount: 4,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceAfter_char": FlatStringReturnCallSpec(
+                "kk_string_replaceAfter_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceAfter_char_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2, 3],
                     canThrow: false
                 ),
-                "kk_string_replaceAfterLast": FlatStringReturnCallSpec(
+                "kk_string_replaceAfterLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceAfterLast_flat",
                     stringArgumentCount: 4,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceAfterLast_char": FlatStringReturnCallSpec(
+                "kk_string_replaceAfterLast_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceAfterLast_char_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2, 3],
                     canThrow: false
                 ),
-                "kk_string_replaceBefore": FlatStringReturnCallSpec(
+                "kk_string_replaceBefore_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceBefore_flat",
                     stringArgumentCount: 4,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceBefore_char": FlatStringReturnCallSpec(
+                "kk_string_replaceBefore_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceBefore_char_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2, 3],
                     canThrow: false
                 ),
-                "kk_string_replaceBeforeLast": FlatStringReturnCallSpec(
+                "kk_string_replaceBeforeLast_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceBeforeLast_flat",
                     stringArgumentCount: 4,
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_replaceBeforeLast_char": FlatStringReturnCallSpec(
+                "kk_string_replaceBeforeLast_char_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceBeforeLast_char_flat",
                     stringArgumentCount: 3,
                     extraArgumentCount: 1,

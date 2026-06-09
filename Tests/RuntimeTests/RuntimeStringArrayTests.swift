@@ -28,6 +28,27 @@ private typealias RuntimeFlatStringReturnWithIntEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithIntNoThrowEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithIntCharEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 
 private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
     kk_box_char(Int(Character("B").unicodeScalars.first!.value))
@@ -64,6 +85,10 @@ private let runtimeFlatStringThrowingPredicate: RuntimeStringUnaryEntry = { _, _
 
 private let runtimeFlatStringLengthTransform: RuntimeStringUnaryEntry = { _, strRaw, _ in
     runtimeStringFromRawOrPanic(strRaw, caller: "runtimeFlatStringLengthTransform").count
+}
+
+private let runtimeReturnValueTransform: RuntimeStringUnaryEntry = { _, valueRaw, _ in
+    valueRaw
 }
 
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
@@ -112,6 +137,45 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         )
         let constData = data.map { UnsafePointer($0) }
         return body(constData, length, byteCount, hash)
+    }
+
+    private func withOptionalFlatString<T>(
+        _ value: String?,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        guard let value else {
+            return body(nil, 0, 0, 0)
+        }
+        return withFlatString(value, body)
+    }
+
+    private func concatFlatValue(_ lhs: String?, _ rhs: String?) -> String {
+        withOptionalFlatString(lhs) { lhsData, lhsLength, lhsByteCount, lhsHash in
+            withOptionalFlatString(rhs) { rhsData, rhsLength, rhsByteCount, rhsHash in
+                var outLength = 0
+                var outByteCount = 0
+                var outHash = 0
+                let resultData = kk_string_concat_flat(
+                    lhsData,
+                    lhsLength,
+                    lhsByteCount,
+                    lhsHash,
+                    rhsData,
+                    rhsLength,
+                    rhsByteCount,
+                    rhsHash,
+                    &outLength,
+                    &outByteCount,
+                    &outHash
+                )
+                return flatStringValue(
+                    data: resultData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                )
+            }
+        }
     }
 
     private func flatStringAsIterable(_ value: String) -> Int {
@@ -184,6 +248,45 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    private func flatStringReturnValueNoThrow(
+        _ value: String,
+        intArg: Int,
+        using call: RuntimeFlatStringReturnWithIntNoThrowEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(data, length, byteCount, hash, intArg, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        intArg: Int,
+        charArg: Int,
+        using call: RuntimeFlatStringReturnWithIntCharEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(data, length, byteCount, hash, intArg, charArg, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
     private func flatStringSubstringValue(
         _ value: String,
         start: Int,
@@ -244,34 +347,22 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(output, "")
     }
 
-    // MARK: - kk_string_concat
+    // MARK: - kk_string_concat_flat
 
-    func testStringConcatTwoStrings() {
-        let firstStr = makeRuntimeString("Hello, ")
-        let secondStr = makeRuntimeString("World!")
-        let result = kk_string_concat(firstStr, secondStr)
-        let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "Hello, World!")
+    func testStringConcatFlatTwoStrings() {
+        XCTAssertEqual(concatFlatValue("Hello, ", "World!"), "Hello, World!")
     }
 
-    func testStringConcatWithNilLeftReturnsRightOnly() {
-        let rightStr = makeRuntimeString("World")
-        let result = kk_string_concat(nil, rightStr)
-        let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "World")
+    func testStringConcatFlatWithNilDataLeftReturnsRightOnly() {
+        XCTAssertEqual(concatFlatValue(nil, "World"), "World")
     }
 
-    func testStringConcatWithNilRightReturnsLeftOnly() {
-        let leftStr = makeRuntimeString("Hello")
-        let result = kk_string_concat(leftStr, nil)
-        let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "Hello")
+    func testStringConcatFlatWithNilDataRightReturnsLeftOnly() {
+        XCTAssertEqual(concatFlatValue("Hello", nil), "Hello")
     }
 
-    func testStringConcatBothNilReturnsEmptyString() {
-        let result = kk_string_concat(nil, nil)
-        let output = capturePrintln { kk_println_any(result) }
-        XCTAssertEqual(output, "")
+    func testStringConcatFlatBothNilDataReturnsEmptyString() {
+        XCTAssertEqual(concatFlatValue(nil, nil), "")
     }
 
     // MARK: - kk_string_compareTo_flat
@@ -791,19 +882,13 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         withFlatString("abcABC") { data, length, byteCount, hash in
             let first = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 0, 0)
-            XCTAssertNotEqual(first, runtimeNullSentinelInt)
-            XCTAssertEqual(kk_pair_first(first), 1)
-            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(first), caller: #function), "bc")
+            assertFindAnyOfPair(first, offset: 1, match: "bc")
 
             let afterPrefix = kk_string_findAnyOf_flat(data, length, byteCount, hash, stringNeedles, 3, 0)
-            XCTAssertNotEqual(afterPrefix, runtimeNullSentinelInt)
-            XCTAssertEqual(kk_pair_first(afterPrefix), 3)
-            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(afterPrefix), caller: #function), "AB")
+            assertFindAnyOfPair(afterPrefix, offset: 3, match: "AB")
 
             let last = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, stringNeedles, length, 0)
-            XCTAssertNotEqual(last, runtimeNullSentinelInt)
-            XCTAssertEqual(kk_pair_first(last), 3)
-            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(last), caller: #function), "AB")
+            assertFindAnyOfPair(last, offset: 3, match: "AB")
 
             let caseInsensitiveNeedles = makeRuntimeArray([
                 rawFromRuntimeString("ab"),
@@ -817,9 +902,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 length,
                 1
             )
-            XCTAssertNotEqual(caseInsensitive, runtimeNullSentinelInt)
-            XCTAssertEqual(kk_pair_first(caseInsensitive), 3)
-            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(caseInsensitive), caller: #function), "ab")
+            assertFindAnyOfPair(caseInsensitive, offset: 3, match: "ab")
 
             XCTAssertEqual(
                 kk_string_findAnyOf_flat(
@@ -837,9 +920,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
         withFlatString("abc") { data, length, byteCount, hash in
             let firstEmpty = kk_string_findAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, 9, 0)
-            XCTAssertNotEqual(firstEmpty, runtimeNullSentinelInt)
-            XCTAssertEqual(kk_pair_first(firstEmpty), 3)
-            XCTAssertEqual(runtimeStringFromRawOrPanic(kk_pair_second(firstEmpty), caller: #function), "")
+            assertFindAnyOfPair(firstEmpty, offset: 3, match: "")
 
             let lastEmpty = kk_string_findLastAnyOf_flat(data, length, byteCount, hash, emptyStringNeedles, -1, 0)
             XCTAssertEqual(lastEmpty, runtimeNullSentinelInt)
@@ -1332,16 +1413,24 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             XCTAssertNotNil(charArray)
             let expected = [97, 98, 99]
             XCTAssertEqual(list?.elements.map(kk_unbox_char), expected)
+            XCTAssertEqual(charArray?.values.map(\.tag), [
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+                RuntimeValue.charTag,
+            ])
+            XCTAssertEqual(charArray?.values.map(\.payload0), expected)
             XCTAssertEqual(charArray?.elements, expected)
             XCTAssertEqual(charArray?.elements.map(kk_unbox_char), expected)
         }
     }
 
-    func testStringToCharArrayStoresRawUTF16CodeUnits() {
+    func testStringToCharArrayStoresTaggedUTF16CodeUnits() {
         withFlatString("hi") { data, length, byteCount, hash in
             let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
             let charArray = runtimeArrayBox(from: charArrayRaw)
 
+            XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(charArray?.values.map(\.payload0), [104, 105])
             XCTAssertEqual(charArray?.elements, [104, 105])
         }
     }
@@ -1367,19 +1456,24 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     func testStringCharContainersStoreTaggedRuntimeValues() {
         withFlatString("ab") { data, length, byteCount, hash in
             let listRaw = kk_string_toList_flat(data, length, byteCount, hash)
+            let charArrayRaw = kk_string_toCharArray_flat(data, length, byteCount, hash)
             let typedArrayRaw = kk_string_toTypedArray_flat(data, length, byteCount, hash)
             let typedArrayListRaw = kk_array_toList(typedArrayRaw)
 
             let list = runtimeListBox(from: listRaw)
+            let charArray = runtimeArrayBox(from: charArrayRaw)
             let typedArray = runtimeArrayBox(from: typedArrayRaw)
             let typedArrayList = runtimeListBox(from: typedArrayListRaw)
 
             XCTAssertEqual(list?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+            XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
             XCTAssertEqual(typedArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
             XCTAssertEqual(typedArrayList?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
             XCTAssertEqual(list?.elements, [97, 98])
+            XCTAssertEqual(charArray?.elements, [97, 98])
             XCTAssertEqual(typedArray?.elements, [97, 98])
             XCTAssertEqual(runtimeRenderAnyForPrint(listRaw), "[a, b]")
+            XCTAssertEqual(runtimeRenderAnyForPrint(charArrayRaw), "[a, b]")
             XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayRaw), "[a, b]")
             XCTAssertEqual(runtimeRenderAnyForPrint(typedArrayListRaw), "[a, b]")
         }
@@ -1501,14 +1595,16 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(set?.elements.map(kk_unbox_char), [97, 98])
     }
 
-    func testListToCharArrayStoresRawCharCodeUnits() {
-        let listRaw = registerRuntimeObject(RuntimeListBox(elements: [
-            kk_box_char(97),
-            kk_box_char(233),
+    func testListToCharArrayStoresTaggedCharCodeUnits() {
+        let listRaw = registerRuntimeObject(RuntimeListBox(values: [
+            RuntimeValue(raw: kk_box_char(97)),
+            RuntimeValue(charScalar: 233),
         ]))
         let charArrayRaw = kk_list_toCharArray(listRaw)
         let charArray = runtimeArrayBox(from: charArrayRaw)
 
+        XCTAssertEqual(charArray?.values.map(\.tag), [RuntimeValue.charTag, RuntimeValue.charTag])
+        XCTAssertEqual(charArray?.values.map(\.payload0), [97, 233])
         XCTAssertEqual(charArray?.elements, [97, 233])
         XCTAssertEqual(charArray?.elements.map(kk_unbox_char), [97, 233])
     }
@@ -1790,7 +1886,21 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 &thrown
             )
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(runtimeSequenceSourceElements(from: transformedChunks), [2, 2, 1])
+            assertRawValueSequence(transformedChunks, equals: [2, 2, 1])
+
+            thrown = -1
+            let transformedChunkStrings = kk_string_chunked_sequence_transform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                2,
+                unsafeBitCast(runtimeReturnValueTransform, to: Int.self),
+                0,
+                &thrown
+            )
+            XCTAssertEqual(thrown, 0)
+            assertStringValueSequence(transformedChunkStrings, equals: ["ab", "cd", "e"])
 
             let defaultWindows = runtimeListBox(from: kk_string_windowed_default_flat(data, length, byteCount, hash, 3))
             XCTAssertEqual(defaultWindows?.elements.map(runtimeStringValue), ["abc", "bcd", "cde"])
@@ -1821,7 +1931,23 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
                 &thrown
             )
             XCTAssertEqual(thrown, 0)
-            XCTAssertEqual(runtimeSequenceSourceElements(from: transformedWindows), [3, 3, 1])
+            assertRawValueSequence(transformedWindows, equals: [3, 3, 1])
+
+            thrown = -1
+            let transformedWindowStrings = kk_string_windowedSequence_transform_flat(
+                data,
+                length,
+                byteCount,
+                hash,
+                3,
+                2,
+                1,
+                unsafeBitCast(runtimeReturnValueTransform, to: Int.self),
+                0,
+                &thrown
+            )
+            XCTAssertEqual(thrown, 0)
+            assertStringValueSequence(transformedWindowStrings, equals: ["abc", "cde", "e"])
         }
 
         withFlatString("") { data, length, byteCount, hash in
@@ -2099,12 +2225,41 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringReplaceSupportsLiteralReplacement() {
-        let replaced = kk_string_replace(
-            rawFromRuntimeString("aba"),
-            rawFromRuntimeString("a"),
-            rawFromRuntimeString("z")
-        )
-        XCTAssertEqual(runtimeStringValue(replaced), "zbz")
+        withFlatString("aba") { data, length, byteCount, hash in
+            withFlatString("a") { oldData, oldLength, oldByteCount, oldHash in
+                withFlatString("z") { newData, newLength, newByteCount, newHash in
+                    var outLength = 0
+                    var outByteCount = 0
+                    var outHash = 0
+                    let result = kk_string_replace_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        oldData,
+                        oldLength,
+                        oldByteCount,
+                        oldHash,
+                        newData,
+                        newLength,
+                        newByteCount,
+                        newHash,
+                        &outLength,
+                        &outByteCount,
+                        &outHash
+                    )
+                    XCTAssertEqual(
+                        flatStringValue(
+                            data: result.map { UnsafePointer($0) },
+                            length: outLength,
+                            byteCount: outByteCount,
+                            hash: outHash
+                        ),
+                        "zbz"
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - STDLIB-TEXT-FN-055: replace overloads
@@ -3009,6 +3164,34 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         return array
     }
 
+    private func assertFindAnyOfPair(
+        _ pairRaw: Int,
+        offset: Int,
+        match: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertNotEqual(pairRaw, runtimeNullSentinelInt, file: file, line: line)
+        guard pairRaw != runtimeNullSentinelInt,
+              let pairPtr = UnsafeMutableRawPointer(bitPattern: pairRaw),
+              let pairBox = tryCast(pairPtr, to: RuntimePairBox.self)
+        else {
+            XCTFail("Expected RuntimePairBox result", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
+        XCTAssertEqual(pairBox.firstValue.payload0, offset, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
+        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), match, file: file, line: line)
+        XCTAssertEqual(kk_pair_first(pairRaw), offset, file: file, line: line)
+        XCTAssertEqual(
+            runtimeStringFromRawOrPanic(kk_pair_second(pairRaw), caller: #function),
+            match,
+            file: file,
+            line: line
+        )
+    }
+
     private func assertStringValueList(
         _ list: RuntimeListBox?,
         equals expected: [String],
@@ -3049,6 +3232,112 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             line: line
         )
         XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw)?.map(runtimeStringValue), expected, file: file, line: line)
+    }
+
+    private func assertRawValueSequence(
+        _ sequenceRaw: Int,
+        equals expected: [Int],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let sequence = runtimeSequenceBox(from: sequenceRaw) else {
+            XCTFail("Expected a RuntimeSequenceBox", file: file, line: line)
+            return
+        }
+        guard case let .valueSource(values)? = sequence.steps.first else {
+            XCTFail("Expected aggregate RuntimeValue sequence source", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(
+            values.map(\.tag),
+            Array(repeating: RuntimeValue.rawTag, count: expected.count),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(values.map(\.payload0), expected, file: file, line: line)
+        XCTAssertEqual(runtimeSequenceSourceElements(from: sequenceRaw), expected, file: file, line: line)
+    }
+
+    private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        return RuntimeValue(
+            stringData: data.map { Int(bitPattern: $0) } ?? 0,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
+    }
+
+    private func assertIndexedStringValue(
+        _ raw: Int,
+        index: Int,
+        value: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
+        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
+        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), value, file: file, line: line)
+        XCTAssertEqual(runtimeElementToString(raw), "IndexedValue(index=\(index), value=\(value))", file: file, line: line)
+    }
+
+    private func assertIndexedCharValue(
+        _ raw: Int,
+        index: Int,
+        scalar: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(runtimeObjectTypeID(rawValue: raw), indexedValueRuntimeTypeID, file: file, line: line)
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            XCTFail("Expected IndexedValue RuntimePairBox", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.rawTag, file: file, line: line)
+        XCTAssertEqual(pairBox.firstValue.payload0, index, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.charTag, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.payload0, scalar, file: file, line: line)
+        XCTAssertEqual(kk_unbox_char(kk_pair_second(raw)), scalar, file: file, line: line)
+    }
+
+    private func assertStringPairValue(
+        _ raw: Int,
+        first: String,
+        second: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            XCTFail("Expected RuntimePairBox", file: file, line: line)
+            return
+        }
+
+        XCTAssertEqual(pairBox.firstValue.tag, RuntimeValue.stringTag, file: file, line: line)
+        XCTAssertEqual(pairBox.secondValue.tag, RuntimeValue.stringTag, file: file, line: line)
+        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.firstValue), first, file: file, line: line)
+        XCTAssertEqual(runtimeRenderAnyForPrint(pairBox.secondValue), second, file: file, line: line)
     }
 
     private func runtimeStringValue(_ raw: Int) -> String {

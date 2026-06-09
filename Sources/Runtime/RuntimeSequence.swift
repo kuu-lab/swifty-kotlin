@@ -1513,6 +1513,8 @@ private func evaluateSequenceValues(
             return values
         case let .stringSource(source):
             return source.utf16.map { RuntimeValue(charScalar: Int($0)) }
+        case .generator, .nullableGenerator:
+            return evaluateSequence(seq, outThrown: outThrown, markConsumption: false).map { RuntimeValue(raw: $0) }
         default:
             if let source = extractSourceElements(from: step) {
                 return source.map { RuntimeValue(raw: $0) }
@@ -2146,21 +2148,16 @@ public func kk_sequence_forEachIndexed(_ seqRaw: Int, _ fnPtr: Int, _ closureRaw
 
 @_cdecl("kk_sequence_zipWithNext")
 public func kk_sequence_zipWithNext(_ seqRaw: Int) -> Int {
-    let elements: [Int]
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        elements = evaluateSequence(seq)
-    } else {
-        elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    }
-    guard elements.count >= 2 else {
+    let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
+    guard values.count >= 2 else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
-    var pairs: [Int] = []
-    pairs.reserveCapacity(elements.count - 1)
-    for i in 0 ..< elements.count - 1 {
-        pairs.append(kk_pair_new(elements[i], elements[i + 1]))
+    var pairs: [RuntimeValue] = []
+    pairs.reserveCapacity(values.count - 1)
+    for i in 0 ..< values.count - 1 {
+        pairs.append(RuntimeValue(raw: runtimePairNew(firstValue: values[i], secondValue: values[i + 1])))
     }
-    return registerRuntimeObject(RuntimeListBox(elements: pairs))
+    return registerRuntimeObject(RuntimeListBox(values: pairs))
 }
 
 @_cdecl("kk_sequence_zipWithNextTransform")
@@ -3015,18 +3012,27 @@ public func kk_sequence_toCollection(_ seqRaw: Int, _ destRaw: Int) -> Int {
 
 @_cdecl("kk_sequence_unzip")
 public func kk_sequence_unzip(_ seqRaw: Int) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    var firstValues: [Int] = []
-    var secondValues: [Int] = []
+    let elements = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
+    var firstValues: [RuntimeValue] = []
+    var secondValues: [RuntimeValue] = []
     firstValues.reserveCapacity(elements.count)
     secondValues.reserveCapacity(elements.count)
-    for pairRaw in elements {
-        firstValues.append(kk_pair_first(pairRaw))
-        secondValues.append(kk_pair_second(pairRaw))
+    for pairValue in elements {
+        let pairRaw = pairValue.legacyRawValue
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: pairRaw),
+              let pairBox = tryCast(ptr, to: RuntimePairBox.self)
+        else {
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in \(#function)")
+        }
+        firstValues.append(pairBox.firstValue)
+        secondValues.append(pairBox.secondValue)
     }
-    let firstList = registerRuntimeObject(RuntimeListBox(elements: firstValues))
-    let secondList = registerRuntimeObject(RuntimeListBox(elements: secondValues))
-    return kk_pair_new(firstList, secondList)
+    let firstList = registerRuntimeObject(RuntimeListBox(values: firstValues))
+    let secondList = registerRuntimeObject(RuntimeListBox(values: secondValues))
+    return runtimePairNew(
+        firstValue: RuntimeValue(raw: firstList),
+        secondValue: RuntimeValue(raw: secondList)
+    )
 }
 
 // MARK: - Sequence Terminal Operations: any/all/none/fold/reduce (STDLIB-274)

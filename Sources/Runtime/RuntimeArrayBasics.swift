@@ -57,6 +57,10 @@ public func kk_pair_new(_ first: Int, _ second: Int) -> Int {
     registerRuntimeObject(RuntimePairBox(first: first, second: second))
 }
 
+func runtimePairNew(firstValue: RuntimeValue, secondValue: RuntimeValue) -> Int {
+    registerRuntimeObject(RuntimePairBox(firstValue: firstValue, secondValue: secondValue))
+}
+
 @_cdecl("kk_pair_first")
 public func kk_pair_first(_ pairRaw: Int) -> Int {
     if pairRaw == runtimeNullSentinelInt {
@@ -103,7 +107,7 @@ public func kk_map_entry_to_pair(_ entryRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Map.Entry handle in kk_map_entry_to_pair")
     }
-    return kk_pair_new(pairBox.first, pairBox.second)
+    return runtimePairNew(firstValue: pairBox.firstValue, secondValue: pairBox.secondValue)
 }
 
 @_cdecl("kk_pair_to_string")
@@ -113,8 +117,8 @@ public func kk_pair_to_string(_ pairRaw: Int) -> UnsafeMutableRawPointer {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in kk_pair_to_string")
     }
-    let firstStr = runtimeElementToString(pairBox.first)
-    let secondStr = runtimeElementToString(pairBox.second)
+    let firstStr = runtimeElementToString(pairBox.firstValue)
+    let secondStr = runtimeElementToString(pairBox.secondValue)
     let str = "(\(firstStr), \(secondStr))"
     let utf8 = Array(str.utf8)
     return utf8.withUnsafeBufferPointer { buf in
@@ -186,7 +190,7 @@ public func kk_pair_toList(_ pairRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in kk_pair_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: [pairBox.first, pairBox.second]))
+    return registerRuntimeObject(RuntimeListBox(values: [pairBox.firstValue, pairBox.secondValue]))
 }
 
 @_cdecl("kk_triple_toList")
@@ -237,10 +241,8 @@ public func kk_list_toCharArray(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid list handle in kk_list_toCharArray")
     }
-    let box = RuntimeArrayBox(length: list.elements.count)
-    for (i, elem) in list.elements.enumerated() {
-        box.elements[i] = kk_unbox_char(elem)
-    }
+    let box = RuntimeArrayBox(length: list.values.count)
+    box.values = list.values.map { RuntimeValue(charScalar: kk_unbox_char($0.legacyRawValue)) }
     return registerRuntimeObject(box)
 }
 

@@ -423,31 +423,5 @@ public extension RuntimeABISpec {
         bridgeSpec("kk_vtable_lookup", section: "Delegate", params: ["receiver", "slot"]),
     ]
 
-    static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = [
-        bridgeSpec(
-            "kk_string_substringAfter",
-            section: "String",
-            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"]
-        ),
-        bridgeSpec(
-            "kk_string_substringAfter_char",
-            section: "String",
-            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"]
-        ),
-        bridgeSpec(
-            "kk_string_substringBefore_char",
-            section: "String",
-            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"]
-        ),
-        bridgeSpec(
-            "kk_string_substringBeforeLast_char",
-            section: "String",
-            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"]
-        ),
-        bridgeSpec(
-            "kk_string_substringAfterLast_char",
-            section: "String",
-            params: ["strRaw", "delimiterRaw", "missingDelimiterValueRaw"]
-        ),
-    ]
+    static let stringBridgeFunctions: [RuntimeABIFunctionSpec] = []
 }

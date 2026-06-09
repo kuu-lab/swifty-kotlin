@@ -111,6 +111,13 @@ struct RuntimeValue {
         )
         return registerRuntimeObject(RuntimeStringBox(string))
     }
+
+    var childReferenceRawValue: Int? {
+        guard tag == Self.rawTag, payload0 != 0 else {
+            return nil
+        }
+        return payload0
+    }
 }
 
 class RuntimeThrowableBox {
@@ -222,12 +229,20 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 }
 
 final class RuntimePairBox {
-    let first: Int
-    let second: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
 
     init(first: Int, second: Int) {
-        self.first = first
-        self.second = second
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+    }
+
+    init(firstValue: RuntimeValue, secondValue: RuntimeValue) {
+        self.firstValue = firstValue
+        self.secondValue = secondValue
     }
 }
 
@@ -502,11 +517,11 @@ final class RuntimeIndexingIterableBox {
 /// Iterator for `withIndex()` result. Each call to `next()` yields an
 /// `IndexedValue<E>` pair (index, element) represented as `RuntimePairBox`.
 final class RuntimeIndexingIteratorBox {
-    let elements: [Int]
+    let values: [RuntimeValue]
     var index: Int
 
-    init(elements: [Int]) {
-        self.elements = elements
+    init(values: [RuntimeValue]) {
+        self.values = values
         index = 0
     }
 }
@@ -2060,11 +2075,13 @@ final class RuntimeBufferedWriterBox {
 // Only types that store `Int` child handles need to conform.
 
 extension RuntimeArrayBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimePairBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second] }
+    var childRefs: [Int] {
+        [firstValue, secondValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
@@ -2072,17 +2089,20 @@ extension RuntimeTripleBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeSetBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }
 
 extension RuntimeMapBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { keys + values }
+    var childRefs: [Int] {
+        keyValues.compactMap(\.childReferenceRawValue)
+            + entryValues.compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { elements }
+    var childRefs: [Int] { values.compactMap(\.childReferenceRawValue) }
 }

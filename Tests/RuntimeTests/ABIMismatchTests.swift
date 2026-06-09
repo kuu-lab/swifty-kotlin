@@ -451,12 +451,398 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[1].type, .int32)
     }
 
-    func testKKStringConcatSignature() throws {
-        let spec = try requireSpec("kk_string_concat")
-        XCTAssertEqual(spec.returnType, .opaquePointer)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .nullableOpaquePointer)
-        XCTAssertEqual(spec.parameters[1].type, .nullableOpaquePointer)
+    func testKKStringConcatPointerABIRemoved() {
+        XCTAssertFalse(
+            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_concat" },
+            "String concat should use kk_string_concat_flat instead of the legacy pointer ABI"
+        )
+    }
+
+    func testKKStringRepeatPointerABIRemoved() {
+        XCTAssertFalse(
+            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_repeat" },
+            "String repeat should use kk_string_repeat_flat instead of the legacy pointer ABI"
+        )
+    }
+
+    func testKKStringSubstringAndReplaceSegmentPointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_substringBefore",
+            "kk_string_substringBefore_char",
+            "kk_string_substringBeforeLast",
+            "kk_string_substringBeforeLast_char",
+            "kk_string_substringAfter",
+            "kk_string_substringAfter_char",
+            "kk_string_substringAfterLast",
+            "kk_string_substringAfterLast_char",
+            "kk_string_replaceAfter",
+            "kk_string_replaceAfter_char",
+            "kk_string_replaceAfterLast",
+            "kk_string_replaceAfterLast_char",
+            "kk_string_replaceBefore",
+            "kk_string_replaceBefore_char",
+            "kk_string_replaceBeforeLast",
+            "kk_string_replaceBeforeLast_char",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringConcatFlatSignature() throws {
+        let spec = try requireSpec("kk_string_concat_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 11)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplacePointerABIRemoved() {
+        XCTAssertFalse(
+            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replace" },
+            "String replace should use kk_string_replace_flat instead of the legacy pointer ABI"
+        )
+    }
+
+    func testKKStringRemovePrefixSuffixSurroundingPointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_removePrefix",
+            "kk_string_removeSuffix",
+            "kk_string_removeSurrounding",
+            "kk_string_removeSurrounding_pair",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringReplaceFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replace_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 15)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplaceFirstRangePointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_replaceFirst",
+            "kk_string_replaceRange",
+            "kk_string_removeRange",
+            "kk_string_removeRange_range",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringReplaceFirstFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replaceFirst_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 15)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplaceRangeFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replaceRange_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 13)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringRemoveRangeFlatSignatures() throws {
+        let indexed = try requireSpec("kk_string_removeRange_flat")
+        XCTAssertEqual(indexed.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(indexed.parameters.count, 10)
+        XCTAssertEqual(indexed.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+
+        let ranged = try requireSpec("kk_string_removeRange_range_flat")
+        XCTAssertEqual(ranged.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(ranged.parameters.count, 9)
+        XCTAssertEqual(ranged.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringPadPointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_padStart_default",
+            "kk_string_padEnd_default",
+            "kk_string_padStart",
+            "kk_string_padEnd",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringPadDefaultFlatSignatures() throws {
+        for name in ["kk_string_padStart_default_flat", "kk_string_padEnd_default_flat"] {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.count, 8)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .nullableConstUInt8Pointer,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+            ])
+        }
+    }
+
+    func testKKStringPadExplicitFlatSignatures() throws {
+        for name in ["kk_string_padStart_flat", "kk_string_padEnd_flat"] {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.count, 9)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .nullableConstUInt8Pointer,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+            ])
+        }
+    }
+
+    func testKKStringTrimPredicatePointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_trim_predicate",
+            "kk_string_trimStart_predicate",
+            "kk_string_trimEnd_predicate",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringTrimPredicateFlatSignatures() throws {
+        let names = [
+            "kk_string_trim_predicate_flat",
+            "kk_string_trimStart_predicate_flat",
+            "kk_string_trimEnd_predicate_flat",
+        ]
+        for name in names {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.count, 10)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .nullableConstUInt8Pointer,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+            ])
+        }
+    }
+
+    func testKKStringIfBlankEmptyFlatSignatures() throws {
+        for name in ["kk_string_ifBlank_flat", "kk_string_ifEmpty_flat"] {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.count, 10)
+            XCTAssertEqual(spec.parameters.map(\.type), [
+                .nullableConstUInt8Pointer,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .intptr,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+                .nullableIntptrPointer,
+            ])
+        }
+    }
+
+    func testKKStringIndentPointerABIRemoved() {
+        let legacyNames = [
+            "kk_string_trimIndent",
+            "kk_string_trimMargin_default",
+            "kk_string_trimMargin",
+            "kk_string_prependIndent_default",
+            "kk_string_prependIndent",
+            "kk_string_replaceIndent_default",
+            "kk_string_replaceIndent",
+            "kk_string_replaceIndentByMargin",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
+    }
+
+    func testKKStringIndentFlatSignatures() throws {
+        let receiverOnlyNames = [
+            "kk_string_trimIndent_flat",
+            "kk_string_trimMargin_default_flat",
+            "kk_string_prependIndent_default_flat",
+            "kk_string_replaceIndent_default_flat",
+        ]
+        let receiverOnlyTypes: [RuntimeABICType] = [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ]
+        for name in receiverOnlyNames {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.map(\.type), receiverOnlyTypes)
+        }
+
+        let oneStringArgumentNames = [
+            "kk_string_trimMargin_flat",
+            "kk_string_prependIndent_flat",
+            "kk_string_replaceIndent_flat",
+        ]
+        let oneStringArgumentTypes: [RuntimeABICType] = [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ]
+        for name in oneStringArgumentNames {
+            let spec = try requireSpec(name)
+            XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+            XCTAssertEqual(spec.parameters.map(\.type), oneStringArgumentTypes)
+        }
+
+        let replaceIndentByMargin = try requireSpec("kk_string_replaceIndentByMargin_flat")
+        XCTAssertEqual(replaceIndentByMargin.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(replaceIndentByMargin.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
     }
 
     func testKKPrintlnAnySignature() throws {

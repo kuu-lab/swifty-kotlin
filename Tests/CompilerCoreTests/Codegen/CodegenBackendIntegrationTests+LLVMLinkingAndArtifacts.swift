@@ -123,6 +123,68 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendOmitsStringLengthPrimitiveForLiteralNullSafeCall() throws {
+        let source = """
+        fun main() {
+            val value: String? = null
+            println(value?.length)
+            println(value?.length ?: -1)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "NullSafeStringLengthIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+        }
+    }
+
+    func testLLVMBackendBridgesRawAnyStringLengthAfterTypeCheck() throws {
+        let source = """
+        fun lengthIfString(value: Any): Int {
+            if (value !is String) {
+                return -1
+            } else {
+                return value.length
+            }
+        }
+
+        fun main() {
+            println(lengthIfString("abc"))
+            println(lengthIfString(0))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "AnySmartCastStringLengthIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertTrue(ir.contains("@kk_string_to_flat"))
+            XCTAssertFalse(ir.contains("@kk_string_struct_get_length"))
+            XCTAssertFalse(ir.contains("@__string_struct_get_length"))
+        }
+    }
+
     func testLLVMBackendEmitsFlatRemovePrefixSuffixRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {
@@ -156,6 +218,169 @@ extension CodegenBackendIntegrationTests {
             for rawName in rawNames {
                 XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String remove call: \(rawName)")
                 XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String remove call: \(rawName)_flat")
+            }
+        }
+    }
+
+    func testLLVMBackendEmitsFlatReplaceFirstRangeRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            val value = "abcabc"
+            println(value.replaceFirst("ab", "XY"))
+            println(value.replaceRange(1..3, "Q"))
+            println(value.removeRange(1, 3))
+            println(value.removeRange(1..2))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringReplaceRangeFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            let rawNames = [
+                "kk_string_replaceFirst",
+                "kk_string_replaceRange",
+                "kk_string_removeRange",
+                "kk_string_removeRange_range",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String range call: \(rawName)")
+                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String range call: \(rawName)_flat")
+            }
+        }
+    }
+
+    func testLLVMBackendEmitsFlatIfBlankEmptyRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            val blank = "   "
+            val empty = ""
+            println(blank.ifBlank { "fallback" })
+            println(empty.ifEmpty { "fallback" })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringIfBlankEmptyFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_ifBlank("), "Unexpected raw String ifBlank call")
+            XCTAssertFalse(ir.contains("@kk_string_ifEmpty("), "Unexpected raw String ifEmpty call")
+            XCTAssertTrue(ir.contains("@kk_string_ifBlank_flat"), "Missing flat String ifBlank call")
+            XCTAssertTrue(ir.contains("@kk_string_ifEmpty_flat"), "Missing flat String ifEmpty call")
+        }
+    }
+
+    func testLLVMBackendEmitsFlatIndentRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            val value = "  alpha\\n  beta"
+            val margin = "|alpha\\n|beta"
+            println(value.trimIndent())
+            println(margin.trimMargin())
+            println(margin.trimMargin("|"))
+            println(value.prependIndent())
+            println(value.prependIndent(">>"))
+            println(value.replaceIndent())
+            println(value.replaceIndent("  "))
+            println(margin.replaceIndentByMargin())
+            println(margin.replaceIndentByMargin(">"))
+            println(margin.replaceIndentByMargin(">", "|"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringIndentFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            let rawNames = [
+                "kk_string_trimIndent",
+                "kk_string_trimMargin_default",
+                "kk_string_trimMargin",
+                "kk_string_prependIndent_default",
+                "kk_string_prependIndent",
+                "kk_string_replaceIndent_default",
+                "kk_string_replaceIndent",
+                "kk_string_replaceIndentByMargin",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String indent call: \(rawName)")
+            }
+
+            let flatNames = [
+                "kk_string_trimIndent_flat",
+                "kk_string_trimMargin_default_flat",
+                "kk_string_trimMargin_flat",
+                "kk_string_prependIndent_default_flat",
+                "kk_string_prependIndent_flat",
+                "kk_string_replaceIndent_default_flat",
+                "kk_string_replaceIndent_flat",
+                "kk_string_replaceIndentByMargin_flat",
+            ]
+            for flatName in flatNames {
+                XCTAssertTrue(ir.contains("@\(flatName)"), "Missing flat String indent call: \(flatName)")
+            }
+        }
+    }
+
+    func testLLVMBackendEmitsFlatTrimPredicateRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            val value = "xxbodyxx"
+            println(value.trim { it == 'x' })
+            println(value.trimStart { it == 'x' })
+            println(value.trimEnd { it == 'x' })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringTrimPredicateFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            let rawNames = [
+                "kk_string_trim_predicate",
+                "kk_string_trimStart_predicate",
+                "kk_string_trimEnd_predicate",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String trim predicate call: \(rawName)")
+                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String trim predicate call: \(rawName)_flat")
             }
         }
     }

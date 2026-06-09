@@ -295,6 +295,13 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+        if case .some(.null) = arena.expr(loweredReceiver) {
+            // A literal-null safe-call is statically null; avoid emitting the unreachable member call.
+            let nullExpr = arena.appendExpr(.null, type: boundType)
+            instructions.append(.constValue(result: nullExpr, value: .null))
+            instructions.append(.copy(from: nullExpr, to: result))
+            return result
+        }
         let callLabel = driver.ctx.makeLoopLabel()
         let endLabel = driver.ctx.makeLoopLabel()
         instructions.append(.jumpIfNotNull(value: loweredReceiver, target: callLabel))

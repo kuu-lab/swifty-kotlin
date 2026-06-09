@@ -454,11 +454,11 @@ extension CallTypeChecker {
                         elementType: sema.types.make(.primitive(.char, .nonNull))
                     )
                 case "toByteArray", "encodeToByteArray":
-                    makeSyntheticListType(
+                    makeSyntheticPrimitiveArrayType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        elementType: sema.types.intType
+                        arrayName: "ByteArray"
                     )
                 default:
                     nil
@@ -655,11 +655,11 @@ extension CallTypeChecker {
                     sema.bindings.markCollectionExpr(id)
                     return boundType
                 }
-                let resultType = makeSyntheticListType(
+                let resultType = makeSyntheticPrimitiveArrayType(
                     symbols: sema.symbols,
                     types: sema.types,
                     interner: interner,
-                    elementType: sema.types.intType
+                    arrayName: "ByteArray"
                 )
                 sema.bindings.markCollectionExpr(id)
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -775,11 +775,11 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 if calleeStr == "encodeToByteArray" || calleeStr == "toByteArray" {
-                    let resultType = makeSyntheticListType(
+                    let resultType = makeSyntheticPrimitiveArrayType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        elementType: sema.types.intType
+                        arrayName: "ByteArray"
                     )
                     if let boundType = tryBindSyntheticStringMemberFallback(
                         id,
@@ -827,11 +827,11 @@ extension CallTypeChecker {
                 case "get":
                     sema.types.make(.primitive(.char, .nonNull))
                 case "encodeToByteArray", "toByteArray":
-                    makeSyntheticListType(
+                    makeSyntheticPrimitiveArrayType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        elementType: sema.types.intType
+                        arrayName: "ByteArray"
                     )
                 default:
                     nil

@@ -246,19 +246,36 @@ extension NativeEmitter {
         switch calleeName {
         case "__string_struct_get_length", "kk_string_struct_get_length", "length":
             guard argumentValues.count == 1,
-                  let firstType = argumentTypes.first.flatMap({ $0 }),
-                  state.typeLowering != nil,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: firstType)
+                  state.typeLowering != nil
             else {
                 return (false, nil)
             }
-            lowered = bindings.buildExtractValue(
-                state.builder,
-                aggregate: lhs,
-                index: 1,
-                name: "string_length_\(instructionIndex)"
-            )
+            let firstType = argumentTypes.first.flatMap { $0 }
+            if let firstType,
+               let typeSystem,
+               case .stringStruct = typeSystem.kind(of: firstType)
+            {
+                lowered = bindings.buildExtractValue(
+                    state.builder,
+                    aggregate: lhs,
+                    index: 1,
+                    name: "string_length_\(instructionIndex)"
+                )
+            } else if calleeName == "__string_struct_get_length" || calleeName == "kk_string_struct_get_length",
+                      let bridged = bridgeRuntimeRawToStringAggregate(
+                          lhs,
+                          suffix: "string_length_raw_\(instructionIndex)"
+                      )
+            {
+                lowered = bindings.buildExtractValue(
+                    state.builder,
+                    aggregate: bridged,
+                    index: 1,
+                    name: "string_length_raw_\(instructionIndex)"
+                )
+            } else {
+                return (false, nil)
+            }
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
         case "kk_op_sub":

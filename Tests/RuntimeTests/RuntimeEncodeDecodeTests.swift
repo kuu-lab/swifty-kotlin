@@ -15,8 +15,8 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
     }
 
     private func extractListElements(_ raw: Int) -> [Int]? {
-        // After the ArrayBox fix, encodeToByteArray returns RuntimeArrayBox.
-        // Accept both to remain compatible with legacy ListBox call sites.
+        // Decode-side APIs still accept legacy ListBox inputs, while String byte-array
+        // producers now return RuntimeArrayBox handles.
         if let list = runtimeListBox(from: raw) { return list.elements }
         if let array = runtimeArrayBox(from: raw) { return array.elements }
         return nil
@@ -76,6 +76,8 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         withFlatString("test123") { data, length, byteCount, hash in
             let encode = kk_string_encodeToByteArray_flat(data, length, byteCount, hash)
             let toByte = kk_string_toByteArray_flat(data, length, byteCount, hash)
+            XCTAssertNil(runtimeListBox(from: toByte))
+            XCTAssertNotNil(runtimeArrayBox(from: toByte))
             let encodeElems = extractListElements(encode)
             let toByteElems = extractListElements(toByte)
             XCTAssertEqual(encodeElems, toByteElems,
@@ -104,10 +106,11 @@ final class RuntimeEncodeDecodeTests: XCTestCase {
         }
 
         withFlatString("A\u{00E9}") { data, length, byteCount, hash in
+            let charsetBytes = kk_string_toByteArray_charset_flat(data, length, byteCount, hash, kk_charset_us_ascii())
+            XCTAssertNil(runtimeListBox(from: charsetBytes))
+            XCTAssertNotNil(runtimeArrayBox(from: charsetBytes))
             XCTAssertEqual(
-                extractListElements(
-                    kk_string_toByteArray_charset_flat(data, length, byteCount, hash, kk_charset_us_ascii())
-                ),
+                extractListElements(charsetBytes),
                 [65, 63]
             )
         }

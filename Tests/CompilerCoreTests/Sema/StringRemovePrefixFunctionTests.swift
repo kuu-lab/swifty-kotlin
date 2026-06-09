@@ -46,20 +46,31 @@ final class StringRemovePrefixFunctionTests: XCTestCase {
             try runSema(ctx)
             let sema = try XCTUnwrap(ctx.sema)
 
+            let charSequenceSymbolID = try XCTUnwrap(sema.types.charSequenceInterfaceSymbol)
+            let charSequenceType = sema.types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbolID,
+                args: [],
+                nullability: .nonNull
+            )))
+
             func assertStringHelper(
                 _ name: String,
                 parameterCount: Int,
                 externalLinkName: String,
+                receiverType: TypeID? = nil,
+                parameterType: TypeID? = nil,
                 file: StaticString = #filePath,
                 line: UInt = #line
             ) throws {
+                let expectedReceiverType = receiverType ?? sema.types.stringType
+                let expectedParameterType = parameterType ?? sema.types.stringType
                 let fq = ["kotlin", "text", name].map { ctx.interner.intern($0) }
                 let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
                     guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                         return false
                     }
-                    return signature.receiverType == sema.types.stringType
-                        && signature.parameterTypes == Array(repeating: sema.types.stringType, count: parameterCount)
+                    return signature.receiverType == expectedReceiverType
+                        && signature.parameterTypes == Array(repeating: expectedParameterType, count: parameterCount)
                 }, file: file, line: line)
                 XCTAssertEqual(
                     sema.symbols.externalLinkName(for: symbol),
@@ -95,6 +106,34 @@ final class StringRemovePrefixFunctionTests: XCTestCase {
                 "removeSurrounding",
                 parameterCount: 2,
                 externalLinkName: "kk_string_removeSurrounding_pair_flat"
+            )
+            try assertStringHelper(
+                "removePrefix",
+                parameterCount: 1,
+                externalLinkName: "kk_string_removePrefix_flat",
+                receiverType: charSequenceType,
+                parameterType: charSequenceType
+            )
+            try assertStringHelper(
+                "removeSuffix",
+                parameterCount: 1,
+                externalLinkName: "kk_string_removeSuffix_flat",
+                receiverType: charSequenceType,
+                parameterType: charSequenceType
+            )
+            try assertStringHelper(
+                "removeSurrounding",
+                parameterCount: 1,
+                externalLinkName: "kk_string_removeSurrounding_flat",
+                receiverType: charSequenceType,
+                parameterType: charSequenceType
+            )
+            try assertStringHelper(
+                "removeSurrounding",
+                parameterCount: 2,
+                externalLinkName: "kk_string_removeSurrounding_pair_flat",
+                receiverType: charSequenceType,
+                parameterType: charSequenceType
             )
         }
     }

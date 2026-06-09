@@ -1836,7 +1836,10 @@ extension CallLowerer {
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
-                    ("kk_string_ifBlank", [loweredReceiverID] + normalizedArgIDs)
+                    (
+                        usesStringFlatABI ? "kk_string_ifBlank_flat" : "kk_string_ifBlank",
+                        [loweredReceiverID] + normalizedArgIDs
+                    )
                 case "ifEmpty":
                     ("kk_string_ifEmpty", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
@@ -1851,10 +1854,10 @@ extension CallLowerer {
                     }
                 case "toByteArray":
                     if loweredArgIDs.count == 1 {
-                        // toByteArray(charset) — Sema types this as List<Int>, so use the ListBox-returning function.
+                        // toByteArray(charset) returns the ByteArray handle produced by the charset-aware runtime.
                         ("kk_string_toByteArray_charset_flat", [loweredReceiverID, loweredArgIDs[0]])
                     } else {
-                        // toByteArray(startIndex, endIndex) — shares the ArrayBox-returning range function with encodeToByteArray.
+                        // toByteArray(startIndex, endIndex) shares the ByteArray-returning range function with encodeToByteArray.
                         ("kk_string_encodeToByteArray_range_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     }
                 case "commonPrefixWith":
@@ -2402,7 +2405,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType), !firstArgIsRegex {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_replaceFirst"),
+                    callee: interner.intern("kk_string_replaceFirst_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: false,
@@ -2419,7 +2422,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_removeRange"),
+                    callee: interner.intern("kk_string_removeRange_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,
@@ -2436,7 +2439,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_removeRange_range"),
+                    callee: interner.intern("kk_string_removeRange_range_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0]],
                     result: result,
                     canThrow: true,
@@ -2453,7 +2456,7 @@ extension CallLowerer {
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_replaceRange"),
+                    callee: interner.intern("kk_string_replaceRange_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,

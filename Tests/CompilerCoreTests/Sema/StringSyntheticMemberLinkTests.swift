@@ -67,7 +67,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let expected: [String: String] = [
             "trim": "kk_string_trim_flat",
             "split": "kk_string_split_flat",
-            "replace": "kk_string_replace",
+            "replace": "kk_string_replace_flat",
             "startsWith": "kk_string_startsWith_flat",
             "endsWith": "kk_string_endsWith_flat",
             "toInt": "kk_string_toInt_flat",
@@ -81,8 +81,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "hexToUInt": "kk_string_hexToUInt_flat",
             "hexToULong": "kk_string_hexToULong_flat",
             "hexToUShort": "kk_string_hexToUShort_flat",
-            "trimIndent": "kk_string_trimIndent",
-            "replaceIndentByMargin": "kk_string_replaceIndentByMargin",
+            "trimIndent": "kk_string_trimIndent_flat",
+            "replaceIndentByMargin": "kk_string_replaceIndentByMargin_flat",
         ]
 
         for (member, expectedLink) in expected {
@@ -127,45 +127,89 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "kk_string_findLastAnyOf_flat",
             "CharSequence.findLastAnyOf(strings, startIndex, ignoreCase) should link to kk_string_findLastAnyOf_flat"
         )
+        let expectedSubstringLinks: [String: Set<String>] = [
+            "substringBefore": [
+                "kk_string_substringBefore_flat",
+                "kk_string_substringBefore_char_flat",
+            ],
+            "substringAfter": [
+                "kk_string_substringAfter_flat",
+                "kk_string_substringAfter_char_flat",
+            ],
+            "substringBeforeLast": [
+                "kk_string_substringBeforeLast_flat",
+                "kk_string_substringBeforeLast_char_flat",
+            ],
+            "substringAfterLast": [
+                "kk_string_substringAfterLast_flat",
+                "kk_string_substringAfterLast_char_flat",
+            ],
+        ]
+        for (member, expectedLinks) in expectedSubstringLinks {
+            XCTAssertTrue(
+                expectedLinks.isSubset(of: externalLinks(for: member, sema: sema, interner: interner)),
+                "String.\(member) overloads should link to \(expectedLinks.sorted())"
+            )
+        }
         XCTAssertTrue(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter"),
-            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter"
+                .contains("kk_string_replaceAfter_flat"),
+            "String.replaceAfter(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceAfter", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfter_char"),
-            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char"
+                .contains("kk_string_replaceAfter_char_flat"),
+            "String.replaceAfter(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfter_char_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast"),
-            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast"
+                .contains("kk_string_replaceAfterLast_flat"),
+            "String.replaceAfterLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceAfterLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceAfterLast_char"),
-            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char"
+                .contains("kk_string_replaceAfterLast_char_flat"),
+            "String.replaceAfterLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceAfterLast_char_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore"),
-            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore"
+                .contains("kk_string_replaceBefore_flat"),
+            "String.replaceBefore(String, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceBefore", sema: sema, interner: interner)
-                .contains("kk_string_replaceBefore_char"),
-            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char"
+                .contains("kk_string_replaceBefore_char_flat"),
+            "String.replaceBefore(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBefore_char_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast"),
-            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast"
+                .contains("kk_string_replaceBeforeLast_flat"),
+            "String.replaceBeforeLast(String, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_flat"
         )
         XCTAssertTrue(
             externalLinks(for: "replaceBeforeLast", sema: sema, interner: interner)
-                .contains("kk_string_replaceBeforeLast_char"),
-            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
+                .contains("kk_string_replaceBeforeLast_char_flat"),
+            "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char_flat"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "replaceFirst", sema: sema, interner: interner)
+                .contains("kk_string_replaceFirst_flat"),
+            "String.replaceFirst(String, String) should link to kk_string_replaceFirst_flat"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "replaceRange", sema: sema, interner: interner)
+                .contains("kk_string_replaceRange_flat"),
+            "String.replaceRange(IntRange, String) should link to kk_string_replaceRange_flat"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "removeRange", sema: sema, interner: interner)
+                .contains("kk_string_removeRange_flat"),
+            "String.removeRange(startIndex, endIndex) should link to kk_string_removeRange_flat"
+        )
+        XCTAssertTrue(
+            externalLinks(for: "removeRange", sema: sema, interner: interner)
+                .contains("kk_string_removeRange_range_flat"),
+            "String.removeRange(IntRange) should link to kk_string_removeRange_range_flat"
         )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(
@@ -224,8 +268,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
         XCTAssertEqual(
             externalLink(for: "normalize", sema: sema, interner: interner),
-            "kk_string_normalize",
-            "String.normalize should link to kk_string_normalize"
+            "kk_string_normalize_flat",
+            "String.normalize should link to kk_string_normalize_flat"
         )
         XCTAssertEqual(
             externalLink(for: "isNormalized", sema: sema, interner: interner),
@@ -719,9 +763,9 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         let (sema, interner) = try makeSema()
 
         let expected: [String: Set<String>] = [
-            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate"],
-            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate"],
-            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate"],
+            "trim": ["kk_string_trim_flat", "kk_string_trim_predicate_flat"],
+            "trimStart": ["kk_string_trimStart_flat", "kk_string_trimStart_predicate_flat"],
+            "trimEnd": ["kk_string_trimEnd_flat", "kk_string_trimEnd_predicate_flat"],
         ]
 
         for (member, expectedLinks) in expected {
@@ -749,9 +793,9 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "trim": "kk_string_trim_predicate",
-                "trimStart": "kk_string_trimStart_predicate",
-                "trimEnd": "kk_string_trimEnd_predicate",
+                "trim": "kk_string_trim_predicate_flat",
+                "trimStart": "kk_string_trimStart_predicate_flat",
+                "trimEnd": "kk_string_trimEnd_predicate_flat",
             ]
 
             for (memberName, externalLinkName) in expectedLinks {
@@ -873,7 +917,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let sema = try XCTUnwrap(ctx.sema)
 
             let expectedLinks: [String: String] = [
-                "normalize": "kk_string_normalize",
+                "normalize": "kk_string_normalize_flat",
                 "isNormalized": "kk_string_isNormalized_flat",
             ]
 
@@ -1297,8 +1341,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter_char" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter_flat" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfter_char_flat" }.count, 2)
         }
     }
 
@@ -1338,8 +1382,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast_char" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast_flat" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceAfterLast_char_flat" }.count, 2)
         }
     }
 
@@ -1379,8 +1423,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore_char" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore_flat" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBefore_char_flat" }.count, 2)
         }
     }
 
@@ -1420,8 +1464,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast" }.count, 2)
-            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast_char" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast_flat" }.count, 2)
+            XCTAssertEqual(links.filter { $0 == "kk_string_replaceBeforeLast_char_flat" }.count, 2)
         }
     }
 
@@ -1457,7 +1501,7 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 )
                 return sema.symbols.externalLinkName(for: chosenCallee) ?? ""
             }
-            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin"])
+            XCTAssertEqual(Set(links), ["kk_string_replaceIndentByMargin_flat"])
         }
     }
 

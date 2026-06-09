@@ -372,18 +372,6 @@ public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRa
     }
 }
 
-@_cdecl("kk_string_concat")
-public func kk_string_concat(_ a: UnsafeMutableRawPointer?, _ b: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
-    let lhs = extractString(from: normalizeNullableRuntimePointer(a)) ?? ""
-    let rhs = extractString(from: normalizeNullableRuntimePointer(b)) ?? ""
-    let box = RuntimeStringBox(lhs + rhs)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return opaque
-}
-
 @_cdecl("kk_string_concat_flat")
 public func kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,
@@ -1637,8 +1625,8 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?) {
         return
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.first)
-        let second = runtimeRenderAnyForPrint(pairBox.second)
+        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
+        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
         if runtimeIsMapEntry(rawValue: intValue) {
             Swift.print("\(first)=\(second)")
         } else if runtimeObjectTypeID(rawValue: intValue) == indexedValueRuntimeTypeID {
@@ -1859,8 +1847,8 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return runtimeElementToString(value)
     }
     if let pairBox = tryCast(raw, to: RuntimePairBox.self) {
-        let first = runtimeRenderAnyForPrint(pairBox.first)
-        let second = runtimeRenderAnyForPrint(pairBox.second)
+        let first = runtimeRenderAnyForPrint(pairBox.firstValue)
+        let second = runtimeRenderAnyForPrint(pairBox.secondValue)
         if runtimeIsMapEntry(rawValue: value) {
             return "\(first)=\(second)"
         }

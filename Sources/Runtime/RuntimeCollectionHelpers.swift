@@ -137,7 +137,7 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
        let list = runtimeListBox(from: indexingIterable.listRaw)
     {
         return list.values.enumerated().map { index, element in
-            RuntimeValue(raw: kk_pair_new(index, element.legacyRawValue))
+            RuntimeValue(raw: runtimeIndexedValueNew(index: index, value: element))
         }
     }
     if let arrayBox = runtimeArrayBox(from: rawValue) {
@@ -525,8 +525,8 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "{" + parts.joined(separator: ", ") + "}"
     }
     if let pairBox = tryCast(ptr, to: RuntimePairBox.self) {
-        let first = runtimeElementToString(pairBox.first)
-        let second = runtimeElementToString(pairBox.second)
+        let first = runtimeElementToString(pairBox.firstValue)
+        let second = runtimeElementToString(pairBox.secondValue)
         if runtimeIsMapEntry(rawValue: elem) {
             return "\(first)=\(second)"
         }
