@@ -507,9 +507,24 @@ extension DataFlowSemaPhase {
         if !annotations.contains(requiresOptIn) {
             annotations.append(requiresOptIn)
         }
+        // Mirrors the official `kotlin.time.ExperimentalTime` @Target list. Restricting
+        // this to ANNOTATION_CLASS would reject the supported propagating opt-in form
+        // (e.g. `@ExperimentalTime fun foo()`), which the opt-in diagnostic itself suggests.
         let target = MetadataAnnotationRecord(
             annotationFQName: "kotlin.annotation.Target",
-            arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
+            arguments: [
+                "AnnotationTarget.CLASS",
+                "AnnotationTarget.ANNOTATION_CLASS",
+                "AnnotationTarget.PROPERTY",
+                "AnnotationTarget.FIELD",
+                "AnnotationTarget.LOCAL_VARIABLE",
+                "AnnotationTarget.VALUE_PARAMETER",
+                "AnnotationTarget.CONSTRUCTOR",
+                "AnnotationTarget.FUNCTION",
+                "AnnotationTarget.PROPERTY_GETTER",
+                "AnnotationTarget.PROPERTY_SETTER",
+                "AnnotationTarget.TYPEALIAS",
+            ]
         )
         if !annotations.contains(target) {
             annotations.append(target)
