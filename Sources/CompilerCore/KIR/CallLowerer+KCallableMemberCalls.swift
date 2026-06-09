@@ -141,6 +141,71 @@ extension CallLowerer {
         return result
     }
 
+    // MARK: - KParameter member access lowering (STDLIB-REFLECT-TYPE-013)
+
+    /// Checks if the receiver type is a `kotlin.reflect.KParameter`.
+    private func isKParameterReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return interner.resolve(symbol.name) == "KParameter"
+    }
+
+    /// Known KParameter member names and their corresponding runtime function.
+    private static let kParameterMemberMap: [String: String] = [
+        "index": "kk_kparameter_get_index",
+        "name": "kk_kparameter_get_name",
+        "type": "kk_kparameter_get_type",
+        "isOptional": "kk_kparameter_is_optional",
+        "kind": "kk_kparameter_get_kind",
+    ]
+
+    func tryLowerKParameterMemberAccess(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        let calleeStr = interner.resolve(calleeName)
+        guard let runtimeFunc = Self.kParameterMemberMap[calleeStr] else { return nil }
+
+        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+        guard isKParameterReceiverType(receiverType, sema: sema, interner: interner) else { return nil }
+
+        let receiverID = driver.exprLowerer.lowerExpr(
+            receiverExpr, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
+        let result = arena.appendExpr(
+            .temporary(Int32(arena.expressions.count)),
+            type: resultType
+        )
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(runtimeFunc),
+            arguments: [receiverID],
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return result
+    }
+
     /// Lowers KFunction.call() with arguments to the appropriate arity-specific runtime call.
     func tryLowerKFunctionCallInvocation(
         _ exprID: ExprID,
