@@ -267,6 +267,7 @@
 - [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [x] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
