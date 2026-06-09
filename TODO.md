@@ -186,7 +186,7 @@
 - [x] STDLIB-TEXT-PROP-008: `isIdentifierIgnorable` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-017: `isUnicodeIdentifierPart` 拡張プロパティの実装
 
 #### kotlin.text 関数の実装
@@ -252,6 +252,10 @@
 - [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
@@ -259,6 +263,10 @@
 - [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
@@ -289,7 +297,7 @@
 - [x] STDLIB-TIME-FN-001: `asClock` 関数の実装
 - [x] STDLIB-TIME-FN-004: `times` 関数の実装
 - [x] STDLIB-TIME-FN-005: `toDuration` 関数の実装
-- [ ] STDLIB-TIME-FN-006: `toDurationUnit` 関数の実装
+- [x] STDLIB-TIME-FN-006: `toDurationUnit` 関数の実装
 - [x] STDLIB-TIME-FN-008: `toJavaInstant` 関数の実装
 - [x] STDLIB-TIME-FN-007: `toJavaDuration` 関数の実装
 - [x] STDLIB-TIME-FN-009: `toJSDate` 関数の実装
@@ -323,6 +331,8 @@
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
 - [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
+- [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
+- [ ] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）

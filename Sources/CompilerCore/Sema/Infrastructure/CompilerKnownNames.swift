@@ -298,7 +298,7 @@ struct KnownCompilerNames {
     let visibilityName: InternedString
     let typeParametersName: InternedString
     let supertypesName: InternedString
-    // STDLIB-REFLECT-067: KClass type-kind introspection
+    // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
     let isDataName: InternedString
     let isSealedName: InternedString
     let isValueName: InternedString
@@ -485,7 +485,7 @@ struct KnownCompilerNames {
         visibilityName = interner.intern("visibility")
         typeParametersName = interner.intern("typeParameters")
         supertypesName = interner.intern("supertypes")
-        // STDLIB-REFLECT-067: KClass type-kind introspection
+        // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
         isDataName = interner.intern("isData")
         isSealedName = interner.intern("isSealed")
         isValueName = interner.intern("isValue")
