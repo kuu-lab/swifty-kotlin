@@ -125,6 +125,7 @@ extension ABILoweringPass {
             interner.intern("kk_string_toCharArray_flat"),
             interner.intern("kk_string_toTypedArray_flat"),
             interner.intern("kk_string_toSortedSet_flat"),
+            interner.intern("kk_string_toJsString_flat"),
             interner.intern("kk_string_withIndex_flat"),
             interner.intern("kk_string_isNullOrEmpty_flat"),
             interner.intern("kk_string_isNullOrBlank_flat"),

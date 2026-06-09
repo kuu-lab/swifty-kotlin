@@ -289,6 +289,34 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatToJsStringRuntimeCall() throws {
+        let source = """
+        @file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+
+        import kotlin.js.JsString
+        import kotlin.js.toJsString
+
+        fun convert(value: String): JsString = value.toJsString()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringToJsStringFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_toJs" + "String("), "Unexpected raw String.toJsString call")
+            XCTAssertTrue(ir.contains("@kk_string_toJsString_flat"), "Missing flat String.toJsString call")
+        }
+    }
+
     func testLLVMBackendEmitsFlatReplaceFirstCharRuntimeCallForStringOverload() throws {
         let source = """
         fun main() {
