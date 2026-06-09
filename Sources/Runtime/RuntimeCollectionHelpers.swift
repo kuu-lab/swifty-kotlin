@@ -856,6 +856,26 @@ func runtimeComparePrimitiveValues(_ lhs: Int, _ rhs: Int, kind: RuntimePrimitiv
     }
 }
 
+/// Explicit `T.compareTo(other)` member call on a primitive `Comparable`
+/// receiver (Int/Long/UInt/ULong/Boolean/Float/Double — and the signed
+/// Byte/Short and unsigned UByte/UShort that share the Int ABI).
+///
+/// The desugared comparison operators (`<`, `>`, …) compute the comparison
+/// directly via machine compare in lowering, but the *explicit* member call
+/// has no per-type runtime mapping, so this entry point routes it to the same
+/// `runtimeComparePrimitiveValues` helper used by primitive comparators.
+/// `kindRaw` is a `PrimitiveCompareABIKind` raw value (which aligns with the
+/// `RuntimePrimitiveCompareKind` ordering) selecting signed / unsigned / IEEE
+/// floating semantics. The result is the sign of the comparison (-1/0/1),
+/// matching `Integer.compare` / `Long.compare` / `Double.compare` — i.e.
+/// Kotlin's `Comparable<T>.compareTo` contract. (Char keeps its own
+/// `kk_char_compareTo` entry point, which returns the raw codepoint
+/// difference to mirror `Character.compare`.)
+@_cdecl("kk_primitive_compareTo")
+public func kk_primitive_compareTo(_ lhsRaw: Int, _ rhsRaw: Int, _ kindRaw: Int32) -> Int {
+    runtimeComparePrimitiveValues(lhsRaw, rhsRaw, kind: runtimePrimitiveCompareKind(from: kindRaw))
+}
+
 private func runtimeStringFromRawValue(_ raw: Int) -> String? {
     if raw == runtimeNullSentinelInt {
         return nil

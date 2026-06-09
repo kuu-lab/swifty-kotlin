@@ -79,6 +79,22 @@ extension CallLowerer {
             return kFunctionCallResult
         }
 
+        // ── Int/Long/.../Double.compareTo(other) → kk_primitive_compareTo(...) ──
+        if let primitiveCompareResult = tryLowerPrimitiveCompareTo(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return primitiveCompareResult
+        }
+
         let callee = interner.resolve(calleeName)
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverExpr) {
             true
