@@ -227,6 +227,16 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-TYPE-008: MatchGroupCollection.size: Int ---
+        registerRegexMemberProperty(
+            named: "size",
+            externalLinkName: "kk_match_group_collection_size",
+            ownerSymbol: matchGroupCollectionSymbol,
+            returnType: intType,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-350: Regex.matchEntire ---
         registerRegexMemberFunction(
             named: "matchEntire",

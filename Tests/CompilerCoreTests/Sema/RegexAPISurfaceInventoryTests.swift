@@ -370,6 +370,17 @@ final class RegexAPISurfaceInventoryTests: XCTestCase {
         )
     }
 
+    func testMatchGroupCollectionSizeIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let link = externalLink(
+            fqPath: ["kotlin", "text", "MatchGroupCollection", "size"],
+            sema: sema,
+            interner: interner
+        )
+        XCTAssertEqual(link, "kk_match_group_collection_size",
+                       "MatchGroupCollection.size must link to kk_match_group_collection_size")
+    }
+
     // MARK: - 8. MatchGroup properties
 
     func testMatchGroupValueIsRegistered() throws {

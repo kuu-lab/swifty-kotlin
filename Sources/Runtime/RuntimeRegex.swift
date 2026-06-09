@@ -672,6 +672,13 @@ public func kk_match_group_collection_get_at(_ collectionRaw: Int, _ index: Int)
     return registerRuntimeObject(group)
 }
 
+/// MatchGroupCollection.size: Int — number of groups (including group 0 = full match).
+@_cdecl("kk_match_group_collection_size")
+public func kk_match_group_collection_size(_ collectionRaw: Int) -> Int {
+    guard let collection = matchGroupCollectionBoxFromRaw(collectionRaw) else { return 0 }
+    return collection.groups.count
+}
+
 // MARK: - Private helper for next() with offset-adjusted ranges
 
 private func makeMatchResultWithOffset(
