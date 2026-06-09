@@ -147,7 +147,7 @@
 - [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
-- [ ] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
+- [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 #### kotlin.reflect 型の実装
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装

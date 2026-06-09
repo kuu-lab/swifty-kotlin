@@ -151,7 +151,6 @@ extension ABIMismatchTests {
             "kk_path_writeLines_sequence",
             "kk_path_reader",
             "kk_path_reader_default",
-            "kk_path_writer",
             "kk_path_readAttributes_string",
             "kk_path_writeText_options",
             "kk_result_flatMap",
