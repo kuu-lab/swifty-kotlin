@@ -782,6 +782,7 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
             ["kotlin", "uuid", "Uuid", "variant"],
             ["kotlin", "uuid", "Uuid", "mostSignificantBits"],
             ["kotlin", "uuid", "Uuid", "leastSignificantBits"],
+            ["kotlin", "uuid", "toKotlinUuid"],
         ]
 
         for path in apiPaths {
@@ -900,6 +901,86 @@ final class UuidAPISurfaceInventoryTests: XCTestCase {
         XCTAssertTrue(
             expectedPropertyLinks.isSubset(of: foundLinks),
             "All instance properties must be registered; found: \(foundLinks)"
+        )
+    }
+
+    // MARK: - 11. toKotlinUuid extension (STDLIB-UUID-FN-004)
+
+    func testToKotlinUuidExtensionIsRegistered() throws {
+        let (sema, interner) = try makeSema()
+        let links = allExternalLinks(
+            fqPath: ["kotlin", "uuid", "toKotlinUuid"],
+            sema: sema,
+            interner: interner
+        )
+        XCTAssertTrue(
+            links.contains("kk_uuid_toKotlinUuid"),
+            "kotlin.uuid.toKotlinUuid must link to kk_uuid_toKotlinUuid; found: \(links)"
+        )
+    }
+
+    func testToKotlinUuidReceiverIsJavaUuid() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try XCTUnwrap(syms.first)
+        guard let sig = sema.symbols.functionSignature(for: sym) else {
+            XCTFail("toKotlinUuid has no function signature"); return
+        }
+        let javaUuidFQ = ["java", "util", "UUID"].map { interner.intern($0) }
+        guard let javaUuidSym = sema.symbols.lookup(fqName: javaUuidFQ) else {
+            XCTFail("java.util.UUID not found in symbol table"); return
+        }
+        let receiverType = try XCTUnwrap(sig.receiverType, "toKotlinUuid must have a receiver type")
+        guard case .classType(let ct) = sema.types.kind(of: receiverType) else {
+            XCTFail("toKotlinUuid receiver type is not a class type"); return
+        }
+        XCTAssertEqual(ct.classSymbol, javaUuidSym, "toKotlinUuid receiver must be java.util.UUID")
+    }
+
+    func testToKotlinUuidReturnTypeIsKotlinUuid() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try XCTUnwrap(syms.first)
+        guard let sig = sema.symbols.functionSignature(for: sym) else {
+            XCTFail("toKotlinUuid has no function signature"); return
+        }
+        let uuidFQ = ["kotlin", "uuid", "Uuid"].map { interner.intern($0) }
+        guard let uuidSym = sema.symbols.lookup(fqName: uuidFQ) else {
+            XCTFail("kotlin.uuid.Uuid not found in symbol table"); return
+        }
+        guard case .classType(let ct) = sema.types.kind(of: sig.returnType) else {
+            XCTFail("toKotlinUuid return type is not a class type"); return
+        }
+        XCTAssertEqual(ct.classSymbol, uuidSym, "toKotlinUuid return type must be kotlin.uuid.Uuid")
+    }
+
+    func testToKotlinUuidHasNoValueParameters() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        let sym = try XCTUnwrap(syms.first)
+        guard let sig = sema.symbols.functionSignature(for: sym) else {
+            XCTFail("toKotlinUuid has no function signature"); return
+        }
+        XCTAssertTrue(
+            sig.parameterTypes.isEmpty,
+            "toKotlinUuid must take no value parameters (receiver-only extension)"
+        )
+    }
+
+    func testToKotlinUuidIsTaggedExperimentalUuidApi() throws {
+        let (sema, interner) = try makeSema()
+        let fq = ["kotlin", "uuid", "toKotlinUuid"].map { interner.intern($0) }
+        let syms = sema.symbols.lookupAll(fqName: fq)
+        XCTAssertFalse(syms.isEmpty, "kotlin.uuid.toKotlinUuid must be registered")
+        XCTAssertTrue(
+            syms.contains { hasExperimentalUuidApiAnnotation($0, sema: sema) },
+            "kotlin.uuid.toKotlinUuid must carry @ExperimentalUuidApi"
         )
     }
 }
