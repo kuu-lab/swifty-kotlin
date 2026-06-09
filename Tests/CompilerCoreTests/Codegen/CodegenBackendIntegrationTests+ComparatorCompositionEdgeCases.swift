@@ -175,7 +175,6 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testCodegenCompilesComparatorCompositionEdgeCases() throws {
-        throw XCTSkip("Comparator composition not yet implemented")
         let source = """
         data class Entry(val group: Int, val score: Int)
 
