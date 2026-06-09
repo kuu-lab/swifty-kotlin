@@ -38,7 +38,7 @@
 - `kotlin.experimental`
 
 ### Phase 1: プリミティブ・演算子・配列・String コア
-- [ ] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
+- [x] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
 - [x] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
 
 ### Phase 2: コレクション・Sequence・Range
@@ -222,7 +222,7 @@
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
-- [ ] STDLIB-TEXT-FN-116: `zip` 関数の実装
+- [x] STDLIB-TEXT-FN-116: `zip` 関数の実装
 
 #### kotlin.time 型の実装
 - [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
@@ -250,6 +250,8 @@
 
 #### kotlin.uuid 関数の実装
 - [ ] STDLIB-UUID-FN-002: `putUuid` 関数の実装
+#### kotlin.uuid 関数の実装
+- [x] STDLIB-UUID-FN-002: `putUuid` 関数の実装
 - [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
