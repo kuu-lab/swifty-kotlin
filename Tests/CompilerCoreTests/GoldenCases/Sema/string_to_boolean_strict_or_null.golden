@@ -1,0 +1,7 @@
+symbol s0 kind=function fq=kotlin.text.toBooleanStrictOrNull vis=public flags=synthetic sig=recv=String params=[] ret=Boolean? suspend=0 defaults=[] vararg=[]
+symbol s1 kind=function fq=golden.sema.parseStrictOrNull vis=public flags=_ sig=recv=_ params=[String] ret=Boolean? suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=valueParameter fq=golden.sema.parseStrictOrNull.$0.value vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun parseStrictOrNull suspend=0 inline=0 sym=s1
+expr e0 name(value) type=String ref=s2
+expr e1 memberCall recv=e0 callee=toBooleanStrictOrNull args=[] type=Boolean? call=s0 map=[] targs=[]

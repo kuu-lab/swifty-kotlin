@@ -112,4 +112,71 @@ final class StringToBooleanFunctionTests: XCTestCase {
             )
         }
     }
+
+    /// STDLIB-TEXT-FN-089: `String.toBooleanStrictOrNull()` returns a *nullable*
+    /// `Boolean` — the strict parser yields `null` instead of throwing when the
+    /// text is neither "true" nor "false". This distinguishes it from
+    /// `toBoolean`/`toBooleanStrict`, which both resolve to a non-null `Boolean`.
+    func testToBooleanStrictOrNullResolvesToNullableBoolean() throws {
+        let source = """
+        fun parse(value: String): Boolean? {
+            return value.toBooleanStrictOrNull()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected toBooleanStrictOrNull to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let callIDs = allMemberCallExprIDs(named: "toBooleanStrictOrNull", in: ast, interner: ctx.interner)
+            XCTAssertEqual(callIDs.count, 1)
+            let exprType = try XCTUnwrap(sema.bindings.exprTypes[callIDs[0]])
+            XCTAssertEqual(
+                exprType,
+                sema.types.make(.primitive(.boolean, .nullable)),
+                "toBooleanStrictOrNull should be typed as nullable Boolean (Boolean?)"
+            )
+        }
+    }
+
+    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull`
+    /// and be classified as non-throwing: unlike `toBooleanStrict`, the OrNull
+    /// variant signals failure with a `null` sentinel rather than an exception, so
+    /// no thrown-pointer plumbing is emitted at the call site.
+    func testToBooleanStrictOrNullLowersToRuntimeHelperNonThrowing() throws {
+        let source = """
+        fun main() {
+            val yes: String = "true"
+            yes.toBooleanStrictOrNull()
+            val no: String = "false"
+            no.toBooleanStrictOrNull()
+            val other: String = "yes"
+            other.toBooleanStrictOrNull()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            let orNullFlags = try XCTUnwrap(
+                throwFlags["kk_string_toBooleanStrictOrNull"],
+                "Expected kk_string_toBooleanStrictOrNull calls to appear in main()"
+            )
+            XCTAssertEqual(orNullFlags.count, 3)
+            XCTAssertTrue(
+                orNullFlags.allSatisfy { $0 == false },
+                "kk_string_toBooleanStrictOrNull must be lowered as non-throwing"
+            )
+        }
+    }
 }
