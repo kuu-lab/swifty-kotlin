@@ -50,6 +50,14 @@ final class RuntimeTypesTests: XCTestCase {
         XCTAssertEqual(value.legacyRawValue, 97)
     }
 
+    func testRuntimeValueNullStringComparesAsNullWithoutLegacyBox() {
+        let value = RuntimeValue(stringData: 0, length: 0, byteCount: 0, hash: 0)
+        let baselineObjectCount = kk_debugging_global_object_count()
+
+        XCTAssertEqual(runtimeCompareValues(value, RuntimeValue(raw: runtimeNullSentinelInt)), 0)
+        XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount)
+    }
+
     // MARK: - RuntimeThrowableBox
 
     func testRuntimeThrowableBoxStoresMessage() {

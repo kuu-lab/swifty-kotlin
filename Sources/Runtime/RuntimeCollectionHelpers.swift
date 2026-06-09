@@ -753,6 +753,54 @@ func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     return lhsRendered < rhsRendered ? -1 : 1
 }
 
+func runtimeCompareValues(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Int {
+    if lhs.tag == RuntimeValue.rawTag, rhs.tag == RuntimeValue.rawTag {
+        return runtimeCompareValues(lhs.payload0, rhs.payload0)
+    }
+    if let lhsString = runtimeStringFromRuntimeValue(lhs),
+       let rhsString = runtimeStringFromRuntimeValue(rhs)
+    {
+        return runtimeCompareStrings(lhsString, rhsString)
+    }
+    if lhs.tag == RuntimeValue.charTag, rhs.tag == RuntimeValue.charTag {
+        return runtimeCompareIntegers(lhs.payload0, rhs.payload0)
+    }
+    if lhs.tag != RuntimeValue.stringTag, rhs.tag != RuntimeValue.stringTag {
+        return runtimeCompareValues(lhs.legacyRawValue, rhs.legacyRawValue)
+    }
+    return runtimeCompareStrings(
+        runtimeElementToString(lhs),
+        runtimeElementToString(rhs)
+    )
+}
+
+@inline(__always)
+private func runtimeCompareIntegers(_ lhs: Int, _ rhs: Int) -> Int {
+    if lhs == rhs {
+        return 0
+    }
+    return lhs < rhs ? -1 : 1
+}
+
+private func runtimeStringFromRuntimeValue(_ value: RuntimeValue) -> String? {
+    switch value.tag {
+    case RuntimeValue.stringTag:
+        guard let data = UnsafePointer<UInt8>(bitPattern: value.payload0) else {
+            return nil
+        }
+        return runtimeStringFromFlatFields(
+            data: data,
+            length: value.payload1,
+            byteCount: value.payload2,
+            hash: value.payload3
+        )
+    case RuntimeValue.rawTag:
+        return runtimeStringFromRawValue(value.payload0)
+    default:
+        return nil
+    }
+}
+
 @inline(__always)
 func runtimeBinarySearch(
     elements: [Int],

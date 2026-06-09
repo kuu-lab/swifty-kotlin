@@ -3622,7 +3622,7 @@ public func kk_sequence_toSet(_ seqRaw: Int) -> Int {
 public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
     let sorted = values.enumerated().sorted { lhs, rhs in
-        let comparison = runtimeCompareValues(lhs.element.legacyRawValue, rhs.element.legacyRawValue)
+        let comparison = runtimeCompareValues(lhs.element, rhs.element)
         if comparison != 0 {
             return comparison < 0
         }
