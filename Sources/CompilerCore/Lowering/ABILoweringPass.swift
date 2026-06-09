@@ -61,6 +61,18 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
+        // Comparison callees whose result is Boolean — the normal arithmetic
+        // unboxing path (which targets the result expression type) would leave
+        // boxed Int/Char/etc. operands untouched. Peer-type unboxing uses the
+        // other operand as the target so both sides are unboxed before the icmp.
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+        ]
 
         // Comparison operators: result type is Boolean so we cannot use the
         // result to drive unboxing.  Instead unboxOperandToOwnType uses each
@@ -331,6 +343,26 @@ final class ABILoweringPass: LoweringPass {
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
                     }
+                }
+                // Peer-type unboxing for inline comparison calls (kk_op_eq, etc.).
+                // The result type is Boolean so the arithmetic path above leaves
+                // boxed Int/Char operands untouched. Using the other operand as
+                // the unbox target handles both (Int, Int) and (Any, Int) cases.
+                if signature == nil, let types, boxedArguments.count == 2,
+                   inlineComparisonCallees.contains(effectiveCallee)
+                {
+                    let lhsUnboxed = unboxBinaryOperandIfNeeded(
+                        operand: boxedArguments[0], resultExpr: boxedArguments[1],
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
+                    let rhsUnboxed = unboxBinaryOperandIfNeeded(
+                        operand: boxedArguments[1], resultExpr: boxedArguments[0],
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
+                    boxedArguments[0] = lhsUnboxed
+                    boxedArguments[1] = rhsUnboxed
                 }
 
                 // Unbox operands for comparison operators (==, !=, <, etc.).
