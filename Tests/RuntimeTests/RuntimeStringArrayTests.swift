@@ -2986,6 +2986,31 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(formatted, "age:7 3.50")
     }
 
+    func testStringFormatUsesAggregateArgumentStorageWithoutLegacyStringBoxes() {
+        let args = makeRuntimeValueArray([
+            runtimeStringAggregateValue("age"),
+            RuntimeValue(raw: 7),
+            runtimeStringAggregateValue("3.5"),
+        ])
+        let baselineObjectCount = kk_debugging_global_object_count()
+
+        let formatted = flatStringReturnValueNoThrow("%s:%d %.1f", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "age:7 3.5")
+
+        let formattedWithLocale = flatStringReturnValue(
+            "%1$s %3$.1f",
+            leadingIntArg: runtimeNullSentinelInt,
+            trailingIntArg: args,
+            using: kk_string_format_locale_flat
+        )
+        XCTAssertEqual(formattedWithLocale, "age 3.5")
+        XCTAssertEqual(
+            kk_debugging_global_object_count(),
+            baselineObjectCount,
+            "String.format must not materialize RuntimeStringBox values from aggregate argument storage"
+        )
+    }
+
     func testStringFormatSupportsFloatingSpecifiersForIntegersAndBoxedFloats() {
         let args = makeRuntimeArray([
             3,
@@ -3418,30 +3443,18 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         return array
     }
 
-    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
+    private func makeRuntimeValueArray(_ values: [RuntimeValue]) -> Int {
         let array = kk_array_new(values.count)
         guard let box = runtimeArrayBox(from: array) else {
             XCTFail("Expected RuntimeArrayBox")
             return array
         }
-        box.values = values.map { value in
-            var length = 0
-            var byteCount = 0
-            var hash = 0
-            let data = runtimeRegisterFlatString(
-                value,
-                outLength: &length,
-                outByteCount: &byteCount,
-                outHash: &hash
-            )
-            return RuntimeValue(
-                stringData: data.map { Int(bitPattern: $0) } ?? 0,
-                length: length,
-                byteCount: byteCount,
-                hash: hash
-            )
-        }
+        box.values = values
         return array
+    }
+
+    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
+        makeRuntimeValueArray(values.map(runtimeStringAggregateValue))
     }
 
     private func assertFindAnyOfPair(

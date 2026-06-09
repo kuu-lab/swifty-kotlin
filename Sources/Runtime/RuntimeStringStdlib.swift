@@ -4786,9 +4786,7 @@ public func kk_string_format_flat(
     _ outHash: UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>? {
     let template = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
-        ?? []
+    let arguments = runtimeCollectionOrArrayValues(from: argsArrayRaw) ?? []
     return runtimeReturnFlatString(
         runtimeFormatString(template, arguments: arguments),
         outLength: outLength,
@@ -4820,9 +4818,7 @@ public func kk_string_format_locale_flat(
     }
 
     let template = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
-    let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
-        ?? []
+    let arguments = runtimeCollectionOrArrayValues(from: argsArrayRaw) ?? []
     return runtimeReturnFlatString(
         runtimeFormatString(template, arguments: arguments, locale: locale),
         outLength: outLength,
@@ -6337,7 +6333,7 @@ private let runtimeSupportedFormatConversions: Set<Character> = [
     "s", "S", "b", "B", "d", "i", "x", "X", "o", "f", "e", "E", "g", "G", "c", "C",
 ]
 
-private func runtimeFormatString(_ template: String, arguments: [Int], locale: Locale? = nil) -> String {
+private func runtimeFormatString(_ template: String, arguments: [RuntimeValue], locale: Locale? = nil) -> String {
     let characters = Array(template)
     var cursor = 0
     var implicitArgumentIndex = 0
@@ -6364,7 +6360,7 @@ private func runtimeFormatString(_ template: String, arguments: [Int], locale: L
             }
             let argument = arguments.indices.contains(argumentIndex)
                 ? arguments[argumentIndex]
-                : runtimeNullSentinelInt
+                : RuntimeValue(raw: runtimeNullSentinelInt)
             result += runtimeRenderFormattedArgument(argument, specifier: specifier, locale: locale)
             cursor = next
         case .invalid:
@@ -6448,7 +6444,7 @@ private func runtimeParseFormatToken(_ characters: [Character], start: Int) -> R
 }
 
 private func runtimeRenderFormattedArgument(
-    _ argument: Int,
+    _ argument: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
@@ -6495,7 +6491,7 @@ private func runtimeRenderFormattedArgument(
 }
 
 private func runtimeFormatStringValue(
-    _ argument: Int,
+    _ argument: RuntimeValue,
     specifier: RuntimeFormatSpecifier,
     locale: Locale?
 ) -> String {
@@ -6516,7 +6512,18 @@ private func runtimeFormatUppercase(_ value: String, locale: Locale?) -> String 
     return value.uppercased()
 }
 
-private func runtimeFormatBooleanValue(_ argument: Int) -> String {
+private func runtimeFormatBooleanValue(_ argument: RuntimeValue) -> String {
+    switch argument.tag {
+    case RuntimeValue.stringTag:
+        return argument.payload0 == 0 ? "false" : "true"
+    case RuntimeValue.charTag:
+        return "true"
+    default:
+        return runtimeFormatBooleanRawValue(argument.payload0)
+    }
+}
+
+private func runtimeFormatBooleanRawValue(_ argument: Int) -> String {
     if argument == runtimeNullSentinelInt {
         return "false"
     }
@@ -6536,11 +6543,37 @@ private func runtimeFormatBooleanValue(_ argument: Int) -> String {
     }
 }
 
-private func runtimeFormatIntegerValue(_ argument: Int) -> Int {
-    maybeUnbox(argument)
+private func runtimeFormatIntegerValue(_ argument: RuntimeValue) -> Int {
+    switch argument.tag {
+    case RuntimeValue.charTag:
+        return argument.payload0
+    case RuntimeValue.stringTag:
+        return argument.payload0
+    default:
+        return maybeUnbox(argument.payload0)
+    }
 }
 
-private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
+private func runtimeFormatDoubleValue(_ argument: RuntimeValue) -> Double {
+    switch argument.tag {
+    case RuntimeValue.charTag:
+        return Double(argument.payload0)
+    case RuntimeValue.stringTag:
+        guard let data = UnsafePointer<UInt8>(bitPattern: argument.payload0) else {
+            return 0
+        }
+        return Double(runtimeStringFromFlatFields(
+            data: data,
+            length: argument.payload1,
+            byteCount: argument.payload2,
+            hash: argument.payload3
+        )) ?? 0
+    default:
+        return runtimeFormatDoubleRawValue(argument.payload0)
+    }
+}
+
+private func runtimeFormatDoubleRawValue(_ argument: Int) -> Double {
     if argument == runtimeNullSentinelInt {
         return 0
     }
@@ -6575,7 +6608,7 @@ private func runtimeFormatDoubleValue(_ argument: Int) -> Double {
     return Double(bitPattern: UInt64(bitPattern: Int64(argument)))
 }
 
-private func runtimeFormatCharacterValue(_ argument: Int) -> String {
+private func runtimeFormatCharacterValue(_ argument: RuntimeValue) -> String {
     let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(argument))
     guard let scalar = UnicodeScalar(scalarValue) else {
         return "?"
