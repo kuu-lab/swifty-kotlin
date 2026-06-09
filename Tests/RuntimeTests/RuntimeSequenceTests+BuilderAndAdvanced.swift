@@ -1181,6 +1181,64 @@ extension RuntimeSequenceTests {
         XCTAssertEqual(materialized, runtimeNullSentinelInt)
     }
 
+    // MARK: - TEST-SEQ-010: Lazy evaluation count verification
+
+    func testDistinctByIsLazy() {
+        _lazyTestYieldCounter = 0
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 1)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 2)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 3)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 4)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 5)
+            return 0
+        }
+        let keySelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value % 2
+        }
+        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let distinct = kk_sequence_distinctBy(
+            seq,
+            unsafeBitCast(keySelector, to: Int.self),
+            0,
+            nil
+        )
+        let taken = kk_sequence_take(distinct, 1)
+        XCTAssertEqual(sequenceElements(taken), [1])
+        XCTAssertLessThanOrEqual(
+            _lazyTestYieldCounter,
+            2,
+            "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)"
+        )
+    }
+
+    func testFilterIsInstanceIsLazy() {
+        _lazyTestYieldCounter = 0
+        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 10)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 20)
+            _lazyTestYieldCounter += 1
+            _ = kk_sequence_builder_yield(builderRaw, 30)
+            return 0
+        }
+        let seq = kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
+        let filtered = kk_sequence_filterIsInstance(seq, 3)
+        let taken = kk_sequence_take(filtered, 1)
+        XCTAssertEqual(sequenceElements(taken), [10])
+        XCTAssertLessThanOrEqual(
+            _lazyTestYieldCounter,
+            2,
+            "filterIsInstance should be lazy; take(1) must not force all 3 yields, got \(_lazyTestYieldCounter)"
+        )
+    }
+
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {
