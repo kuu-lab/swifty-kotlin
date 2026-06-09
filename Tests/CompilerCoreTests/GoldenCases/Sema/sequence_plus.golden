@@ -1,0 +1,55 @@
+symbol s0 kind=package fq=kotlin vis=public flags=synthetic
+symbol s1 kind=class fq=kotlin.Any vis=public flags=synthetic
+symbol s2 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
+symbol s3 kind=typeParameter fq=kotlin.sequences.Sequence.T vis=private flags=_
+symbol s4 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s5 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s6 kind=function fq=kotlin.sequences.sequenceOf vis=public flags=synthetic sig=recv=_ params=[T#7] ret=Class#2<out T#7> suspend=0 defaults=[0] vararg=[1]
+symbol s7 kind=typeParameter fq=kotlin.sequences.sequenceOf.T vis=private flags=synthetic
+symbol s8 kind=function fq=kotlin.sequences.Sequence.toList vis=public flags=synthetic|operatorFunction sig=recv=Class#2<out T#3> params=[] ret=Class#4<out T#3> suspend=0 defaults=[] vararg=[]
+symbol s9 kind=function fq=kotlin.sequences.Sequence.plus vis=public flags=synthetic|operatorFunction sig=recv=Class#2<out T#3> params=[Class#2<out Any>] ret=Class#2<out T#3> suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=function fq=kotlin.sequences.Sequence.plusElement vis=public flags=synthetic|operatorFunction sig=recv=Class#2<out T#3> params=[T#3] ret=Class#2<out T#3> suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s12 kind=local fq=__local_0.s0 vis=private flags=_ type=Class#2<out Int>
+symbol s13 kind=local fq=__local_1.s1 vis=private flags=_ type=Class#2<out Int>
+symbol s14 kind=local fq=__local_2.combined vis=private flags=_ type=Class#2<out Int>
+symbol s15 kind=local fq=__local_3.combined2 vis=private flags=_ type=Class#2<out Int>
+symbol s16 kind=local fq=__local_4.withElement vis=private flags=_ type=Class#2<out Int>
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s11
+expr e0 name(sequenceOf) type=_
+expr e1 int(1) type=Int
+expr e2 int(2) type=Int
+expr e3 int(3) type=Int
+expr e4 call callee=e0 args=[_:e1,_:e2,_:e3] type=Class#2<out Int> call=s6 map=[0->0,1->0,2->0] targs=[Int]
+expr e5 localDecl s0 mutable=0 type=_ init=e4 type=Unit ref=s12
+expr e6 name(sequenceOf) type=_
+expr e7 int(4) type=Int
+expr e8 int(5) type=Int
+expr e9 int(6) type=Int
+expr e10 call callee=e6 args=[_:e7,_:e8,_:e9] type=Class#2<out Int> call=s6 map=[0->0,1->0,2->0] targs=[Int]
+expr e11 localDecl s1 mutable=0 type=_ init=e10 type=Unit ref=s13
+expr e12 name(s0) type=Class#2<out Int> ref=s12
+expr e13 name(s1) type=Class#2<out Int> ref=s13
+expr e14 memberCall recv=e12 callee=plus args=[_:e13] type=Class#2<out Int> call=s9 map=[0->0] targs=[]
+expr e15 localDecl combined mutable=0 type=_ init=e14 type=Unit ref=s14
+expr e16 name(println) type=_
+expr e17 name(combined) type=Class#2<out Int> ref=s14
+expr e18 memberCall recv=e17 callee=toList args=[] type=Class#4<Int> call=s8 map=[] targs=[]
+expr e19 call callee=e16 args=[_:e18] type=Unit call=s5 map=[0->0] targs=[]
+expr e20 name(s0) type=Class#2<out Int> ref=s12
+expr e21 name(s1) type=Class#2<out Int> ref=s13
+expr e22 binary(add) lhs=e20 rhs=e21 type=Class#2<out Int>
+expr e23 localDecl combined2 mutable=0 type=_ init=e22 type=Unit ref=s15
+expr e24 name(println) type=_
+expr e25 name(combined2) type=Class#2<out Int> ref=s15
+expr e26 memberCall recv=e25 callee=toList args=[] type=Class#4<Int> call=s8 map=[] targs=[]
+expr e27 call callee=e24 args=[_:e26] type=Unit call=s5 map=[0->0] targs=[]
+expr e28 name(s0) type=Class#2<out Int> ref=s12
+expr e29 int(99) type=Int
+expr e30 memberCall recv=e28 callee=plusElement args=[_:e29] type=Class#2<out Int> call=s10 map=[0->0] targs=[]
+expr e31 localDecl withElement mutable=0 type=_ init=e30 type=Unit ref=s16
+expr e32 name(println) type=_
+expr e33 name(withElement) type=Class#2<out Int> ref=s16
+expr e34 memberCall recv=e33 callee=toList args=[] type=Class#4<Int> call=s8 map=[] targs=[]
+expr e35 call callee=e32 args=[_:e34] type=Unit call=s5 map=[0->0] targs=[]
