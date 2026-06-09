@@ -72,6 +72,33 @@ final class NativeCInteropCPointerToLongFunctionTests: XCTestCase {
         XCTAssertEqual(sema.symbols.parentSymbol(for: typeParameter), toLong)
     }
 
+    func testCPointerToLongFunctionLinksToRuntimeSymbol() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try XCTUnwrap(ctx.sema)
+        let interner = ctx.interner
+        let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
+        let toLongFQName = cinteropPkg + [interner.intern("toLong")]
+        let toLongCandidates = sema.symbols.lookupAll(fqName: toLongFQName)
+        let cPointerSymbol = try XCTUnwrap(
+            sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CPointer")])
+        )
+        let toLong = try XCTUnwrap(toLongCandidates.first { symbolID in
+            guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+            guard let receiverType = signature.receiverType,
+                  case let .classType(cls) = sema.types.kind(of: receiverType),
+                  cls.classSymbol == cPointerSymbol,
+                  cls.nullability == .nullable
+            else { return false }
+            return signature.parameterTypes.isEmpty && signature.returnType == sema.types.longType
+        })
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: toLong),
+            "kk_cpointer_toLong",
+            "CPointer<T>?.toLong() must link to kk_cpointer_toLong"
+        )
+    }
+
     func testCPointerToLongFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.ByteVar
