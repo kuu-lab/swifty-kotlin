@@ -308,7 +308,7 @@
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [ ] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
-- [ ] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
+- [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 
 #### kotlin.comparisons 関数の実装
 - [x] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
@@ -347,6 +347,46 @@
 - [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
 - [ ] STDLIB-COMP-FN-055: `minWith` 関数の実装
 - [ ] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
+
+#### kotlin.random 型の実装
+- [x] STDLIB-RANDOM-TYPE-001: `Random` abstract class の実装
+
+#### kotlin.random 関数の実装
+- [x] STDLIB-RANDOM-FN-001: `Random(seed: Int)` ファクトリ関数の実装
+- [x] STDLIB-RANDOM-FN-002: `Random(seed: Long)` ファクトリ関数の実装
+- [x] STDLIB-RANDOM-FN-010: `nextBits(bitCount: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-011: `nextBoolean()` 関数の実装
+- [x] STDLIB-RANDOM-FN-012: `nextBytes(array: ByteArray)` 関数の実装
+- [x] STDLIB-RANDOM-FN-013: `nextBytes(size: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-014: `nextBytes(array: ByteArray, fromIndex: Int, toIndex: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-015: `nextDouble()` 関数の実装
+- [x] STDLIB-RANDOM-FN-016: `nextDouble(until: Double)` 関数の実装
+- [x] STDLIB-RANDOM-FN-017: `nextDouble(from: Double, until: Double)` 関数の実装
+- [x] STDLIB-RANDOM-FN-018: `nextFloat()` 関数の実装
+- [x] STDLIB-RANDOM-FN-019: `nextFloat(until: Float)` 関数の実装
+- [x] STDLIB-RANDOM-FN-020: `nextFloat(from: Float, until: Float)` 関数の実装
+- [x] STDLIB-RANDOM-FN-021: `nextInt()` 関数の実装
+- [x] STDLIB-RANDOM-FN-022: `nextInt(until: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-023: `nextInt(from: Int, until: Int)` 関数の実装
+- [ ] STDLIB-RANDOM-FN-024: `nextInt(range: IntRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextInt_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-025: `nextLong()` 関数の実装
+- [x] STDLIB-RANDOM-FN-026: `nextLong(until: Long)` 関数の実装
+- [x] STDLIB-RANDOM-FN-027: `nextLong(from: Long, until: Long)` 関数の実装
+- [ ] STDLIB-RANDOM-FN-028: `nextLong(range: LongRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextLong_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-029: `nextUBytes(size: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-030: `nextUBytes(array: UByteArray)` 関数の実装
+- [x] STDLIB-RANDOM-FN-031: `nextUBytes(array: UByteArray, fromIndex: Int, toIndex: Int)` 関数の実装
+- [x] STDLIB-RANDOM-FN-032: `nextUInt()` 関数の実装
+- [x] STDLIB-RANDOM-FN-033: `nextUInt(until: UInt)` 関数の実装
+- [x] STDLIB-RANDOM-FN-034: `nextUInt(from: UInt, until: UInt)` 関数の実装
+- [x] STDLIB-RANDOM-FN-035: `nextUInt(range: UIntRange)` 関数の実装
+- [x] STDLIB-RANDOM-FN-036: `nextULong()` 関数の実装
+- [x] STDLIB-RANDOM-FN-037: `nextULong(until: ULong)` 関数の実装
+- [x] STDLIB-RANDOM-FN-038: `nextULong(from: ULong, until: ULong)` 関数の実装
+- [x] STDLIB-RANDOM-FN-039: `nextULong(range: ULongRange)` 関数の実装
+- [x] STDLIB-RANDOM-FN-050: `java.util.Random.asKotlinRandom()` 拡張関数の実装
+- [x] STDLIB-RANDOM-FN-051: `Random.asJavaRandom()` 拡張関数の実装
+
 - [ ] STDLIB-ANNO-002: annotation sema / diagnostics を整える
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
