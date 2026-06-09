@@ -558,8 +558,21 @@ extension CallLowerer {
         } else {
             false
         }
+        // A receiver routes to the String runtime entry (`kk_string_get`) only when it is genuinely
+        // CharSequence-like (String, CharSequence, StringBuilder, ...). The element-type check alone is
+        // not enough: `List<Char>` also yields a Char element but must use its own `get` member, otherwise
+        // the List handle is reinterpreted as a string handle and panics at runtime.
+        let receiverIsCharSequence: Bool = if let charSequenceSym = sema.types.charSequenceInterfaceSymbol {
+            sema.types.isSubtype(
+                nonNullReceiverType,
+                sema.types.make(.classType(ClassType(classSymbol: charSequenceSym, args: [], nullability: .nonNull)))
+            )
+        } else {
+            false
+        }
         if indices.count == 1,
-           sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || !receiverLooksLikeArray && boundType == sema.types.charType
+           sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+           || (receiverIsCharSequence && !receiverLooksLikeArray && boundType == sema.types.charType)
         {
             let indexID = driver.lowerExpr(
                 indices[0],
