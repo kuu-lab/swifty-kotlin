@@ -257,6 +257,8 @@
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
@@ -324,11 +326,11 @@
 - [x] STDLIB-RANDOM-FN-021: `nextInt()` 関数の実装
 - [x] STDLIB-RANDOM-FN-022: `nextInt(until: Int)` 関数の実装
 - [x] STDLIB-RANDOM-FN-023: `nextInt(from: Int, until: Int)` 関数の実装
-- [ ] STDLIB-RANDOM-FN-024: `nextInt(range: IntRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextInt_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-024: `nextInt(range: IntRange)` 関数の実装
 - [x] STDLIB-RANDOM-FN-025: `nextLong()` 関数の実装
 - [x] STDLIB-RANDOM-FN-026: `nextLong(until: Long)` 関数の実装
 - [x] STDLIB-RANDOM-FN-027: `nextLong(from: Long, until: Long)` 関数の実装
-- [ ] STDLIB-RANDOM-FN-028: `nextLong(range: LongRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextLong_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-028: `nextLong(range: LongRange)` 関数の実装
 - [x] STDLIB-RANDOM-FN-029: `nextUBytes(size: Int)` 関数の実装
 - [x] STDLIB-RANDOM-FN-030: `nextUBytes(array: UByteArray)` 関数の実装
 - [x] STDLIB-RANDOM-FN-031: `nextUBytes(array: UByteArray, fromIndex: Int, toIndex: Int)` 関数の実装
