@@ -7,41 +7,39 @@ symbol s5 kind=class fq=java.io.BufferedReader vis=public flags=synthetic type=C
 symbol s6 kind=function fq=java.io.File.bufferedReader vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#5 suspend=0 defaults=[] vararg=[]
 symbol s7 kind=function fq=java.io.BufferedReader.readLine vis=public flags=synthetic sig=recv=Class#5 params=[] ret=String? suspend=0 defaults=[] vararg=[]
 symbol s8 kind=function fq=java.io.BufferedReader.readLines vis=public flags=synthetic sig=recv=Class#5 params=[] ret=Class#0<out String> suspend=0 defaults=[] vararg=[]
-symbol s9 kind=function fq=java.io.BufferedReader.close vis=public flags=synthetic sig=recv=Class#5 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s10 kind=function fq=kotlin.io.readText vis=public flags=synthetic sig=recv=Class#4 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s11 kind=function fq=golden.sema.readWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s12 kind=valueParameter fq=golden.sema.readWithBufferedReader.$0.path vis=private flags=_
-symbol s13 kind=function fq=golden.sema.readLinesWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=Class#0<String> suspend=0 defaults=[0] vararg=[0]
-symbol s14 kind=valueParameter fq=golden.sema.readLinesWithBufferedReader.$1.path vis=private flags=_
-symbol s15 kind=function fq=golden.sema.readLineByLine vis=public flags=_ sig=recv=_ params=[String] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s16 kind=valueParameter fq=golden.sema.readLineByLine.$2.path vis=private flags=_
-symbol s17 kind=local fq=__local_0.file vis=private flags=_ type=Class#2
-symbol s18 kind=local fq=__local_1.file vis=private flags=_ type=Class#2
-symbol s19 kind=local fq=__local_2.file vis=private flags=_ type=Class#2
-symbol s20 kind=local fq=__local_3.reader vis=private flags=_ type=Class#5
-symbol s21 kind=local fq=__local_4.line vis=private flags=_ type=String?
+symbol s9 kind=function fq=kotlin.io.readText vis=public flags=synthetic sig=recv=Class#4 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s10 kind=function fq=golden.sema.readWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=valueParameter fq=golden.sema.readWithBufferedReader.$0.path vis=private flags=_
+symbol s12 kind=function fq=golden.sema.readLinesWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=Class#0<String> suspend=0 defaults=[0] vararg=[0]
+symbol s13 kind=valueParameter fq=golden.sema.readLinesWithBufferedReader.$1.path vis=private flags=_
+symbol s14 kind=function fq=golden.sema.readLineByLine vis=public flags=_ sig=recv=_ params=[String] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s15 kind=valueParameter fq=golden.sema.readLineByLine.$2.path vis=private flags=_
+symbol s16 kind=local fq=__local_0.file vis=private flags=_ type=Class#2
+symbol s17 kind=local fq=__local_1.file vis=private flags=_ type=Class#2
+symbol s18 kind=local fq=__local_2.file vis=private flags=_ type=Class#2
+symbol s19 kind=local fq=__local_3.line vis=private flags=_ type=String?
 file f0 package=golden.sema
-  decl d0 fun readWithBufferedReader suspend=0 inline=0 sym=s11
-  decl d1 fun readLinesWithBufferedReader suspend=0 inline=0 sym=s13
-  decl d2 fun readLineByLine suspend=0 inline=0 sym=s15
+  decl d0 fun readWithBufferedReader suspend=0 inline=0 sym=s10
+  decl d1 fun readLinesWithBufferedReader suspend=0 inline=0 sym=s12
+  decl d2 fun readLineByLine suspend=0 inline=0 sym=s14
 expr e0 name(File) type=_
-expr e1 name(path) type=String ref=s12
+expr e1 name(path) type=String ref=s11
 expr e2 call callee=e0 args=[_:e1] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e3 localDecl file mutable=0 type=_ init=e2 type=Unit ref=s17
-expr e4 name(file) type=Class#2 ref=s17
+expr e3 localDecl file mutable=0 type=_ init=e2 type=Unit ref=s16
+expr e4 name(file) type=Class#2 ref=s16
 expr e5 memberCall recv=e4 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
 expr e6 name(reader) type=_
 expr e7 memberCall recv=e6 callee=readText args=[] type=_
 expr e8 name(reader) type=Class#5 ref=s-0
-expr e9 memberCall recv=e8 callee=readText args=[] type=String call=s10 map=[] targs=[]
+expr e9 memberCall recv=e8 callee=readText args=[] type=String call=s9 map=[] targs=[]
 expr e10 lambda params=[reader] body=e9 label=use type=(Class#5) -> String
 expr e11 memberCall recv=e5 callee=use args=[_:e10] type=String
 expr e12 return value=e11 type=Nothing
 expr e13 name(File) type=_
-expr e14 name(path) type=String ref=s14
+expr e14 name(path) type=String ref=s13
 expr e15 call callee=e13 args=[_:e14] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e16 localDecl file mutable=0 type=_ init=e15 type=Unit ref=s18
-expr e17 name(file) type=Class#2 ref=s18
+expr e16 localDecl file mutable=0 type=_ init=e15 type=Unit ref=s17
+expr e17 name(file) type=Class#2 ref=s17
 expr e18 memberCall recv=e17 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
 expr e19 name(reader) type=_
 expr e20 memberCall recv=e19 callee=readLines args=[] type=_
@@ -51,17 +49,17 @@ expr e23 lambda params=[reader] body=e22 label=use type=(Class#5) -> Class#0<Str
 expr e24 memberCall recv=e18 callee=use args=[_:e23] type=Class#0<String>
 expr e25 return value=e24 type=Nothing
 expr e26 name(File) type=_
-expr e27 name(path) type=String ref=s16
+expr e27 name(path) type=String ref=s15
 expr e28 call callee=e26 args=[_:e27] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e29 localDecl file mutable=0 type=_ init=e28 type=Unit ref=s19
-expr e30 name(file) type=Class#2 ref=s19
+expr e29 localDecl file mutable=0 type=_ init=e28 type=Unit ref=s18
+expr e30 name(file) type=Class#2 ref=s18
 expr e31 memberCall recv=e30 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
-expr e32 localDecl reader mutable=0 type=_ init=e31 type=Unit ref=s20
-expr e33 name(reader) type=Class#5 ref=s20
-expr e34 memberCall recv=e33 callee=readLine args=[] type=String? call=s7 map=[] targs=[]
-expr e35 localDecl line mutable=0 type=t6 init=e34 type=Unit ref=s21
-expr e36 name(println) type=_
-expr e37 name(line) type=String? ref=s21
-expr e38 call callee=e36 args=[_:e37] type=Unit call=s1 map=[0->0] targs=[]
-expr e39 name(reader) type=Class#5 ref=s20
-expr e40 memberCall recv=e39 callee=close args=[] type=Unit call=s9 map=[] targs=[]
+expr e32 name(reader) type=Class#5 ref=s-2
+expr e33 memberCall recv=e32 callee=readLine args=[] type=String? call=s7 map=[] targs=[]
+expr e34 localDecl line mutable=0 type=t6 init=e33 type=Unit ref=s19
+expr e35 name(println) type=_
+expr e36 name(line) type=String? ref=s19
+expr e37 call callee=e35 args=[_:e36] type=Unit call=s1 map=[0->0] targs=[]
+expr e38 blockExpr stmts=[e34] trailing=e37 type=Unit
+expr e39 lambda params=[reader] body=e38 label=use type=(Class#5) -> Any
+expr e40 memberCall recv=e31 callee=use args=[_:e39] type=Any

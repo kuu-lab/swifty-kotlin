@@ -12,7 +12,6 @@ symbol s10 kind=valueParameter fq=golden.sema.collectLinesFromReader.$1.path vis
 symbol s11 kind=local fq=__local_0.file vis=private flags=_ type=Class#3
 symbol s12 kind=local fq=__local_1.result vis=private flags=_ type=Class#1<String>
 symbol s13 kind=local fq=__local_2.file vis=private flags=_ type=Class#3
-symbol s14 kind=local fq=__local_3.reader vis=private flags=_ type=Class#5
 file f0 package=golden.sema
   decl d0 fun printEachLine suspend=0 inline=0 sym=s7
   decl d1 fun collectLinesFromReader suspend=0 inline=0 sym=s9
@@ -38,15 +37,25 @@ expr e18 call callee=e16 args=[_:e17] type=Class#3 call=s4 map=[0->0] targs=[]
 expr e19 localDecl file mutable=0 type=_ init=e18 type=Unit ref=s13
 expr e20 name(file) type=Class#3 ref=s13
 expr e21 memberCall recv=e20 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
-expr e22 localDecl reader mutable=0 type=_ init=e21 type=Unit ref=s14
-expr e23 name(reader) type=Class#5 ref=s14
-expr e24 name(result) type=_
-expr e25 name(line) type=_
-expr e26 memberCall recv=e24 callee=add args=[_:e25] type=_
-expr e27 name(result) type=Class#1<String> ref=s12
-expr e28 name(line) type=String ref=s-1
-expr e29 memberCall recv=e27 callee=add args=[_:e28] type=<error>
-expr e30 lambda params=[line] body=e29 label=forEachLine type=(String) -> Unit
-expr e31 memberCall recv=e23 callee=forEachLine args=[_:e30] type=Unit
-expr e32 name(result) type=Class#1<String> ref=s12
-expr e33 return value=e32 type=Nothing
+expr e22 name(reader) type=_
+expr e23 name(result) type=_
+expr e24 name(line) type=_
+expr e25 memberCall recv=e23 callee=add args=[_:e24] type=_
+expr e26 name(result) type=_
+expr e27 name(line) type=_
+expr e28 memberCall recv=e26 callee=add args=[_:e27] type=_
+expr e29 lambda params=[line] body=e28 label=forEachLine type=_
+expr e30 memberCall recv=e22 callee=forEachLine args=[_:e29] type=_
+expr e31 name(reader) type=Class#5 ref=s-1
+expr e32 name(result) type=_
+expr e33 name(line) type=_
+expr e34 memberCall recv=e32 callee=add args=[_:e33] type=_
+expr e35 name(result) type=Class#1<String> ref=s12
+expr e36 name(line) type=String ref=s-2
+expr e37 memberCall recv=e35 callee=add args=[_:e36] type=<error>
+expr e38 lambda params=[line] body=e37 label=forEachLine type=(String) -> Unit
+expr e39 memberCall recv=e31 callee=forEachLine args=[_:e38] type=Unit
+expr e40 lambda params=[reader] body=e39 label=use type=(Class#5) -> Any
+expr e41 memberCall recv=e21 callee=use args=[_:e40] type=Any
+expr e42 name(result) type=Class#1<String> ref=s12
+expr e43 return value=e42 type=Nothing

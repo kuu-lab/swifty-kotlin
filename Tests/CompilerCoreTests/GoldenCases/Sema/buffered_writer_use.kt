@@ -13,8 +13,8 @@ fun writeWithBufferedWriter(path: String, text: String) {
 
 fun appendWithBufferedWriter(path: String, line: String) {
     val file = File(path)
-    val writer = file.bufferedWriter()
-    writer.write(line)
-    writer.newLine()
-    writer.close()
+    file.bufferedWriter().use { writer ->
+        writer.write(line)
+        writer.newLine()
+    }
 }

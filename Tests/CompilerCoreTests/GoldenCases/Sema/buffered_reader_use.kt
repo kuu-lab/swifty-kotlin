@@ -18,8 +18,8 @@ fun readLinesWithBufferedReader(path: String): List<String> {
 
 fun readLineByLine(path: String) {
     val file = File(path)
-    val reader = file.bufferedReader()
-    val line: String? = reader.readLine()
-    println(line)
-    reader.close()
+    file.bufferedReader().use { reader ->
+        val line: String? = reader.readLine()
+        println(line)
+    }
 }

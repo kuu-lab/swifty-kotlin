@@ -12,9 +12,10 @@ fun printEachLine(path: String) {
 fun collectLinesFromReader(path: String): List<String> {
     val result = mutableListOf<String>()
     val file = File(path)
-    val reader = file.bufferedReader()
-    reader.forEachLine { line ->
-        result.add(line)
+    file.bufferedReader().use { reader ->
+        reader.forEachLine { line ->
+            result.add(line)
+        }
     }
     return result
 }
