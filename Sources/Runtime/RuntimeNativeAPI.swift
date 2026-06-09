@@ -33,7 +33,15 @@ public func kk_cpointer_new(_ address: Int) -> Int {
 
 @_cdecl("kk_cpointer_address")
 public func kk_cpointer_address(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+    guard handle != 0, handle != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return 0
+    }
+    let key = UInt(bitPattern: ptr)
+    let isRegistered = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(key)
+    }
+    guard isRegistered else {
         return 0
     }
     guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else {
@@ -44,7 +52,15 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+    guard handle != 0, handle != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return 0
+    }
+    let key = UInt(bitPattern: ptr)
+    let isRegistered = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(key)
+    }
+    guard isRegistered else {
         return 0
     }
     guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else {
