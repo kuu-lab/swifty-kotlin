@@ -54,6 +54,36 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-PROP-015: Char.isSurrogate end-to-end execution test
+    func testCodegenCharIsSurrogateMatchesExpectedOutput() throws {
+        let source = """
+        fun main() {
+            println('\\uD800'.isSurrogate())
+            println('\\uDFFF'.isSurrogate())
+            println('A'.isSurrogate())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "CharIsSurrogateRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                "true\ntrue\nfalse\n",
+                "0xD800 and 0xDFFF are surrogates; 'A' is not"
+            )
+        }
+    }
+
     func testCodegenCharCaseConversionHelpersHandleUnicodeMappings() throws {
         throw XCTSkip("Char case conversion feature not yet implemented")
         let source = """
