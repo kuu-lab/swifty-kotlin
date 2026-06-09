@@ -1584,6 +1584,21 @@ extension ExprLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
+
+                // STDLIB-REFLECT-067: A standalone `T::class` box may later be
+                // queried for metadata-backed members (e.g. `val k = Foo::class;
+                // k.isData`). The member-call lowerer only registers metadata when
+                // the receiver is a literal class-ref, so register it here too,
+                // reusing the same `tokenExpr` so the box and its metadata share a
+                // type token. No-op for reified type parameters / built-ins.
+                driver.callLowerer.emitClassLiteralMetadataRegistration(
+                    classRefTargetType: classRefTargetType,
+                    typeTokenExpr: tokenExpr,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 return result
             }
             return driver.lambdaLowerer.lowerCallableRefExpr(

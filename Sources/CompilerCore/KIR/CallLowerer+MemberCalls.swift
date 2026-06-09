@@ -220,6 +220,8 @@ extension CallLowerer {
                 "properties", "memberProperties", "declaredMemberProperties",
                 "functions", "memberFunctions", "declaredMemberFunctions",
                 "isFinal", "isOpen", "isAbstract", "visibility",
+                "isData", "isSealed", "isValue",
+                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
                 "typeParameters", "supertypes",
                 "annotations", "findAnnotation", "findAssociatedObject",
             ]
@@ -244,7 +246,7 @@ extension CallLowerer {
         // STDLIB-REFLECT-060 / STDLIB-REFLECT-064: basic metadata and primaryConstructor
         // STDLIB-REFLECT-065: annotations, findAnnotation
         if let receiverType = sema.bindings.exprTypes[receiverExpr],
-           case .kClassType = sema.types.kind(of: sema.types.makeNonNullable(receiverType))
+           isKClassReceiverType(receiverType, sema: sema, interner: interner)
         {
             let callee = interner.resolve(calleeName)
             let kclassVarCallees: Set<String> = [
@@ -252,6 +254,8 @@ extension CallLowerer {
                 "properties", "memberProperties", "declaredMemberProperties",
                 "functions", "memberFunctions", "declaredMemberFunctions",
                 "isFinal", "isOpen", "isAbstract", "visibility",
+                "isData", "isSealed", "isValue",
+                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
                 "typeParameters", "supertypes",
                 "annotations", "findAnnotation", "findAssociatedObject",
             ]

@@ -139,103 +139,24 @@ extension CallLowerer {
 
         // STDLIB-REFLECT-065: For annotation-related calls, ensure metadata and
         // annotations are registered even if the class was never instantiated.
-        if memberName == "annotations" || memberName == "findAnnotation" || memberName == "findAssociatedObject" {
-            if case let .classType(classType) = sema.types.kind(of: classRefTargetType) {
-                let classSymbol = classType.classSymbol
-                if let symbol = sema.symbols.symbol(classSymbol) {
-                    // Emit metadata registration.
-                    let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                    let fqNameInterned = interner.intern(fqName)
-                    let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
-                    instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
-
-                    let simpleNameStr = interner.resolve(symbol.name)
-                    let simpleInterned = interner.intern(simpleNameStr)
-                    let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleInterned), type: intType)
-                    instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleInterned)))
-
-                    let supertypes = sema.symbols.directSupertypes(for: classSymbol)
-                    let superClassSymbol = supertypes.first(where: { sema.symbols.symbol($0)?.kind == .class })
-                    let supertypeNameExpr: KIRExprID
-                    if let superClassSymbol, let superSym = sema.symbols.symbol(superClassSymbol) {
-                        let superFq = superSym.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                        let superIn = interner.intern(superFq)
-                        supertypeNameExpr = arena.appendExpr(.stringLiteral(superIn), type: intType)
-                        instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superIn)))
-                    } else {
-                        supertypeNameExpr = arena.appendExpr(.intLiteral(0), type: intType)
-                        instructions.append(.constValue(result: supertypeNameExpr, value: .intLiteral(0)))
-                    }
-
-                    var flags: Int64 = 0
-                    if symbol.flags.contains(.dataType) { flags |= 1 << 0 }
-                    if symbol.flags.contains(.sealedType) { flags |= 1 << 1 }
-                    if symbol.flags.contains(.valueType) { flags |= 1 << 2 }
-                    if symbol.kind == .interface { flags |= 1 << 3 }
-                    if symbol.kind == .object { flags |= 1 << 4 }
-                    if symbol.kind == .enumClass { flags |= 1 << 5 }
-                    if symbol.kind == .annotationClass { flags |= 1 << 6 }
-                    if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
-                    // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface
-                    if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
-                    if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
-                    if symbol.kind == .object {
-                        let parentFQName = Array(symbol.fqName.dropLast())
-                        if let parentSymbol = sema.symbols.lookup(fqName: parentFQName),
-                           sema.symbols.companionObjectSymbol(for: parentSymbol) == classSymbol {
-                            flags |= 1 << 11
-                        }
-                    }
-                    let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
-                    instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
-
-                    let fieldCount: Int64 = sema.symbols.nominalLayout(for: classSymbol).map { Int64($0.instanceFieldCount) } ?? -1
-                    let fieldCountExpr = arena.appendExpr(.intLiteral(fieldCount), type: intType)
-                    instructions.append(.constValue(result: fieldCountExpr, value: .intLiteral(fieldCount)))
-
-                    let memberCount: Int64 = sema.symbols.nominalLayout(for: classSymbol).map { Int64($0.instanceFieldCount + $0.vtableSize) } ?? -1
-                    let memberCountExpr = arena.appendExpr(.intLiteral(memberCount), type: intType)
-                    instructions.append(.constValue(result: memberCountExpr, value: .intLiteral(memberCount)))
-
-                    let constructorCount = Int64(sema.symbols.children(ofFQName: symbol.fqName).filter { sema.symbols.symbol($0)?.kind == .constructor }.count)
-                    let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
-                    instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
-
-                    let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_kclass_register_metadata"),
-                        arguments: [tokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
-                        result: registerResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-
-                    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
-                        symbol: classSymbol,
-                        sema: sema,
-                        interner: interner
-                    )
-                    emitDataClassFieldRegistration(
-                        objectSymbol: classSymbol,
-                        classID: classID,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-
-                    // Emit annotation registration.
-                    emitKClassAnnotationRegistration(
-                        objectSymbol: classSymbol,
-                        typeTokenExpr: tokenExpr,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                }
-            }
+        // STDLIB-REFLECT-067: The same applies to kind/modifier boolean queries
+        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/
+        // isCompanion/isFun + isAbstract) — they read the class's flag bits from
+        // the metadata registry, so the metadata must be present even when the
+        // class is never constructed.
+        let memberNeedsMetadataRegistration =
+            memberName == "annotations" || memberName == "findAnnotation"
+            || memberName == "findAssociatedObject"
+            || Self.metadataBackedBooleanMembers.contains(memberName)
+        if memberNeedsMetadataRegistration {
+            emitClassLiteralMetadataRegistration(
+                classRefTargetType: classRefTargetType,
+                typeTokenExpr: tokenExpr,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
 
         return lowerKClassRuntimeMemberCall(
@@ -406,7 +327,7 @@ extension CallLowerer {
                 fallbackType: boolType
             )
 
-        // STDLIB-REFLECT-067: KClass type-kind introspection
+        // STDLIB-REFLECT-067: KClass kind/modifier / type-kind introspection.
         case "isData":
             return emitRuntimeCall(callee: "kk_kclass_is_data", arguments: [kclassExpr], fallbackType: boolType)
 
@@ -542,5 +463,165 @@ extension CallLowerer {
             visibilityFallbackType: sema.types.anyType,
             instructions: &instructions
         )
+    }
+
+    /// KClass boolean members whose value is read from the class's metadata flag
+    /// bits (see `emitClassLiteralMetadataRegistration`). A class-literal query of
+    /// any of these must register the metadata so the flag resolves even when the
+    /// class is never constructed. `isFinal`/`isOpen` are intentionally excluded —
+    /// their flag bits (8/9) are not populated by the registration path.
+    static let metadataBackedBooleanMembers: Set<String> = [
+        "isData", "isSealed", "isValue", "isInterface", "isObject",
+        "isEnum", "isAbstract", "isInner", "isCompanion", "isFun",
+    ]
+
+    /// Emits the `kk_kclass_register_metadata` (+ data-class field and annotation)
+    /// registration for a compile-time class literal, reusing the *already emitted*
+    /// `typeTokenExpr` so the registered metadata is keyed by the exact same type
+    /// token as the `kk_kclass_create` box. This is what lets later metadata-backed
+    /// queries (`isData`/`isSealed`/`isValue`/…, annotations, …) resolve correctly
+    /// even when the class is never constructed.
+    ///
+    /// No-op for non-nominal target types (built-ins, reified type parameters) —
+    /// they carry no class symbol to describe.
+    func emitClassLiteralMetadataRegistration(
+        classRefTargetType: TypeID,
+        typeTokenExpr: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) {
+        let intType = sema.types.make(.primitive(.int, .nonNull))
+        guard case let .classType(classType) = sema.types.kind(of: classRefTargetType) else {
+            return
+        }
+        let classSymbol = classType.classSymbol
+        guard let symbol = sema.symbols.symbol(classSymbol) else {
+            return
+        }
+
+        let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let fqNameInterned = interner.intern(fqName)
+        let fqNameExpr = arena.appendExpr(.stringLiteral(fqNameInterned), type: intType)
+        instructions.append(.constValue(result: fqNameExpr, value: .stringLiteral(fqNameInterned)))
+
+        let simpleNameStr = interner.resolve(symbol.name)
+        let simpleInterned = interner.intern(simpleNameStr)
+        let simpleNameExpr = arena.appendExpr(.stringLiteral(simpleInterned), type: intType)
+        instructions.append(.constValue(result: simpleNameExpr, value: .stringLiteral(simpleInterned)))
+
+        let supertypes = sema.symbols.directSupertypes(for: classSymbol)
+        let superClassSymbol = supertypes.first(where: { sema.symbols.symbol($0)?.kind == .class })
+        let supertypeNameExpr: KIRExprID
+        if let superClassSymbol, let superSym = sema.symbols.symbol(superClassSymbol) {
+            let superFq = superSym.fqName.map { interner.resolve($0) }.joined(separator: ".")
+            let superIn = interner.intern(superFq)
+            supertypeNameExpr = arena.appendExpr(.stringLiteral(superIn), type: intType)
+            instructions.append(.constValue(result: supertypeNameExpr, value: .stringLiteral(superIn)))
+        } else {
+            supertypeNameExpr = arena.appendExpr(.intLiteral(0), type: intType)
+            instructions.append(.constValue(result: supertypeNameExpr, value: .intLiteral(0)))
+        }
+
+        var flags: Int64 = 0
+        if symbol.flags.contains(.dataType) { flags |= 1 << 0 }
+        if symbol.flags.contains(.sealedType) { flags |= 1 << 1 }
+        if symbol.flags.contains(.valueType) { flags |= 1 << 2 }
+        if symbol.kind == .interface { flags |= 1 << 3 }
+        if symbol.kind == .object { flags |= 1 << 4 }
+        if symbol.kind == .enumClass { flags |= 1 << 5 }
+        if symbol.kind == .annotationClass { flags |= 1 << 6 }
+        if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface.
+        if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
+        if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
+        if symbol.kind == .object {
+            let parentFQName = Array(symbol.fqName.dropLast())
+            if let parentSymbol = sema.symbols.lookup(fqName: parentFQName),
+               sema.symbols.companionObjectSymbol(for: parentSymbol) == classSymbol {
+                flags |= 1 << 11
+            }
+        }
+        let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
+        instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
+
+        let fieldCount: Int64 = sema.symbols.nominalLayout(for: classSymbol).map { Int64($0.instanceFieldCount) } ?? -1
+        let fieldCountExpr = arena.appendExpr(.intLiteral(fieldCount), type: intType)
+        instructions.append(.constValue(result: fieldCountExpr, value: .intLiteral(fieldCount)))
+
+        let memberCount: Int64 = sema.symbols.nominalLayout(for: classSymbol).map { Int64($0.instanceFieldCount + $0.vtableSize) } ?? -1
+        let memberCountExpr = arena.appendExpr(.intLiteral(memberCount), type: intType)
+        instructions.append(.constValue(result: memberCountExpr, value: .intLiteral(memberCount)))
+
+        let constructorCount = Int64(sema.symbols.children(ofFQName: symbol.fqName).filter { sema.symbols.symbol($0)?.kind == .constructor }.count)
+        let constructorCountExpr = arena.appendExpr(.intLiteral(constructorCount), type: intType)
+        instructions.append(.constValue(result: constructorCountExpr, value: .intLiteral(constructorCount)))
+
+        let registerResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_kclass_register_metadata"),
+            arguments: [typeTokenExpr, fqNameExpr, simpleNameExpr, supertypeNameExpr, flagsExpr, fieldCountExpr, memberCountExpr, constructorCountExpr],
+            result: registerResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: classSymbol,
+            sema: sema,
+            interner: interner
+        )
+        emitDataClassFieldRegistration(
+            objectSymbol: classSymbol,
+            classID: classID,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+
+        emitKClassAnnotationRegistration(
+            objectSymbol: classSymbol,
+            typeTokenExpr: typeTokenExpr,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
+    }
+
+    /// Returns `true` when `receiverType` is a `kotlin.reflect.KClass<…>` receiver,
+    /// recognizing both internal representations:
+    /// - the dedicated `.kClassType` (produced by `T::class`), and
+    /// - a `.classType` wrapping the `KClass` interface symbol (produced by an
+    ///   explicit `KClass<T>` type annotation or library import).
+    ///
+    /// This mirrors the Sema-side `kClassReceiverArgumentType` so that KClass
+    /// member-call lowering fires for both forms. Without the `.classType` arm,
+    /// reflection members invoked on a `val k: KClass<T>` variable fall through
+    /// to a regular call and emit an undefined `_<member>` symbol at link time.
+    func isKClassReceiverType(_ receiverType: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        let nonNull = sema.types.makeNonNullable(receiverType)
+        if case .kClassType = sema.types.kind(of: nonNull) {
+            return true
+        }
+        guard case let .classType(classType) = sema.types.kind(of: nonNull),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        if let kClassSymbol = sema.types.kClassInterfaceSymbol, classType.classSymbol == kClassSymbol {
+            return true
+        }
+        let kClassFQName = [
+            interner.intern("kotlin"),
+            interner.intern("reflect"),
+            interner.intern("KClass"),
+        ]
+        let kClassName = interner.intern("KClass")
+        return symbol.fqName == kClassFQName
+            || (symbol.name == kClassName && symbol.fqName.isEmpty)
     }
 }
