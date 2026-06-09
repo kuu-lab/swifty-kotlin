@@ -363,6 +363,28 @@ extension CallLowerer {
             && (rhsType == stringType || rhsType == nullableStringType)
         if isStringOperand {
             switch op {
+            case .equal:
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_equals_flat"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            case .notEqual:
+                let eqResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_equals_flat"),
+                    arguments: [lhsID, rhsID],
+                    result: eqResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                instructions.append(.unary(op: .not, operand: eqResult, result: result))
+                return result
             case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual:
                 let compareResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: intType)
                 instructions.append(.call(
