@@ -49,6 +49,18 @@ private typealias RuntimeFlatStringReturnWithIntCharEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithThreeIntsEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 private typealias RuntimeFlatStringReturnWithTwoIntsEntry = (
     UnsafePointer<UInt8>?,
     Int,
@@ -67,6 +79,24 @@ private typealias RuntimeFlatStringReturnWithStringEntry = (
     Int,
     Int,
     UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithTwoStringsBoolEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafePointer<UInt8>?,
+    Int,
     Int,
     Int,
     Int,
@@ -417,6 +447,48 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     private func flatStringReturnValue(
         _ value: String,
+        first: String,
+        second: String,
+        ignoreCase: Bool,
+        using call: RuntimeFlatStringReturnWithTwoStringsBoolEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            withFlatString(first) { firstData, firstLength, firstByteCount, firstHash in
+                withFlatString(second) { secondData, secondLength, secondByteCount, secondHash in
+                    var outLength = 0
+                    var outByteCount = 0
+                    var outHash = 0
+                    let outData = call(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        firstData,
+                        firstLength,
+                        firstByteCount,
+                        firstHash,
+                        secondData,
+                        secondLength,
+                        secondByteCount,
+                        secondHash,
+                        ignoreCase ? 1 : 0,
+                        &outLength,
+                        &outByteCount,
+                        &outHash
+                    )
+                    return flatStringValue(
+                        data: outData.map { UnsafePointer($0) },
+                        length: outLength,
+                        byteCount: outByteCount,
+                        hash: outHash
+                    )
+                }
+            }
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
         intArg: Int,
         charArg: Int,
         using call: RuntimeFlatStringReturnWithIntCharEntry
@@ -426,6 +498,38 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             var outByteCount = 0
             var outHash = 0
             let outData = call(data, length, byteCount, hash, intArg, charArg, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        firstIntArg: Int,
+        secondIntArg: Int,
+        thirdIntArg: Int,
+        using call: RuntimeFlatStringReturnWithThreeIntsEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(
+                data,
+                length,
+                byteCount,
+                hash,
+                firstIntArg,
+                secondIntArg,
+                thirdIntArg,
+                &outLength,
+                &outByteCount,
+                &outHash
+            )
             return flatStringValue(
                 data: outData.map { UnsafePointer($0) },
                 length: outLength,
@@ -2592,61 +2696,67 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // MARK: - STDLIB-TEXT-FN-055: replace overloads
 
     func testStringReplaceCharReplacesAllOccurrences() {
-        let replaced = kk_string_replace_char(
-            rawFromRuntimeString("hello world"),
-            kk_box_char(Int("l".unicodeScalars.first!.value)),
-            kk_box_char(Int("r".unicodeScalars.first!.value))
+        let replaced = flatStringReturnValue(
+            "hello world",
+            intArg: kk_box_char(Int("l".unicodeScalars.first!.value)),
+            charArg: kk_box_char(Int("r".unicodeScalars.first!.value)),
+            using: kk_string_replace_char_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "herro worrd")
+        XCTAssertEqual(replaced, "herro worrd")
     }
 
     func testStringReplaceCharHandlesNoMatch() {
-        let replaced = kk_string_replace_char(
-            rawFromRuntimeString("hello"),
-            kk_box_char(Int("z".unicodeScalars.first!.value)),
-            kk_box_char(Int("x".unicodeScalars.first!.value))
+        let replaced = flatStringReturnValue(
+            "hello",
+            intArg: kk_box_char(Int("z".unicodeScalars.first!.value)),
+            charArg: kk_box_char(Int("x".unicodeScalars.first!.value)),
+            using: kk_string_replace_char_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "hello")
+        XCTAssertEqual(replaced, "hello")
     }
 
     func testStringReplaceIgnoreCaseCaseSensitiveMatch() {
-        let replaced = kk_string_replace_ignoreCase(
-            rawFromRuntimeString("Hello World"),
-            rawFromRuntimeString("hello"),
-            rawFromRuntimeString("Hi"),
-            1
+        let replaced = flatStringReturnValue(
+            "Hello World",
+            first: "hello",
+            second: "Hi",
+            ignoreCase: true,
+            using: kk_string_replace_ignoreCase_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "Hi World")
+        XCTAssertEqual(replaced, "Hi World")
     }
 
     func testStringReplaceIgnoreCaseCaseSensitiveFalse() {
-        let replaced = kk_string_replace_ignoreCase(
-            rawFromRuntimeString("Hello World"),
-            rawFromRuntimeString("hello"),
-            rawFromRuntimeString("Hi"),
-            0
+        let replaced = flatStringReturnValue(
+            "Hello World",
+            first: "hello",
+            second: "Hi",
+            ignoreCase: false,
+            using: kk_string_replace_ignoreCase_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "Hello World")
+        XCTAssertEqual(replaced, "Hello World")
     }
 
     func testStringReplaceCharIgnoreCaseReplaces() {
-        let replaced = kk_string_replace_char_ignoreCase(
-            rawFromRuntimeString("Hello World"),
-            kk_box_char(Int("h".unicodeScalars.first!.value)),
-            kk_box_char(Int("J".unicodeScalars.first!.value)),
-            1
+        let replaced = flatStringReturnValue(
+            "Hello World",
+            firstIntArg: kk_box_char(Int("h".unicodeScalars.first!.value)),
+            secondIntArg: kk_box_char(Int("J".unicodeScalars.first!.value)),
+            thirdIntArg: 1,
+            using: kk_string_replace_char_ignoreCase_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "Jello World")
+        XCTAssertEqual(replaced, "Jello World")
     }
 
     func testStringReplaceCharIgnoreCaseFalseIsCaseSensitive() {
-        let replaced = kk_string_replace_char_ignoreCase(
-            rawFromRuntimeString("Hello World"),
-            kk_box_char(Int("h".unicodeScalars.first!.value)),
-            kk_box_char(Int("J".unicodeScalars.first!.value)),
-            0
+        let replaced = flatStringReturnValue(
+            "Hello World",
+            firstIntArg: kk_box_char(Int("h".unicodeScalars.first!.value)),
+            secondIntArg: kk_box_char(Int("J".unicodeScalars.first!.value)),
+            thirdIntArg: 0,
+            using: kk_string_replace_char_ignoreCase_flat
         )
-        XCTAssertEqual(runtimeStringValue(replaced), "Hello World")
+        XCTAssertEqual(replaced, "Hello World")
     }
 
     func testStringReplaceFirstCharReplacesOnlyLeadingScalar() {

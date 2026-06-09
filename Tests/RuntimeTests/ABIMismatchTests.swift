@@ -512,10 +512,18 @@ final class ABIMismatchTests: XCTestCase {
     }
 
     func testKKStringReplacePointerABIRemoved() {
-        XCTAssertFalse(
-            RuntimeABISpec.allFunctions.contains { $0.name == "kk_string_replace" },
-            "String replace should use kk_string_replace_flat instead of the legacy pointer ABI"
-        )
+        let legacyNames = [
+            "kk_string_replace",
+            "kk_string_replace_char",
+            "kk_string_replace_ignoreCase",
+            "kk_string_replace_char_ignoreCase",
+        ]
+        for legacyName in legacyNames {
+            XCTAssertFalse(
+                RuntimeABISpec.allFunctions.contains { $0.name == legacyName },
+                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+            )
+        }
     }
 
     func testKKStringRemovePrefixSuffixSurroundingPointerABIRemoved() {
@@ -547,6 +555,65 @@ final class ABIMismatchTests: XCTestCase {
             .intptr,
             .intptr,
             .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplaceCharFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replace_char_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 9)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplaceIgnoreCaseFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replace_ignoreCase_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 16)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
+            .intptr,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+            .nullableIntptrPointer,
+        ])
+    }
+
+    func testKKStringReplaceCharIgnoreCaseFlatSignature() throws {
+        let spec = try requireSpec("kk_string_replace_char_ignoreCase_flat")
+        XCTAssertEqual(spec.returnType, .nullableUInt8Pointer)
+        XCTAssertEqual(spec.parameters.count, 10)
+        XCTAssertEqual(spec.parameters.map(\.type), [
+            .nullableConstUInt8Pointer,
+            .intptr,
+            .intptr,
+            .intptr,
             .intptr,
             .intptr,
             .intptr,

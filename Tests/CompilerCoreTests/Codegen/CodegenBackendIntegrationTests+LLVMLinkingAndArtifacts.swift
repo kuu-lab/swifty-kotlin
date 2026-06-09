@@ -259,6 +259,40 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatReplaceCharIgnoreCaseRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            println("hello world".replace('l', 'r'))
+            println("Hello World".replace("hello", "Hi", ignoreCase = true))
+            println("Hello World".replace('h', 'J', ignoreCase = true))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringReplaceCharIgnoreCaseFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            let rawNames = [
+                "kk_string_replace_char",
+                "kk_string_replace_ignoreCase",
+                "kk_string_replace_char_ignoreCase",
+            ]
+            for rawName in rawNames {
+                XCTAssertFalse(ir.contains("@\(rawName)("), "Unexpected raw String replace call: \(rawName)")
+                XCTAssertTrue(ir.contains("@\(rawName)_flat"), "Missing flat String replace call: \(rawName)_flat")
+            }
+        }
+    }
+
     func testLLVMBackendEmitsFlatIfBlankEmptyRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {

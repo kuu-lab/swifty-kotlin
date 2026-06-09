@@ -430,7 +430,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar) — Char/Char overload
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char",
+            externalLinkName: "kk_string_replace_char_flat",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),
@@ -445,7 +445,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldValue, newValue, ignoreCase) — String/String with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_ignoreCase",
+            externalLinkName: "kk_string_replace_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -461,7 +461,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar, ignoreCase) — Char/Char with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char_ignoreCase",
+            externalLinkName: "kk_string_replace_char_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),

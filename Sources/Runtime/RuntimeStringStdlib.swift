@@ -485,30 +485,83 @@ public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> In
 
 // MARK: - STDLIB-TEXT-FN-055: String.replace overloads
 
-@_cdecl("kk_string_replace_char")
-public func kk_string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+@_cdecl("kk_string_replace_char_flat")
+public func kk_string_replace_char_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ oldCharRaw: Int,
+    _ newCharRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr))
+    return runtimeReturnFlatString(
+        source.replacingOccurrences(of: oldStr, with: newStr),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
-@_cdecl("kk_string_replace_ignoreCase")
-public func kk_string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
-    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
+@_cdecl("kk_string_replace_ignoreCase_flat")
+public func kk_string_replace_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ oldData: UnsafePointer<UInt8>?,
+    _ oldLength: Int,
+    _ oldByteCount: Int,
+    _ oldHash: Int,
+    _ newData: UnsafePointer<UInt8>?,
+    _ newLength: Int,
+    _ newByteCount: Int,
+    _ newHash: Int,
+    _ ignoreCaseRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let oldValue = runtimeStringFromFlat(data: oldData, length: oldLength, byteCount: oldByteCount, hash: oldHash)
+    let newValue = runtimeStringFromFlat(data: newData, length: newLength, byteCount: newByteCount, hash: newHash)
     let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue, options: options))
+    return runtimeReturnFlatString(
+        source.replacingOccurrences(of: oldValue, with: newValue, options: options),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
-@_cdecl("kk_string_replace_char_ignoreCase")
-public func kk_string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+@_cdecl("kk_string_replace_char_ignoreCase_flat")
+public func kk_string_replace_char_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ oldCharRaw: Int,
+    _ newCharRaw: Int,
+    _ ignoreCaseRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let oldStr = runtimeCharacterFromRaw(oldCharRaw)
     let newStr = runtimeCharacterFromRaw(newCharRaw)
     let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr, options: options))
+    return runtimeReturnFlatString(
+        source.replacingOccurrences(of: oldStr, with: newStr, options: options),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_replace_flat")

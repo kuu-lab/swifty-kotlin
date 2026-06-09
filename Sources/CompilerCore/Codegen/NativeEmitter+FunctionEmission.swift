@@ -845,6 +845,24 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
+                "kk_string_replace_char_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replace_char_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: false
+                ),
+                "kk_string_replace_ignoreCase_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replace_ignoreCase_flat",
+                    stringArgumentCount: 3,
+                    extraArgumentCount: 1,
+                    canThrow: false
+                ),
+                "kk_string_replace_char_ignoreCase_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replace_char_ignoreCase_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 3,
+                    canThrow: false
+                ),
                 "kk_string_replaceFirst_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_replaceFirst_flat",
                     stringArgumentCount: 3,

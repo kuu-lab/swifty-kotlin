@@ -2480,7 +2480,7 @@ extension CallLowerer {
                 if isRegexLikeType(firstArgType, sema: sema, interner: interner) {
                     runtimeCallee = "kk_string_replace_regex"
                 } else if sema.types.isSubtype(firstArgType, sema.types.charType) {
-                    runtimeCallee = "kk_string_replace_char"
+                    runtimeCallee = "kk_string_replace_char_flat"
                 } else {
                     runtimeCallee = "kk_string_replace"
                 }
@@ -2510,8 +2510,8 @@ extension CallLowerer {
                sema.types.isSubtype(thirdArgType, sema.types.booleanType)
             {
                 let runtimeCallee = sema.types.isSubtype(firstArgType, sema.types.charType)
-                    ? "kk_string_replace_char_ignoreCase"
-                    : "kk_string_replace_ignoreCase"
+                    ? "kk_string_replace_char_ignoreCase_flat"
+                    : "kk_string_replace_ignoreCase_flat"
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(runtimeCallee),
