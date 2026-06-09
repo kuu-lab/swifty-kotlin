@@ -256,6 +256,16 @@ extension CallLowerer {
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
         if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface
+        if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
+        if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
+        if symbol.kind == .object {
+            let parentFQName = Array(symbol.fqName.dropLast())
+            if let parentSymbol = sema.symbols.lookup(fqName: parentFQName),
+               sema.symbols.companionObjectSymbol(for: parentSymbol) == objectSymbol {
+                flags |= 1 << 11
+            }
+        }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 

@@ -302,6 +302,12 @@ struct KnownCompilerNames {
     let isDataName: InternedString
     let isSealedName: InternedString
     let isValueName: InternedString
+    let isEnumName: InternedString
+    let isInterfaceName: InternedString
+    let isObjectName: InternedString
+    let isInnerName: InternedString
+    let isCompanionName: InternedString
+    let isFunName: InternedString
     // STDLIB-REFLECT-061: KClass member access
     let propertiesName: InternedString
     let memberPropertiesName: InternedString
@@ -483,6 +489,12 @@ struct KnownCompilerNames {
         isDataName = interner.intern("isData")
         isSealedName = interner.intern("isSealed")
         isValueName = interner.intern("isValue")
+        isEnumName = interner.intern("isEnum")
+        isInterfaceName = interner.intern("isInterface")
+        isObjectName = interner.intern("isObject")
+        isInnerName = interner.intern("isInner")
+        isCompanionName = interner.intern("isCompanion")
+        isFunName = interner.intern("isFun")
         // STDLIB-REFLECT-061: KClass member access
         propertiesName = interner.intern("properties")
         memberPropertiesName = interner.intern("memberProperties")

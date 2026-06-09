@@ -140,13 +140,14 @@ extension CallLowerer {
         // STDLIB-REFLECT-065: For annotation-related calls, ensure metadata and
         // annotations are registered even if the class was never instantiated.
         // STDLIB-REFLECT-067: The same applies to kind/modifier boolean queries
-        // (isData/isSealed/isValue) — they read the class's flag bits from the
-        // metadata registry, so the metadata must be present even when the class
-        // is never constructed.
+        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/
+        // isCompanion/isFun + isAbstract) — they read the class's flag bits from
+        // the metadata registry, so the metadata must be present even when the
+        // class is never constructed.
         let memberNeedsMetadataRegistration =
             memberName == "annotations" || memberName == "findAnnotation"
             || memberName == "findAssociatedObject"
-            || memberName == "isData" || memberName == "isSealed" || memberName == "isValue"
+            || Self.metadataBackedBooleanMembers.contains(memberName)
         if memberNeedsMetadataRegistration {
             emitClassLiteralMetadataRegistration(
                 classRefTargetType: classRefTargetType,
@@ -326,27 +327,33 @@ extension CallLowerer {
                 fallbackType: boolType
             )
 
-        // STDLIB-REFLECT-067: KClass kind/modifier booleans.
+        // STDLIB-REFLECT-067: KClass kind/modifier / type-kind introspection.
         case "isData":
-            return emitRuntimeCall(
-                callee: "kk_kclass_is_data",
-                arguments: [kclassExpr],
-                fallbackType: boolType
-            )
+            return emitRuntimeCall(callee: "kk_kclass_is_data", arguments: [kclassExpr], fallbackType: boolType)
 
         case "isSealed":
-            return emitRuntimeCall(
-                callee: "kk_kclass_is_sealed",
-                arguments: [kclassExpr],
-                fallbackType: boolType
-            )
+            return emitRuntimeCall(callee: "kk_kclass_is_sealed", arguments: [kclassExpr], fallbackType: boolType)
 
         case "isValue":
-            return emitRuntimeCall(
-                callee: "kk_kclass_is_value",
-                arguments: [kclassExpr],
-                fallbackType: boolType
-            )
+            return emitRuntimeCall(callee: "kk_kclass_is_value", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isEnum":
+            return emitRuntimeCall(callee: "kk_kclass_is_enum", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isInterface":
+            return emitRuntimeCall(callee: "kk_kclass_is_interface", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isObject":
+            return emitRuntimeCall(callee: "kk_kclass_is_object", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isInner":
+            return emitRuntimeCall(callee: "kk_kclass_is_inner", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isCompanion":
+            return emitRuntimeCall(callee: "kk_kclass_is_companion", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isFun":
+            return emitRuntimeCall(callee: "kk_kclass_is_fun", arguments: [kclassExpr], fallbackType: boolType)
 
         case "visibility":
             return emitRuntimeCall(
@@ -458,11 +465,21 @@ extension CallLowerer {
         )
     }
 
+    /// KClass boolean members whose value is read from the class's metadata flag
+    /// bits (see `emitClassLiteralMetadataRegistration`). A class-literal query of
+    /// any of these must register the metadata so the flag resolves even when the
+    /// class is never constructed. `isFinal`/`isOpen` are intentionally excluded —
+    /// their flag bits (8/9) are not populated by the registration path.
+    static let metadataBackedBooleanMembers: Set<String> = [
+        "isData", "isSealed", "isValue", "isInterface", "isObject",
+        "isEnum", "isAbstract", "isInner", "isCompanion", "isFun",
+    ]
+
     /// Emits the `kk_kclass_register_metadata` (+ data-class field and annotation)
     /// registration for a compile-time class literal, reusing the *already emitted*
     /// `typeTokenExpr` so the registered metadata is keyed by the exact same type
     /// token as the `kk_kclass_create` box. This is what lets later metadata-backed
-    /// queries (`isData`/`isSealed`/`isValue`, annotations, …) resolve correctly
+    /// queries (`isData`/`isSealed`/`isValue`/…, annotations, …) resolve correctly
     /// even when the class is never constructed.
     ///
     /// No-op for non-nominal target types (built-ins, reified type parameters) —
@@ -516,6 +533,16 @@ extension CallLowerer {
         if symbol.kind == .enumClass { flags |= 1 << 5 }
         if symbol.kind == .annotationClass { flags |= 1 << 6 }
         if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+        // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface.
+        if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
+        if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
+        if symbol.kind == .object {
+            let parentFQName = Array(symbol.fqName.dropLast())
+            if let parentSymbol = sema.symbols.lookup(fqName: parentFQName),
+               sema.symbols.companionObjectSymbol(for: parentSymbol) == classSymbol {
+                flags |= 1 << 11
+            }
+        }
         let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
         instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 

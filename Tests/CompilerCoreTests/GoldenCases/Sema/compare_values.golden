@@ -1,0 +1,27 @@
+symbol s0 kind=typeParameter fq=kotlin.Comparator.T vis=private flags=_
+symbol s1 kind=function fq=kotlin.comparisons.compareValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[T#0?,T#0?] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s2 kind=function fq=golden.sema.compareInts vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3 kind=valueParameter fq=golden.sema.compareInts.$0.a vis=private flags=_
+symbol s4 kind=valueParameter fq=golden.sema.compareInts.$0.b vis=private flags=_
+symbol s5 kind=function fq=golden.sema.compareStrings vis=public flags=_ sig=recv=_ params=[String,String] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s6 kind=valueParameter fq=golden.sema.compareStrings.$1.a vis=private flags=_
+symbol s7 kind=valueParameter fq=golden.sema.compareStrings.$1.b vis=private flags=_
+symbol s8 kind=function fq=golden.sema.compareNullableInts vis=public flags=_ sig=recv=_ params=[Int?,Int?] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s9 kind=valueParameter fq=golden.sema.compareNullableInts.$2.a vis=private flags=_
+symbol s10 kind=valueParameter fq=golden.sema.compareNullableInts.$2.b vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun compareInts suspend=0 inline=0 sym=s2
+  decl d1 fun compareStrings suspend=0 inline=0 sym=s5
+  decl d2 fun compareNullableInts suspend=0 inline=0 sym=s8
+expr e0 name(compareValues) type=_
+expr e1 name(a) type=Int ref=s3
+expr e2 name(b) type=Int ref=s4
+expr e3 call callee=e0 args=[_:e1,_:e2] type=Int call=s1 map=[0->0,1->1] targs=[Int]
+expr e4 name(compareValues) type=_
+expr e5 name(a) type=String ref=s6
+expr e6 name(b) type=String ref=s7
+expr e7 call callee=e4 args=[_:e5,_:e6] type=Int call=s1 map=[0->0,1->1] targs=[String]
+expr e8 name(compareValues) type=_
+expr e9 name(a) type=Int? ref=s9
+expr e10 name(b) type=Int? ref=s10
+expr e11 call callee=e8 args=[_:e9,_:e10] type=Int call=s1 map=[0->0,1->1] targs=[Int]

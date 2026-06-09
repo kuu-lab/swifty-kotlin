@@ -221,6 +221,7 @@ extension CallLowerer {
                 "functions", "memberFunctions", "declaredMemberFunctions",
                 "isFinal", "isOpen", "isAbstract", "visibility",
                 "isData", "isSealed", "isValue",
+                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
                 "typeParameters", "supertypes",
                 "annotations", "findAnnotation", "findAssociatedObject",
             ]
@@ -254,6 +255,7 @@ extension CallLowerer {
                 "functions", "memberFunctions", "declaredMemberFunctions",
                 "isFinal", "isOpen", "isAbstract", "visibility",
                 "isData", "isSealed", "isValue",
+                "isEnum", "isInterface", "isObject", "isInner", "isCompanion", "isFun",
                 "typeParameters", "supertypes",
                 "annotations", "findAnnotation", "findAssociatedObject",
             ]
