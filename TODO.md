@@ -110,8 +110,8 @@
 - [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 
 #### kotlin.reflect 型の実装
-- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
-- [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
@@ -123,8 +123,8 @@
 
 #### kotlin.sequences 関数の実装
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
-- [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
-- [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
+- [x] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
+- [x] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [x] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
 - [x] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
 - [x] STDLIB-SEQ-FN-087: `plus` 関数の実装
@@ -197,7 +197,7 @@
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-074: `substringAfter` 関数の実装
 - [x] STDLIB-TEXT-FN-075: `substringAfterLast` 関数の実装
-- [ ] STDLIB-TEXT-FN-077: `substringBeforeLast` 関数の実装
+- [x] STDLIB-TEXT-FN-077: `substringBeforeLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [x] STDLIB-TEXT-FN-082: `takeWhile` 関数の実装
@@ -216,6 +216,7 @@
 - [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [x] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [x] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
 - [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
@@ -253,6 +254,8 @@
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
@@ -273,10 +276,10 @@
 - [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
 - [ ] STDLIB-COMP-FN-024: `maxOf` 関数の実装（Short版、3引数）
-- [ ] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
+- [x] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
-- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [ ] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
@@ -339,7 +342,7 @@
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
 ### Phase 5: 非スコープ/高度領域
-- [ ] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
+- [x] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
