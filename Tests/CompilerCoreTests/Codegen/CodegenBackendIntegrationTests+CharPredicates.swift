@@ -84,6 +84,31 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-PROP-016: Char.isTitleCase end-to-end execution test
+    func testCodegenCharIsTitleCaseMatchesExpectedOutput() throws {
+        let source = """
+        fun main() {
+            println('\\u01C5'.isTitleCase())
+            println('A'.isTitleCase())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "CharIsTitleCaseRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
+        }
+    }
+
     func testCodegenCharCaseConversionHelpersHandleUnicodeMappings() throws {
         throw XCTSkip("Char case conversion feature not yet implemented")
         let source = """
