@@ -1402,6 +1402,28 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "toRegex" {
+                    if args.count == 1 {
+                        let argID = loweredArgIDs[0]
+                        let argType = sema.bindings.exprTypes[args[0].expr]
+                        let knownNames = KnownCompilerNames(interner: interner)
+                        let isSetArg: Bool = {
+                            guard let argType,
+                                  case let .classType(ct) = sema.types.kind(of: sema.types.makeNonNullable(argType)),
+                                  let sym = sema.symbols.symbol(ct.classSymbol)
+                            else { return false }
+                            return knownNames.isSetLikeSymbol(sym)
+                        }()
+                        let rtName = isSetArg ? "kk_string_toRegex_with_options" : "kk_string_toRegex_with_option"
+                        instructions.append(.call(
+                            symbol: nil,
+                            callee: interner.intern(rtName),
+                            arguments: [loweredReceiverID, argID],
+                            result: result,
+                            canThrow: false,
+                            thrownResult: nil
+                        ))
+                        return result
+                    }
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_toRegex"),

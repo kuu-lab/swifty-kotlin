@@ -168,7 +168,7 @@ extension CallTypeChecker {
         }
 
         let resultType: TypeID? = switch (memberName, args.count) {
-        case ("toRegex", 0):
+        case ("toRegex", 0), ("toRegex", 1):
             regexType ?? sema.types.anyType
         case ("indexOf", 1), ("indexOf", 2), ("lastIndexOf", 1):
             sema.types.intType

@@ -302,6 +302,33 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // --- STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options) ---
+        registerSyntheticStringExtensionFunction(
+            named: "toRegex",
+            externalLinkName: "kk_string_toRegex_with_option",
+            receiverType: stringType,
+            parameters: [("option", regexOptionType, false, false)],
+            returnType: regexType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let setRegexOptionType = makeSetType(
+            symbols: symbols, types: types, interner: interner,
+            elementType: regexOptionType
+        ) {
+            registerSyntheticStringExtensionFunction(
+                named: "toRegex",
+                externalLinkName: "kk_string_toRegex_with_options",
+                receiverType: stringType,
+                parameters: [("options", setRegexOptionType, false, false)],
+                returnType: regexType,
+                packageFQName: kotlinTextPkg,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+
         // --- STDLIB-480: Regex.containsMatchIn(input) ---
         let boolType = types.make(.primitive(.boolean, .nonNull))
         registerRegexMemberFunction(

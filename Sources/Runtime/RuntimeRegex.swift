@@ -491,6 +491,18 @@ public func kk_string_toRegex(_ strRaw: Int) -> Int {
     kk_regex_create(strRaw)
 }
 
+// MARK: - STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
+
+@_cdecl("kk_string_toRegex_with_option")
+public func kk_string_toRegex_with_option(_ strRaw: Int, _ optionRaw: Int) -> Int {
+    kk_regex_create_with_option(strRaw, optionRaw)
+}
+
+@_cdecl("kk_string_toRegex_with_options")
+public func kk_string_toRegex_with_options(_ strRaw: Int, _ optionsRaw: Int) -> Int {
+    kk_regex_create_with_options(strRaw, optionsRaw)
+}
+
 @_cdecl("kk_regex_pattern")
 public func kk_regex_pattern(_ regexRaw: Int) -> Int {
     guard let regexBox = regexBoxFromRaw(regexRaw) else { return regexMakeStringRaw("") }

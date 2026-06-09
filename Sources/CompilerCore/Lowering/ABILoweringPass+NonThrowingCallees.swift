@@ -990,6 +990,8 @@ extension ABILoweringPass {
             interner.intern("kk_string_split_regex"),
             interner.intern("kk_regex_matchEntire"),
             interner.intern("kk_string_toRegex"),
+            interner.intern("kk_string_toRegex_with_option"),
+            interner.intern("kk_string_toRegex_with_options"),
             interner.intern("kk_regex_pattern"),
             interner.intern("kk_regex_options"),
             interner.intern("kk_match_result_value"),

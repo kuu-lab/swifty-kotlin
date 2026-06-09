@@ -44,6 +44,68 @@ final class RuntimeRegexTests: XCTestCase {
         XCTAssertEqual(runtimeListStrings(kk_match_result_groupValues(matchRaw)), ["abcd", "ab", "cd"])
     }
 
+    // MARK: - STDLIB-TEXT-FN-105: String.toRegex / toRegex(option) / toRegex(options)
+
+    func testStringToRegexCreatesEquivalentRegex() {
+        let patternRaw = makeRuntimeString("[a-z]+")
+        let regexRaw = kk_string_toRegex(patternRaw)
+        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        let patternBack = runtimeString(kk_regex_pattern(regexRaw))
+        XCTAssertEqual(patternBack, "[a-z]+")
+    }
+
+    func testStringToRegexMatchesSameAsRegexCreate() {
+        let patternRaw = makeRuntimeString("ab+c")
+        let direct = kk_regex_create(patternRaw)
+        let viaToRegex = kk_string_toRegex(patternRaw)
+        let input = makeRuntimeString("abbbc")
+        XCTAssertEqual(
+            kk_regex_find(direct, input) == runtimeNullSentinelInt,
+            kk_regex_find(viaToRegex, input) == runtimeNullSentinelInt
+        )
+    }
+
+    func testStringToRegexWithOptionIgnoreCase() {
+        // ordinal 0 = IGNORE_CASE
+        let patternRaw = makeRuntimeString("hello")
+        let optionRaw = kk_box_int(0)
+        let regexRaw = kk_string_toRegex_with_option(patternRaw, optionRaw)
+        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("say HELLO world"))
+        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "HELLO")
+    }
+
+    func testStringToRegexWithOptionPreservesPattern() {
+        // ordinal 1 = MULTILINE
+        let patternRaw = makeRuntimeString("^foo")
+        let optionRaw = kk_box_int(1)
+        let regexRaw = kk_string_toRegex_with_option(patternRaw, optionRaw)
+        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_regex_pattern(regexRaw)), "^foo")
+    }
+
+    func testStringToRegexWithOptionsSetIgnoreCase() {
+        // Set<RegexOption> with ordinal 0 = IGNORE_CASE
+        let patternRaw = makeRuntimeString("world")
+        let setRaw = registerRuntimeObject(RuntimeSetBox(elements: [kk_box_int(0)]))
+        let regexRaw = kk_string_toRegex_with_options(patternRaw, setRaw)
+        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("Hello WORLD!"))
+        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "WORLD")
+    }
+
+    func testStringToRegexWithEmptyOptionsSet() {
+        let patternRaw = makeRuntimeString("[0-9]+")
+        let setRaw = registerRuntimeObject(RuntimeSetBox(elements: []))
+        let regexRaw = kk_string_toRegex_with_options(patternRaw, setRaw)
+        XCTAssertNotEqual(regexRaw, runtimeNullSentinelInt)
+        let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("abc123def"))
+        XCTAssertNotEqual(matchRaw, runtimeNullSentinelInt)
+        XCTAssertEqual(runtimeString(kk_match_result_value(matchRaw)), "123")
+    }
+
     func testMatchGroupCollectionGetAndRange() {
         let regexRaw = kk_regex_create(makeRuntimeString("(?<lhs>ab)(?<rhs>cd)"))
         let matchRaw = kk_regex_find(regexRaw, makeRuntimeString("zzabcdyy"))

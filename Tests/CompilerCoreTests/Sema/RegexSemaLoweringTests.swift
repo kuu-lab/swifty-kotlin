@@ -440,7 +440,47 @@ final class RegexSemaLoweringTests: XCTestCase {
         }
     }
 
-    // MARK: - 8. KIR lowering: String.split(Regex) and String.contains(Regex)
+    // MARK: - 8. KIR lowering: String.toRegex(option) / String.toRegex(options)
+
+    func testStringToRegexWithOptionLowersToKkStringToRegexWithOption() throws {
+        let source = """
+        fun test() {
+            val r = "[a-z]+".toRegex(RegexOption.IGNORE_CASE)
+            println(r.matches("ABC"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try XCTUnwrap(ctx.kir)
+            let callees = allCalleesInModule(module, interner: ctx.interner)
+            XCTAssertTrue(
+                callees.contains("kk_string_toRegex_with_option"),
+                "KIR must contain kk_string_toRegex_with_option; found: \(callees)"
+            )
+        }
+    }
+
+    func testStringToRegexWithOptionsSetLowersToKkStringToRegexWithOptions() throws {
+        let source = """
+        fun test() {
+            val r = "[a-z]+".toRegex(setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE))
+            println(r.matches("ABC"))
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            let module = try XCTUnwrap(ctx.kir)
+            let callees = allCalleesInModule(module, interner: ctx.interner)
+            XCTAssertTrue(
+                callees.contains("kk_string_toRegex_with_options"),
+                "KIR must contain kk_string_toRegex_with_options; found: \(callees)"
+            )
+        }
+    }
+
+    // MARK: - 9. KIR lowering: String.split(Regex) and String.contains(Regex)
 
     func testStringSplitWithRegexLowersToKkStringSplitRegex() throws {
         let source = """
