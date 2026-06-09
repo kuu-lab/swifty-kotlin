@@ -186,7 +186,7 @@
 - [x] STDLIB-TEXT-PROP-008: `isIdentifierIgnorable` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-017: `isUnicodeIdentifierPart` 拡張プロパティの実装
 
 #### kotlin.text 関数の実装
