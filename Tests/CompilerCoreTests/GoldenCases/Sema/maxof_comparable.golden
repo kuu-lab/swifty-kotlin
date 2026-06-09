@@ -1,0 +1,32 @@
+symbol s0 kind=interface fq=kotlin.Comparable vis=public flags=synthetic
+symbol s1 kind=typeParameter fq=kotlin.comparisons.maxOf.T vis=private flags=_
+symbol s2 kind=function fq=kotlin.comparisons.maxOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[T#1,T#1] ret=T#1 suspend=0 defaults=[0,0] vararg=[0,0] bounds=[Class#0<T#1>]
+symbol s3 kind=function fq=kotlin.comparisons.maxOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[T#1,T#1,T#1] ret=T#1 suspend=0 defaults=[0,0,0] vararg=[0,0,0] bounds=[Class#0<T#1>]
+symbol s4 kind=function fq=kotlin.comparisons.maxOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[T#1] ret=T#1 suspend=0 defaults=[0] vararg=[1] bounds=[Class#0<T#1>]
+symbol s5 kind=function fq=golden.sema.maxOf2ArgString vis=public flags=_ sig=recv=_ params=[String,String] ret=String suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s6 kind=valueParameter fq=golden.sema.maxOf2ArgString.$0.a vis=private flags=_
+symbol s7 kind=valueParameter fq=golden.sema.maxOf2ArgString.$0.b vis=private flags=_
+symbol s8 kind=function fq=golden.sema.maxOf3ArgString vis=public flags=_ sig=recv=_ params=[String,String,String] ret=String suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s9 kind=valueParameter fq=golden.sema.maxOf3ArgString.$1.a vis=private flags=_
+symbol s10 kind=valueParameter fq=golden.sema.maxOf3ArgString.$1.b vis=private flags=_
+symbol s11 kind=valueParameter fq=golden.sema.maxOf3ArgString.$1.c vis=private flags=_
+symbol s12 kind=function fq=golden.sema.maxOfVarargString vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+file f0 package=golden.sema
+  decl d0 fun maxOf2ArgString suspend=0 inline=0 sym=s5
+  decl d1 fun maxOf3ArgString suspend=0 inline=0 sym=s8
+  decl d2 fun maxOfVarargString suspend=0 inline=0 sym=s12
+expr e0 name(maxOf) type=_
+expr e1 name(a) type=String ref=s6
+expr e2 name(b) type=String ref=s7
+expr e3 call callee=e0 args=[_:e1,_:e2] type=String call=s2 map=[0->0,1->1] targs=[String]
+expr e4 name(maxOf) type=_
+expr e5 name(a) type=String ref=s9
+expr e6 name(b) type=String ref=s10
+expr e7 name(c) type=String ref=s11
+expr e8 call callee=e4 args=[_:e5,_:e6,_:e7] type=String call=s3 map=[0->0,1->1,2->2] targs=[String]
+expr e9 name(maxOf) type=_
+expr e10 string(d) type=String
+expr e11 string(b) type=String
+expr e12 string(a) type=String
+expr e13 string(c) type=String
+expr e14 call callee=e9 args=[_:e10,_:e11,_:e12,_:e13] type=String call=s4 map=[0->0,1->0,2->0,3->0] targs=[String]
