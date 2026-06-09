@@ -1,0 +1,12 @@
+symbol s0 kind=function fq=useMeasureNanoTime vis=public flags=_ sig=recv=_ params=[] ret=Long suspend=0 defaults=[] vararg=[]
+symbol s1 kind=local fq=__local_0.x vis=private flags=_ type=Int
+file f0 package=_
+  decl d0 fun useMeasureNanoTime suspend=0 inline=0 sym=s0
+expr e0 name(measureNanoTime) type=_
+expr e1 int(1) type=Int
+expr e2 int(2) type=Int
+expr e3 binary(add) lhs=e1 rhs=e2 type=Int
+expr e4 localDecl x mutable=0 type=_ init=e3 type=Unit ref=s1
+expr e5 blockExpr stmts=[e4] trailing=_ type=Unit
+expr e6 lambda params=[] body=e5 label=measureNanoTime type=() -> Unit
+expr e7 call callee=e0 args=[_:e6] type=Long

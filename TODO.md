@@ -171,7 +171,7 @@
 #### kotlin.system 関数の実装
 - [ ] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
-- [ ] STDLIB-SYSTEM-FN-005: `measureNanoTime` 関数の実装
+- [x] STDLIB-SYSTEM-FN-005: `measureNanoTime` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-006: `measureTimeMicros` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
@@ -185,7 +185,7 @@
 - [x] STDLIB-TEXT-PROP-010: `isJavaIdentifierStart` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-008: `isIdentifierIgnorable` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
 - [ ] STDLIB-TEXT-PROP-017: `isUnicodeIdentifierPart` 拡張プロパティの実装
 
@@ -236,14 +236,14 @@
 - [ ] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-074: `substringAfter` 関数の実装
-- [ ] STDLIB-TEXT-FN-075: `substringAfterLast` 関数の実装
+- [x] STDLIB-TEXT-FN-075: `substringAfterLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-077: `substringBeforeLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [ ] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
 - [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
 - [ ] STDLIB-TEXT-FN-086: `toBigIntegerOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-082: `takeWhile` 関数の実装
+- [x] STDLIB-TEXT-FN-082: `takeWhile` 関数の実装
 - [ ] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
@@ -253,15 +253,19 @@
 - [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
-- [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
-- [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
@@ -294,7 +298,7 @@
 - [x] STDLIB-TIME-FN-007: `toJavaDuration` 関数の実装
 - [x] STDLIB-TIME-FN-009: `toJSDate` 関数の実装
 - [x] STDLIB-TIME-FN-010: `toKotlinDuration` 関数の実装
-- [ ] STDLIB-TIME-FN-012: `toTimeUnit` 関数の実装
+- [x] STDLIB-TIME-FN-012: `toTimeUnit` 関数の実装
 
 #### kotlin.uuid 型の実装
 
@@ -306,13 +310,20 @@
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
+- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
+- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [ ] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 - [ ] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 
 #### kotlin.comparisons 関数の実装
+- [ ] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
+- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
+- [ ] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [x] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
 - [ ] STDLIB-COMP-FN-003: `compareValues` 関数の実装
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
