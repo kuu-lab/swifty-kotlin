@@ -314,7 +314,7 @@
 - [ ] STDLIB-COMP-FN-003: `compareValues` 関数の実装
 - [ ] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [ ] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
+- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
