@@ -38,7 +38,7 @@
 - `kotlin.experimental`
 
 ### Phase 1: プリミティブ・演算子・配列・String コア
-- [ ] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
+- [x] STDLIB-004: `Array` / primitive array の生成・変換・境界挙動を整理する
 - [x] STDLIB-GAP-PH1: ギャップ表の `kotlin` / `kotlin.text` / `Array` 周辺の未対応を潰す
 
 ### Phase 2: コレクション・Sequence・Range
@@ -149,7 +149,7 @@
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
 - [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 #### kotlin.reflect 型の実装
-- [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 
 #### kotlin.reflect プロパティの実装
@@ -159,14 +159,14 @@
 #### kotlin.sequences 型の実装
 
 #### kotlin.sequences 関数の実装
+- [x] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [x] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
-- [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [x] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
-- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
-- [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
+- [x] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
 - [x] STDLIB-SEQ-FN-087: `plus` 関数の実装
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
@@ -237,7 +237,7 @@
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [x] STDLIB-TEXT-FN-074: `substringAfter` 関数の実装
 - [x] STDLIB-TEXT-FN-075: `substringAfterLast` 関数の実装
-- [ ] STDLIB-TEXT-FN-077: `substringBeforeLast` 関数の実装
+- [x] STDLIB-TEXT-FN-077: `substringBeforeLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [ ] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
@@ -278,11 +278,11 @@
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
+- [x] STDLIB-TEXT-FN-102: `toLong` 関数の実装
 - [x] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
-- [ ] STDLIB-TEXT-FN-116: `zip` 関数の実装
+- [x] STDLIB-TEXT-FN-116: `zip` 関数の実装
 
 #### kotlin.time 型の実装
 - [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
@@ -310,49 +310,40 @@
 
 #### kotlin.uuid 関数の実装
 #### kotlin.uuid 関数の実装
-- [ ] STDLIB-UUID-FN-002: `putUuid` 関数の実装
+- [x] STDLIB-UUID-FN-002: `putUuid` 関数の実装
 - [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
-- [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
-- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 
 #### kotlin.comparisons 関数の実装
-- [ ] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
-- [ ] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [x] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [ ] STDLIB-COMP-FN-003: `compareValues` 関数の実装
+- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
-- [ ] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [ ] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
+- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
-- [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
-- [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-011: `maxOf` 関数の実装（Double版、2引数）
+- [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
+- [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
+- [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
 - [ ] STDLIB-COMP-FN-024: `maxOf` 関数の実装（Short版、3引数）
-- [ ] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
+- [x] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
-- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [ ] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
 - [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
+- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [x] STDLIB-COMP-FN-041: `minOf` 関数の実装（Int版、2引数）
 - [x] STDLIB-COMP-FN-043: `minOf` 関数の実装（Int版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
@@ -410,7 +401,7 @@
 - [~] STDLIB-CORO-001: `kotlin.coroutines.intrinsics` / cancellation — 主要部分実装済み（`suspendCoroutineUninterceptedOrReturn`, `intercepted`, `CancellationException`）。残課題は別チケットへ分割。
 
 ### Phase 5: 非スコープ/高度領域
-- [ ] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
+- [x] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する

@@ -771,8 +771,19 @@ extension ExprTypeChecker {
                 sema: sema
             )
 
-            // Apply subtype constraint only if needed
-            if expectedFunctionType.returnType != sema.types.unitType {
+            // Apply subtype constraint only if needed.
+            // Skip when the expected return type is an unconstrained type parameter —
+            // that is an inference placeholder the call resolver fills in, so any body
+            // type is valid (e.g. transform lambdas for zip/zipWithNext).
+            let expectedReturnIsUnconstrainedTypeParam: Bool = {
+                guard case let .typeParam(tp) = sema.types.kind(of: expectedFunctionType.returnType) else {
+                    return false
+                }
+                return sema.symbols.typeParameterUpperBounds(for: tp.symbol).isEmpty
+            }()
+            if expectedFunctionType.returnType != sema.types.unitType,
+               !expectedReturnIsUnconstrainedTypeParam
+            {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
                     right: expectedFunctionType.returnType,

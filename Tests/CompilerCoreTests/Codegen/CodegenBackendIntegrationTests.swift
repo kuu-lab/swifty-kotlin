@@ -1451,6 +1451,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-032: minOf(Byte, Byte)
+    func testCodegenCompilesMinOfByteTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Byte = 3
+            val b: Byte = 7
+            println(minOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfByteTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "3\n")
+        }
+    }
+
     // STDLIB-COMP-FN-012: maxOf(Double, Double, Double)
     func testCodegenCompilesMaxOfDoubleThreeArgTopLevelCall() throws {
         let source = """
@@ -1475,6 +1501,33 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "7.25\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-039: minOf(Float, Float, Float)
+    func testCodegenCompilesMinOfFloatThreeArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Float = 1.5f
+            val b: Float = 7.25f
+            val c: Float = 3.5f
+            println(minOf(a, b, c))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfFloatThreeArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1.5\n")
         }
     }
 

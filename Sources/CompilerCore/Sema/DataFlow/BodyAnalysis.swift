@@ -360,6 +360,21 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // For qualified nested-type references (e.g. "KMutableProperty.Setter"), expand
+        // the first component via imports and append the remaining tail.
+        if path.count > 1, let firstComponent = path.first {
+            let tail = Array(path.dropFirst())
+            for importDecl in imports {
+                if let alias = importDecl.alias, alias == firstComponent {
+                    candidatePaths.append(importDecl.path + tail)
+                } else if importDecl.alias == nil,
+                          importDecl.path.last == firstComponent
+                {
+                    candidatePaths.append(importDecl.path + tail)
+                }
+            }
+        }
+
         var seenPaths: Set<[InternedString]> = []
         var result: [SemanticSymbol] = []
         for candidatePath in candidatePaths where seenPaths.insert(candidatePath).inserted {
