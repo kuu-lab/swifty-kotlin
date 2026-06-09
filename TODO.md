@@ -149,7 +149,7 @@
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
 - [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 #### kotlin.reflect 型の実装
-- [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 
 #### kotlin.reflect プロパティの実装
@@ -162,7 +162,7 @@
 - [x] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [x] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
-- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装
@@ -314,32 +314,23 @@
 - [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
-- [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
-- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 
 #### kotlin.comparisons 関数の実装
-- [ ] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
-- [ ] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [x] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [ ] STDLIB-COMP-FN-003: `compareValues` 関数の実装
+- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
-- [ ] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [ ] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
+- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
-- [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
-- [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-011: `maxOf` 関数の実装（Double版、2引数）
+- [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
+- [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
+- [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
@@ -349,10 +340,10 @@
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [ ] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
 - [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
+- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [x] STDLIB-COMP-FN-041: `minOf` 関数の実装（Int版、2引数）
 - [x] STDLIB-COMP-FN-043: `minOf` 関数の実装（Int版、vararg）
 - [ ] STDLIB-COMP-FN-044: `minOf` 関数の実装（Long版、2引数）
