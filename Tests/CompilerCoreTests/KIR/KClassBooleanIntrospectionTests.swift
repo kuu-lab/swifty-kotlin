@@ -77,6 +77,30 @@ final class KClassBooleanIntrospectionTests: XCTestCase {
         )
     }
 
+    /// The type-kind members (isEnum/isInterface/isObject/isFun) must also be
+    /// routed by the KIR dispatch set to the lowerer — without that they would
+    /// fall through to a regular call and link-fail with an undefined symbol.
+    func testClassLiteralTypeKindMembersEmitRuntimeCalls() throws {
+        let cases: [(decl: String, ref: String, member: String, callee: String)] = [
+            ("enum class Color { RED }", "Color", "isEnum", "kk_kclass_is_enum"),
+            ("interface Iface", "Iface", "isInterface", "kk_kclass_is_interface"),
+            ("object Singleton", "Singleton", "isObject", "kk_kclass_is_object"),
+            ("fun interface F { fun run() }", "F", "isFun", "kk_kclass_is_fun"),
+        ]
+        for testCase in cases {
+            let callees = try calleesForMain("""
+            \(testCase.decl)
+            fun main() {
+                println(\(testCase.ref)::class.\(testCase.member))
+            }
+            """)
+            XCTAssertTrue(
+                callees.contains(testCase.callee),
+                "\(testCase.ref)::class.\(testCase.member) should lower to \(testCase.callee), got: \(callees)"
+            )
+        }
+    }
+
     // MARK: - Stored KClass<T> variable receiver (regression for the
     // `.classType`-wrapping-KClass receiver guard).
 
