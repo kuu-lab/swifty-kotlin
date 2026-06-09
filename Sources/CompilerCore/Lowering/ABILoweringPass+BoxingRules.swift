@@ -314,6 +314,56 @@ extension ABILoweringPass {
         return unboxed
     }
 
+    /// Unbox a comparison operand when it is boxed but its peer (the other side of
+    /// `==` / `!=` / `<` etc.) is an unboxed primitive.  Comparison helpers like
+    /// `kk_op_eq(Int, Int) -> Int` require both arguments to be unboxed; if only
+    /// one side is unboxed (which happens when `mutableList.add(x)` now boxes `x`
+    /// and the iterator hands back a boxed value), the other side must be unboxed
+    /// against the peer's concrete primitive type.
+    func unboxComparisonOperandIfNeeded(
+        operand: KIRExprID,
+        peerOperand: KIRExprID,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?,
+        unboxCallees: UnboxingCalleeNames,
+        newBody: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let operandType = intrinsicArgType(operand, arena: module.arena, types: types),
+              let peerType = intrinsicArgType(peerOperand, arena: module.arena, types: types)
+        else { return operand }
+
+        let operandKind = resolveValueClassKind(types.kind(of: operandType), types: types, symbols: symbols)
+        let peerKind = resolveValueClassKind(types.kind(of: peerType), types: types, symbols: symbols)
+
+        // Only unbox when this operand is boxed (Any/reference/typeParam) and the
+        // peer is a concrete unboxed primitive — use the peer's type as the target.
+        guard case .primitive(_, .nonNull) = peerKind,
+              isAnyOrNullableAny(operandKind)
+                  || isNonValueClassReference(operandKind, symbols: symbols)
+                  || { if case .typeParam = operandKind { return true }; return false }()
+        else { return operand }
+
+        guard let callee = unboxingCallee(
+            sourceKind: operandKind, targetKind: peerKind,
+            unboxCallees: unboxCallees, types: types, symbols: symbols
+        ) else { return operand }
+
+        let unboxed = module.arena.appendExpr(
+            .temporary(Int32(module.arena.expressions.count)),
+            type: peerType
+        )
+        newBody.append(.call(
+            symbol: nil,
+            callee: callee,
+            arguments: [operand],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return unboxed
+    }
+
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
         boxCallees: BoxingCalleeNames

@@ -43,6 +43,20 @@ final class ABILoweringPass: LoweringPass {
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
 
+        // Comparison helpers like kk_op_eq(Int, Int) -> Bool require both
+        // arguments to be unboxed.  Unlike arithmetic callees the result type is
+        // Bool, so unboxBinaryOperandIfNeeded (which uses result type as the
+        // target) cannot be reused here.  We use unboxComparisonOperandIfNeeded
+        // instead, which derives the target type from the peer operand.
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+        ]
+
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
             ctx.interner.intern("kk_op_sub"),
@@ -313,6 +327,28 @@ final class ABILoweringPass: LoweringPass {
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
                     }
+                }
+
+                // Unbox Any/reference-typed arguments for inline comparison calls
+                // (kk_op_eq, kk_op_ne, kk_op_lt, etc.).  These return Bool so the
+                // arithmetic path above cannot be reused (it uses result type as the
+                // unbox target).  Instead we use peer-type inference: if one operand
+                // is an unboxed primitive and the other is boxed, unbox the boxed one
+                // to the peer's type.
+                if signature == nil, let types,
+                   inlineComparisonCallees.contains(effectiveCallee),
+                   boxedArguments.count == 2
+                {
+                    boxedArguments[0] = unboxComparisonOperandIfNeeded(
+                        operand: boxedArguments[0], peerOperand: boxedArguments[1],
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
+                    boxedArguments[1] = unboxComparisonOperandIfNeeded(
+                        operand: boxedArguments[1], peerOperand: boxedArguments[0],
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(
