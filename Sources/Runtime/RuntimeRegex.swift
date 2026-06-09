@@ -84,6 +84,16 @@ final class RuntimeMatchGroupBox {
     }
 }
 
+/// Runtime box for `kotlin.text.MatchResult.Destructured`.
+/// Wraps a MatchResultBox to provide component1()..component9() destructuring access.
+final class RuntimeMatchResultDestructuredBox {
+    let matchResult: RuntimeMatchResultBox
+
+    init(matchResult: RuntimeMatchResultBox) {
+        self.matchResult = matchResult
+    }
+}
+
 /// Runtime box for `kotlin.text.MatchGroupCollection`.
 /// Wraps the groups array and named-group mapping from a MatchResult.
 final class RuntimeMatchGroupCollectionBox {
@@ -805,3 +815,66 @@ public func kk_regex_matches(_ regexRaw: Int, _ inputRaw: Int) -> Int {
     let matched = anchoredRegex.firstMatch(in: input, options: [], range: range) != nil
     return kk_box_bool(matched ? 1 : 0)
 }
+
+// MARK: - STDLIB-TEXT-TYPE-010: MatchResult.Destructured
+
+private func matchResultDestructuredBoxFromRaw(_ raw: Int) -> RuntimeMatchResultDestructuredBox? {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(pointer, to: RuntimeMatchResultDestructuredBox.self)
+}
+
+/// MatchResult.destructured: MatchResult.Destructured
+/// Wraps the MatchResult in a Destructured box for capture-group destructuring.
+@_cdecl("kk_match_result_destructured")
+public func kk_match_result_destructured(_ matchRaw: Int) -> Int {
+    guard let matchResult = matchResultBoxFromRaw(matchRaw) else {
+        let empty = RuntimeMatchResultBox(value: "", groupValues: [])
+        return registerRuntimeObject(RuntimeMatchResultDestructuredBox(matchResult: empty))
+    }
+    return registerRuntimeObject(RuntimeMatchResultDestructuredBox(matchResult: matchResult))
+}
+
+/// MatchResult.Destructured.match: MatchResult
+@_cdecl("kk_match_result_destructured_match")
+public func kk_match_result_destructured_match(_ destructuredRaw: Int) -> Int {
+    guard let destructured = matchResultDestructuredBoxFromRaw(destructuredRaw) else {
+        return runtimeNullSentinelInt
+    }
+    return registerRuntimeObject(destructured.matchResult)
+}
+
+/// Returns the Nth capture group value from the Destructured box (1-indexed, skipping group 0).
+private func destructuredComponentValue(_ destructuredRaw: Int, index: Int) -> Int {
+    guard let destructured = matchResultDestructuredBoxFromRaw(destructuredRaw) else {
+        return regexMakeStringRaw("")
+    }
+    let groupValues = destructured.matchResult.groupValues
+    return regexMakeStringRaw(index < groupValues.count ? groupValues[index] : "")
+}
+
+@_cdecl("kk_match_result_destructured_component1")
+public func kk_match_result_destructured_component1(_ d: Int) -> Int { destructuredComponentValue(d, index: 1) }
+
+@_cdecl("kk_match_result_destructured_component2")
+public func kk_match_result_destructured_component2(_ d: Int) -> Int { destructuredComponentValue(d, index: 2) }
+
+@_cdecl("kk_match_result_destructured_component3")
+public func kk_match_result_destructured_component3(_ d: Int) -> Int { destructuredComponentValue(d, index: 3) }
+
+@_cdecl("kk_match_result_destructured_component4")
+public func kk_match_result_destructured_component4(_ d: Int) -> Int { destructuredComponentValue(d, index: 4) }
+
+@_cdecl("kk_match_result_destructured_component5")
+public func kk_match_result_destructured_component5(_ d: Int) -> Int { destructuredComponentValue(d, index: 5) }
+
+@_cdecl("kk_match_result_destructured_component6")
+public func kk_match_result_destructured_component6(_ d: Int) -> Int { destructuredComponentValue(d, index: 6) }
+
+@_cdecl("kk_match_result_destructured_component7")
+public func kk_match_result_destructured_component7(_ d: Int) -> Int { destructuredComponentValue(d, index: 7) }
+
+@_cdecl("kk_match_result_destructured_component8")
+public func kk_match_result_destructured_component8(_ d: Int) -> Int { destructuredComponentValue(d, index: 8) }
+
+@_cdecl("kk_match_result_destructured_component9")
+public func kk_match_result_destructured_component9(_ d: Int) -> Int { destructuredComponentValue(d, index: 9) }
