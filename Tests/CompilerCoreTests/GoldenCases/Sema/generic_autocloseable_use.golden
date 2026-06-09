@@ -12,7 +12,7 @@ file f0 package=golden.sema
 expr e0 name(t) type=T#4 ref=s5
 expr e1 blockExpr stmts=[] trailing=_ type=Unit
 expr e2 lambda params=[] body=e1 label=use type=(T#4) -> Any
-expr e3 memberCall recv=e0 callee=use args=[_:e2] type=Any
+expr e3 memberCall recv=e0 callee=use args=[_:e2] type=Unit
 expr e4 name(useIt) type=_
 expr e5 name(MyAutoResource) type=_
 expr e6 call callee=e5 args=[] type=Class#1 call=s2 map=[] targs=[]

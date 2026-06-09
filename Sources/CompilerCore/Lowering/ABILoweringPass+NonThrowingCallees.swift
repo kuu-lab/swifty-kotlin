@@ -1084,6 +1084,15 @@ extension ABILoweringPass {
             interner.intern("kk_arraydeque_size"),
             interner.intern("kk_arraydeque_isEmpty"),
             interner.intern("kk_arraydeque_toString"),
+            // BufferedReader non-throwing operations (no outThrown in ABI spec)
+            // kk_buffered_reader_useLines and kk_buffered_reader_forEachLine are
+            // intentionally excluded — they accept a lambda and an outThrown parameter.
+            interner.intern("kk_buffered_reader_readLine"),
+            interner.intern("kk_buffered_reader_readLines"),
+            interner.intern("kk_buffered_reader_close"),
+            interner.intern("kk_buffered_reader_read"),
+            interner.intern("kk_buffered_reader_ready"),
+            interner.intern("kk_buffered_reader_iterator"),
             // File I/O (STDLIB-320/321/323/IO-087) — non-throwing file operations
             interner.intern("kk_file_new"),
             interner.intern("kk_file_new_parent_child"),
