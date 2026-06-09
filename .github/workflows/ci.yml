@@ -125,7 +125,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   diff-regression-shards:
-    name: kotlinc Diff Regression Shard (${{ matrix.shard }}/4)
+    name: kotlinc Diff Regression Shard (${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-latest
     # Kotlin/Java tool downloads occasionally spike on GitHub-hosted runners.
     timeout-minutes: 60
@@ -133,15 +133,16 @@ jobs:
       # Run every shard even if one fails so we get a complete picture per PR.
       fail-fast: false
       matrix:
-        # 714 diff cases striped across 4 runners (~179 each). Cases are split
-        # interleaved (case i runs when i % DIFF_SHARD_COUNT == shard) by
+        # 714 diff cases striped across N runners. Cases are split interleaved
+        # (case i runs when i % DIFF_SHARD_COUNT == shard) by
         # Scripts/diff_kotlinc.sh, so each shard gets a balanced cost mix.
+        # shard values MUST be a contiguous 0..N-1 range. DIFF_SHARD_COUNT is
+        # derived from strategy.job-total below, so just editing this list
+        # resizes the split — the divisor can never drift out of sync.
         shard: [0, 1, 2, 3]
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
-      # MUST equal the number of entries in matrix.shard above.
-      DIFF_SHARD_COUNT: "4"
     steps:
       - uses: actions/checkout@v4
       - name: Setup Swift and LLVM
@@ -201,6 +202,9 @@ jobs:
           DIFF_RUN_TIMEOUT: "30"
           DIFF_LOG_PASS: "0"
           DIFF_SHARD_INDEX: ${{ matrix.shard }}
+          # Derived from the matrix size (number of shard jobs) so the shard
+          # list and the divisor stay in lockstep automatically.
+          DIFF_SHARD_COUNT: ${{ strategy.job-total }}
         run: |
           NCPU=$(nproc)
           DIFF_PARALLEL="$NCPU" DIFF_WORKERS="$NCPU" \

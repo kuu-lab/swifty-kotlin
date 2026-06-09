@@ -441,6 +441,32 @@ collect_cases() {
   done
 }
 
+# Number of cases in the target *before* sharding, so an empty shard can be
+# distinguished from a genuinely empty target.
+count_target_cases() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '1'
+  elif [[ -d "$path" ]]; then
+    find "$path" -type f -name '*.kt' | wc -l | tr -d '[:space:]'
+  else
+    printf '0'
+  fi
+}
+
+# Decide what an empty case set means. A genuinely empty target is an error, but
+# an empty shard (sharding on, with every case assigned to other shards) is a
+# normal no-op that must exit 0 so the aggregate gate stays green.
+handle_empty_cases() {
+  if (( DIFF_SHARD_COUNT > 1 )) && (( $(count_target_cases "$TARGET") > 0 )); then
+    echo "No cases assigned to shard ${DIFF_SHARD_INDEX}/${DIFF_SHARD_COUNT}; nothing to do."
+    echo "Summary: total=0 failed=0 passed=0 skipped=0"
+    exit 0
+  fi
+  echo "No .kt files found." >&2
+  exit 1
+}
+
 normalize_text() {
   tr -d '\r'
 }
@@ -840,8 +866,7 @@ else
   done < <(collect_cases "$TARGET")
 
   if [[ ${#TEST_CASES[@]} -eq 0 ]]; then
-    echo "No .kt files found." >&2
-    exit 1
+    handle_empty_cases
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
@@ -929,8 +954,7 @@ else
 fi
 
 if [[ $TOTAL -eq 0 && $SKIPPED -eq 0 ]]; then
-  echo "No .kt files found." >&2
-  exit 1
+  handle_empty_cases
 fi
 
 echo "Summary: total=$TOTAL failed=$FAILED passed=$((TOTAL - FAILED)) skipped=$SKIPPED"
