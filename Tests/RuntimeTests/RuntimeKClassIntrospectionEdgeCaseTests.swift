@@ -636,4 +636,70 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         XCTAssertEqual(runtimeListElements(from: kk_kclass_member_functions(kclass)), [fn])
         XCTAssertEqual(runtimeListElements(from: kk_kclass_declared_member_functions(kclass)), [fn])
     }
+
+    // MARK: - STDLIB-REFLECT-067: isInner / isCompanion / isFun type-kind flags
+
+    func testIsInnerFlagSetWhenBitSet() {
+        // bit 10 = inner
+        let flags = 1 << 10
+        let kclass = registerClass(typeToken: 14001, qualifiedName: "outer.Inner", simpleName: "Inner", flags: flags)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+    }
+
+    func testIsCompanionFlagSetWhenBitSet() {
+        // bit 11 = companion
+        let flags = 1 << 11
+        let kclass = registerClass(typeToken: 14002, qualifiedName: "outer.Companion", simpleName: "Companion", flags: flags)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+    }
+
+    func testIsFunFlagSetWhenBitSet() {
+        // bit 12 = funInterface
+        let flags = 1 << 12
+        let kclass = registerClass(typeToken: 14003, qualifiedName: "pkg.Transformer", simpleName: "Transformer", flags: flags)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+    }
+
+    func testTypeKindFlagsReturnZeroForUnregisteredKClass() {
+        let kclass = kk_kclass_create(14004, 0)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+    }
+
+    func testIsDataViaKClassAPIBitZero() {
+        let flags = 1 << 0 // dataClass
+        let kclass = registerClass(typeToken: 14005, qualifiedName: "pkg.Data", simpleName: "Data", flags: flags)
+        XCTAssertEqual(kk_kclass_is_data(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 0)
+    }
+
+    func testIsSealedViaKClassAPIBitOne() {
+        let flags = 1 << 1 // sealedClass
+        let kclass = registerClass(typeToken: 14006, qualifiedName: "pkg.Sealed", simpleName: "Sealed", flags: flags)
+        XCTAssertEqual(kk_kclass_is_sealed(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 0)
+    }
+
+    func testIsValueViaKClassAPIBitTwo() {
+        let flags = 1 << 2 // valueClass
+        let kclass = registerClass(typeToken: 14007, qualifiedName: "pkg.Value", simpleName: "Value", flags: flags)
+        XCTAssertEqual(kk_kclass_is_value(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+    }
+
+    func testMultipleTypeKindFlagsCanCoexist() {
+        // inner (bit 10) + funInterface (bit 12)
+        let flags = (1 << 10) | (1 << 12)
+        let kclass = registerClass(typeToken: 14008, qualifiedName: "pkg.FunInner", simpleName: "FunInner", flags: flags)
+        XCTAssertEqual(kk_kclass_is_inner(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_fun(kclass), 1)
+        XCTAssertEqual(kk_kclass_is_companion(kclass), 0)
+    }
 }

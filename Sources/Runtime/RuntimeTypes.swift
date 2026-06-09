@@ -939,6 +939,10 @@ struct RuntimeKClassMetadataEntry {
     let isOpen: Bool
     let visibility: String
     let typeParameterCount: Int
+    // STDLIB-REFLECT-067: additional type-kind introspection flags
+    var isInner: Bool = false
+    var isCompanion: Bool = false
+    var isFunInterface: Bool = false
     /// Runtime annotations attached to this type (STDLIB-REFLECT-065).
     var annotations: [RuntimeAnnotationRecord] = []
 }
