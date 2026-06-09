@@ -243,7 +243,12 @@ extension ABILoweringPass {
             return true
         }
 
-        if case let .primitive(sourcePrimitive, _) = sourceKind,
+        // Unboxing is only needed when the source is nullable: a nullable primitive
+        // can carry a boxed RuntimeDoubleBox/RuntimeFloatBox/... or the null sentinel.
+        // Non-null → non-null never needs unboxing: the value is already a raw bit
+        // pattern, and calling kk_unbox_double on it would misinterpret -0.0 (whose
+        // bit pattern equals runtimeNullSentinelInt = Int.min) as null.
+        if case let .primitive(sourcePrimitive, .nullable) = sourceKind,
            case let .primitive(targetPrimitive, .nonNull) = targetKind,
            sourcePrimitive == targetPrimitive
         {
