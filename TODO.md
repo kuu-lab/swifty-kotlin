@@ -305,7 +305,7 @@
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [ ] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 - [ ] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定

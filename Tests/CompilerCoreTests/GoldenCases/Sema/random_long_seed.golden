@@ -1,0 +1,20 @@
+symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
+symbol s1 kind=constructor fq=kotlin.random.Random.<init> vis=public flags=synthetic sig=recv=_ params=[Long] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=kotlin.random.Random.nextLong vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Long suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=useRandomLongSeed vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s5 kind=local fq=__local_0.r vis=private flags=_ type=Class#0
+symbol s6 kind=local fq=__local_1.a vis=private flags=_ type=Int
+symbol s7 kind=local fq=__local_2.b vis=private flags=_ type=Long
+file f0 package=_
+  decl d0 fun useRandomLongSeed suspend=0 inline=0 sym=s4
+expr e0 name(Random) type=_
+expr e1 long(42) type=Long
+expr e2 call callee=e0 args=[_:e1] type=Class#0 call=s1 map=[0->0] targs=[]
+expr e3 localDecl r mutable=0 type=_ init=e2 type=Unit ref=s5
+expr e4 name(r) type=Class#0 ref=s5
+expr e5 memberCall recv=e4 callee=nextInt args=[] type=Int call=s2 map=[] targs=[]
+expr e6 localDecl a mutable=0 type=_ init=e5 type=Unit ref=s6
+expr e7 name(r) type=Class#0 ref=s5
+expr e8 memberCall recv=e7 callee=nextLong args=[] type=Long call=s3 map=[] targs=[]
+expr e9 localDecl b mutable=0 type=_ init=e8 type=Unit ref=s7

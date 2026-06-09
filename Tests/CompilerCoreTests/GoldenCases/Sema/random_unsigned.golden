@@ -1,0 +1,40 @@
+symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
+symbol s1 kind=function fq=kotlin.random.Random.nextULong vis=public flags=synthetic sig=recv=Class#0 params=[] ret=ULong suspend=0 defaults=[] vararg=[]
+symbol s2 kind=function fq=kotlin.random.Random.nextUInt vis=public flags=synthetic sig=recv=Class#0 params=[] ret=UInt suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=kotlin.random.Random.nextULong vis=public flags=synthetic sig=recv=Class#0 params=[ULong] ret=ULong suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=function fq=kotlin.random.Random.nextUInt vis=public flags=synthetic sig=recv=Class#0 params=[UInt] ret=UInt suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=function fq=kotlin.random.Random.nextULong vis=public flags=synthetic sig=recv=Class#0 params=[ULong,ULong] ret=ULong suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s6 kind=function fq=kotlin.random.Random.nextUInt vis=public flags=synthetic sig=recv=Class#0 params=[UInt,UInt] ret=UInt suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s7 kind=function fq=useRandomUnsigned vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s8 kind=local fq=__local_0.a vis=private flags=_ type=UInt
+symbol s9 kind=local fq=__local_1.b vis=private flags=_ type=UInt
+symbol s10 kind=local fq=__local_2.c vis=private flags=_ type=UInt
+symbol s11 kind=local fq=__local_3.d vis=private flags=_ type=ULong
+symbol s12 kind=local fq=__local_4.e vis=private flags=_ type=ULong
+symbol s13 kind=local fq=__local_5.f vis=private flags=_ type=ULong
+file f0 package=_
+  decl d0 fun useRandomUnsigned suspend=0 inline=0 sym=s7
+expr e0 name(Random) type=Class#0 ref=s0
+expr e1 memberCall recv=e0 callee=nextUInt args=[] type=UInt call=s2 map=[] targs=[]
+expr e2 localDecl a mutable=0 type=_ init=e1 type=Unit ref=s8
+expr e3 name(Random) type=Class#0 ref=s0
+expr e4 uint(10) type=UInt
+expr e5 memberCall recv=e3 callee=nextUInt args=[_:e4] type=UInt call=s4 map=[0->0] targs=[]
+expr e6 localDecl b mutable=0 type=_ init=e5 type=Unit ref=s9
+expr e7 name(Random) type=Class#0 ref=s0
+expr e8 uint(1) type=UInt
+expr e9 uint(10) type=UInt
+expr e10 memberCall recv=e7 callee=nextUInt args=[_:e8,_:e9] type=UInt call=s6 map=[0->0,1->1] targs=[]
+expr e11 localDecl c mutable=0 type=_ init=e10 type=Unit ref=s10
+expr e12 name(Random) type=Class#0 ref=s0
+expr e13 memberCall recv=e12 callee=nextULong args=[] type=ULong call=s1 map=[] targs=[]
+expr e14 localDecl d mutable=0 type=_ init=e13 type=Unit ref=s11
+expr e15 name(Random) type=Class#0 ref=s0
+expr e16 ulong(100) type=ULong
+expr e17 memberCall recv=e15 callee=nextULong args=[_:e16] type=ULong call=s3 map=[0->0] targs=[]
+expr e18 localDecl e mutable=0 type=_ init=e17 type=Unit ref=s12
+expr e19 name(Random) type=Class#0 ref=s0
+expr e20 ulong(10) type=ULong
+expr e21 ulong(100) type=ULong
+expr e22 memberCall recv=e19 callee=nextULong args=[_:e20,_:e21] type=ULong call=s5 map=[0->0,1->1] targs=[]
+expr e23 localDecl f mutable=0 type=_ init=e22 type=Unit ref=s13
