@@ -176,6 +176,16 @@ extension CallLowerer {
                     if symbol.kind == .enumClass { flags |= 1 << 5 }
                     if symbol.kind == .annotationClass { flags |= 1 << 6 }
                     if symbol.flags.contains(.abstractType) { flags |= 1 << 7 }
+                    // STDLIB-REFLECT-067: bits 10-12 for inner / companion / funInterface
+                    if symbol.flags.contains(.innerClass) { flags |= 1 << 10 }
+                    if symbol.flags.contains(.funInterface) { flags |= 1 << 12 }
+                    if symbol.kind == .object {
+                        let parentFQName = Array(symbol.fqName.dropLast())
+                        if let parentSymbol = sema.symbols.lookup(fqName: parentFQName),
+                           sema.symbols.companionObjectSymbol(for: parentSymbol) == classSymbol {
+                            flags |= 1 << 11
+                        }
+                    }
                     let flagsExpr = arena.appendExpr(.intLiteral(flags), type: intType)
                     instructions.append(.constValue(result: flagsExpr, value: .intLiteral(flags)))
 
@@ -395,6 +405,34 @@ extension CallLowerer {
                 arguments: [kclassExpr],
                 fallbackType: boolType
             )
+
+        // STDLIB-REFLECT-067: KClass type-kind introspection
+        case "isData":
+            return emitRuntimeCall(callee: "kk_kclass_is_data", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isSealed":
+            return emitRuntimeCall(callee: "kk_kclass_is_sealed", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isValue":
+            return emitRuntimeCall(callee: "kk_kclass_is_value", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isEnum":
+            return emitRuntimeCall(callee: "kk_kclass_is_enum", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isInterface":
+            return emitRuntimeCall(callee: "kk_kclass_is_interface", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isObject":
+            return emitRuntimeCall(callee: "kk_kclass_is_object", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isInner":
+            return emitRuntimeCall(callee: "kk_kclass_is_inner", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isCompanion":
+            return emitRuntimeCall(callee: "kk_kclass_is_companion", arguments: [kclassExpr], fallbackType: boolType)
+
+        case "isFun":
+            return emitRuntimeCall(callee: "kk_kclass_is_fun", arguments: [kclassExpr], fallbackType: boolType)
 
         case "visibility":
             return emitRuntimeCall(
