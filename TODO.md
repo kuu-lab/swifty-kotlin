@@ -169,7 +169,7 @@
 - [ ] STDLIB-SEQ-FN-009: `associateWith` 関数の実装
 - [ ] STDLIB-SEQ-FN-087: `plus` 関数の実装
 #### kotlin.system 関数の実装
-- [ ] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
+- [x] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-005: `measureNanoTime` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-006: `measureTimeMicros` 関数の実装
