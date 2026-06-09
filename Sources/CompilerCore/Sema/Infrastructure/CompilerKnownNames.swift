@@ -298,6 +298,10 @@ struct KnownCompilerNames {
     let visibilityName: InternedString
     let typeParametersName: InternedString
     let supertypesName: InternedString
+    // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
+    let isDataName: InternedString
+    let isSealedName: InternedString
+    let isValueName: InternedString
     // STDLIB-REFLECT-061: KClass member access
     let propertiesName: InternedString
     let memberPropertiesName: InternedString
@@ -475,6 +479,10 @@ struct KnownCompilerNames {
         visibilityName = interner.intern("visibility")
         typeParametersName = interner.intern("typeParameters")
         supertypesName = interner.intern("supertypes")
+        // STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
+        isDataName = interner.intern("isData")
+        isSealedName = interner.intern("isSealed")
+        isValueName = interner.intern("isValue")
         // STDLIB-REFLECT-061: KClass member access
         propertiesName = interner.intern("properties")
         memberPropertiesName = interner.intern("memberProperties")

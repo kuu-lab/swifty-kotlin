@@ -106,8 +106,10 @@ extension CallTypeChecker {
             return returnType
         }
         // STDLIB-REFLECT-060: KClass boolean properties (isFinal, isOpen, isAbstract)
+        // STDLIB-REFLECT-067: KClass kind/modifier booleans (isData, isSealed, isValue)
         let kclassBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
+            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
         ]
         if kclassBooleanCallees.contains(calleeName), args.isEmpty {
             let boolType = sema.types.booleanType
@@ -231,8 +233,10 @@ extension CallTypeChecker {
             return returnType
         }
         // STDLIB-REFLECT-060: KClass boolean properties via variable receiver
+        // STDLIB-REFLECT-067: KClass kind/modifier booleans (isData, isSealed, isValue)
         let kclassVarBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
+            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
         ]
         if kclassVarBooleanCallees.contains(calleeName), args.isEmpty {
             let boolType = sema.types.booleanType
