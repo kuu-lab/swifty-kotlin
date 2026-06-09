@@ -314,27 +314,18 @@
 - [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
-- [ ] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
-- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
-- [ ] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-COMP-002: `Comparator` 合成の sema / lowering を整える
 
 #### kotlin.comparisons 関数の実装
-- [ ] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
-- [ ] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [x] STDLIB-COMP-FN-002: `compareByDescending` 関数の実装（selector版）
-- [ ] STDLIB-COMP-FN-003: `compareValues` 関数の実装
+- [x] STDLIB-COMP-FN-003: `compareValues` 関数の実装
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
-- [ ] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
-- [ ] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
+- [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
 - [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
