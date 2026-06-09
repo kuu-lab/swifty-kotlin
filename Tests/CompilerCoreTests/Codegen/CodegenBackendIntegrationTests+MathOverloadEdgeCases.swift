@@ -247,4 +247,31 @@ extension CodegenBackendIntegrationTests {
             }
         }
     }
+
+    // PARITY-SEMA-003: kotlin.math.abs(x) called via FQN (no import) must lower identically to the import path.
+    func testCodegenFQNMathCallsLowerToRuntimeHelpers() throws {
+        let source = """
+        fun sample(i: Int, d: Double) {
+            val absI = kotlin.math.abs(i)
+            val absD = kotlin.math.abs(d)
+            val sqrtD = kotlin.math.sqrt(d)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FQNMathCalls", emit: .kirDump)
+            try runToLowering(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
+            let callees = body.compactMap { instruction -> String? in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                return ctx.interner.resolve(callee)
+            }
+
+            XCTAssertTrue(callees.contains("kk_math_abs_int"), "FQN abs(Int) must lower to kk_math_abs_int, got \(callees)")
+            XCTAssertTrue(callees.contains("kk_math_abs"), "FQN abs(Double) must lower to kk_math_abs, got \(callees)")
+            XCTAssertTrue(callees.contains("kk_math_sqrt"), "FQN sqrt(Double) must lower to kk_math_sqrt, got \(callees)")
+        }
+    }
 }
