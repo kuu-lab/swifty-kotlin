@@ -743,13 +743,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_map_entry_to_pair", parameters: [
             p("entryRaw", .intptr),
         ]),
-        abiParitySpec("kk_match_group_collection_get_at", parameters: [
-            p("collectionRaw", .intptr),
-            p("index", .intptr),
-        ]),
-        abiParitySpec("kk_match_group_collection_size", parameters: [
-            p("collectionRaw", .intptr),
-        ]),
         abiParitySpec("kk_match_result_component1", parameters: [
             p("matchRaw", .intptr),
         ]),
