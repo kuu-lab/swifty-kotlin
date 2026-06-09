@@ -448,6 +448,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
+    if runtimeListBox(from: rangeRaw) != nil {
+        return kk_list_iterator(rangeRaw)
+    }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
     }
@@ -460,6 +463,9 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return kk_iterator_builder_hasNext(iterRaw)
+    }
+    if runtimeListIteratorBox(from: iterRaw) != nil {
+        return kk_list_iterator_hasNext(iterRaw)
     }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0
@@ -477,6 +483,9 @@ public func kk_range_hasNext(_ iterRaw: Int) -> Int {
 public func kk_range_next(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return kk_iterator_builder_next(iterRaw)
+    }
+    if runtimeListIteratorBox(from: iterRaw) != nil {
+        return kk_list_iterator_next(iterRaw)
     }
     guard let iterator = runtimeRangeIteratorBox(from: iterRaw) else {
         return 0

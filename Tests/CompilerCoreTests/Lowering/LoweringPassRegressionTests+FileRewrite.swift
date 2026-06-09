@@ -225,7 +225,7 @@ extension LoweringPassRegressionTests {
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
             XCTAssertTrue(callees.contains("kk_file_walk"))
-            XCTAssertTrue(callees.contains("kk_list_forEach"))
+            XCTAssertTrue(callees.contains("kk_file_tree_walk_forEach"))
             XCTAssertFalse(callees.contains("walk"))
         }
     }

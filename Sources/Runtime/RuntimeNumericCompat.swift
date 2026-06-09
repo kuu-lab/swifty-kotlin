@@ -189,6 +189,25 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
     return kk_box_bool(runtimeValuesEqual(lhs, rhs) ? 1 : 0)
 }
 
+/// 1-arg member-dispatch wrappers for kotlin.Any virtual methods.
+/// KIR lowers `obj.toString()` to `kk_any_member_to_string(receiver)` via the
+/// registered externalLinkName; these shims delegate to the 2/4-arg forms with
+/// tag=1 (object pointer, non-primitive).
+@_cdecl("kk_any_member_to_string")
+public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
+    kk_any_to_string(raw, 1)
+}
+
+@_cdecl("kk_any_member_hashCode")
+public func kk_any_member_hashCode(_ raw: Int) -> Int {
+    kk_any_hashCode(raw, 1)
+}
+
+@_cdecl("kk_any_member_equals")
+public func kk_any_member_equals(_ lhs: Int, _ rhs: Int) -> Int {
+    kk_any_equals(lhs, 1, rhs, 1)
+}
+
 /// Encode a Float's IEEE 754 bit pattern into an Int for transport across the
 /// C ABI boundary. Uses `bitPattern`-based (non-trapping) conversions throughout,
 /// mirroring `kk_double_to_bits`. On 64-bit platforms `UInt(UInt32)` zero-extends;

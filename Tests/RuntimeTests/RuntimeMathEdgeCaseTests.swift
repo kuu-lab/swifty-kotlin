@@ -208,6 +208,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_floor(doubleToBits(-Double.infinity))).isInfinite)
     }
 
+    func testFloorDoubleNegativeZero() {
+        // floor(-0.0) == -0.0 (IEEE 754 符号保持)
+        let result = doubleFromBits(kk_math_floor(doubleToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
     func testTruncateDoubleNaN() {
         XCTAssertTrue(doubleFromBits(kk_math_truncate(doubleToBits(Double.nan))).isNaN)
     }
@@ -231,6 +238,19 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(floatFromBits(kk_math_truncate_float(floatToBits(Float.nan))).isNaN)
     }
 
+    func testTruncateDoubleNegativeZero() {
+        // truncate(-0.0) == -0.0 (IEEE 754 符号保持)
+        let result = doubleFromBits(kk_math_truncate(doubleToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
+    func testTruncateFloatNegativeZero() {
+        let result = floatFromBits(kk_math_truncate_float(floatToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
     // MARK: - ceil / floor Float special values
 
     func testCeilFloatNaN() {
@@ -249,6 +269,12 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
     func testFloorFloatInfinity() {
         XCTAssertTrue(floatFromBits(kk_math_floor_float(floatToBits(Float.infinity))).isInfinite)
         XCTAssertTrue(floatFromBits(kk_math_floor_float(floatToBits(-Float.infinity))).isInfinite)
+    }
+
+    func testFloorFloatNegativeZero() {
+        let result = floatFromBits(kk_math_floor_float(floatToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
     }
 
     // MARK: - round(Double) special values
@@ -291,6 +317,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_sign(doubleToBits(Double.nan))).isNaN)
     }
 
+    func testSignDoublePositiveZero() {
+        // sign(+0.0) == +0.0 (符号保持; -0.0 と対称)
+        let result = doubleFromBits(kk_math_sign(doubleToBits(0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
+    }
+
     // MARK: - sign(Float) edge cases
 
     func testSignFloatNegativeZero() {
@@ -305,6 +338,16 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testSignFloatNegativeInfinity() {
         XCTAssertEqual(floatFromBits(kk_math_sign_float(floatToBits(-Float.infinity))), -1.0)
+    }
+
+    func testSignFloatNaN() {
+        XCTAssertTrue(floatFromBits(kk_math_sign_float(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testSignFloatPositiveZero() {
+        let result = floatFromBits(kk_math_sign_float(floatToBits(0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
     }
 
     // MARK: - hypot(Double) special cases
@@ -457,6 +500,12 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_tan(doubleToBits(Double.nan))).isNaN)
     }
 
+    func testTanDoubleInfinity() {
+        // tan(±Inf) は未定義 → NaN (sin/cos と同じパターン)
+        XCTAssertTrue(doubleFromBits(kk_math_tan(doubleToBits(Double.infinity))).isNaN)
+        XCTAssertTrue(doubleFromBits(kk_math_tan(doubleToBits(-Double.infinity))).isNaN)
+    }
+
     func testAsinDoubleOutOfRange() {
         // asin(x) for |x| > 1 is NaN
         XCTAssertTrue(doubleFromBits(kk_math_asin(doubleToBits(2.0))).isNaN)
@@ -488,6 +537,54 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertEqual(result, Double.pi / 4, accuracy: 1e-12)
     }
 
+    func testAtan2DoubleSignedZeroY() {
+        // atan2(-0.0, +x) == -0.0 (符号付きゼロの通過)
+        let result = doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(1.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
+    func testAtan2DoubleNegativeXAxis() {
+        // atan2(+0, -x) == +π  /  atan2(-0, -x) == -π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(0.0),  doubleToBits(-1.0))),
+             Double.pi, accuracy: 1e-12)
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(-1.0))),
+            -Double.pi, accuracy: 1e-12)
+    }
+
+    func testAtan2DoubleYInfinityXFinite() {
+        // atan2(+Inf, finite) == +π/2  /  atan2(-Inf, finite) == -π/2
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits( Double.infinity), doubleToBits(1.0))),
+             Double.pi / 2, accuracy: 1e-12)
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-Double.infinity), doubleToBits(1.0))),
+            -Double.pi / 2, accuracy: 1e-12)
+    }
+
+    func testAtan2DoubleXInfinity() {
+        // atan2(±y, +Inf) == ±0
+        let posZero = doubleFromBits(kk_math_atan2(doubleToBits(1.0),  doubleToBits(Double.infinity)))
+        XCTAssertEqual(posZero, 0.0, accuracy: 1e-12)
+        let negZero = doubleFromBits(kk_math_atan2(doubleToBits(-1.0), doubleToBits(Double.infinity)))
+        XCTAssertEqual(negZero, 0.0, accuracy: 1e-12)
+        XCTAssertTrue(negZero.sign == .minus)
+        // atan2(±y, -Inf) == ±π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(1.0),  doubleToBits(-Double.infinity))),
+             Double.pi, accuracy: 1e-12)
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-1.0), doubleToBits(-Double.infinity))),
+            -Double.pi, accuracy: 1e-12)
+    }
+
+    func testAtan2DoubleNaN() {
+        XCTAssertTrue(doubleFromBits(kk_math_atan2(doubleToBits(Double.nan), doubleToBits(1.0))).isNaN)
+        XCTAssertTrue(doubleFromBits(kk_math_atan2(doubleToBits(1.0), doubleToBits(Double.nan))).isNaN)
+    }
+
     // MARK: - Float trig NaN / Inf propagation
 
     func testSinFloatNaN() {
@@ -510,6 +607,11 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(floatFromBits(kk_math_acos_float(floatToBits(2.0))).isNaN)
     }
 
+    func testTanFloatInfinity() {
+        XCTAssertTrue(floatFromBits(kk_math_tan_float(floatToBits(Float.infinity))).isNaN)
+        XCTAssertTrue(floatFromBits(kk_math_tan_float(floatToBits(-Float.infinity))).isNaN)
+    }
+
     // MARK: - Hyperbolic functions (Double)
 
     func testSinhDoubleZero() {
@@ -518,6 +620,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testSinhDoubleInfinity() {
         XCTAssertTrue(doubleFromBits(kk_math_sinh(doubleToBits(Double.infinity))).isInfinite)
+    }
+
+    func testSinhDoubleNegativeInfinity() {
+        // sinh は奇関数: sinh(-Inf) == -Inf
+        let result = doubleFromBits(kk_math_sinh(doubleToBits(-Double.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
     }
 
     func testSinhDoubleNaN() {
@@ -532,6 +641,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_cosh(doubleToBits(Double.infinity))).isInfinite)
     }
 
+    func testCoshDoubleNegativeInfinity() {
+        // cosh は偶関数: cosh(-Inf) == +Inf
+        let result = doubleFromBits(kk_math_cosh(doubleToBits(-Double.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
     func testCoshDoubleNaN() {
         XCTAssertTrue(doubleFromBits(kk_math_cosh(doubleToBits(Double.nan))).isNaN)
     }
@@ -543,6 +659,11 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
     func testTanhDoubleInfinity() {
         // tanh(+Inf) == 1.0
         XCTAssertEqual(doubleFromBits(kk_math_tanh(doubleToBits(Double.infinity))), 1.0, accuracy: 1e-12)
+    }
+
+    func testTanhDoubleNegativeInfinity() {
+        // tanh は奇関数: tanh(-Inf) == -1.0
+        XCTAssertEqual(doubleFromBits(kk_math_tanh(doubleToBits(-Double.infinity))), -1.0, accuracy: 1e-12)
     }
 
     func testTanhDoubleNaN() {
@@ -559,6 +680,12 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(floatFromBits(kk_math_sinh_float(floatToBits(Float.nan))).isNaN)
     }
 
+    func testSinhFloatNegativeInfinity() {
+        let result = floatFromBits(kk_math_sinh_float(floatToBits(-Float.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
     func testCoshFloatZero() {
         XCTAssertEqual(floatFromBits(kk_math_cosh_float(floatToBits(0.0))), 1.0, accuracy: 1e-6)
     }
@@ -567,8 +694,19 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(floatFromBits(kk_math_cosh_float(floatToBits(Float.nan))).isNaN)
     }
 
+    func testCoshFloatNegativeInfinity() {
+        // cosh は偶関数: cosh(-Inf) == +Inf
+        let result = floatFromBits(kk_math_cosh_float(floatToBits(-Float.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
     func testTanhFloatInfinity() {
         XCTAssertEqual(floatFromBits(kk_math_tanh_float(floatToBits(Float.infinity))), 1.0, accuracy: 1e-6)
+    }
+
+    func testTanhFloatNegativeInfinity() {
+        XCTAssertEqual(floatFromBits(kk_math_tanh_float(floatToBits(-Float.infinity))), -1.0, accuracy: 1e-6)
     }
 
     func testTanhFloatNaN() {
@@ -613,6 +751,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_atanh(doubleToBits(1.0))).isInfinite)
     }
 
+    func testAtanhDoubleNegativeOne() {
+        // atanh は奇関数: atanh(-1) == -Inf
+        let result = doubleFromBits(kk_math_atanh(doubleToBits(-1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
     // MARK: - Inverse hyperbolic functions (Float)
 
     func testAcoshFloatOne() {
@@ -629,6 +774,12 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testAtanhFloatOne() {
         XCTAssertTrue(floatFromBits(kk_math_atanh_float(floatToBits(1.0))).isInfinite)
+    }
+
+    func testAtanhFloatNegativeOne() {
+        let result = floatFromBits(kk_math_atanh_float(floatToBits(-1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
     }
 
     // MARK: - cbrt(Double) edge cases
@@ -650,6 +801,20 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_cbrt(doubleToBits(Double.infinity))).isInfinite)
     }
 
+    func testCbrtDoubleNegativeZero() {
+        // cbrt は奇関数: cbrt(-0.0) == -0.0
+        let result = doubleFromBits(kk_math_cbrt(doubleToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
+    func testCbrtDoubleNegativeInfinity() {
+        // cbrt(-Inf) == -Inf
+        let result = doubleFromBits(kk_math_cbrt(doubleToBits(-Double.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
     // MARK: - cbrt(Float) edge cases
 
     func testCbrtFloatNegative() {
@@ -662,6 +827,20 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testCbrtFloatNaN() {
         XCTAssertTrue(floatFromBits(kk_math_cbrt_float(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testCbrtFloatNegativeZero() {
+        let result = floatFromBits(kk_math_cbrt_float(floatToBits(-0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
+    func testCbrtFloatInfinity() {
+        // +Inf → +Inf, -Inf → -Inf
+        XCTAssertTrue(floatFromBits(kk_math_cbrt_float(floatToBits(Float.infinity))).isInfinite)
+        let neg = floatFromBits(kk_math_cbrt_float(floatToBits(-Float.infinity)))
+        XCTAssertTrue(neg.isInfinite)
+        XCTAssertLessThan(neg, 0)
     }
 
     // MARK: - IEEErem (Double) edge cases
@@ -773,6 +952,17 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_double_ulp(doubleToBits(Double.nan))).isNaN)
     }
 
+    func testUlpDoubleNegativeInfinity() {
+        // ulp(-Inf) == NaN (正の無限大と対称)
+        XCTAssertTrue(doubleFromBits(kk_double_ulp(doubleToBits(-Double.infinity))).isNaN)
+    }
+
+    func testUlpDoubleNegativeZero() {
+        // ulp(-0.0) == ulp(+0.0) = leastNonzeroMagnitude (大きさのみ依存)
+        let result = doubleFromBits(kk_double_ulp(doubleToBits(-0.0)))
+        XCTAssertEqual(result, Double(0.0).ulp)
+    }
+
     // MARK: - ulp edge cases (Float)
 
     func testUlpFloatZero() {
@@ -784,6 +974,14 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         // ulp(Inf) == NaN (IEEE 754)
         let result = floatFromBits(kk_float_ulp(floatToBits(Float.infinity)))
         XCTAssertTrue(result.isNaN)
+    }
+
+    func testUlpFloatNaN() {
+        XCTAssertTrue(floatFromBits(kk_float_ulp(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testUlpFloatNegativeInfinity() {
+        XCTAssertTrue(floatFromBits(kk_float_ulp(floatToBits(-Float.infinity))).isNaN)
     }
 
     // MARK: - nextUp / nextDown at boundaries (Double)
@@ -810,6 +1008,18 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_double_nextDown(doubleToBits(Double.nan))).isNaN)
     }
 
+    func testNextUpDoubleNegativeInfinity() {
+        // nextUp(-Inf) == -Double.greatestFiniteMagnitude
+        let result = doubleFromBits(kk_double_nextUp(doubleToBits(-Double.infinity)))
+        XCTAssertEqual(result, -Double.greatestFiniteMagnitude)
+    }
+
+    func testNextDownDoublePositiveInfinity() {
+        // nextDown(+Inf) == Double.greatestFiniteMagnitude
+        let result = doubleFromBits(kk_double_nextDown(doubleToBits(Double.infinity)))
+        XCTAssertEqual(result, Double.greatestFiniteMagnitude)
+    }
+
     // MARK: - nextUp / nextDown at boundaries (Float)
 
     func testNextUpFloatMaxFinite() {
@@ -819,6 +1029,18 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testNextDownFloatNaN() {
         XCTAssertTrue(floatFromBits(kk_float_nextDown(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testNextUpFloatNegativeInfinity() {
+        // nextUp(-Inf) == -Float.greatestFiniteMagnitude
+        let result = floatFromBits(kk_float_nextUp(floatToBits(-Float.infinity)))
+        XCTAssertEqual(result, -Float.greatestFiniteMagnitude)
+    }
+
+    func testNextDownFloatPositiveInfinity() {
+        // nextDown(+Inf) == Float.greatestFiniteMagnitude
+        let result = floatFromBits(kk_float_nextDown(floatToBits(Float.infinity)))
+        XCTAssertEqual(result, Float.greatestFiniteMagnitude)
     }
 
     // MARK: - Conversion edge cases

@@ -206,8 +206,8 @@ extension DiagnosticCodeCoverageTests {
 // MARK: - SEMA-0052: Class has no superclass (bare super reference)
 
 extension DiagnosticCodeCoverageTests {
-    /// Triggers KSWIFTK-SEMA-0052: a class member references `super` but the
-    /// class has no superclass.
+    /// Every class implicitly inherits from kotlin.Any, so super.toString() is valid Kotlin.
+    /// This test verifies no spurious errors are emitted for this pattern.
     func testSema0052SuperInClassWithNoSuperclass() throws {
         let source = """
         class Foo {
@@ -217,10 +217,10 @@ extension DiagnosticCodeCoverageTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        let codes = ctx.diagnostics.diagnostics.map(\.code)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         XCTAssertTrue(
-            codes.contains("KSWIFTK-SEMA-0052") || codes.contains("KSWIFTK-SEMA-0024"),
-            "Expected SEMA-0052 or SEMA-0024 for super reference in class without superclass, got: \(codes)"
+            errors.isEmpty,
+            "super.toString() in a class implicitly extending Any should compile without errors; got: \(errors.map { $0.message })"
         )
     }
 }

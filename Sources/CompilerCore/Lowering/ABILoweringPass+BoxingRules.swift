@@ -251,6 +251,17 @@ extension ABILoweringPass {
         unboxCallees: UnboxingCalleeNames,
         newBody: inout [KIRInstruction]
     ) -> KIRExprID {
+        // Literal expressions hold raw (never-boxed) values. Inserting kk_unbox_long
+        // on a raw Long.MIN_VALUE literal would hit the null-sentinel path and return 0.
+        if let expr = module.arena.expr(operand) {
+            switch expr {
+            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                 .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral:
+                return operand
+            default:
+                break
+            }
+        }
         guard let operandType = intrinsicArgType(operand, arena: module.arena, types: types),
               let resultType = module.arena.exprType(resultExpr)
         else {

@@ -149,6 +149,28 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    /// Regression guard: `Long.MIN_VALUE` arithmetic must not be corrupted by
+    /// the null sentinel (`Int64.min`) used in nullable boxing.
+    func testCodegenLongMinValueArithmetic() throws {
+        let source = """
+        fun main() {
+            println(Long.MIN_VALUE)
+            var lmin = Long.MIN_VALUE
+            println(lmin - 1L)
+            println(-lmin)
+        }
+        """
+        try assertProgramOutput(
+            source,
+            moduleName: "LongMinValueArithmetic",
+            expected: """
+            -9223372036854775808
+            9223372036854775807
+            -9223372036854775808
+            """ + "\n"
+        )
+    }
+
     /// Regression guard: `Long` arithmetic and shifts stay 64-bit and must not
     /// be narrowed by ``IntegerNarrowingPass``.
     func testCodegenLongArithmeticStays64Bit() throws {

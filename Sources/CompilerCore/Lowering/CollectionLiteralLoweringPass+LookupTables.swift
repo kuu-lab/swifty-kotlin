@@ -782,6 +782,7 @@ struct CollectionLiteralLookupTables {
     let kkFileTreeWalkOnFailName: InternedString
     let kkFileTreeWalkForEachName: InternedString
     let kkFileTreeWalkFilterName: InternedString
+    let kkFileTreeWalkSortedByName: InternedString
     let readBytesName: InternedString
     let kkFileReadBytesName: InternedString
     // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
@@ -1574,6 +1575,7 @@ struct CollectionLiteralLookupTables {
         kkFileTreeWalkOnFailName = interner.intern("kk_file_tree_walk_onFail")
         kkFileTreeWalkForEachName = interner.intern("kk_file_tree_walk_forEach")
         kkFileTreeWalkFilterName = interner.intern("kk_file_tree_walk_filter")
+        kkFileTreeWalkSortedByName = interner.intern("kk_file_tree_walk_sortedBy")
         readBytesName = interner.intern("readBytes")
         kkFileReadBytesName = interner.intern("kk_file_readBytes")
         // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)

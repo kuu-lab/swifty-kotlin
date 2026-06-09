@@ -1,7 +1,7 @@
 symbol s0 kind=package fq=kotlin vis=public flags=synthetic
 symbol s1 kind=class fq=kotlin.Any vis=public flags=synthetic
 symbol s2 kind=interface fq=kotlin.Annotation vis=public flags=synthetic
-symbol s3 kind=package fq=kotlin.properties vis=public flags=synthetic
+symbol s3 kind=function fq=kotlin.Any.toString vis=public flags=synthetic|openType sig=recv=Class#1 params=[] ret=String suspend=0 defaults=[] vararg=[]
 symbol s4 kind=class fq=kotlin.ByteArray vis=public flags=synthetic type=Class#4
 symbol s5 kind=function fq=kotlin.byteArrayOf vis=public flags=synthetic sig=recv=_ params=[Int] ret=Class#4 suspend=0 defaults=[0] vararg=[1]
 symbol s6 kind=class fq=kotlin.text.Charset vis=public flags=synthetic type=Class#6
