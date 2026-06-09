@@ -121,6 +121,65 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    /// STDLIB-TEXT-FN-074: end-to-end runtime coverage for `String.substringAfter`.
+    /// Exercises both delimiter overloads (`kk_string_substringAfter` for `String`,
+    /// `kk_string_substringAfter_char` for `Char`), the default vs. explicit
+    /// `missingDelimiterValue` paths, a multi-scalar delimiter, and a Unicode receiver.
+    /// Unlike `substringAfterLast`, this keeps the segment after the *first* delimiter,
+    /// so multi-occurrence inputs slice at the leading match.
+    func testCodegenCompilesSubstringAfterEdgeCases() throws {
+        let source = """
+        fun main() {
+            // String delimiter — keep the segment after the first delimiter.
+            println("path/to/file.txt".substringAfter("/"))
+            println("a.b.c".substringAfter("."))
+            // Char delimiter overload.
+            println("path/to/file.txt".substringAfter('/'))
+            println("a.b.c".substringAfter('.'))
+            // No delimiter present — default missingDelimiterValue is the receiver.
+            println("nodelimiter".substringAfter("."))
+            println("nodelimiter".substringAfter('.'))
+            // No delimiter present — explicit fallback wins.
+            println("nodelimiter".substringAfter(".", "<none>"))
+            println("nodelimiter".substringAfter('.', "<none>"))
+            // Multi-scalar delimiter: slice resumes past the whole first match.
+            println("a::b::c".substringAfter("::"))
+            // Unicode receiver/delimiter resolve on scalar boundaries.
+            println("こんにちは。世界".substringAfter("。"))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "SubstringAfterEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                to/file.txt
+                b.c
+                to/file.txt
+                b.c
+                nodelimiter
+                nodelimiter
+                <none>
+                <none>
+                b::c
+                世界
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testCodegenCompilesStringContentEqualsEdgeCases() throws {
         let source = """
         fun main() {
