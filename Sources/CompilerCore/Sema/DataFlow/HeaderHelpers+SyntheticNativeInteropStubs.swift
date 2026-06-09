@@ -2435,6 +2435,7 @@ extension DataFlowSemaPhase {
             returnType: types.longType,
             typeParameterSymbols: [pointerToLongTypeParameterSymbol],
             typeParameterUpperBoundsList: [[cPointedType]],
+            externalLinkName: "kk_cpointer_toLong",
             flags: [.synthetic, .inlineFunction],
             symbols: symbols,
             interner: interner

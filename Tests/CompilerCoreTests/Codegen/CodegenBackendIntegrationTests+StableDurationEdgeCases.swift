@@ -936,4 +936,47 @@ extension CodegenBackendIntegrationTests {
             XCTAssertEqual(normalizedStdout, "true\nfalse\ntrue\nfalse\n")
         }
     }
+
+    // MARK: - DurationUnit.toTimeUnit() (STDLIB-TIME-FN-012)
+
+    func testDurationUnitToTimeUnitConversion() throws {
+        let source = """
+        import java.util.concurrent.TimeUnit
+        import kotlin.time.DurationUnit
+        import kotlin.time.toTimeUnit
+
+        fun label(unit: DurationUnit): String = when (unit.toTimeUnit()) {
+            TimeUnit.NANOSECONDS -> "ns"
+            TimeUnit.MICROSECONDS -> "us"
+            TimeUnit.MILLISECONDS -> "ms"
+            TimeUnit.SECONDS -> "s"
+            TimeUnit.MINUTES -> "min"
+            TimeUnit.HOURS -> "h"
+            TimeUnit.DAYS -> "d"
+        }
+
+        fun main() {
+            println(label(DurationUnit.NANOSECONDS))
+            println(label(DurationUnit.SECONDS))
+            println(label(DurationUnit.DAYS))
+            println(DurationUnit.MINUTES.toTimeUnit() == TimeUnit.MINUTES)
+            println(DurationUnit.HOURS.toTimeUnit() == TimeUnit.SECONDS)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "DurationUnitToTimeUnit",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "ns\ns\nd\ntrue\nfalse\n")
+        }
+    }
 }

@@ -1,0 +1,96 @@
+symbol s0 kind=interface fq=kotlin.reflect.KClass vis=public flags=synthetic
+symbol s1 kind=class fq=golden.sema.Point vis=public flags=dataType
+symbol s2 kind=class fq=golden.sema.Shape vis=public flags=sealedType|abstractType|openType
+symbol s3 kind=enumClass fq=golden.sema.Color vis=public flags=_
+symbol s4 kind=class fq=golden.sema.Meters vis=public flags=valueType
+symbol s5 kind=interface fq=golden.sema.Printable vis=public flags=_
+symbol s6 kind=object fq=golden.sema.Singleton vis=public flags=_
+symbol s7 kind=class fq=golden.sema.Node vis=public flags=innerClass
+symbol s8 kind=interface fq=golden.sema.Transformer vis=public flags=funInterface
+symbol s9 kind=function fq=golden.sema.checkTypeKinds vis=public flags=_ sig=recv=_ params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
+symbol s10 kind=function fq=golden.sema.checkViaVariable vis=public flags=_ sig=recv=_ params=[Class#0<*>] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=valueParameter fq=golden.sema.checkViaVariable.$0.klass vis=private flags=_
+symbol s12 kind=local fq=__local_0.dataCheck vis=private flags=_ type=Boolean
+symbol s13 kind=local fq=__local_1.sealedCheck vis=private flags=_ type=Boolean
+symbol s14 kind=local fq=__local_2.enumCheck vis=private flags=_ type=Boolean
+symbol s15 kind=local fq=__local_3.valueCheck vis=private flags=_ type=Boolean
+symbol s16 kind=local fq=__local_4.interfaceCheck vis=private flags=_ type=Boolean
+symbol s17 kind=local fq=__local_5.objectCheck vis=private flags=_ type=Boolean
+symbol s18 kind=local fq=__local_6.funCheck vis=private flags=_ type=Boolean
+file f0 package=golden.sema
+  decl d2 class Point sym=s1
+  decl d3 class Shape sym=s2
+  decl d4 class Color sym=s3
+  decl d6 class Meters sym=s4
+  decl d7 interface Printable sym=s5
+  decl d8 object Singleton sym=s6
+  decl d9 class Node sym=s7
+  decl d11 interface Transformer sym=s8
+  decl d12 fun checkTypeKinds suspend=0 inline=0 sym=s9
+  decl d13 fun checkViaVariable suspend=0 inline=0 sym=s10
+expr e0 name(Point) type=Any ref=s1
+expr e1 callableRef recv=e0 member=class type=KClass<Class#1>
+expr e2 memberCall recv=e1 callee=isData args=[] type=Boolean
+expr e3 localDecl dataCheck mutable=0 type=_ init=e2 type=Unit ref=s12
+expr e4 name(Shape) type=Any ref=s2
+expr e5 callableRef recv=e4 member=class type=KClass<Class#2>
+expr e6 memberCall recv=e5 callee=isSealed args=[] type=Boolean
+expr e7 localDecl sealedCheck mutable=0 type=_ init=e6 type=Unit ref=s13
+expr e8 name(Color) type=Class#3 ref=s3
+expr e9 callableRef recv=e8 member=class type=KClass<Class#3>
+expr e10 memberCall recv=e9 callee=isEnum args=[] type=Boolean
+expr e11 localDecl enumCheck mutable=0 type=_ init=e10 type=Unit ref=s14
+expr e12 name(Meters) type=Any ref=s4
+expr e13 callableRef recv=e12 member=class type=KClass<Class#4>
+expr e14 memberCall recv=e13 callee=isValue args=[] type=Boolean
+expr e15 localDecl valueCheck mutable=0 type=_ init=e14 type=Unit ref=s15
+expr e16 name(Printable) type=Any ref=s5
+expr e17 callableRef recv=e16 member=class type=KClass<Class#5>
+expr e18 memberCall recv=e17 callee=isInterface args=[] type=Boolean
+expr e19 localDecl interfaceCheck mutable=0 type=_ init=e18 type=Unit ref=s16
+expr e20 name(Singleton) type=Class#6 ref=s6
+expr e21 callableRef recv=e20 member=class type=KClass<Class#6>
+expr e22 memberCall recv=e21 callee=isObject args=[] type=Boolean
+expr e23 localDecl objectCheck mutable=0 type=_ init=e22 type=Unit ref=s17
+expr e24 name(Transformer) type=Any ref=s8
+expr e25 callableRef recv=e24 member=class type=KClass<Class#8>
+expr e26 memberCall recv=e25 callee=isFun args=[] type=Boolean
+expr e27 localDecl funCheck mutable=0 type=_ init=e26 type=Unit ref=s18
+expr e28 name(dataCheck) type=Boolean ref=s12
+expr e29 name(sealedCheck) type=Boolean ref=s13
+expr e30 binary(logicalAnd) lhs=e28 rhs=e29 type=Boolean
+expr e31 name(enumCheck) type=Boolean ref=s14
+expr e32 binary(logicalAnd) lhs=e30 rhs=e31 type=Boolean
+expr e33 name(valueCheck) type=Boolean ref=s15
+expr e34 binary(logicalAnd) lhs=e32 rhs=e33 type=Boolean
+expr e35 name(interfaceCheck) type=Boolean ref=s16
+expr e36 binary(logicalAnd) lhs=e34 rhs=e35 type=Boolean
+expr e37 name(objectCheck) type=Boolean ref=s17
+expr e38 binary(logicalAnd) lhs=e36 rhs=e37 type=Boolean
+expr e39 name(funCheck) type=Boolean ref=s18
+expr e40 binary(logicalAnd) lhs=e38 rhs=e39 type=Boolean
+expr e41 return value=e40 type=Nothing
+expr e42 name(klass) type=Class#0<*> ref=s11
+expr e43 memberCall recv=e42 callee=isData args=[] type=Boolean
+expr e44 string(data) type=String
+expr e45 name(klass) type=Class#0<*> ref=s11
+expr e46 memberCall recv=e45 callee=isSealed args=[] type=Boolean
+expr e47 string(sealed) type=String
+expr e48 name(klass) type=Class#0<*> ref=s11
+expr e49 memberCall recv=e48 callee=isEnum args=[] type=Boolean
+expr e50 string(enum) type=String
+expr e51 name(klass) type=Class#0<*> ref=s11
+expr e52 memberCall recv=e51 callee=isValue args=[] type=Boolean
+expr e53 string(value) type=String
+expr e54 name(klass) type=Class#0<*> ref=s11
+expr e55 memberCall recv=e54 callee=isInterface args=[] type=Boolean
+expr e56 string(interface) type=String
+expr e57 name(klass) type=Class#0<*> ref=s11
+expr e58 memberCall recv=e57 callee=isObject args=[] type=Boolean
+expr e59 string(object) type=String
+expr e60 name(klass) type=Class#0<*> ref=s11
+expr e61 memberCall recv=e60 callee=isFun args=[] type=Boolean
+expr e62 string(fun) type=String
+expr e63 string(other) type=String
+expr e64 when subject=_ branches=[e43->e44,e46->e47,e49->e50,e52->e53,e55->e56,e58->e59,e61->e62] else=e63 type=String
+expr e65 return value=e64 type=Nothing

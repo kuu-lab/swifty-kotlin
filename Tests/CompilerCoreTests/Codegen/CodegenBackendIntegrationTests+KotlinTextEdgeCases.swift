@@ -2375,4 +2375,71 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
+    // End-to-end execution coverage — the runtime/Sema layers are tested in
+    // isolation elsewhere; this asserts the full compile-and-run pipeline
+    // produces a sorted, deduplicated set that honours the `Set` surface.
+    func testKotlinTextToSortedSetEdgeCases() throws {
+        let source = """
+        fun main() {
+            // Basic: sorted ascending and deduplicated ('l' appears twice).
+            val h = "hello".toSortedSet()
+            println(h)
+            println(h.size)
+
+            // Reverse-ordered input is sorted into ascending order.
+            println("cba".toSortedSet())
+
+            // The result honours the Set surface (membership queries).
+            println(h.contains('l'))
+            println(h.contains('z'))
+
+            // Ordering follows the natural Char (UTF-16 code unit) order, so
+            // digits precede letters.
+            println("b3a1".toSortedSet())
+
+            // CharSequence receiver resolves to the same extension.
+            val cs: CharSequence = "banana"
+            val b: Set<Char> = cs.toSortedSet()
+            println(b)
+            println(b.size)
+
+            // Empty input yields an empty set.
+            val e = "".toSortedSet()
+            println(e)
+            println(e.size)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextToSortedSetEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                [e, h, l, o]
+                4
+                [a, b, c]
+                true
+                false
+                [1, 3, a, b]
+                [a, b, n]
+                3
+                []
+                0
+                """
+                + "\n"
+            )
+        }
+    }
 }

@@ -1,0 +1,19 @@
+symbol s0 kind=function fq=kotlin.text.takeWhile vis=public flags=synthetic sig=recv=String params=[(Char) -> Boolean] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s1 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s3 kind=local fq=__local_0.prefix vis=private flags=_ type=String
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s2
+expr e0 string(abcde) type=String
+expr e1 name(it) type=_
+expr e2 char(99) type=_
+expr e3 binary(notEqual) lhs=e1 rhs=e2 type=_
+expr e4 name(it) type=Char ref=s-0
+expr e5 char(99) type=Char
+expr e6 binary(notEqual) lhs=e4 rhs=e5 type=Boolean
+expr e7 lambda params=[] body=e6 label=takeWhile type=(Char) -> Boolean
+expr e8 memberCall recv=e0 callee=takeWhile args=[_:e7] type=String call=s0 map=[0->0] targs=[]
+expr e9 localDecl prefix mutable=0 type=t0 init=e8 type=Unit ref=s3
+expr e10 name(println) type=_
+expr e11 name(prefix) type=String ref=s3
+expr e12 call callee=e10 args=[_:e11] type=Unit call=s1 map=[0->0] targs=[]

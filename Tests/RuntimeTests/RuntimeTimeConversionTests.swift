@@ -35,4 +35,17 @@ final class RuntimeTimeConversionTests: XCTestCase {
         XCTAssertEqual(kk_instant_epoch_seconds(roundTrip), 12)
         XCTAssertEqual(kk_instant_nano_of_second(roundTrip), 345_678_900)
     }
+
+    func testDurationUnitToTimeUnitIsOrdinalIdentity() {
+        // DurationUnit and java.util.concurrent.TimeUnit share entry order:
+        // NANOSECONDS=0, MICROSECONDS=1, MILLISECONDS=2, SECONDS=3,
+        // MINUTES=4, HOURS=5, DAYS=6.
+        for ordinal in 0...6 {
+            XCTAssertEqual(
+                kk_duration_unit_to_time_unit(ordinal),
+                ordinal,
+                "DurationUnit ordinal \(ordinal) must map to the matching TimeUnit ordinal"
+            )
+        }
+    }
 }

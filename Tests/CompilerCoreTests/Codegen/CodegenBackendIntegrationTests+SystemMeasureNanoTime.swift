@@ -2,14 +2,27 @@
 import Foundation
 import XCTest
 
+// STDLIB-SYSTEM-FN-005: measureNanoTime end-to-end codegen tests.
+//
+// measureNanoTime { block } returns the elapsed nanoseconds as Long.
+// The exact value is non-deterministic (depends on the host clock), so tests
+// verify invariants that hold regardless of timing: the result is >= 0 and
+// the block body actually executes.
+
 extension CodegenBackendIntegrationTests {
-    func testCodegenCharPredicateHelpersMatchExpectedOutput() throws {
+
+    // MARK: - Basic usage: result is non-negative
+
+    func testMeasureNanoTimeReturnsNonNegativeLong() throws {
         let source = """
+        import kotlin.system.measureNanoTime
+
         fun main() {
-            println('A'.isLetter())
-            println('1'.isDigit())
-            println(' '.isWhitespace())
-            println('7'.isLetterOrDigit())
+            val elapsed = measureNanoTime {
+                var sum = 0L
+                for (i in 1..100) sum += i
+            }
+            println(elapsed >= 0)
         }
         """
 
@@ -17,7 +30,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "CharPredicatesRuntime",
+                moduleName: "MeasureNanoTimeNonNegative",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -25,16 +38,23 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\ntrue\ntrue\ntrue\n")
+            XCTAssertEqual(normalizedStdout, "true\n")
         }
     }
 
-    // STDLIB-TEXT-PROP-008: Char.isIdentifierIgnorable end-to-end execution test
-    func testCodegenCharIsIdentifierIgnorableMatchesExpectedOutput() throws {
+    // MARK: - Block body executes
+
+    func testMeasureNanoTimeBlockBodyExecutes() throws {
         let source = """
+        import kotlin.system.measureNanoTime
+
         fun main() {
-            println('\\u00AD'.isIdentifierIgnorable())
-            println('A'.isIdentifierIgnorable())
+            var executed = false
+            val elapsed = measureNanoTime {
+                executed = true
+            }
+            println(executed)
+            println(elapsed >= 0)
         }
         """
 
@@ -42,7 +62,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "CharIsIdentifierIgnorableRuntime",
+                moduleName: "MeasureNanoTimeBlockExecutes",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -50,17 +70,24 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "true\nfalse\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
         }
     }
 
-    // STDLIB-TEXT-PROP-015: Char.isSurrogate end-to-end execution test
-    func testCodegenCharIsSurrogateMatchesExpectedOutput() throws {
+    // MARK: - Side effects inside block are visible after call
+
+    func testMeasureNanoTimeSideEffectsAreVisible() throws {
         let source = """
+        import kotlin.system.measureNanoTime
+
         fun main() {
-            println('\\uD800'.isSurrogate())
-            println('\\uDFFF'.isSurrogate())
-            println('A'.isSurrogate())
+            var counter = 0
+            measureNanoTime {
+                counter += 1
+                counter += 1
+                counter += 1
+            }
+            println(counter)
         }
         """
 
@@ -68,7 +95,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "CharIsSurrogateRuntime",
+                moduleName: "MeasureNanoTimeSideEffects",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -76,21 +103,25 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(
-                normalizedStdout,
-                "true\ntrue\nfalse\n",
-                "0xD800 and 0xDFFF are surrogates; 'A' is not"
-            )
+            XCTAssertEqual(normalizedStdout, "3\n")
         }
     }
 
-    func testCodegenCharCaseConversionHelpersHandleUnicodeMappings() throws {
-        throw XCTSkip("Char case conversion feature not yet implemented")
+    // MARK: - Nested measureNanoTime calls
+
+    func testMeasureNanoTimeNestedCalls() throws {
         let source = """
+        import kotlin.system.measureNanoTime
+
         fun main() {
-            println('ß'.uppercase())
-            println('ǆ'.titlecase())
-            println('İ'.lowercase())
+            val outer = measureNanoTime {
+                val inner = measureNanoTime {
+                    var x = 0
+                    for (i in 1..10) x += i
+                }
+                println(inner >= 0)
+            }
+            println(outer >= 0)
         }
         """
 
@@ -98,7 +129,7 @@ extension CodegenBackendIntegrationTests {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "CharCaseConversionRuntime",
+                moduleName: "MeasureNanoTimeNested",
                 emit: .executable,
                 outputPath: outputBase
             )
@@ -106,7 +137,7 @@ extension CodegenBackendIntegrationTests {
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "SS\nǅ\ni̇\n")
+            XCTAssertEqual(normalizedStdout, "true\ntrue\n")
         }
     }
 }

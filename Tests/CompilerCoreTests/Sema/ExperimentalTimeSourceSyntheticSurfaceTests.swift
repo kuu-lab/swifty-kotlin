@@ -16,6 +16,16 @@ final class ExperimentalTimeSourceSyntheticSurfaceTests: XCTestCase {
         return try XCTUnwrap(result)
     }
 
+    private func runSemaCollectingDiagnostics(_ source: String) -> CompilationContext {
+        let ctx = makeContextFromSource(source)
+        do {
+            try runSema(ctx)
+        } catch {
+            // Diagnostics are inspected per-test; an opt-in error throws out of sema.
+        }
+        return ctx
+    }
+
     func testExperimentalTimeIsRequiresOptInMarker() throws {
         let (sema, interner) = try makeSema()
         let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
@@ -38,6 +48,94 @@ final class ExperimentalTimeSourceSyntheticSurfaceTests: XCTestCase {
                     && $0.arguments.contains("AnnotationRetention.BINARY")
             },
             "ExperimentalTime should use binary retention, got: \(annotations)"
+        )
+    }
+
+    func testExperimentalTimeCarriesOfficialTargets() throws {
+        let (sema, interner) = try makeSema()
+        let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
+        let experimentalTimeSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: kotlinTime + [
+            interner.intern("ExperimentalTime"),
+        ]))
+
+        let annotations = sema.symbols.annotations(for: experimentalTimeSymbol)
+        XCTAssertTrue(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Target"
+                    && $0.arguments == [
+                        "AnnotationTarget.CLASS",
+                        "AnnotationTarget.ANNOTATION_CLASS",
+                        "AnnotationTarget.PROPERTY",
+                        "AnnotationTarget.FIELD",
+                        "AnnotationTarget.LOCAL_VARIABLE",
+                        "AnnotationTarget.VALUE_PARAMETER",
+                        "AnnotationTarget.CONSTRUCTOR",
+                        "AnnotationTarget.FUNCTION",
+                        "AnnotationTarget.PROPERTY_GETTER",
+                        "AnnotationTarget.PROPERTY_SETTER",
+                        "AnnotationTarget.TYPEALIAS",
+                    ]
+            },
+            "ExperimentalTime must carry the official @Target list, got \(annotations)"
+        )
+    }
+
+    func testExperimentalTimeIsApplicableToFunction() {
+        // Regression: ExperimentalTime previously only allowed @Target(ANNOTATION_CLASS),
+        // which wrongly rejected the propagating opt-in form `@ExperimentalTime fun ...`.
+        let source = """
+        import kotlin.time.ExperimentalTime
+
+        @ExperimentalTime
+        fun experimentalThing(): Int = 1
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let targetDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET"
+        }
+        XCTAssertTrue(
+            targetDiagnostics.isEmpty,
+            "Expected @ExperimentalTime to be applicable to a function, got \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    func testExperimentalTimeUseRequiresOptIn() {
+        let source = """
+        import kotlin.time.ExperimentalTime
+
+        @ExperimentalTime
+        fun experimentalThing(): Int = 1
+
+        fun useIt(): Int = experimentalThing()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+        XCTAssertTrue(
+            diagnostics.contains {
+                $0.severity == .error && $0.message.contains("kotlin.time.ExperimentalTime")
+            },
+            "Expected @ExperimentalTime usage to require opt-in, got \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    func testExperimentalTimeAcceptsExplicitOptIn() {
+        let source = """
+        import kotlin.time.ExperimentalTime
+
+        @ExperimentalTime
+        fun experimentalThing(): Int = 1
+
+        @OptIn(ExperimentalTime::class)
+        fun useIt(): Int = experimentalThing()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-OPT-IN" }
+        XCTAssertTrue(
+            diagnostics.isEmpty,
+            "Expected @OptIn(ExperimentalTime::class) to suppress opt-in diagnostics, got \(ctx.diagnostics.diagnostics)"
         )
     }
 

@@ -78,6 +78,9 @@ extension ABILoweringPass {
             interner.intern("kk_string_isNormalized"),
             interner.intern("kk_string_format"),
             interner.intern("kk_string_replace"),
+            interner.intern("kk_string_replace_char"),
+            interner.intern("kk_string_replace_ignoreCase"),
+            interner.intern("kk_string_replace_char_ignoreCase"),
             interner.intern("kk_string_replaceFirst"),
             interner.intern("kk_string_replaceAfter"),
             interner.intern("kk_string_replaceAfter_char"),
@@ -1216,6 +1219,9 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_is_data"),
             interner.intern("kk_kclass_is_sealed"),
             interner.intern("kk_kclass_is_value"),
+            interner.intern("kk_kclass_is_enum"),
+            interner.intern("kk_kclass_is_interface"),
+            interner.intern("kk_kclass_is_object"),
             interner.intern("kk_kclass_safeCast"),
             interner.intern("kk_kclass_members_count"),
             // STDLIB-REFLECT-060: KClass basic reflection non-throwing callees
@@ -1225,6 +1231,10 @@ extension ABILoweringPass {
             interner.intern("kk_kclass_visibility"),
             interner.intern("kk_kclass_type_parameters"),
             interner.intern("kk_kclass_supertypes"),
+            // STDLIB-REFLECT-067: KClass type-kind introspection non-throwing callees
+            interner.intern("kk_kclass_is_inner"),
+            interner.intern("kk_kclass_is_companion"),
+            interner.intern("kk_kclass_is_fun"),
             // STDLIB-REFLECT-065: Annotation reflection
             interner.intern("kk_annotation_create"),
             interner.intern("kk_annotation_get_class"),

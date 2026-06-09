@@ -402,4 +402,43 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType, sema.types.intType])
         }
     }
+
+    // STDLIB-COMP-FN-041: minOf(Int, Int) — 2-arg Int overload
+    func testTwoArgMinOfIntResolvesToInt2Overload() throws {
+        let source = """
+        fun sample(a: Int, b: Int): Int = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Int arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // Resolves via the Int 2-arg special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfInt)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
+        }
+    }
 }

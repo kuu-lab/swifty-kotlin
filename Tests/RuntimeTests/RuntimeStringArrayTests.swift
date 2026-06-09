@@ -493,6 +493,66 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(runtimeStringValue(replaced), "zbz")
     }
 
+    // MARK: - STDLIB-TEXT-FN-055: replace overloads
+
+    func testStringReplaceCharReplacesAllOccurrences() {
+        let replaced = kk_string_replace_char(
+            rawFromRuntimeString("hello world"),
+            kk_box_char(Int("l".unicodeScalars.first!.value)),
+            kk_box_char(Int("r".unicodeScalars.first!.value))
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "herro worrd")
+    }
+
+    func testStringReplaceCharHandlesNoMatch() {
+        let replaced = kk_string_replace_char(
+            rawFromRuntimeString("hello"),
+            kk_box_char(Int("z".unicodeScalars.first!.value)),
+            kk_box_char(Int("x".unicodeScalars.first!.value))
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "hello")
+    }
+
+    func testStringReplaceIgnoreCaseCaseSensitiveMatch() {
+        let replaced = kk_string_replace_ignoreCase(
+            rawFromRuntimeString("Hello World"),
+            rawFromRuntimeString("hello"),
+            rawFromRuntimeString("Hi"),
+            1
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "Hi World")
+    }
+
+    func testStringReplaceIgnoreCaseCaseSensitiveFalse() {
+        let replaced = kk_string_replace_ignoreCase(
+            rawFromRuntimeString("Hello World"),
+            rawFromRuntimeString("hello"),
+            rawFromRuntimeString("Hi"),
+            0
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "Hello World")
+    }
+
+    func testStringReplaceCharIgnoreCaseReplaces() {
+        let replaced = kk_string_replace_char_ignoreCase(
+            rawFromRuntimeString("Hello World"),
+            kk_box_char(Int("h".unicodeScalars.first!.value)),
+            kk_box_char(Int("J".unicodeScalars.first!.value)),
+            1
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "Jello World")
+    }
+
+    func testStringReplaceCharIgnoreCaseFalseIsCaseSensitive() {
+        let replaced = kk_string_replace_char_ignoreCase(
+            rawFromRuntimeString("Hello World"),
+            kk_box_char(Int("h".unicodeScalars.first!.value)),
+            kk_box_char(Int("J".unicodeScalars.first!.value)),
+            0
+        )
+        XCTAssertEqual(runtimeStringValue(replaced), "Hello World")
+    }
+
     func testStringReplaceFirstCharReplacesOnlyLeadingScalar() {
         let replaced = kk_string_replaceFirstChar(
             rawFromRuntimeString("abc"),

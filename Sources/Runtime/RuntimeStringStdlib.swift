@@ -230,6 +230,34 @@ public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> In
     return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue))
 }
 
+// MARK: - STDLIB-TEXT-FN-055: String.replace overloads
+
+@_cdecl("kk_string_replace_char")
+public func kk_string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let oldStr = runtimeCharacterFromRaw(oldCharRaw)
+    let newStr = runtimeCharacterFromRaw(newCharRaw)
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr))
+}
+
+@_cdecl("kk_string_replace_ignoreCase")
+public func kk_string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let oldValue = runtimeStringFromRawOrPanic(oldRaw, caller: #function)
+    let newValue = runtimeStringFromRawOrPanic(newRaw, caller: #function)
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldValue, with: newValue, options: options))
+}
+
+@_cdecl("kk_string_replace_char_ignoreCase")
+public func kk_string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let oldStr = runtimeCharacterFromRaw(oldCharRaw)
+    let newStr = runtimeCharacterFromRaw(newCharRaw)
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: oldStr, with: newStr, options: options))
+}
+
 @_cdecl("kk_string_substring")
 public func kk_string_substring(
     _ strRaw: Int,
