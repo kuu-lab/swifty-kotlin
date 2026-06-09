@@ -1,0 +1,39 @@
+symbol s0 kind=interface fq=kotlin.collections.Collection vis=public flags=synthetic
+symbol s1 kind=typeParameter fq=kotlin.collections.Collection.E vis=private flags=_
+symbol s2 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s3 kind=function fq=kotlin.collections.Collection.toList vis=public flags=synthetic sig=recv=Class#0<out T#1> params=[] ret=Class#2<out T#1> suspend=0 defaults=[] vararg=[]
+symbol s4 kind=class fq=java.io.File vis=public flags=synthetic type=Class#4
+symbol s5 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
+symbol s6 kind=function fq=golden.sema.collectLines vis=public flags=_ sig=recv=_ params=[String] ret=Class#2<String> suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=valueParameter fq=golden.sema.collectLines.$0.path vis=private flags=_
+symbol s8 kind=function fq=golden.sema.countLines vis=public flags=_ sig=recv=_ params=[String] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=valueParameter fq=golden.sema.countLines.$1.path vis=private flags=_
+symbol s10 kind=local fq=__local_0.file vis=private flags=_ type=Class#4
+symbol s11 kind=local fq=__local_1.file vis=private flags=_ type=Class#4
+file f0 package=golden.sema
+  decl d0 fun collectLines suspend=0 inline=0 sym=s6
+  decl d1 fun countLines suspend=0 inline=0 sym=s8
+expr e0 name(File) type=_
+expr e1 name(path) type=String ref=s7
+expr e2 call callee=e0 args=[_:e1] type=Class#4 call=s5 map=[0->0] targs=[]
+expr e3 localDecl file mutable=0 type=_ init=e2 type=Unit ref=s10
+expr e4 name(file) type=Class#4 ref=s10
+expr e5 name(lines) type=_
+expr e6 memberCall recv=e5 callee=toList args=[] type=_
+expr e7 name(lines) type=Class#2<out String> ref=s-0
+expr e8 memberCall recv=e7 callee=toList args=[] type=Class#2<String> call=s3 map=[] targs=[]
+expr e9 lambda params=[lines] body=e8 label=useLines type=(Class#2<out String>) -> Class#2<String>
+expr e10 memberCall recv=e4 callee=useLines args=[_:e9] type=Class#2<String>
+expr e11 return value=e10 type=Nothing
+expr e12 name(File) type=_
+expr e13 name(path) type=String ref=s9
+expr e14 call callee=e12 args=[_:e13] type=Class#4 call=s5 map=[0->0] targs=[]
+expr e15 localDecl file mutable=0 type=_ init=e14 type=Unit ref=s11
+expr e16 name(file) type=Class#4 ref=s11
+expr e17 name(lines) type=_
+expr e18 memberCall recv=e17 callee=count args=[] type=_
+expr e19 name(lines) type=Class#2<out String> ref=s-1
+expr e20 memberCall recv=e19 callee=count args=[] type=Int
+expr e21 lambda params=[lines] body=e20 label=useLines type=(Class#2<out String>) -> Int
+expr e22 memberCall recv=e16 callee=useLines args=[_:e21] type=Int
+expr e23 return value=e22 type=Nothing
