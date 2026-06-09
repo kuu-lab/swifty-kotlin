@@ -169,6 +169,49 @@ public func kk_uint_to_ulong(_ value: Int) -> Int {
     value
 }
 
+// MARK: - Unsigned toByte / toShort Conversions (SPEC-NUM-0007)
+
+@_cdecl("kk_uint_to_byte")
+public func kk_uint_to_byte(_ value: Int) -> Int {
+    Int(Int8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_uint_to_short")
+public func kk_uint_to_short(_ value: Int) -> Int {
+    Int(Int16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ulong_to_byte")
+public func kk_ulong_to_byte(_ value: Int) -> Int {
+    Int(Int8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ulong_to_short")
+public func kk_ulong_to_short(_ value: Int) -> Int {
+    Int(Int16(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ubyte_to_byte")
+public func kk_ubyte_to_byte(_ value: Int) -> Int {
+    Int(Int8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ubyte_to_short")
+public func kk_ubyte_to_short(_ value: Int) -> Int {
+    // UByte (0..255) always fits in Int16, identity
+    value
+}
+
+@_cdecl("kk_ushort_to_byte")
+public func kk_ushort_to_byte(_ value: Int) -> Int {
+    Int(Int8(truncatingIfNeeded: value))
+}
+
+@_cdecl("kk_ushort_to_short")
+public func kk_ushort_to_short(_ value: Int) -> Int {
+    Int(Int16(truncatingIfNeeded: value))
+}
+
 // MARK: - UByte and UShort Conversions (STDLIB-PRIM-002)
 
 @_cdecl("kk_int_to_ubyte")

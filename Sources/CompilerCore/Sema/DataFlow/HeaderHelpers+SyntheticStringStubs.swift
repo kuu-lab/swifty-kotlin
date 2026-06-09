@@ -578,6 +578,18 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg versions
+        registerSyntheticStringExtensionFunction(
+            named: "toUByteOrNull",
+            externalLinkName: "kk_string_toUByteOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(types.ubyteType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "toUByteOrNull",
             externalLinkName: "kk_string_toUByteOrNull_radix",
@@ -586,6 +598,17 @@ extension DataFlowSemaPhase {
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.ubyteType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toUShortOrNull",
+            externalLinkName: "kk_string_toUShortOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(types.ushortType),
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -606,12 +629,34 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toUIntOrNull",
+            externalLinkName: "kk_string_toUIntOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(types.uintType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toUIntOrNull",
             externalLinkName: "kk_string_toUIntOrNull_radix",
             receiverType: stringType,
             parameters: [
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.uintType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toULongOrNull",
+            externalLinkName: "kk_string_toULongOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(types.ulongType),
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
