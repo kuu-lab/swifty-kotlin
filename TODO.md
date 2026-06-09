@@ -252,14 +252,14 @@
 - [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
 - [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [ ] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
