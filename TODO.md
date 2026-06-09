@@ -282,7 +282,7 @@
 - [x] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
-- [ ] STDLIB-TEXT-FN-116: `zip` 関数の実装
+- [x] STDLIB-TEXT-FN-116: `zip` 関数の実装
 
 #### kotlin.time 型の実装
 - [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
