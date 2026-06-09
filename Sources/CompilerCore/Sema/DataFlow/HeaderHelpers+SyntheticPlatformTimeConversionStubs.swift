@@ -1,5 +1,6 @@
 /// `java.util.concurrent.TimeUnit` entries in declaration (ordinal) order, which
-/// matches `kotlin.time.DurationUnit` so `toTimeUnit()` is an ordinal identity.
+/// matches `kotlin.time.DurationUnit` so `TimeUnit.toDurationUnit()` /
+/// `DurationUnit.toTimeUnit()` are 1:1 ordinal mappings.
 private let syntheticTimeUnitEntries = [
     "NANOSECONDS",
     "MICROSECONDS",
@@ -89,9 +90,10 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // --- STDLIB-TIME-FN-012: DurationUnit.toTimeUnit() -> java.util.concurrent.TimeUnit ---
+        // --- STDLIB-TIME-FN-006 / STDLIB-TIME-FN-012:
+        //     TimeUnit.toDurationUnit() <-> DurationUnit.toTimeUnit() ---
         // DurationUnit is registered earlier by registerSyntheticDurationStubs; look it up
-        // so the receiver type matches the existing synthetic enum surface.
+        // so the receiver/return types match the existing synthetic enum surface.
         let durationUnitSymbol = symbols.lookup(fqName: kotlinTimePkg + [interner.intern("DurationUnit")])
         let durationUnitType = durationUnitSymbol.map { symbol in
             types.make(.classType(ClassType(
@@ -168,6 +170,7 @@ extension DataFlowSemaPhase {
         )
 
         if let durationUnitType {
+            // STDLIB-TIME-FN-012: DurationUnit.toTimeUnit() -> java.util.concurrent.TimeUnit
             registerPlatformTimeExtensionFunction(
                 named: "toTimeUnit",
                 externalLinkName: "kk_duration_unit_to_time_unit",
@@ -177,14 +180,24 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+            // STDLIB-TIME-FN-006: TimeUnit.toDurationUnit() -> kotlin.time.DurationUnit
+            registerPlatformTimeExtensionFunction(
+                named: "toDurationUnit",
+                externalLinkName: "kk_time_unit_to_duration_unit",
+                receiverType: timeUnitType,
+                returnType: durationUnitType,
+                packageFQName: kotlinTimePkg,
+                symbols: symbols,
+                interner: interner
+            )
         }
     }
 
     /// Materializes the `java.util.concurrent.TimeUnit` enum surface so
-    /// `DurationUnit.toTimeUnit()` has a concrete return type. The entry order
-    /// mirrors both `java.util.concurrent.TimeUnit` and `kotlin.time.DurationUnit`
-    /// (NANOSECONDS=0 … DAYS=6), which is what makes the conversion an ordinal
-    /// identity at runtime.
+    /// `DurationUnit.toTimeUnit()` / `TimeUnit.toDurationUnit()` have concrete
+    /// types. The entry order mirrors both `java.util.concurrent.TimeUnit` and
+    /// `kotlin.time.DurationUnit` (NANOSECONDS=0 … DAYS=6), which is what makes
+    /// the conversion an ordinal identity at runtime.
     private func ensureSyntheticTimeUnitEnumClass(
         symbols: SymbolTable,
         interner: StringInterner
