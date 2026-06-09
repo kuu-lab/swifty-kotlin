@@ -114,6 +114,17 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
         }
+        // STDLIB-REFLECT-067: KClass type-kind boolean properties
+        let kclassTypeKindCallees: Set<InternedString> = [
+            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
+            knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
+            knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
+        ]
+        if kclassTypeKindCallees.contains(calleeName), args.isEmpty {
+            let boolType = sema.types.booleanType
+            sema.bindings.bindExprType(id, type: boolType)
+            return boolType
+        }
         // STDLIB-REFLECT-060: KClass.visibility -> String?
         if calleeName == knownNames.visibilityName, args.isEmpty {
             let nullableStringType = sema.types.makeNullable(
@@ -235,6 +246,17 @@ extension CallTypeChecker {
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
         ]
         if kclassVarBooleanCallees.contains(calleeName), args.isEmpty {
+            let boolType = sema.types.booleanType
+            sema.bindings.bindExprType(id, type: boolType)
+            return boolType
+        }
+        // STDLIB-REFLECT-067: KClass type-kind boolean properties via variable receiver
+        let kclassVarTypeKindCallees: Set<InternedString> = [
+            knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
+            knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
+            knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
+        ]
+        if kclassVarTypeKindCallees.contains(calleeName), args.isEmpty {
             let boolType = sema.types.booleanType
             sema.bindings.bindExprType(id, type: boolType)
             return boolType

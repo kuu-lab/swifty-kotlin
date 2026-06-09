@@ -712,7 +712,8 @@ public func kk_kclass_register_metadata(
 /// - typeParameterCount: Number of type parameters on the class.
 /// Flags bit layout: bit 0=dataClass, bit 1=sealedClass, bit 2=valueClass,
 ///   bit 3=interface, bit 4=object, bit 5=enumClass, bit 6=annotationClass,
-///   bit 7=abstract, bit 8=final, bit 9=open.
+///   bit 7=abstract, bit 8=final, bit 9=open,
+///   bit 10=inner, bit 11=companion, bit 12=funInterface. (STDLIB-REFLECT-067)
 @_cdecl("kk_kclass_register_metadata_v2")
 public func kk_kclass_register_metadata_v2(
     _ typeToken: Int,
@@ -762,7 +763,10 @@ public func kk_kclass_register_metadata_v2(
         isFinal: (flags & (1 << 8)) != 0,
         isOpen: (flags & (1 << 9)) != 0,
         visibility: visibility,
-        typeParameterCount: typeParameterCount
+        typeParameterCount: typeParameterCount,
+        isInner: (flags & (1 << 10)) != 0,
+        isCompanion: (flags & (1 << 11)) != 0,
+        isFunInterface: (flags & (1 << 12)) != 0
     )
     runtimeKClassMetadataRegistry.register(typeToken: typeToken, entry: entry)
     return 0
@@ -826,6 +830,38 @@ public func kk_kclass_is_enum(_ kclassRaw: Int) -> Int {
         return 0
     }
     return metadata.isEnumClass ? 1 : 0
+}
+
+// MARK: - STDLIB-REFLECT-067: KClass type-kind introspection
+
+/// Returns 1 if the KClass represents an inner class, 0 otherwise.
+@_cdecl("kk_kclass_is_inner")
+public func kk_kclass_is_inner(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw),
+          let metadata = box.metadata else {
+        return 0
+    }
+    return metadata.isInner ? 1 : 0
+}
+
+/// Returns 1 if the KClass represents a companion object, 0 otherwise.
+@_cdecl("kk_kclass_is_companion")
+public func kk_kclass_is_companion(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw),
+          let metadata = box.metadata else {
+        return 0
+    }
+    return metadata.isCompanion ? 1 : 0
+}
+
+/// Returns 1 if the KClass represents a functional interface (fun interface), 0 otherwise.
+@_cdecl("kk_kclass_is_fun")
+public func kk_kclass_is_fun(_ kclassRaw: Int) -> Int {
+    guard let box = runtimeKClassBox(from: kclassRaw),
+          let metadata = box.metadata else {
+        return 0
+    }
+    return metadata.isFunInterface ? 1 : 0
 }
 
 /// Returns 1 if the KClass represents an abstract class, 0 otherwise.

@@ -219,6 +219,23 @@ public func kk_time_unit_to_duration_unit(_ timeUnitOrdinal: Int) -> Int {
     }
 }
 
+// MARK: - DurationUnit <-> TimeUnit conversion (STDLIB-TIME-FN-012)
+
+/// Bridges `kotlin.time.DurationUnit.toTimeUnit()` to
+/// `java.util.concurrent.TimeUnit`. Both enums share identical entry order
+/// (NANOSECONDS=0, MICROSECONDS=1, MILLISECONDS=2, SECONDS=3, MINUTES=4,
+/// HOURS=5, DAYS=6), so the conversion is an ordinal identity. The incoming
+/// `unitOrdinal` is a DurationUnit ordinal lowered to a raw machine word; the
+/// returned value is the matching TimeUnit ordinal.
+@_cdecl("kk_duration_unit_to_time_unit")
+public func kk_duration_unit_to_time_unit(_ unitOrdinal: Int) -> Int {
+    guard (0...6).contains(unitOrdinal) else {
+        assertionFailure("KSwiftK: unknown DurationUnit ordinal \(unitOrdinal) – compiler/runtime enum mismatch?")
+        return unitOrdinal
+    }
+    return unitOrdinal
+}
+
 @_cdecl("kk_time_source_mark_now")
 public func kk_time_source_mark_now(_ receiver: Int) -> Int {
     let mark = RuntimeTimeMarkBox(uptimeNanoseconds: runtimeMonotonicNowNanoseconds())

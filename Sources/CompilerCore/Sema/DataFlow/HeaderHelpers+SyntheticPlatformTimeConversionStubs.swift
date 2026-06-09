@@ -1,5 +1,6 @@
-/// java.util.concurrent.TimeUnit entry ordering. Mirrors kotlin.time.DurationUnit so that
-/// TimeUnit.toDurationUnit() / DurationUnit.toTimeUnit() are 1:1 ordinal mappings.
+/// `java.util.concurrent.TimeUnit` entries in declaration (ordinal) order, which
+/// matches `kotlin.time.DurationUnit` so `TimeUnit.toDurationUnit()` /
+/// `DurationUnit.toTimeUnit()` are 1:1 ordinal mappings.
 private let syntheticTimeUnitEntries = [
     "NANOSECONDS",
     "MICROSECONDS",
@@ -89,6 +90,30 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
+        // --- STDLIB-TIME-FN-006 / STDLIB-TIME-FN-012:
+        //     TimeUnit.toDurationUnit() <-> DurationUnit.toTimeUnit() ---
+        // DurationUnit is registered earlier by registerSyntheticDurationStubs; look it up
+        // so the receiver/return types match the existing synthetic enum surface.
+        let durationUnitSymbol = symbols.lookup(fqName: kotlinTimePkg + [interner.intern("DurationUnit")])
+        let durationUnitType = durationUnitSymbol.map { symbol in
+            types.make(.classType(ClassType(
+                classSymbol: symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+        let timeUnitSymbol = ensureSyntheticTimeUnitEnumClass(symbols: symbols, interner: interner)
+        let timeUnitType = types.make(.classType(ClassType(
+            classSymbol: timeUnitSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        setSyntheticTimeUnitEntryTypes(
+            enumSymbol: timeUnitSymbol,
+            enumType: timeUnitType,
+            symbols: symbols
+        )
+
         registerPlatformTimeExtensionFunction(
             named: "toJavaInstant",
             externalLinkName: "kk_instant_to_java_instant",
@@ -144,57 +169,54 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-TIME-FN-006: TimeUnit.toDurationUnit() ---
-        // DurationUnit was registered as an enum by registerSyntheticDurationStubs (runs earlier),
-        // so ensureClassSymbol resolves the existing enum symbol here.
-        let durationUnitSymbol = ensureClassSymbol(
-            named: "DurationUnit",
-            in: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let durationUnitType = types.make(.classType(ClassType(
-            classSymbol: durationUnitSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
+        if let durationUnitType {
+            // STDLIB-TIME-FN-012: DurationUnit.toTimeUnit() -> java.util.concurrent.TimeUnit
+            registerPlatformTimeExtensionFunction(
+                named: "toTimeUnit",
+                externalLinkName: "kk_duration_unit_to_time_unit",
+                receiverType: durationUnitType,
+                returnType: timeUnitType,
+                packageFQName: kotlinTimePkg,
+                symbols: symbols,
+                interner: interner
+            )
+            // STDLIB-TIME-FN-006: TimeUnit.toDurationUnit() -> kotlin.time.DurationUnit
+            registerPlatformTimeExtensionFunction(
+                named: "toDurationUnit",
+                externalLinkName: "kk_time_unit_to_duration_unit",
+                receiverType: timeUnitType,
+                returnType: durationUnitType,
+                packageFQName: kotlinTimePkg,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+    }
+
+    /// Materializes the `java.util.concurrent.TimeUnit` enum surface so
+    /// `DurationUnit.toTimeUnit()` / `TimeUnit.toDurationUnit()` have concrete
+    /// types. The entry order mirrors both `java.util.concurrent.TimeUnit` and
+    /// `kotlin.time.DurationUnit` (NANOSECONDS=0 … DAYS=6), which is what makes
+    /// the conversion an ordinal identity at runtime.
+    private func ensureSyntheticTimeUnitEnumClass(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
         let javaConcurrentPkg = ensurePackage(
             path: ["java", "util", "concurrent"],
             symbols: symbols,
             interner: interner
         )
-        let timeUnitType = ensureSyntheticTimeUnitEnumClass(
-            in: javaConcurrentPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerPlatformTimeExtensionFunction(
-            named: "toDurationUnit",
-            externalLinkName: "kk_time_unit_to_duration_unit",
-            receiverType: timeUnitType,
-            returnType: durationUnitType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    /// Registers `java.util.concurrent.TimeUnit` as a synthetic enum whose entries mirror
-    /// `kotlin.time.DurationUnit` (same names, same ordinals). Returns the enum's TypeID.
-    private func ensureSyntheticTimeUnitEnumClass(
-        in packageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> TypeID {
         let enumName = interner.intern("TimeUnit")
-        let enumFQName = packageFQName + [enumName]
+        let enumFQName = javaConcurrentPkg + [enumName]
         let enumSymbol: SymbolID
         if let existing = symbols.lookup(fqName: enumFQName) {
             enumSymbol = existing
+            if let packageSymbol = symbols.lookup(fqName: javaConcurrentPkg), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: existing)
+            }
         } else {
-            enumSymbol = symbols.define(
+            let symbol = symbols.define(
                 kind: .enumClass,
                 name: enumName,
                 fqName: enumFQName,
@@ -202,16 +224,11 @@ extension DataFlowSemaPhase {
                 visibility: .public,
                 flags: [.synthetic]
             )
+            if let packageSymbol = symbols.lookup(fqName: javaConcurrentPkg), packageSymbol != .invalid {
+                symbols.setParentSymbol(packageSymbol, for: symbol)
+            }
+            enumSymbol = symbol
         }
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: enumSymbol)
-        }
-
-        let enumType = types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
 
         for entry in syntheticTimeUnitEntries {
             let entryName = interner.intern(entry)
@@ -230,9 +247,23 @@ extension DataFlowSemaPhase {
                 )
             }
             symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            symbols.setPropertyType(enumType, for: entrySymbol)
         }
-        return enumType
+
+        return enumSymbol
+    }
+
+    private func setSyntheticTimeUnitEntryTypes(
+        enumSymbol: SymbolID,
+        enumType: TypeID,
+        symbols: SymbolTable
+    ) {
+        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
+        for child in symbols.children(ofFQName: enumInfo.fqName) {
+            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else {
+                continue
+            }
+            symbols.setPropertyType(enumType, for: child)
+        }
     }
 
     private func registerPlatformTimeExtensionFunction(

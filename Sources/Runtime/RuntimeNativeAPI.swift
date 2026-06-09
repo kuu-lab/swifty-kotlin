@@ -42,6 +42,17 @@ public func kk_cpointer_address(_ handle: Int) -> Int {
     return Int(bitPattern: box.address)
 }
 
+@_cdecl("kk_cpointer_toLong")
+public func kk_cpointer_toLong(_ handle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return 0
+    }
+    guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else {
+        return 0
+    }
+    return Int(bitPattern: box.address)
+}
+
 @_cdecl("kk_copaque_pointer_new")
 public func kk_copaque_pointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCOpaquePointerBox(address: UInt(bitPattern: address)))
