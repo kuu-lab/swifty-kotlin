@@ -1,0 +1,15 @@
+symbol s0 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s1 kind=interface fq=kotlin.CharSequence vis=public flags=synthetic type=Class#1
+symbol s2 kind=function fq=kotlin.text.toList vis=public flags=synthetic sig=recv=String params=[] ret=Class#0<out Char> suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=kotlin.text.toList vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#0<out Char> suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=stringToList vis=public flags=_ sig=recv=_ params=[String] ret=Class#0<Char> suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=valueParameter fq=stringToList.$0.s vis=private flags=_
+symbol s6 kind=function fq=charSequenceToList vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#0<Char> suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=valueParameter fq=charSequenceToList.$1.cs vis=private flags=_
+file f0 package=_
+  decl d0 fun stringToList suspend=0 inline=0 sym=s4
+  decl d1 fun charSequenceToList suspend=0 inline=0 sym=s6
+expr e0 name(s) type=String ref=s5
+expr e1 memberCall recv=e0 callee=toList args=[] type=Class#0<out Char> call=s2 map=[] targs=[]
+expr e2 name(cs) type=Class#1 ref=s7
+expr e3 memberCall recv=e2 callee=toList args=[] type=Class#0<out Char> call=s3 map=[] targs=[]
