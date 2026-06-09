@@ -283,6 +283,50 @@ final class RuntimeComparatorTests: XCTestCase {
         XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 17, 17, nil), 0)
     }
 
+    // MARK: - compareValues
+
+    func testCompareValuesLessThan() {
+        var thrown = 0
+        let result = kk_compareValues(kk_box_int(3), kk_box_int(7), &thrown)
+        XCTAssertLessThan(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testCompareValuesEqual() {
+        var thrown = 0
+        let result = kk_compareValues(kk_box_int(5), kk_box_int(5), &thrown)
+        XCTAssertEqual(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testCompareValuesGreaterThan() {
+        var thrown = 0
+        let result = kk_compareValues(kk_box_int(9), kk_box_int(2), &thrown)
+        XCTAssertGreaterThan(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testCompareValuesNullLessThanNonNull() {
+        var thrown = 0
+        let result = kk_compareValues(runtimeNullSentinelInt, kk_box_int(1), &thrown)
+        XCTAssertLessThan(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testCompareValuesNonNullGreaterThanNull() {
+        var thrown = 0
+        let result = kk_compareValues(kk_box_int(1), runtimeNullSentinelInt, &thrown)
+        XCTAssertGreaterThan(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testCompareValuesBothNull() {
+        var thrown = 0
+        let result = kk_compareValues(runtimeNullSentinelInt, runtimeNullSentinelInt, &thrown)
+        XCTAssertEqual(kk_unbox_int(result), 0)
+        XCTAssertEqual(thrown, 0)
+    }
+
     func testCompareValuesByVarargSelectors() {
         let selectors = makeArray([
             selectorPtr(selectModTen), 0,
