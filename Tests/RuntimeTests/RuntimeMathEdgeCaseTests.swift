@@ -467,6 +467,46 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_log10(doubleToBits(Double.nan))).isNaN)
     }
 
+    // MARK: - log2 / log10 additional domain edge cases (Double)
+
+    func testLog2DoubleZero() {
+        // log2(0) == -Inf  (IEEE 754: log of zero is -Inf)
+        let result = doubleFromBits(kk_math_log2(doubleToBits(0.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLog2DoubleNegative() {
+        // log2 of a negative number is NaN
+        XCTAssertTrue(doubleFromBits(kk_math_log2(doubleToBits(-1.0))).isNaN)
+    }
+
+    func testLog2DoublePositiveInfinity() {
+        // log2(+Inf) == +Inf
+        let result = doubleFromBits(kk_math_log2(doubleToBits(Double.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLog10DoubleZero() {
+        // log10(0) == -Inf
+        let result = doubleFromBits(kk_math_log10(doubleToBits(0.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLog10DoubleNegative() {
+        // log10 of a negative number is NaN
+        XCTAssertTrue(doubleFromBits(kk_math_log10(doubleToBits(-1.0))).isNaN)
+    }
+
+    func testLog10DoublePositiveInfinity() {
+        // log10(+Inf) == +Inf
+        let result = doubleFromBits(kk_math_log10(doubleToBits(Double.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
     // MARK: - log2 / log10 edge cases (Float)
 
     func testLog2FloatOne() {
@@ -475,6 +515,140 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
 
     func testLog10FloatOne() {
         XCTAssertEqual(floatFromBits(kk_math_log10_float(floatToBits(1.0))), 0.0)
+    }
+
+    // MARK: - log2 / log10 additional domain edge cases (Float)
+
+    func testLog2FloatZero() {
+        // log2(0.0f) == -Inf
+        let result = floatFromBits(kk_math_log2_float(floatToBits(0.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLog2FloatNaN() {
+        XCTAssertTrue(floatFromBits(kk_math_log2_float(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testLog2FloatNegative() {
+        // log2 of a negative Float is NaN
+        XCTAssertTrue(floatFromBits(kk_math_log2_float(floatToBits(-1.0))).isNaN)
+    }
+
+    func testLog2FloatPositiveInfinity() {
+        // log2(+Inf) == +Inf
+        let result = floatFromBits(kk_math_log2_float(floatToBits(Float.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLog10FloatZero() {
+        // log10(0.0f) == -Inf
+        let result = floatFromBits(kk_math_log10_float(floatToBits(0.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLog10FloatNaN() {
+        XCTAssertTrue(floatFromBits(kk_math_log10_float(floatToBits(Float.nan))).isNaN)
+    }
+
+    func testLog10FloatNegative() {
+        // log10 of a negative Float is NaN
+        XCTAssertTrue(floatFromBits(kk_math_log10_float(floatToBits(-1.0))).isNaN)
+    }
+
+    func testLog10FloatPositiveInfinity() {
+        // log10(+Inf) == +Inf
+        let result = floatFromBits(kk_math_log10_float(floatToBits(Float.infinity)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    // MARK: - log(x, base) domain edge cases (Double)
+    // Implementation: ln(rawX) / ln(rawBase), so IEEE 754 rules apply directly.
+
+    func testLogDoubleNegativeX() {
+        // ln of a negative number is NaN; NaN / finite == NaN
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(-1.0), doubleToBits(2.0))).isNaN)
+    }
+
+    func testLogDoubleZeroX() {
+        // ln(0) == -Inf; -Inf / positive_finite == -Inf
+        let result = doubleFromBits(kk_math_log(doubleToBits(0.0), doubleToBits(2.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLogDoubleNegativeBase() {
+        // ln of a negative base is NaN; finite / NaN == NaN
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(4.0), doubleToBits(-2.0))).isNaN)
+    }
+
+    func testLogDoubleBaseOneXEqualsOne() {
+        // ln(1) / ln(1) == 0.0 / 0.0 == NaN
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(1.0), doubleToBits(1.0))).isNaN)
+    }
+
+    func testLogDoubleBaseOneXGreaterThanOne() {
+        // ln(2) / ln(1) == positive / 0.0 == +Inf  (IEEE 754 nonzero/zero)
+        let result = doubleFromBits(kk_math_log(doubleToBits(2.0), doubleToBits(1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLogDoublePositiveInfinityX() {
+        // ln(+Inf) / ln(2) == +Inf / positive_finite == +Inf
+        let result = doubleFromBits(kk_math_log(doubleToBits(Double.infinity), doubleToBits(2.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLogDoubleNaNX() {
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(Double.nan), doubleToBits(2.0))).isNaN)
+    }
+
+    func testLogDoubleNaNBase() {
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(4.0), doubleToBits(Double.nan))).isNaN)
+    }
+
+    // MARK: - log(x, base) domain edge cases (Float)
+
+    func testLogFloatNegativeX() {
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(-1.0), floatToBits(2.0))).isNaN)
+    }
+
+    func testLogFloatZeroX() {
+        // ln(0.0f) / ln(2.0f) == -Inf
+        let result = floatFromBits(kk_math_log_float(floatToBits(0.0), floatToBits(2.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testLogFloatNegativeBase() {
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(4.0), floatToBits(-2.0))).isNaN)
+    }
+
+    func testLogFloatBaseOneXEqualsOne() {
+        // 0.0f / 0.0f == NaN
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(1.0), floatToBits(1.0))).isNaN)
+    }
+
+    func testLogFloatBaseOneXGreaterThanOne() {
+        // positive_finite / 0.0f == +Inf
+        let result = floatFromBits(kk_math_log_float(floatToBits(2.0), floatToBits(1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLogFloatPositiveInfinityX() {
+        let result = floatFromBits(kk_math_log_float(floatToBits(Float.infinity), floatToBits(2.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testLogFloatNaNX() {
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(Float.nan), floatToBits(2.0))).isNaN)
     }
 
     // MARK: - Double trig NaN / Inf propagation
