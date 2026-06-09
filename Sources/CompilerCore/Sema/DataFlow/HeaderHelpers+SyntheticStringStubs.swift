@@ -812,7 +812,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "format",
-            externalLinkName: "kk_string_format",
+            externalLinkName: "kk_string_format_flat",
             receiverType: stringType,
             parameters: [
                 ("args", types.nullableAnyType, false, true),
@@ -2838,7 +2838,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-315: String.replaceFirstChar ---
         registerSyntheticStringExtensionFunction(
             named: "replaceFirstChar",
-            externalLinkName: "kk_string_replaceFirstChar",
+            externalLinkName: "kk_string_replaceFirstChar_flat",
             receiverType: stringType,
             parameters: [("transform", charToCharType, false, false)],
             returnType: stringType,
@@ -3404,7 +3404,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format",
+            externalLinkName: "kk_string_format_flat",
             returnType: stringType,
             parameters: [
                 (name: "format", type: stringType),
@@ -3417,7 +3417,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_locale",
+            externalLinkName: "kk_string_format_locale_flat",
             returnType: stringType,
             parameters: [
                 (name: "locale", type: types.makeNullable(localeType)),
@@ -3763,7 +3763,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith",
+            externalLinkName: "kk_string_commonPrefixWith_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3776,7 +3776,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith",
+            externalLinkName: "kk_string_commonSuffixWith_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3791,7 +3791,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
+            externalLinkName: "kk_string_commonPrefixWith_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3805,7 +3805,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
+            externalLinkName: "kk_string_commonSuffixWith_ignoreCase_flat",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),

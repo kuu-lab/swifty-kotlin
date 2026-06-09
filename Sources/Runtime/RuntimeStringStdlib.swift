@@ -1261,14 +1261,28 @@ public func kk_string_none_flat(
 
 // MARK: - STDLIB-315: String.replaceFirstChar
 
-@_cdecl("kk_string_replaceFirstChar")
-public func kk_string_replaceFirstChar(
-    _ strRaw: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
+@_cdecl("kk_string_replaceFirstChar_flat")
+public func kk_string_replaceFirstChar_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard !scalars.isEmpty else { return runtimeMakeStringRaw("") }
-    guard fnPtr != 0 else { return strRaw }
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let scalars = Array(source.unicodeScalars)
+    guard !scalars.isEmpty else {
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
+    guard fnPtr != 0 else {
+        return runtimeReturnFlatString(source, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+    }
     let firstCharRaw = Int(scalars[0].value)
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
     var thrown = 0
@@ -1279,14 +1293,14 @@ public func kk_string_replaceFirstChar(
             outThrown: outThrown,
             context: "replaceFirstChar transform"
         )
-        return runtimeMakeStringRaw("")
+        return runtimeReturnFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
     }
     let replacement = runtimeUnicodeScalarFromRaw(result) ?? scalars[0]
     let tail = scalars.dropFirst()
     var rebuilt = String.UnicodeScalarView()
     rebuilt.append(replacement)
     rebuilt.append(contentsOf: tail)
-    return runtimeMakeStringRaw(String(rebuilt))
+    return runtimeReturnFlatString(String(rebuilt), outLength: outLength, outByteCount: outByteCount, outHash: outHash)
 }
 
 @_cdecl("kk_string_take_flat")
@@ -4743,32 +4757,61 @@ public func kk_bytearray_decodeToString_charset(_ arrRaw: Int, _ charsetId: Int)
     return runtimeMakeStringRaw(decoded)
 }
 
-@_cdecl("kk_string_format")
-public func kk_string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
-    let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
+@_cdecl("kk_string_format_flat")
+public func kk_string_format_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let template = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
         ?? runtimeListBox(from: argsArrayRaw)?.elements
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
+    return runtimeReturnFlatString(
+        runtimeFormatString(template, arguments: arguments),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
-@_cdecl("kk_string_format_locale")
-public func kk_string_format_locale(_ localeRaw: Int, _ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
+@_cdecl("kk_string_format_locale_flat")
+public func kk_string_format_locale_flat(
+    _ localeRaw: Int,
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ argsArrayRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
     let locale: Locale?
     if localeRaw == runtimeNullSentinelInt {
         locale = nil
     } else {
         guard let box = runtimeLocaleBox(from: localeRaw) else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale received invalid Locale handle")
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_format_locale_flat received invalid Locale handle")
         }
         locale = box.locale
     }
 
-    let template = runtimeStringFromRawOrPanic(formatRaw, caller: #function)
+    let template = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
     let arguments = runtimeArrayBox(from: argsArrayRaw)?.elements
         ?? runtimeListBox(from: argsArrayRaw)?.elements
         ?? []
-    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments, locale: locale))
+    return runtimeReturnFlatString(
+        runtimeFormatString(template, arguments: arguments, locale: locale),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 @_cdecl("kk_string_trimIndent_flat")
@@ -5233,66 +5276,158 @@ public func kk_string_windowedSequence_transform_flat(
 
 // MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith
 
-@_cdecl("kk_string_commonPrefixWith")
-public func kk_string_commonPrefixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
+private func runtimeStringCommonPrefix(_ source: String, _ other: String, ignoreCase: Bool) -> String {
     var prefix = ""
-    for (a, b) in zip(s, other) {
-        if a == b { prefix.append(a) } else { break }
-    }
-    return runtimeMakeStringRaw(prefix)
-}
-
-@_cdecl("kk_string_commonSuffixWith")
-public func kk_string_commonSuffixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    var suffix = ""
-    for (a, b) in zip(s.reversed(), other.reversed()) {
-        if a == b { suffix.insert(a, at: suffix.startIndex) } else { break }
-    }
-    return runtimeMakeStringRaw(suffix)
-}
-
-// MARK: - STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-
-@_cdecl("kk_string_commonPrefixWith_ignoreCase")
-public func kk_string_commonPrefixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    let ignoreCase = ignoreCaseRaw != 0
-    var prefix = ""
-    for (a, b) in zip(s, other) {
-        if ignoreCase
-            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
-            : a == b
-        {
+    for (a, b) in zip(source, other) {
+        if runtimeStringCharactersEqual(a, b, ignoreCase: ignoreCase) {
             prefix.append(a)
         } else {
             break
         }
     }
-    return runtimeMakeStringRaw(prefix)
+    return prefix
 }
 
-@_cdecl("kk_string_commonSuffixWith_ignoreCase")
-public func kk_string_commonSuffixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    let s = runtimeStringFromRaw(strRaw) ?? ""
-    let other = runtimeStringFromRaw(otherRaw) ?? ""
-    let ignoreCase = ignoreCaseRaw != 0
+private func runtimeStringCommonSuffix(_ source: String, _ other: String, ignoreCase: Bool) -> String {
     var reversed: [Character] = []
-    for (a, b) in zip(s.reversed(), other.reversed()) {
-        if ignoreCase
-            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
-            : a == b
-        {
+    for (a, b) in zip(source.reversed(), other.reversed()) {
+        if runtimeStringCharactersEqual(a, b, ignoreCase: ignoreCase) {
             reversed.append(a)
         } else {
             break
         }
     }
-    return runtimeMakeStringRaw(String(reversed.reversed()))
+    return String(reversed.reversed())
+}
+
+private func runtimeStringCharactersEqual(_ lhs: Character, _ rhs: Character, ignoreCase: Bool) -> Bool {
+    ignoreCase
+        ? String(lhs).caseInsensitiveCompare(String(rhs)) == .orderedSame
+        : lhs == rhs
+}
+
+@_cdecl("kk_string_commonPrefixWith_flat")
+public func kk_string_commonPrefixWith_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
+    let other = runtimeStringFromFlatOrDefault(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash,
+        defaultValue: ""
+    )
+    return runtimeReturnFlatString(
+        runtimeStringCommonPrefix(source, other, ignoreCase: false),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_commonSuffixWith_flat")
+public func kk_string_commonSuffixWith_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
+    let other = runtimeStringFromFlatOrDefault(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash,
+        defaultValue: ""
+    )
+    return runtimeReturnFlatString(
+        runtimeStringCommonSuffix(source, other, ignoreCase: false),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+// MARK: - STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
+
+@_cdecl("kk_string_commonPrefixWith_ignoreCase_flat")
+public func kk_string_commonPrefixWith_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
+    let other = runtimeStringFromFlatOrDefault(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash,
+        defaultValue: ""
+    )
+    return runtimeReturnFlatString(
+        runtimeStringCommonPrefix(source, other, ignoreCase: ignoreCaseRaw != 0),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
+}
+
+@_cdecl("kk_string_commonSuffixWith_ignoreCase_flat")
+public func kk_string_commonSuffixWith_ignoreCase_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ otherData: UnsafePointer<UInt8>?,
+    _ otherLength: Int,
+    _ otherByteCount: Int,
+    _ otherHash: Int,
+    _ ignoreCaseRaw: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlatOrDefault(data: data, length: length, byteCount: byteCount, hash: hash, defaultValue: "")
+    let other = runtimeStringFromFlatOrDefault(
+        data: otherData,
+        length: otherLength,
+        byteCount: otherByteCount,
+        hash: otherHash,
+        defaultValue: ""
+    )
+    return runtimeReturnFlatString(
+        runtimeStringCommonSuffix(source, other, ignoreCase: ignoreCaseRaw != 0),
+        outLength: outLength,
+        outByteCount: outByteCount,
+        outHash: outHash
+    )
 }
 
 // MARK: - STDLIB-316: String.zipWithNext()

@@ -1800,7 +1800,7 @@ extension CallLowerer {
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
-                    ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_replaceFirstChar_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
                     ("kk_string_mapIndexed_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
@@ -1862,15 +1862,15 @@ extension CallLowerer {
                     }
                 case "commonPrefixWith":
                     if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonPrefixWith_ignoreCase", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                        ("kk_string_commonPrefixWith_ignoreCase_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     } else {
-                        ("kk_string_commonPrefixWith", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_commonPrefixWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "commonSuffixWith":
                     if loweredArgIDs.count >= 2 {
-                        ("kk_string_commonSuffixWith_ignoreCase", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                        ("kk_string_commonSuffixWith_ignoreCase_flat", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     } else {
-                        ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
+                        ("kk_string_commonSuffixWith_flat", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "removePrefix":
                     ("kk_string_removePrefix_flat", [loweredReceiverID, loweredArgIDs[0]])
@@ -2206,8 +2206,8 @@ extension CallLowerer {
                calleeStr == "commonPrefixWith" || calleeStr == "commonSuffixWith"
             {
                 let runtimeName = calleeStr == "commonPrefixWith"
-                    ? "kk_string_commonPrefixWith_ignoreCase"
-                    : "kk_string_commonSuffixWith_ignoreCase"
+                    ? "kk_string_commonPrefixWith_ignoreCase_flat"
+                    : "kk_string_commonSuffixWith_ignoreCase_flat"
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(runtimeName),
@@ -3904,7 +3904,7 @@ extension CallLowerer {
         // String stdlib: format(vararg args) (STDLIB-006)
         if interner.resolve(calleeName) == "format",
            let chosenCallee = sema.bindings.callBindings[exprID]?.chosenCallee,
-           sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_format"
+           sema.symbols.externalLinkName(for: chosenCallee) == "kk_string_format_flat"
         {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
@@ -3970,7 +3970,7 @@ extension CallLowerer {
                 }
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_format"),
+                    callee: interner.intern("kk_string_format_flat"),
                     arguments: [loweredReceiverID, packedArgs],
                     result: result,
                     canThrow: false,

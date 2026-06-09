@@ -14,8 +14,8 @@ import XCTest
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
 //   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix
-//   - String.format(format, vararg args)   → kk_string_format  (platform fmt, no locale overload)
-//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale
+//   - String.format(format, vararg args)   → kk_string_format_flat  (platform fmt, no locale overload)
+//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale_flat
 //   - Char.uppercase()                     → kk_char_uppercase  (returns String per Kotlin spec)
 //   - Char.uppercase(Locale)               → kk_char_uppercase_locale
 //   - Char.lowercase()                     → kk_char_lowercase  (returns String per Kotlin spec)

@@ -49,6 +49,56 @@ private typealias RuntimeFlatStringReturnWithIntCharEntry = (
     UnsafeMutablePointer<Int>?,
     UnsafeMutablePointer<Int>?
 ) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithTwoIntsEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithStringEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithStringBoolEntry = (
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
+private typealias RuntimeFlatStringReturnWithLeadingIntAndIntEntry = (
+    Int,
+    UnsafePointer<UInt8>?,
+    Int,
+    Int,
+    Int,
+    Int,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?,
+    UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>?
 
 private let runtimeReplaceFirstCharWithUppercaseB: RuntimeStringUnaryEntry = { _, _, _ in
     kk_box_char(Int(Character("B").unicodeScalars.first!.value))
@@ -269,6 +319,104 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     private func flatStringReturnValue(
         _ value: String,
+        leadingIntArg: Int,
+        trailingIntArg: Int,
+        using call: RuntimeFlatStringReturnWithLeadingIntAndIntEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(
+                leadingIntArg,
+                data,
+                length,
+                byteCount,
+                hash,
+                trailingIntArg,
+                &outLength,
+                &outByteCount,
+                &outHash
+            )
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        other: String,
+        using call: RuntimeFlatStringReturnWithStringEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
+                var outLength = 0
+                var outByteCount = 0
+                var outHash = 0
+                let outData = call(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    otherData,
+                    otherLength,
+                    otherByteCount,
+                    otherHash,
+                    &outLength,
+                    &outByteCount,
+                    &outHash
+                )
+                return flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                )
+            }
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        other: String,
+        ignoreCase: Bool,
+        using call: RuntimeFlatStringReturnWithStringBoolEntry
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
+                var outLength = 0
+                var outByteCount = 0
+                var outHash = 0
+                let outData = call(
+                    data,
+                    length,
+                    byteCount,
+                    hash,
+                    otherData,
+                    otherLength,
+                    otherByteCount,
+                    otherHash,
+                    ignoreCase ? 1 : 0,
+                    &outLength,
+                    &outByteCount,
+                    &outHash
+                )
+                return flatStringValue(
+                    data: outData.map { UnsafePointer($0) },
+                    length: outLength,
+                    byteCount: outByteCount,
+                    hash: outHash
+                )
+            }
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
         intArg: Int,
         charArg: Int,
         using call: RuntimeFlatStringReturnWithIntCharEntry
@@ -278,6 +426,38 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             var outByteCount = 0
             var outHash = 0
             let outData = call(data, length, byteCount, hash, intArg, charArg, &outLength, &outByteCount, &outHash)
+            return flatStringValue(
+                data: outData.map { UnsafePointer($0) },
+                length: outLength,
+                byteCount: outByteCount,
+                hash: outHash
+            )
+        }
+    }
+
+    private func flatStringReturnValue(
+        _ value: String,
+        firstIntArg: Int,
+        secondIntArg: Int,
+        using call: RuntimeFlatStringReturnWithTwoIntsEntry,
+        outThrown: UnsafeMutablePointer<Int>? = nil
+    ) -> String {
+        withFlatString(value) { data, length, byteCount, hash in
+            var outLength = 0
+            var outByteCount = 0
+            var outHash = 0
+            let outData = call(
+                data,
+                length,
+                byteCount,
+                hash,
+                firstIntArg,
+                secondIntArg,
+                &outLength,
+                &outByteCount,
+                &outHash,
+                outThrown
+            )
             return flatStringValue(
                 data: outData.map { UnsafePointer($0) },
                 length: outLength,
@@ -2137,6 +2317,43 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(flatStringReturnValue(text, intArg: 1, using: kk_string_drop_flat), "é🐻")
     }
 
+    func testCommonPrefixSuffixFlatRuntimeAPIsUseFlattenedStringFields() {
+        XCTAssertEqual(
+            flatStringReturnValue("alphabet", other: "alpine", using: kk_string_commonPrefixWith_flat),
+            "alp"
+        )
+        XCTAssertEqual(
+            flatStringReturnValue("alphabet", other: "bet", using: kk_string_commonSuffixWith_flat),
+            "bet"
+        )
+        XCTAssertEqual(
+            flatStringReturnValue(
+                "HelloWorld",
+                other: "helloKotlin",
+                ignoreCase: true,
+                using: kk_string_commonPrefixWith_ignoreCase_flat
+            ),
+            "Hello"
+        )
+        XCTAssertEqual(
+            flatStringReturnValue(
+                "HelloWORLD",
+                other: "MyWorld",
+                ignoreCase: true,
+                using: kk_string_commonSuffixWith_ignoreCase_flat
+            ),
+            "WORLD"
+        )
+        XCTAssertEqual(
+            flatStringReturnValue("aé🐻", other: "aéz", using: kk_string_commonPrefixWith_flat),
+            "aé"
+        )
+        XCTAssertEqual(
+            flatStringReturnValue("pre🐻", other: "x🐻", using: kk_string_commonSuffixWith_flat),
+            "🐻"
+        )
+    }
+
     func testStringScalarIndexedOperationsWithNonASCII() {
         let textRaw = rawFromRuntimeString("aé🐻")
 
@@ -2323,38 +2540,39 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringReplaceFirstCharReplacesOnlyLeadingScalar() {
-        let replaced = kk_string_replaceFirstChar(
-            rawFromRuntimeString("abc"),
-            unsafeBitCast(runtimeReplaceFirstCharWithUppercaseB, to: Int.self),
-            0,
-            nil
+        let replaced = flatStringReturnValue(
+            "abc",
+            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharWithUppercaseB, to: Int.self),
+            secondIntArg: 0,
+            using: kk_string_replaceFirstChar_flat
         )
 
-        XCTAssertEqual(runtimeStringValue(replaced), "Bbc")
+        XCTAssertEqual(replaced, "Bbc")
     }
 
     func testStringReplaceFirstCharFallsBackToOriginalScalarForInvalidReplacement() {
         let original = "éclair"
-        let replaced = kk_string_replaceFirstChar(
-            rawFromRuntimeString(original),
-            unsafeBitCast(runtimeReplaceFirstCharWithInvalidScalar, to: Int.self),
-            0,
-            nil
+        let replaced = flatStringReturnValue(
+            original,
+            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharWithInvalidScalar, to: Int.self),
+            secondIntArg: 0,
+            using: kk_string_replaceFirstChar_flat
         )
 
-        XCTAssertEqual(runtimeStringValue(replaced), original)
+        XCTAssertEqual(replaced, original)
     }
 
     func testStringReplaceFirstCharPropagatesThrownValue() {
         var thrown = -1
-        let replaced = kk_string_replaceFirstChar(
-            rawFromRuntimeString("abc"),
-            unsafeBitCast(runtimeReplaceFirstCharThrowing, to: Int.self),
-            0,
-            &thrown
+        let replaced = flatStringReturnValue(
+            "abc",
+            firstIntArg: unsafeBitCast(runtimeReplaceFirstCharThrowing, to: Int.self),
+            secondIntArg: 0,
+            using: kk_string_replaceFirstChar_flat,
+            outThrown: &thrown
         )
 
-        XCTAssertEqual(runtimeStringValue(replaced), "")
+        XCTAssertEqual(replaced, "")
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("replaceFirstChar failure"))
@@ -2738,8 +2956,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern)),
         ])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%s:%d %.2f"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "age:7 3.50")
+        let formatted = flatStringReturnValueNoThrow("%s:%d %.2f", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "age:7 3.50")
     }
 
     func testStringFormatSupportsFloatingSpecifiersForIntegersAndBoxedFloats() {
@@ -2749,8 +2967,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 2.5.bitPattern))),
         ])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%.1f %.1f %.1f"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "3.0 1.5 2.5")
+        let formatted = flatStringReturnValueNoThrow("%.1f %.1f %.1f", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "3.0 1.5 2.5")
     }
 
     func testStringFormatSupportsPositionalArguments() {
@@ -2759,8 +2977,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             rawFromRuntimeString("age"),
         ])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%2$s:%1$d"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "age:7")
+        let formatted = flatStringReturnValueNoThrow("%2$s:%1$d", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "age:7")
     }
 
     func testStringFormatSupportsBooleanSpecifiers() {
@@ -2770,8 +2988,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             runtimeNullSentinelInt,
         ])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%b %B %b"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "true FALSE false")
+        let formatted = flatStringReturnValueNoThrow("%b %B %b", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "true FALSE false")
     }
 
     func testStringFormatPreservesSixtyFourBitIntegerWidth() {
@@ -2779,8 +2997,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let unsigned = Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max))
         let args = makeRuntimeArray([signed, unsigned])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%d %x"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "9223372036854775807 ffffffffffffffff")
+        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
     }
 
     func testStringFormatSupportsBoxedIntegerSpecifiers() {
@@ -2788,8 +3006,8 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let boxedUnsigned = kk_box_long(Int(bitPattern: UInt(truncatingIfNeeded: UInt64.max)))
         let args = makeRuntimeArray([boxedSigned, boxedUnsigned])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%d %x"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "9223372036854775807 ffffffffffffffff")
+        let formatted = flatStringReturnValueNoThrow("%d %x", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "9223372036854775807 ffffffffffffffff")
     }
 
     func testStringFormatSupportsBoxedScalarStringSpecifiers() {
@@ -2801,31 +3019,31 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
             kk_box_bool(1),
         ])
 
-        let formatted = kk_string_format(rawFromRuntimeString("%s %s %s %s %s"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "9223372036854775807 1.5 2.5 A true")
+        let formatted = flatStringReturnValueNoThrow("%s %s %s %s %s", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "9223372036854775807 1.5 2.5 A true")
     }
 
     func testStringFormatSupportsEscapedPercentWithoutArguments() {
-        let formatted = kk_string_format(rawFromRuntimeString("progress=100%%"), kk_array_new(0))
-        XCTAssertEqual(runtimeStringValue(formatted), "progress=100%")
+        let formatted = flatStringReturnValueNoThrow("progress=100%%", intArg: kk_array_new(0), using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "progress=100%")
     }
 
     func testStringFormatTreatsUnsupportedUnsignedConversionAsLiteral() {
         let args = makeRuntimeArray([7])
-        let formatted = kk_string_format(rawFromRuntimeString("%u"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "%u")
+        let formatted = flatStringReturnValueNoThrow("%u", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "%u")
     }
 
     func testStringFormatTreatsUnsupportedGroupingFlagsAsLiteral() {
         let args = makeRuntimeArray([1234])
-        let formatted = kk_string_format(rawFromRuntimeString("%,d"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "%,d")
+        let formatted = flatStringReturnValueNoThrow("%,d", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "%,d")
     }
 
     func testStringFormatSupportsScientificNotationForDouble() {
         let args = makeRuntimeArray([kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 1234.5.bitPattern)))])
-        let formatted = kk_string_format(rawFromRuntimeString("%.2e"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "1.23e+03")
+        let formatted = flatStringReturnValueNoThrow("%.2e", intArg: args, using: kk_string_format_flat)
+        XCTAssertEqual(formatted, "1.23e+03")
     }
 
     func testStringFormatLocaleUsesLocaleDecimalSeparator() {
@@ -2833,16 +3051,26 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let args = makeRuntimeArray([
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern))),
         ])
-        let formatted = kk_string_format_locale(locale, rawFromRuntimeString("%.1f"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "3,5")
+        let formatted = flatStringReturnValue(
+            "%.1f",
+            leadingIntArg: locale,
+            trailingIntArg: args,
+            using: kk_string_format_locale_flat
+        )
+        XCTAssertEqual(formatted, "3,5")
     }
 
     func testStringFormatNullLocaleKeepsNonLocalizedFormatting() {
         let args = makeRuntimeArray([
             kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: 3.5.bitPattern))),
         ])
-        let formatted = kk_string_format_locale(runtimeNullSentinelInt, rawFromRuntimeString("%.1f"), args)
-        XCTAssertEqual(runtimeStringValue(formatted), "3.5")
+        let formatted = flatStringReturnValue(
+            "%.1f",
+            leadingIntArg: runtimeNullSentinelInt,
+            trailingIntArg: args,
+            using: kk_string_format_locale_flat
+        )
+        XCTAssertEqual(formatted, "3.5")
     }
 
     // MARK: - kk_throwable_new

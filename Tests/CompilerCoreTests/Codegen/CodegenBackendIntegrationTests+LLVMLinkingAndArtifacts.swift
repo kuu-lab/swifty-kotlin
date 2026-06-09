@@ -289,6 +289,108 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testLLVMBackendEmitsFlatReplaceFirstCharRuntimeCallForStringOverload() throws {
+        let source = """
+        fun main() {
+            println("alpha".replaceFirstChar { 'A' })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringReplaceFirstCharFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_replaceFirstChar("), "Unexpected raw replaceFirstChar call")
+            XCTAssertTrue(ir.contains("@kk_string_replaceFirstChar_flat"), "Missing flat replaceFirstChar call")
+        }
+    }
+
+    func testLLVMBackendEmitsFlatCommonPrefixSuffixRuntimeCallsForStringOverloads() throws {
+        let source = """
+        fun main() {
+            println("alphabet".commonPrefixWith("alpine"))
+            println("alphabet".commonSuffixWith("bet"))
+            println("AbCd".commonPrefixWith("abzz", true))
+            println("AbCd".commonSuffixWith("xxCD", true))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringCommonPrefixSuffixFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_commonPrefixWith("), "Unexpected raw commonPrefixWith call")
+            XCTAssertFalse(ir.contains("@kk_string_commonSuffixWith("), "Unexpected raw commonSuffixWith call")
+            XCTAssertFalse(
+                ir.contains("@kk_string_commonPrefixWith_ignoreCase("),
+                "Unexpected raw commonPrefixWith(ignoreCase) call"
+            )
+            XCTAssertFalse(
+                ir.contains("@kk_string_commonSuffixWith_ignoreCase("),
+                "Unexpected raw commonSuffixWith(ignoreCase) call"
+            )
+            XCTAssertTrue(ir.contains("@kk_string_commonPrefixWith_flat"), "Missing flat commonPrefixWith call")
+            XCTAssertTrue(ir.contains("@kk_string_commonSuffixWith_flat"), "Missing flat commonSuffixWith call")
+            XCTAssertTrue(
+                ir.contains("@kk_string_commonPrefixWith_ignoreCase_flat"),
+                "Missing flat commonPrefixWith(ignoreCase) call"
+            )
+            XCTAssertTrue(
+                ir.contains("@kk_string_commonSuffixWith_ignoreCase_flat"),
+                "Missing flat commonSuffixWith(ignoreCase) call"
+            )
+        }
+    }
+
+    func testLLVMBackendEmitsFlatFormatRuntimeCallsForStringOverloads() throws {
+        let source = """
+        import java.util.Locale
+
+        fun main() {
+            println("%s:%d".format("age", 7))
+            println(String.format("%.1f", 3.5))
+            println(String.format(Locale("de", "DE"), "%.1f", 3.5))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let llvmBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let llvmCtx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringFormatFlatIR",
+                emit: .llvmIR,
+                outputPath: llvmBase
+            )
+            let llvmPath = try XCTUnwrap(llvmCtx.generatedLLVMIRPath)
+            let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
+
+            XCTAssertFalse(ir.contains("@kk_string_format("), "Unexpected raw String format call")
+            XCTAssertFalse(ir.contains("@kk_string_format_locale("), "Unexpected raw String format(locale) call")
+            XCTAssertTrue(ir.contains("@kk_string_format_flat"), "Missing flat String format call")
+            XCTAssertTrue(ir.contains("@kk_string_format_locale_flat"), "Missing flat String format(locale) call")
+        }
+    }
+
     func testLLVMBackendEmitsFlatIndentRuntimeCallsForStringOverloads() throws {
         let source = """
         fun main() {

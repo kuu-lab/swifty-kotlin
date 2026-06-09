@@ -815,6 +815,12 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: true
                 ),
+                "kk_string_replaceFirstChar_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_replaceFirstChar_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    canThrow: true
+                ),
                 "kk_string_takeWhile_flat": FlatStringReturnCallSpec(
                     flatName: "kk_string_takeWhile_flat",
                     stringArgumentCount: 1,
@@ -1086,6 +1092,46 @@ extension NativeEmitter {
                     stringArgumentCount: 3,
                     extraArgumentCount: 1,
                     stringArgumentPositions: [0, 2, 3],
+                    canThrow: false
+                ),
+                "kk_string_commonPrefixWith_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_commonPrefixWith_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_commonSuffixWith_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_commonSuffixWith_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 0,
+                    canThrow: false
+                ),
+                "kk_string_commonPrefixWith_ignoreCase_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_commonPrefixWith_ignoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [0, 1],
+                    canThrow: false
+                ),
+                "kk_string_commonSuffixWith_ignoreCase_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_commonSuffixWith_ignoreCase_flat",
+                    stringArgumentCount: 2,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [0, 1],
+                    canThrow: false
+                ),
+                "kk_string_format_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_format_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 1,
+                    stringArgumentPositions: [0],
+                    canThrow: false
+                ),
+                "kk_string_format_locale_flat": FlatStringReturnCallSpec(
+                    flatName: "kk_string_format_locale_flat",
+                    stringArgumentCount: 1,
+                    extraArgumentCount: 2,
+                    stringArgumentPositions: [1],
                     canThrow: false
                 ),
             ]
