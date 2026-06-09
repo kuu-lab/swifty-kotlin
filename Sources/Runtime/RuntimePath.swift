@@ -1253,6 +1253,42 @@ public func kk_path_bufferedWriter(
     }
 }
 
+// MARK: - STDLIB-IO-PATH-FN-042: Path.writer
+
+/// Path.writer(charset: Charset = Charsets.UTF_8, vararg options: OpenOption): BufferedWriter
+///
+/// Opens the file at this path for writing and wraps it in a `BufferedWriter`
+/// using the default buffer size (8192 bytes). Truncates any existing content.
+/// Throws an IOException-wrapped throwable if the file cannot be opened.
+@_cdecl("kk_path_writer")
+public func kk_path_writer(
+    _ pathRaw: Int,
+    _ charsetRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_writer received invalid Path handle")
+    }
+    let url = URL(fileURLWithPath: path.pathString)
+    if !FileManager.default.fileExists(atPath: path.pathString) {
+        _ = FileManager.default.createFile(atPath: path.pathString, contents: Data())
+    }
+    do {
+        let fileHandle = try FileHandle(forWritingTo: url)
+        fileHandle.truncateFile(atOffset: 0)
+        return registerRuntimeObject(RuntimeBufferedWriterBox(
+            fileHandle: fileHandle,
+            encoding: pathStringEncoding(for: charsetRaw)
+        ))
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        return 0
+    }
+}
+
 /// Path.getLastModifiedTime(vararg options: LinkOption): FileTime
 ///
 /// Returns the last-modified time of the file or directory at this path as a
