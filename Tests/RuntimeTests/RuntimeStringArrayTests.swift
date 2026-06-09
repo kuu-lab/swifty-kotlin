@@ -2168,6 +2168,69 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         }
     }
 
+    func testStringChunkedWindowedContainersAvoidLegacyStringBoxes() {
+        withFlatString("abcde") { data, length, byteCount, hash in
+            let baselineObjectCount = kk_debugging_global_object_count()
+
+            let chunksRaw = kk_string_chunked_flat(data, length, byteCount, hash, 2)
+
+            XCTAssertEqual(
+                kk_debugging_global_object_count(),
+                baselineObjectCount + 1,
+                "kk_string_chunked_flat should only allocate the list container"
+            )
+            let chunks = runtimeListBox(from: chunksRaw)
+            XCTAssertEqual(chunks?.values.map(\.tag), [
+                RuntimeValue.stringTag,
+                RuntimeValue.stringTag,
+                RuntimeValue.stringTag,
+            ])
+            XCTAssertEqual(chunks?.values.map(runtimeFlatStringValue), ["ab", "cd", "e"])
+            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+        }
+
+        withFlatString("abcde") { data, length, byteCount, hash in
+            let baselineObjectCount = kk_debugging_global_object_count()
+
+            let sequenceRaw = kk_string_chunked_sequence_flat(data, length, byteCount, hash, 3)
+
+            XCTAssertEqual(
+                kk_debugging_global_object_count(),
+                baselineObjectCount + 1,
+                "kk_string_chunked_sequence_flat should build a direct sequence without an intermediate list"
+            )
+            guard let sequence = runtimeSequenceBox(from: sequenceRaw),
+                  case let .valueSource(values)? = sequence.steps.first
+            else {
+                XCTFail("Expected direct valueSource sequence")
+                return
+            }
+            XCTAssertEqual(values.map(\.tag), [RuntimeValue.stringTag, RuntimeValue.stringTag])
+            XCTAssertEqual(values.map(runtimeFlatStringValue), ["abc", "de"])
+            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+        }
+
+        withFlatString("abcde") { data, length, byteCount, hash in
+            let baselineObjectCount = kk_debugging_global_object_count()
+
+            let windowsRaw = kk_string_windowed_partial_flat(data, length, byteCount, hash, 3, 2, 1)
+
+            XCTAssertEqual(
+                kk_debugging_global_object_count(),
+                baselineObjectCount + 1,
+                "kk_string_windowed_partial_flat should only allocate the list container"
+            )
+            let windows = runtimeListBox(from: windowsRaw)
+            XCTAssertEqual(windows?.values.map(\.tag), [
+                RuntimeValue.stringTag,
+                RuntimeValue.stringTag,
+                RuntimeValue.stringTag,
+            ])
+            XCTAssertEqual(windows?.values.map(runtimeFlatStringValue), ["abc", "cde", "e"])
+            XCTAssertEqual(kk_debugging_global_object_count(), baselineObjectCount + 1)
+        }
+    }
+
     func testStringAsIterableToListMaterialises() {
         let iterableRaw = flatStringAsIterable("abc")
         let listRaw = kk_string_iterable_toList(iterableRaw)
@@ -3660,5 +3723,19 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
+    }
+
+    private func runtimeFlatStringValue(_ value: RuntimeValue) -> String {
+        guard value.tag == RuntimeValue.stringTag,
+              let data = UnsafePointer<UInt8>(bitPattern: value.payload0)
+        else {
+            return ""
+        }
+        return runtimeStringFromFlatFields(
+            data: data,
+            length: value.payload1,
+            byteCount: value.payload2,
+            hash: value.payload3
+        )
     }
 }

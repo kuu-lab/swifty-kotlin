@@ -425,9 +425,9 @@ public func kk_string_split_flat(
 
 private func runtimeStringSplitRaw(_ source: String, delimiter: String) -> Int {
     if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
+        return runtimeMakeStringListValue([source])
     }
-    return runtimeMakeStringListRaw(runtimeSplitString(source, delimiter: delimiter))
+    return runtimeMakeStringListValue(runtimeSplitString(source, delimiter: delimiter))
 }
 
 // MARK: - STDLIB-TEXT-EDGE-001: CharSequence.split with ignoreCase and limit
@@ -467,9 +467,9 @@ private func runtimeStringSplitLimitRaw(
     limit: Int
 ) -> Int {
     if delimiter.isEmpty {
-        return runtimeMakeStringListRaw([source])
+        return runtimeMakeStringListValue([source])
     }
-    return runtimeMakeStringListRaw(
+    return runtimeMakeStringListValue(
         runtimeSplitStringLimit(source, delimiter: delimiter, ignoreCase: ignoreCase, limit: limit)
     )
 }
@@ -4324,7 +4324,7 @@ public func kk_string_lines_flat(
 }
 
 private func runtimeStringLinesRaw(_ source: String) -> Int {
-    runtimeMakeStringListRaw(runtimeNormalizedMultilineString(source))
+    runtimeMakeStringListValue(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_lineSequence_flat")
@@ -4339,7 +4339,7 @@ public func kk_string_lineSequence_flat(
 }
 
 private func runtimeStringLineSequenceRaw(_ source: String) -> Int {
-    runtimeMakeStringSequenceRaw(runtimeNormalizedMultilineString(source))
+    runtimeMakeStringSequenceValue(runtimeNormalizedMultilineString(source))
 }
 
 @_cdecl("kk_string_trimStart_flat")
@@ -5025,18 +5025,26 @@ public func kk_string_replaceIndentByMargin(
 // MARK: - STDLIB-316: String.chunked / String.windowed
 
 private func runtimeStringChunked(_ source: String, size: Int) -> Int {
-    guard size > 0 else {
-        return runtimeMakeStringListRaw([])
-    }
+    runtimeMakeListValue(runtimeStringChunkedValues(source, size: size))
+}
+
+private func runtimeStringChunkedSequence(_ source: String, size: Int) -> Int {
+    registerRuntimeObject(
+        RuntimeSequenceBox(steps: [.valueSource(values: runtimeStringChunkedValues(source, size: size))])
+    )
+}
+
+private func runtimeStringChunkedValues(_ source: String, size: Int) -> [RuntimeValue] {
+    guard size > 0 else { return [] }
     let scalars = Array(source.unicodeScalars)
-    var chunks: [String] = []
+    var chunks: [RuntimeValue] = []
     var i = 0
     while i < scalars.count {
         let end = Swift.min(i + size, scalars.count)
-        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        chunks.append(runtimeMakeStringValue(runtimeStringFromScalars(scalars[i ..< end])))
         i = end
     }
-    return runtimeMakeStringListRaw(chunks)
+    return chunks
 }
 
 private func runtimeStringChunkedSequenceTransform(
@@ -5077,7 +5085,7 @@ private func runtimeStringWindowed(_ source: String, size: Int, step: Int) -> In
     // original 2-arg overload semantics (Kotlin throws IllegalArgumentException,
     // but this runtime returns empty for resilience).
     guard size > 0, step > 0 else {
-        return runtimeMakeStringListRaw([])
+        return runtimeMakeStringListValue([])
     }
     let scalars = Array(source.unicodeScalars)
     var windows: [String] = []
@@ -5086,7 +5094,7 @@ private func runtimeStringWindowed(_ source: String, size: Int, step: Int) -> In
         windows.append(runtimeStringFromScalars(scalars[i ..< i + size]))
         i += step
     }
-    return runtimeMakeStringListRaw(windows)
+    return runtimeMakeStringListValue(windows)
 }
 
 private func runtimeStringWindowedPartial(
@@ -5108,7 +5116,7 @@ private func runtimeStringWindowedPartial(
         windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
     }
-    return runtimeMakeStringListRaw(windows)
+    return runtimeMakeStringListValue(windows)
 }
 
 private func runtimeStringWindowedSequencePartial(
@@ -5129,7 +5137,7 @@ private func runtimeStringWindowedSequencePartial(
         windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
     }
-    return runtimeMakeStringSequenceRaw(windows)
+    return runtimeMakeStringSequenceValue(windows)
 }
 
 private func runtimeStringWindowedSequenceTransform(
@@ -5190,7 +5198,7 @@ public func kk_string_chunked_sequence_flat(
     _ size: Int
 ) -> Int {
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    return kk_list_asSequence(runtimeStringChunked(source, size: size))
+    return runtimeStringChunkedSequence(source, size: size)
 }
 
 @_cdecl("kk_string_chunked_sequence_transform_flat")
@@ -6269,11 +6277,11 @@ private func runtimeCharValuesFromUTF16<S: Sequence>(_ codeUnits: S) -> [Runtime
     codeUnits.map { RuntimeValue(charScalar: Int($0)) }
 }
 
-private func runtimeMakeStringListRaw(_ values: [String]) -> Int {
+private func runtimeMakeStringListValue(_ values: [String]) -> Int {
     registerRuntimeObject(RuntimeListBox(values: values.map(runtimeMakeStringValue)))
 }
 
-private func runtimeMakeStringSequenceRaw(_ values: [String]) -> Int {
+private func runtimeMakeStringSequenceValue(_ values: [String]) -> Int {
     registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: values.map(runtimeMakeStringValue))]))
 }
 
@@ -7472,10 +7480,10 @@ public func kk_string_splitToSequence_flat(
 
 private func runtimeStringSplitToSequenceRaw(_ source: String, delimiter: String) -> Int {
     if delimiter.isEmpty {
-        return runtimeMakeStringSequenceRaw([source])
+        return runtimeMakeStringSequenceValue([source])
     }
 
-    return runtimeMakeStringSequenceRaw(runtimeSplitString(source, delimiter: delimiter))
+    return runtimeMakeStringSequenceValue(runtimeSplitString(source, delimiter: delimiter))
 }
 
 @_cdecl("kk_string_joinToString")
