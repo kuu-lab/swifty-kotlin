@@ -1045,6 +1045,66 @@ extension DataFlowSemaPhase {
         let kPropertyArgs: [TypeArg] = [.invariant(valueType)]
         symbols.setSupertypeTypeArgs(kPropertyArgs, for: kMutablePropertySymbol, supertype: kPropertySymbol)
         types.setNominalSupertypeTypeArgs(kPropertyArgs, for: kMutablePropertySymbol, supertype: kPropertySymbol)
+
+        // Register KMutableProperty.Setter<V> nested interface.
+        let setterPkg = kMutablePropertyInfo.fqName
+        let setterSymbol = ensureInterfaceSymbol(named: "Setter", in: setterPkg, symbols: symbols, interner: interner)
+        symbols.setParentSymbol(kMutablePropertySymbol, for: setterSymbol)
+
+        guard let setterInfo = symbols.symbol(setterSymbol) else { return }
+        let setterValueName = interner.intern("V")
+        let setterValueFQ = setterInfo.fqName + [setterValueName]
+        let setterValueParamSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: setterValueFQ) {
+            setterValueParamSymbol = existing
+        } else {
+            setterValueParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: setterValueName,
+                fqName: setterValueFQ,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(setterSymbol, for: setterValueParamSymbol)
+        }
+        types.setNominalTypeParameterSymbols([setterValueParamSymbol], for: setterSymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: setterSymbol)
+
+        let setterValueType = types.make(.typeParam(TypeParamType(
+            symbol: setterValueParamSymbol,
+            nullability: .nonNull
+        )))
+
+        let function1FQName = [interner.intern("kotlin"), interner.intern("Function"), interner.intern("Function1")]
+        if let function1Symbol = symbols.lookup(fqName: function1FQName) {
+            addSyntheticDirectSupertypes([function1Symbol], to: setterSymbol, symbols: symbols, types: types)
+            // Function1<in V, out Unit>: args order is [out R, in P1] per codebase convention.
+            let function1Args: [TypeArg] = [.out(types.unitType), .in(setterValueType)]
+            symbols.setSupertypeTypeArgs(function1Args, for: setterSymbol, supertype: function1Symbol)
+            types.setNominalSupertypeTypeArgs(function1Args, for: setterSymbol, supertype: function1Symbol)
+        }
+
+        // Register setter: Setter<V> property on KMutableProperty<V>.
+        let setterPropName = interner.intern("setter")
+        let setterPropFQ = kMutablePropertyInfo.fqName + [setterPropName]
+        if symbols.lookup(fqName: setterPropFQ) == nil {
+            let setterPropSymbol = symbols.define(
+                kind: .property,
+                name: setterPropName,
+                fqName: setterPropFQ,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(kMutablePropertySymbol, for: setterPropSymbol)
+            let setterType = types.make(.classType(ClassType(
+                classSymbol: setterSymbol,
+                args: [.invariant(valueType)],
+                nullability: .nonNull
+            )))
+            symbols.setPropertyType(setterType, for: setterPropSymbol)
+        }
     }
 
     // STDLIB-REFLECT-TYPE-015: Register KProperty0<out V> with callable surface.
