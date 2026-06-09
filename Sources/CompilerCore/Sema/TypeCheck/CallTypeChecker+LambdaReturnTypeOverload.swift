@@ -241,6 +241,21 @@ extension CallTypeChecker {
         else {
             return ambiguousCallResult(range: range)
         }
+        // When all viable candidates share the same input-only HOF link name (e.g.
+        // String.zip and CharSequence.zip both map to kk_string_zipTransform), the
+        // apparent ambiguity is structural — not semantic. Fall back to the standard
+        // resolver which picks the most specific receiver type (String over CharSequence).
+        if viableSymbols.allSatisfy({
+            Self.inputOnlyExternalLinkNames.contains(ctx.sema.symbols.externalLinkName(for: $0) ?? "")
+        }) {
+            return ctx.resolver.resolveCall(
+                candidates: viableSymbols,
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: implicitReceiverType,
+                ctx: ctx.semaCtx
+            )
+        }
         guard viableSymbols.contains(where: {
             hasOverloadResolutionByLambdaReturnTypeAnnotation(symbol: $0, sema: ctx.sema)
         }) else {
@@ -424,6 +439,13 @@ extension CallTypeChecker {
         return allSame ? firstType : nil
     }
 
+    private static let inputOnlyExternalLinkNames: Set<String> = [
+        "kk_string_zipTransform",
+        "kk_string_zipWithNextTransform",
+        "kk_string_chunked_sequence_transform",
+        "kk_string_windowedSequence_transform",
+    ]
+
     private func lambdaLiteralExpectedType(
         at index: Int,
         candidates: [SymbolID],
@@ -431,6 +453,35 @@ extension CallTypeChecker {
         receiverType: TypeID? = nil,
         sema: SemaModule
     ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
+        // When all candidates share the same input-only HOF link name (e.g. String and
+        // CharSequence overloads of zip both map to kk_string_zipTransform), pick the
+        // first candidate and treat the lambda as input-only so that its return type is
+        // not used for constraint solving — matches what the single-candidate path does.
+        if !candidates.isEmpty,
+           candidates.allSatisfy({
+               Self.inputOnlyExternalLinkNames.contains(sema.symbols.externalLinkName(for: $0) ?? "")
+           }),
+           let signature = sema.symbols.functionSignature(for: candidates[0]),
+           index < signature.parameterTypes.count
+        {
+            let rawType = signature.parameterTypes[index]
+            let explicitSubstituted = applyExplicitTypeArgs(
+                to: rawType,
+                signature: signature,
+                candidate: candidates[0],
+                explicitTypeArgs: explicitTypeArgs,
+                sema: sema
+            )
+            let substituted = applyReceiverClassTypeArgs(
+                to: explicitSubstituted,
+                signature: signature,
+                candidate: candidates[0],
+                receiverType: receiverType,
+                sema: sema
+            )
+            return (substituted, true, false)
+        }
+
         if candidates.count == 1,
            let signature = sema.symbols.functionSignature(for: candidates[0]),
            index < signature.parameterTypes.count
@@ -450,14 +501,6 @@ extension CallTypeChecker {
                 receiverType: receiverType,
                 sema: sema
             )
-            if let externalLinkName = sema.symbols.externalLinkName(for: candidates[0]),
-               externalLinkName == "kk_string_zipTransform"
-                   || externalLinkName == "kk_string_zipWithNextTransform"
-                   || externalLinkName == "kk_string_chunked_sequence_transform"
-                   || externalLinkName == "kk_string_windowedSequence_transform"
-            {
-                return (substituted, true, false)
-            }
             return (substituted, false, false)
         }
 
