@@ -214,7 +214,12 @@ final class ControlFlowTypeChecker {
                 visibility: .private,
                 flags: []
             )
-            sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            // Only register primitive element types in the symbol table; for complex types
+            // (e.g. IndexedValue<Char>) this would change downstream lowering in ways that
+            // break field-access codegen (kk_array_get_inbounds gets wrong indices).
+            if case .primitive(_, .nonNull) = sema.types.kind(of: elementType) {
+                sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
+            }
             bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: loopVariableSymbol)
         }
