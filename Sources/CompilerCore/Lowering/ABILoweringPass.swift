@@ -344,7 +344,7 @@ final class ABILoweringPass: LoweringPass {
                 if signature == nil, let types,
                    inlineComparisonCallees.contains(effectiveCallee)
                 {
-                    var primitiveHint: TypeKind? = nil
+                    var primitiveHint: TypeKind?
                     for operand in boxedArguments {
                         if let opType = intrinsicArgType(operand, arena: module.arena, types: types) {
                             let opKind = resolveValueClassKind(types.kind(of: opType), types: types, symbols: symbols)
