@@ -62,6 +62,24 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_umul"),
         ]
 
+        // Comparison operators: result type is Boolean so we cannot use the
+        // result to drive unboxing.  Instead unboxOperandToOwnType uses each
+        // operand's own declared primitive type as the target, which is
+        // idempotent for already-unboxed values (kk_unbox_int checks the
+        // object-pointer registry and passes raw values through unchanged).
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+            ctx.interner.intern("kk_op_ult"),
+            ctx.interner.intern("kk_op_ule"),
+            ctx.interner.intern("kk_op_ugt"),
+            ctx.interner.intern("kk_op_uge"),
+        ]
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
@@ -309,6 +327,37 @@ final class ABILoweringPass: LoweringPass {
                     for i in boxedArguments.indices {
                         boxedArguments[i] = unboxBinaryOperandIfNeeded(
                             operand: boxedArguments[i], resultExpr: result,
+                            module: module, types: types, symbols: symbols,
+                            unboxCallees: unboxCallees, newBody: &newBody
+                        )
+                    }
+                }
+
+                // Unbox operands for comparison operators (==, !=, <, etc.).
+                // The result is Boolean so the arithmetic path above cannot
+                // determine the operand's primitive type from the result; use
+                // each operand's own declared type instead.
+                // When one operand has no type info (e.g. the result of x+0 whose
+                // Sema type was not recorded), collect a hint from a sibling operand
+                // that does have type info and forward it so the unboxing can still
+                // emit the correct kk_unbox_* call.
+                if signature == nil, let types,
+                   inlineComparisonCallees.contains(effectiveCallee)
+                {
+                    var primitiveHint: TypeKind? = nil
+                    for operand in boxedArguments {
+                        if let opType = intrinsicArgType(operand, arena: module.arena, types: types) {
+                            let opKind = resolveValueClassKind(types.kind(of: opType), types: types, symbols: symbols)
+                            if case .primitive(_, .nonNull) = opKind {
+                                primitiveHint = opKind
+                                break
+                            }
+                        }
+                    }
+                    for i in boxedArguments.indices {
+                        boxedArguments[i] = unboxOperandToOwnType(
+                            boxedArguments[i],
+                            hint: primitiveHint,
                             module: module, types: types, symbols: symbols,
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
