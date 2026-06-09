@@ -22,9 +22,9 @@ private let rangeForEachAccumulate: @convention(c) (Int, Int, UnsafeMutablePoint
     return 0
 }
 
-// Returns Int.min (the runtime null sentinel) for even values so mapNotNull filters them out
+// Returns the runtime null sentinel for even values so mapNotNull filters them out
 private let rangeMapNotNullOddOnly: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-    value % 2 == 0 ? Int.min : value
+    value % 2 == 0 ? runtimeNullSentinelInt : value
 }
 
 private let rangeFilterIndexedEvenIndex: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, index, _, _ in
@@ -321,7 +321,7 @@ final class RuntimeRangeHOFTests: XCTestCase {
     }
 
     func testLongRangeSortedProducesAscendingList() {
-        let range = kk_long_rangeTo(1, 4)
+        let range = kk_op_downTo(4, 1)
         let sorted = kk_long_range_sorted(range)
         XCTAssertEqual(listElements(sorted), [1, 2, 3, 4])
     }
