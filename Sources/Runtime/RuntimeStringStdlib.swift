@@ -4,6 +4,23 @@ private func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
     Array(runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars)
 }
 
+private func runtimeStringScalars(from value: RuntimeValue, caller: StaticString) -> [UnicodeScalar] {
+    let string: String
+    if value.tag == RuntimeValue.stringTag {
+        string = runtimeStringFromFlat(
+            data: UnsafePointer<UInt8>(bitPattern: value.payload0),
+            length: value.payload1,
+            byteCount: value.payload2,
+            hash: value.payload3
+        )
+    } else if value.tag == RuntimeValue.rawTag {
+        string = runtimeStringFromRawOrPanic(value.payload0, caller: caller)
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received non-string collection element")
+    }
+    return Array(string.unicodeScalars)
+}
+
 private func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
     Array(runtimeStringFromRawOrPanic(raw, caller: #function).utf16)
 }
@@ -2358,12 +2375,12 @@ public func kk_string_indexOfAny_strings_flat(
     _ ignoreCaseRaw: Int
 ) -> Int {
     let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
-          !elements.isEmpty
+    guard let values = runtimeCollectionOrArrayValues(from: stringsRaw),
+          !values.isEmpty
     else {
         return -1
     }
-    let needles = elements.map { runtimeStringScalars($0) }
+    let needles = values.map { runtimeStringScalars(from: $0, caller: #function) }
     let clampedStart = max(0, min(startIndex, source.count))
     if needles.contains(where: \.isEmpty) {
         return clampedStart
@@ -2439,12 +2456,12 @@ public func kk_string_lastIndexOfAny_strings_flat(
     _ ignoreCaseRaw: Int
 ) -> Int {
     let source = runtimeStringScalarsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
-          !elements.isEmpty
+    guard let values = runtimeCollectionOrArrayValues(from: stringsRaw),
+          !values.isEmpty
     else {
         return -1
     }
-    let needles = elements.map { runtimeStringScalars($0) }
+    let needles = values.map { runtimeStringScalars(from: $0, caller: #function) }
     let clampedStart = min(startIndex, source.count)
     if needles.contains(where: \.isEmpty) {
         return clampedStart >= 0 ? clampedStart : -1
@@ -2483,12 +2500,12 @@ private func runtimeStringFindAnyOf(
     startIndex: Int,
     ignoreCaseRaw: Int
 ) -> Int {
-    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
-          !elements.isEmpty
+    guard let values = runtimeCollectionOrArrayValues(from: stringsRaw),
+          !values.isEmpty
     else {
         return runtimeNullSentinelInt
     }
-    let needles = elements.map { runtimeStringScalars($0) }
+    let needles = values.map { runtimeStringScalars(from: $0, caller: #function) }
     let clampedStart = max(0, min(startIndex, source.count))
     if let emptyNeedle = needles.first(where: { $0.isEmpty }) {
         return runtimeStringMatchPair(offset: clampedStart, scalars: emptyNeedle)
@@ -2542,12 +2559,12 @@ private func runtimeStringFindLastAnyOf(
     startIndex: Int,
     ignoreCaseRaw: Int
 ) -> Int {
-    guard let elements = runtimeCollectionElements(from: stringsRaw) ?? runtimeArrayBox(from: stringsRaw)?.elements,
-          !elements.isEmpty
+    guard let values = runtimeCollectionOrArrayValues(from: stringsRaw),
+          !values.isEmpty
     else {
         return runtimeNullSentinelInt
     }
-    let needles = elements.map { runtimeStringScalars($0) }
+    let needles = values.map { runtimeStringScalars(from: $0, caller: #function) }
     let clampedStart = min(startIndex, source.count)
     if let emptyNeedle = needles.first(where: { $0.isEmpty }) {
         return clampedStart >= 0

@@ -1050,6 +1050,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_string_lastIndexOfAny_strings_flat(nil, 0, 0, 0, emptyStringNeedles, 2, 0), 0)
     }
 
+    func testFlatStringIndexOfAnyStringNeedlesUseAggregateStorageWithoutLegacyStringBoxes() {
+        let stringNeedles = makeRuntimeStringValueArray(["x", "bc"])
+        let baselineObjectCount = kk_debugging_global_object_count()
+
+        withFlatString("aBcabc") { data, length, byteCount, hash in
+            XCTAssertEqual(
+                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 0),
+                4
+            )
+            XCTAssertEqual(
+                kk_string_indexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, 0, 1),
+                1
+            )
+            XCTAssertEqual(
+                kk_string_lastIndexOfAny_strings_flat(data, length, byteCount, hash, stringNeedles, length, 0),
+                4
+            )
+        }
+
+        XCTAssertEqual(
+            kk_debugging_global_object_count(),
+            baselineObjectCount,
+            "String needle lookup must not materialize RuntimeStringBox values from aggregate storage"
+        )
+    }
+
     func testFlatStringFindAnyOfRuntimeAPIsUseFlattenedStringFields() {
         let stringNeedles = makeRuntimeArray([
             rawFromRuntimeString("x"),
@@ -3388,6 +3414,32 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         for (index, value) in values.enumerated() {
             _ = kk_array_set(array, index, value, &thrown)
             XCTAssertEqual(thrown, 0)
+        }
+        return array
+    }
+
+    private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
+        let array = kk_array_new(values.count)
+        guard let box = runtimeArrayBox(from: array) else {
+            XCTFail("Expected RuntimeArrayBox")
+            return array
+        }
+        box.values = values.map { value in
+            var length = 0
+            var byteCount = 0
+            var hash = 0
+            let data = runtimeRegisterFlatString(
+                value,
+                outLength: &length,
+                outByteCount: &byteCount,
+                outHash: &hash
+            )
+            return RuntimeValue(
+                stringData: data.map { Int(bitPattern: $0) } ?? 0,
+                length: length,
+                byteCount: byteCount,
+                hash: hash
+            )
         }
         return array
     }
