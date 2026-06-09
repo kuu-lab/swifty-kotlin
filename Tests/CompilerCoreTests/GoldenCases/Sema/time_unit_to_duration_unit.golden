@@ -1,0 +1,9 @@
+symbol s0 kind=enumClass fq=kotlin.time.DurationUnit vis=public flags=synthetic
+symbol s1 kind=enumClass fq=java.util.concurrent.TimeUnit vis=public flags=synthetic
+symbol s2 kind=function fq=kotlin.time.toDurationUnit vis=public flags=synthetic sig=recv=Class#1 params=[] ret=Class#0 suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=timeUnitToDurationUnit vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=valueParameter fq=timeUnitToDurationUnit.$0.u vis=private flags=_
+file f0 package=_
+  decl d0 fun timeUnitToDurationUnit suspend=0 inline=0 sym=s3
+expr e0 name(u) type=Class#1 ref=s4
+expr e1 memberCall recv=e0 callee=toDurationUnit args=[] type=Class#0 call=s2 map=[] targs=[]

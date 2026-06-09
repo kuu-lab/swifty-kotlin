@@ -106,21 +106,15 @@ extension CallTypeChecker {
             return returnType
         }
         // STDLIB-REFLECT-060: KClass boolean properties (isFinal, isOpen, isAbstract)
+        // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
+        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
         let kclassBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
-        ]
-        if kclassBooleanCallees.contains(calleeName), args.isEmpty {
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        // STDLIB-REFLECT-067: KClass type-kind boolean properties
-        let kclassTypeKindCallees: Set<InternedString> = [
             knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
             knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
             knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
         ]
-        if kclassTypeKindCallees.contains(calleeName), args.isEmpty {
+        if kclassBooleanCallees.contains(calleeName), args.isEmpty {
             let boolType = sema.types.booleanType
             sema.bindings.bindExprType(id, type: boolType)
             return boolType
@@ -242,21 +236,15 @@ extension CallTypeChecker {
             return returnType
         }
         // STDLIB-REFLECT-060: KClass boolean properties via variable receiver
+        // STDLIB-REFLECT-067: KClass kind/modifier + type-kind booleans
+        // (isData/isSealed/isValue/isEnum/isInterface/isObject/isInner/isCompanion/isFun)
         let kclassVarBooleanCallees: Set<InternedString> = [
             knownNames.isFinalName, knownNames.isOpenName, knownNames.isAbstractName,
-        ]
-        if kclassVarBooleanCallees.contains(calleeName), args.isEmpty {
-            let boolType = sema.types.booleanType
-            sema.bindings.bindExprType(id, type: boolType)
-            return boolType
-        }
-        // STDLIB-REFLECT-067: KClass type-kind boolean properties via variable receiver
-        let kclassVarTypeKindCallees: Set<InternedString> = [
             knownNames.isDataName, knownNames.isSealedName, knownNames.isValueName,
             knownNames.isEnumName, knownNames.isInterfaceName, knownNames.isObjectName,
             knownNames.isInnerName, knownNames.isCompanionName, knownNames.isFunName,
         ]
-        if kclassVarTypeKindCallees.contains(calleeName), args.isEmpty {
+        if kclassVarBooleanCallees.contains(calleeName), args.isEmpty {
             let boolType = sema.types.booleanType
             sema.bindings.bindExprType(id, type: boolType)
             return boolType

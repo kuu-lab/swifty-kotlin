@@ -1422,5 +1422,34 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-043: minOf(a: Int, vararg other: Int)
+    func testCodegenCompilesMinOfIntVarargTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(minOf(5, 2, 8, 1))
+            val a = 7
+            val b = 4
+            val c = 11
+            val d = 2
+            println(minOf(a, b, c, d, -9))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfIntVararg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1\n-9\n")
+        }
+    }
+
     // MARK: - Private Helpers
 }
