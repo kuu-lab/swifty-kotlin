@@ -194,6 +194,26 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(rangedBuilder)), "hZelloORL")
     }
 
+    func testAppendVarargUsesAggregateArgumentStorageWithoutLegacyStringBoxes() {
+        let builder = makeBuilder("")
+        let args = makeRuntimeValueArray([
+            runtimeStringAggregateValue("left"),
+            RuntimeValue(raw: kk_box_char(Int(Unicode.Scalar("-").value))),
+            runtimeStringAggregateValue("right"),
+        ])
+        let baselineObjectCount = kk_debugging_global_object_count()
+
+        let returned = kk_string_builder_append_vararg_obj(builder, args)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(
+            kk_debugging_global_object_count(),
+            baselineObjectCount,
+            "StringBuilder.append(vararg) must not materialize RuntimeStringBox values from aggregate argument storage"
+        )
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "left-right")
+    }
+
     private func makeRuntimeString(_ value: String) -> Int {
         registerRuntimeObject(RuntimeStringBox(value))
     }
@@ -202,6 +222,34 @@ final class RuntimeStringBuilderTests: XCTestCase {
         withFlatString(value) { data, length, byteCount, hash in
             kk_string_builder_new_from_string_flat(data, length, byteCount, hash)
         }
+    }
+
+    private func makeRuntimeValueArray(_ values: [RuntimeValue]) -> Int {
+        let array = kk_array_new(values.count)
+        guard let box = runtimeArrayBox(from: array) else {
+            XCTFail("Expected RuntimeArrayBox")
+            return array
+        }
+        box.values = values
+        return array
+    }
+
+    private func runtimeStringAggregateValue(_ value: String) -> RuntimeValue {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        return RuntimeValue(
+            stringData: data.map { Int(bitPattern: $0) } ?? 0,
+            length: length,
+            byteCount: byteCount,
+            hash: hash
+        )
     }
 
     private func withFlatString<T>(

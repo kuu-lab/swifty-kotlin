@@ -586,11 +586,10 @@ public func kk_string_builder_append_double(_ sbRaw: Int, _ value: Int) -> Int {
 @_cdecl("kk_string_builder_append_vararg_obj")
 public func kk_string_builder_append_vararg_obj(_ sbRaw: Int, _ argsArrayRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    let elements = runtimeArrayBox(from: argsArrayRaw)?.elements
-        ?? runtimeListBox(from: argsArrayRaw)?.elements
-        ?? [argsArrayRaw]
-    for element in elements {
-        sb.value.append(runtimeElementToString(element))
+    let values = runtimeCollectionOrArrayValues(from: argsArrayRaw)
+        ?? [RuntimeValue(raw: argsArrayRaw)]
+    for value in values {
+        sb.value.append(runtimeElementToString(value))
     }
     return sbRaw
 }
