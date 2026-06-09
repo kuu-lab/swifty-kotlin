@@ -214,6 +214,7 @@ final class ControlFlowTypeChecker {
                 visibility: .private,
                 flags: []
             )
+            sema.symbols.setPropertyType(elementType, for: loopVariableSymbol)
             bodyLocals[loopVariable] = (elementType, loopVariableSymbol, false, true)
             sema.bindings.bindIdentifier(id, symbol: loopVariableSymbol)
         }

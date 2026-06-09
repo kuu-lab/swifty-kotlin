@@ -169,7 +169,10 @@ final class ControlFlowLowerer {
 
         let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
         let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
-        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: sema.types.anyType)
+        let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
+            ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
+            ?? sema.types.anyType
+        let nextValueID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: loopVarType)
         if let customIter = customIterator {
             let nextCallee: InternedString = if let linkName = sema.symbols.externalLinkName(for: customIter.nextSymbol),
                                                 !linkName.isEmpty
