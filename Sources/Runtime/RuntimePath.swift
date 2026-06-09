@@ -1424,6 +1424,185 @@ public func kk_path_appendLines_sequence_default(_ pathRaw: Int, _ linesRaw: Int
     kk_path_appendLines_sequence(pathRaw, linesRaw, 0, outThrown)
 }
 
+// MARK: - STDLIB-IO-PATH-FN-074: Path.visitFileTree(maxDepth, followLinks, builderAction)
+
+final class RuntimeFileVisitorBox {
+    var onPreVisitDirectoryRaw: Int = 0
+    var onVisitFileRaw: Int = 0
+    var onVisitFileFailedRaw: Int = 0
+    var onPostVisitDirectoryRaw: Int = 0
+}
+
+private func runtimeFileVisitorBox(from raw: Int) -> RuntimeFileVisitorBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeFileVisitorBox.self)
+}
+
+private enum PathVisitResult {
+    case continueVisit
+    case terminate
+    case skipSubtree
+    case skipSiblings
+
+    init(fromRaw raw: Int) {
+        switch raw {
+        case 1: self = .terminate
+        case 2: self = .skipSubtree
+        case 3: self = .skipSiblings
+        default: self = .continueVisit
+        }
+    }
+}
+
+private func pathVisitEntry(
+    url: URL,
+    depth: Int,
+    maxDepth: Int,
+    followLinks: Bool,
+    visitor: RuntimeFileVisitorBox,
+    fileManager: FileManager,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> PathVisitResult {
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+        return .continueVisit
+    }
+
+    if isDirectory.boolValue {
+        let pathRaw = registerRuntimeObject(RuntimePathBox(url.path))
+
+        if visitor.onPreVisitDirectoryRaw != 0 {
+            var thrown = 0
+            let resultRaw = kk_function_invoke_2(visitor.onPreVisitDirectoryRaw, pathRaw, 0, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return .terminate
+            }
+            let result = PathVisitResult(fromRaw: resultRaw)
+            switch result {
+            case .terminate:
+                return .terminate
+            case .skipSubtree:
+                if visitor.onPostVisitDirectoryRaw != 0 {
+                    var thrown2 = 0
+                    _ = kk_function_invoke_2(visitor.onPostVisitDirectoryRaw, pathRaw, 0, &thrown2)
+                    if thrown2 != 0 { outThrown?.pointee = thrown2 }
+                }
+                return .continueVisit
+            default:
+                break
+            }
+        }
+
+        if depth < maxDepth {
+            let children = (try? fileManager.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil,
+                options: [.skipsSubdirectoryDescendants]
+            )) ?? []
+            outer: for child in children {
+                var childIsDir: ObjCBool = false
+                let isSymlink = (try? fileManager.attributesOfItem(atPath: child.path))?[.type] as? FileAttributeType == .typeSymbolicLink
+                if isSymlink && !followLinks {
+                    continue
+                }
+                _ = fileManager.fileExists(atPath: child.path, isDirectory: &childIsDir)
+                let result = pathVisitEntry(
+                    url: child,
+                    depth: depth + 1,
+                    maxDepth: maxDepth,
+                    followLinks: followLinks,
+                    visitor: visitor,
+                    fileManager: fileManager,
+                    outThrown: outThrown
+                )
+                switch result {
+                case .terminate:
+                    return .terminate
+                case .skipSiblings:
+                    break outer
+                default:
+                    break
+                }
+            }
+        }
+
+        if visitor.onPostVisitDirectoryRaw != 0 {
+            let pathRaw2 = registerRuntimeObject(RuntimePathBox(url.path))
+            var thrown = 0
+            let resultRaw = kk_function_invoke_2(visitor.onPostVisitDirectoryRaw, pathRaw2, 0, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return .terminate
+            }
+            return PathVisitResult(fromRaw: resultRaw)
+        }
+    } else {
+        let pathRaw = registerRuntimeObject(RuntimePathBox(url.path))
+        if visitor.onVisitFileRaw != 0 {
+            var thrown = 0
+            let resultRaw = kk_function_invoke_2(visitor.onVisitFileRaw, pathRaw, 0, &thrown)
+            if thrown != 0 {
+                outThrown?.pointee = thrown
+                return .terminate
+            }
+            return PathVisitResult(fromRaw: resultRaw)
+        }
+    }
+    return .continueVisit
+}
+
+@_cdecl("kk_path_fileVisitor")
+public func kk_path_fileVisitor(_ builderActionRaw: Int) -> Int {
+    let visitor = RuntimeFileVisitorBox()
+    let visitorRaw = registerRuntimeObject(visitor)
+    if builderActionRaw != 0 {
+        var thrown = 0
+        _ = kk_function_invoke(builderActionRaw, visitorRaw, &thrown)
+    }
+    return visitorRaw
+}
+
+@_cdecl("kk_path_visitFileTree")
+public func kk_path_visitFileTree(
+    _ pathRaw: Int,
+    _ visitorRaw: Int,
+    _ maxDepthRaw: Int,
+    _ followLinksRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_visitFileTree received invalid Path handle")
+    }
+    let maxDepth = maxDepthRaw
+    let followLinks = followLinksRaw != 0
+    let visitor = runtimeFileVisitorBox(from: visitorRaw) ?? RuntimeFileVisitorBox()
+    let rootURL = URL(fileURLWithPath: path.pathString)
+    _ = pathVisitEntry(
+        url: rootURL,
+        depth: 0,
+        maxDepth: maxDepth,
+        followLinks: followLinks,
+        visitor: visitor,
+        fileManager: .default,
+        outThrown: outThrown
+    )
+    return 0
+}
+
+@_cdecl("kk_path_visitFileTree_builder")
+public func kk_path_visitFileTree_builder(
+    _ pathRaw: Int,
+    _ maxDepthRaw: Int,
+    _ followLinksRaw: Int,
+    _ builderActionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let visitorRaw = kk_path_fileVisitor(builderActionRaw)
+    return kk_path_visitFileTree(pathRaw, visitorRaw, maxDepthRaw, followLinksRaw, outThrown)
+}
+
 @_cdecl("kk_path_appendLines_sequence")
 public func kk_path_appendLines_sequence(_ pathRaw: Int, _ linesRaw: Int, _ charsetRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
