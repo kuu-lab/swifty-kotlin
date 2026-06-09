@@ -3349,6 +3349,14 @@ public enum RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_duration_unit_to_time_unit",
+            parameters: [
+                RuntimeABIParameter(name: "unitOrdinal", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_measureTimedValue",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
