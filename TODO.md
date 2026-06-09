@@ -178,8 +178,6 @@
 
 #### kotlin.text 型の実装
 - [x] STDLIB-TEXT-TYPE-008: `MatchGroupCollection` インターフェースの実装
-- [ ] STDLIB-TEXT-TYPE-010: `MatchResult` インターフェースの実装
-- [ ] STDLIB-TEXT-TYPE-008: `MatchGroupCollection` インターフェースの実装
 - [x] STDLIB-TEXT-TYPE-010: `MatchResult` インターフェースの実装
 
 #### kotlin.text プロパティの実装
