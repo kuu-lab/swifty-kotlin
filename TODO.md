@@ -147,10 +147,10 @@
 - [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
-- [ ] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
+- [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 #### kotlin.reflect 型の実装
 - [ ] STDLIB-REFLECT-TYPE-010: `KMutableProperty0` インターフェースの実装
-- [ ] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
+- [x] STDLIB-REFLECT-TYPE-013: `KParameter` インターフェースの実装
 
 #### kotlin.reflect プロパティの実装
 
@@ -159,10 +159,12 @@
 #### kotlin.sequences 型の実装
 
 #### kotlin.sequences 関数の実装
-- [ ] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
+- [x] STDLIB-SEQ-FN-046: `groupBy` 関数の実装
 - [ ] STDLIB-SEQ-FN-044: `forEach` 関数の実装
 - [ ] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
 - [x] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
+- [x] STDLIB-SEQ-FN-047: `groupByTo` 関数の実装
+- [ ] STDLIB-REFLECT-TYPE-009: `KMutableProperty` インターフェースの実装
 - [x] STDLIB-REFLECT-TYPE-015: `KProperty0` インターフェースの実装
 
 - [x] STDLIB-SEQ-FN-005: `associate` 関数の実装

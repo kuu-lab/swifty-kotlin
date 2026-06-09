@@ -1,0 +1,33 @@
+symbol s0 kind=interface fq=kotlin.reflect.KType vis=public flags=synthetic
+symbol s1 kind=interface fq=kotlin.reflect.KParameter vis=public flags=synthetic
+symbol s2 kind=property fq=kotlin.reflect.KParameter.index vis=public flags=synthetic type=Int
+symbol s3 kind=property fq=kotlin.reflect.KParameter.name vis=public flags=synthetic type=String?
+symbol s4 kind=property fq=kotlin.reflect.KParameter.type vis=public flags=synthetic type=Class#0
+symbol s5 kind=property fq=kotlin.reflect.KParameter.isOptional vis=public flags=synthetic type=Boolean
+symbol s6 kind=property fq=kotlin.reflect.KParameter.kind vis=public flags=synthetic type=Int
+symbol s7 kind=function fq=golden.sema.inspectIndex vis=public flags=_ sig=recv=_ params=[Class#1] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=valueParameter fq=golden.sema.inspectIndex.$0.p vis=private flags=_
+symbol s9 kind=function fq=golden.sema.inspectName vis=public flags=_ sig=recv=_ params=[Class#1] ret=String? suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=valueParameter fq=golden.sema.inspectName.$1.p vis=private flags=_
+symbol s11 kind=function fq=golden.sema.inspectType vis=public flags=_ sig=recv=_ params=[Class#1] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=valueParameter fq=golden.sema.inspectType.$2.p vis=private flags=_
+symbol s13 kind=function fq=golden.sema.inspectOptional vis=public flags=_ sig=recv=_ params=[Class#1] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=valueParameter fq=golden.sema.inspectOptional.$3.p vis=private flags=_
+symbol s15 kind=function fq=golden.sema.inspectKind vis=public flags=_ sig=recv=_ params=[Class#1] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s16 kind=valueParameter fq=golden.sema.inspectKind.$4.p vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun inspectIndex suspend=0 inline=0 sym=s7
+  decl d1 fun inspectName suspend=0 inline=0 sym=s9
+  decl d2 fun inspectType suspend=0 inline=0 sym=s11
+  decl d3 fun inspectOptional suspend=0 inline=0 sym=s13
+  decl d4 fun inspectKind suspend=0 inline=0 sym=s15
+expr e0 name(p) type=Class#1 ref=s8
+expr e1 memberCall recv=e0 callee=index args=[] type=Int ref=s2
+expr e2 name(p) type=Class#1 ref=s10
+expr e3 memberCall recv=e2 callee=name args=[] type=String? ref=s3
+expr e4 name(p) type=Class#1 ref=s12
+expr e5 memberCall recv=e4 callee=type args=[] type=Class#0 ref=s4
+expr e6 name(p) type=Class#1 ref=s14
+expr e7 memberCall recv=e6 callee=isOptional args=[] type=Boolean ref=s5
+expr e8 name(p) type=Class#1 ref=s16
+expr e9 memberCall recv=e8 callee=kind args=[] type=Int ref=s6

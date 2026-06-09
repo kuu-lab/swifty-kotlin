@@ -63,6 +63,21 @@ extension CallLowerer {
             return kFunctionResult
         }
 
+        // ── KParameter.index/name/type/isOptional/kind → kk_kparameter_*(receiver) ──
+        if let kParameterResult = tryLowerKParameterMemberAccess(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return kParameterResult
+        }
+
         // ── KFunction<*>.call(...) → kk_kfunction_call_N(receiver, args...) ──
         if let kFunctionCallResult = tryLowerKFunctionCallInvocation(
             exprID,
