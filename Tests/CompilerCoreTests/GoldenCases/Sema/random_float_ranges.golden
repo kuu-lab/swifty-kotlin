@@ -1,0 +1,17 @@
+symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
+symbol s1 kind=function fq=kotlin.random.Random.nextFloat vis=public flags=synthetic sig=recv=Class#0 params=[Float] ret=Float suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=kotlin.random.Random.nextFloat vis=public flags=synthetic sig=recv=Class#0 params=[Float,Float] ret=Float suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3 kind=function fq=useRandomFloatRanges vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s4 kind=local fq=__local_0.a vis=private flags=_ type=Float
+symbol s5 kind=local fq=__local_1.b vis=private flags=_ type=Float
+file f0 package=_
+  decl d0 fun useRandomFloatRanges suspend=0 inline=0 sym=s3
+expr e0 name(Random) type=Class#0 ref=s0
+expr e1 float(10.0) type=Float
+expr e2 memberCall recv=e0 callee=nextFloat args=[_:e1] type=Float call=s1 map=[0->0] targs=[]
+expr e3 localDecl a mutable=0 type=_ init=e2 type=Unit ref=s4
+expr e4 name(Random) type=Class#0 ref=s0
+expr e5 float(1.0) type=Float
+expr e6 float(10.0) type=Float
+expr e7 memberCall recv=e4 callee=nextFloat args=[_:e5,_:e6] type=Float call=s2 map=[0->0,1->1] targs=[]
+expr e8 localDecl b mutable=0 type=_ init=e7 type=Unit ref=s5

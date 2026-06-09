@@ -1,0 +1,19 @@
+symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
+symbol s1 kind=property fq=kotlin.random.Random.Default vis=public flags=synthetic type=Class#0
+symbol s2 kind=function fq=kotlin.random.Random.nextInt vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=kotlin.random.Random.nextLong vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Long suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=useRandomDefault vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s5 kind=local fq=__local_0.rng vis=private flags=_ type=Class#0
+symbol s6 kind=local fq=__local_1.a vis=private flags=_ type=Int
+symbol s7 kind=local fq=__local_2.b vis=private flags=_ type=Long
+file f0 package=_
+  decl d0 fun useRandomDefault suspend=0 inline=0 sym=s4
+expr e0 name(Random) type=Class#0 ref=s0
+expr e1 memberCall recv=e0 callee=Default args=[] type=Class#0 ref=s1
+expr e2 localDecl rng mutable=0 type=_ init=e1 type=Unit ref=s5
+expr e3 name(rng) type=Class#0 ref=s5
+expr e4 memberCall recv=e3 callee=nextInt args=[] type=Int call=s2 map=[] targs=[]
+expr e5 localDecl a mutable=0 type=_ init=e4 type=Unit ref=s6
+expr e6 name(rng) type=Class#0 ref=s5
+expr e7 memberCall recv=e6 callee=nextLong args=[] type=Long call=s3 map=[] targs=[]
+expr e8 localDecl b mutable=0 type=_ init=e7 type=Unit ref=s7
