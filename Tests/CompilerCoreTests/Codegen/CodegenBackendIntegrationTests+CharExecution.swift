@@ -285,4 +285,83 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    // MARK: - STDLIB-TEXT-PROP-009: isJavaIdentifierPart
+
+    func testCodegenCharIsJavaIdentifierPartTypicalValues() throws {
+        // Covers letters, digits, connector punctuation (_), currency symbol ($),
+        // and characters that are NOT valid identifier parts (space, operator).
+        let source = """
+        fun main() {
+            println('A'.isJavaIdentifierPart())
+            println('5'.isJavaIdentifierPart())
+            println('_'.isJavaIdentifierPart())
+            println('$'.isJavaIdentifierPart())
+            println(' '.isJavaIdentifierPart())
+            println('+'.isJavaIdentifierPart())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "CharIsJavaIdentifierPartTypical",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                true
+                true
+                true
+                true
+                false
+                false
+                """
+                + "\n"
+            )
+        }
+    }
+
+    func testCodegenCharIsJavaIdentifierPartDigitAllowedButStartForbids() throws {
+        // Digits are valid identifier *parts* but NOT valid identifier *starts*.
+        // This test documents the semantic difference between the two predicates
+        // and ensures both runtime symbols are wired correctly through codegen.
+        let source = """
+        fun main() {
+            println('5'.isJavaIdentifierPart())
+            println('5'.isJavaIdentifierStart())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "CharIsJavaIdentifierPartVsStart",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                true
+                false
+                """
+                + "\n"
+            )
+        }
+    }
 }

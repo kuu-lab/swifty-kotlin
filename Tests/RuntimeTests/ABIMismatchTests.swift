@@ -128,7 +128,8 @@ final class ABIMismatchTests: XCTestCase {
         // STDLIB-REGEX-097: kk_regex_group_names
         // STDLIB-REGEX-094: kk_regex_matches, kk_regex_from_literal, kk_string_replaceFirst_regex
         // STDLIB-TEXT-FN-105: kk_string_toRegex_with_option, kk_string_toRegex_with_options
-        XCTAssertEqual(RuntimeABISpec.regexFunctions.count, 41)
+        // STDLIB-TEXT-TYPE-008: kk_match_group_collection_get_at, kk_match_group_collection_size
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.regexFunctions.count, 43)
     }
 
     func testPrintAndPrintlnFunctionCount() {

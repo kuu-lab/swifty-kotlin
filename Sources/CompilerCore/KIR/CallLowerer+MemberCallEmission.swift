@@ -318,6 +318,35 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+        // thenBy/thenByDescending/thenDescending/thenComparator (1-arg variants):
+        // receiver comparator + lambda/comparison → (c1Fn, c1Closure, fn, closure)
+        let thenByOneArgCallees: Set<InternedString> = [
+            interner.intern("kk_comparator_then_by"),
+            interner.intern("kk_comparator_then_by_descending"),
+            interner.intern("kk_comparator_then_descending"),
+            interner.intern("kk_comparator_then_comparator"),
+        ]
+        if thenByOneArgCallees.contains(loweredCallee),
+           finalArguments.count == 2,
+           sourceArgExprs.count == 1,
+           let primaryComparatorArgs = makeComparatorTrampolineArgument(
+               comparatorExprID: receiver.expr,
+               loweredComparatorID: finalArguments[0],
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               instructions: &instructions
+           )
+        {
+            let (fnExpr, envExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = primaryComparatorArgs + [fnExpr, envExpr]
+        }
         if loweredCallee == interner.intern("kk_comparator_then_by_comparator_selector")
             || loweredCallee == interner.intern("kk_comparator_then_by_descending_comparator_selector"),
            finalArguments.count == 3,
@@ -949,6 +978,7 @@ extension CallLowerer {
             interner.intern("kk_range_random"),
             interner.intern("kk_range_random_random"),
             interner.intern("kk_random_nextInt_rangeObject"),
+            interner.intern("kk_random_nextLong_rangeObject"),
             interner.intern("kk_range_reduce"),
             interner.intern("kk_range_reduceIndexed"),
             interner.intern("kk_long_range_random"),
@@ -971,10 +1001,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_reduceRightIndexed"),
             interner.intern("kk_sequence_reduceRightOrNull"),
             interner.intern("kk_sequence_reduceRightIndexedOrNull"),
-            interner.intern("kk_long_range_random"),
-            interner.intern("kk_random_nextLong_rangeObject"),
-            interner.intern("kk_uint_range_random"),
-            interner.intern("kk_ulong_range_random"),
             interner.intern("kk_sequence_runningFold"),
             interner.intern("kk_sequence_runningReduceIndexed"),
             interner.intern("kk_sequence_sortedBy"),
