@@ -61,6 +61,29 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
+        // Comparison callees need peer-type unboxing: when one operand is Any (e.g.
+        // from kk_list_iterator_next) and the other is a primitive (e.g. after
+        // inlineArithmetic unboxing), unbox the Any side using the peer's primitive type.
+        let peerTypeComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+            ctx.interner.intern("kk_op_deq"),
+            ctx.interner.intern("kk_op_dne"),
+            ctx.interner.intern("kk_op_dlt"),
+            ctx.interner.intern("kk_op_dle"),
+            ctx.interner.intern("kk_op_dgt"),
+            ctx.interner.intern("kk_op_dge"),
+            ctx.interner.intern("kk_op_feq"),
+            ctx.interner.intern("kk_op_fne"),
+            ctx.interner.intern("kk_op_flt"),
+            ctx.interner.intern("kk_op_fle"),
+            ctx.interner.intern("kk_op_fgt"),
+            ctx.interner.intern("kk_op_fge"),
+        ]
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
@@ -313,6 +336,24 @@ final class ABILoweringPass: LoweringPass {
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
                     }
+                }
+
+                // Unbox Any/reference-typed operands in comparison calls using
+                // the PEER operand's primitive type. This handles the case
+                // where one side was already unboxed by inlineArithmeticCallees
+                // (e.g. `sample + 0`) while the other side (`sample`) is still
+                // a boxed Any from kk_list_iterator_next.
+                if signature == nil, let types,
+                   peerTypeComparisonCallees.contains(effectiveCallee)
+                {
+                    boxedArguments = applyPeerTypeUnboxing(
+                        arguments: boxedArguments,
+                        module: module,
+                        types: types,
+                        symbols: symbols,
+                        unboxCallees: unboxCallees,
+                        newBody: &newBody
+                    )
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(

@@ -314,6 +314,53 @@ extension ABILoweringPass {
         return unboxed
     }
 
+    /// Unbox any Any/reference-typed operand in a two-argument comparison call
+    /// (kk_op_eq, kk_op_ne, etc.) using the peer operand's type as the
+    /// unboxing target. This handles the case where one side has been unboxed
+    /// by inlineArithmeticCallees processing (e.g. `sample + 0`) while the
+    /// other side is still a boxed Any pointer.
+    func applyPeerTypeUnboxing(
+        arguments: [KIRExprID],
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?,
+        unboxCallees: UnboxingCalleeNames,
+        newBody: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        guard arguments.count == 2 else { return arguments }
+        var result = arguments
+        for (argIdx, peerIdx) in [(0, 1), (1, 0)] {
+            let argType = intrinsicArgType(result[argIdx], arena: module.arena, types: types)
+            let peerType = intrinsicArgType(result[peerIdx], arena: module.arena, types: types)
+            guard let argType, let peerType else { continue }
+            let argKind = resolveValueClassKind(types.kind(of: argType), types: types, symbols: symbols)
+            let peerKind = resolveValueClassKind(types.kind(of: peerType), types: types, symbols: symbols)
+            guard isAnyOrNullableAny(argKind) || isNonValueClassReference(argKind, symbols: symbols) else { continue }
+            guard case .primitive = peerKind else { continue }
+            guard let callee = unboxingCallee(
+                sourceKind: argKind,
+                targetKind: peerKind,
+                unboxCallees: unboxCallees,
+                types: types,
+                symbols: symbols
+            ) else { continue }
+            let unboxedExpr = module.arena.appendExpr(
+                .temporary(Int32(module.arena.expressions.count)),
+                type: peerType
+            )
+            newBody.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: [result[argIdx]],
+                result: unboxedExpr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            result[argIdx] = unboxedExpr
+        }
+        return result
+    }
+
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
         boxCallees: BoxingCalleeNames
