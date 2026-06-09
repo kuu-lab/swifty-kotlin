@@ -14,6 +14,10 @@ extension ABILoweringPass {
         "kk_mutable_list_add_at",
         "kk_mutable_list_set",
         "kk_mutable_set_add",
+        "kk_mutable_map_put",
+        "kk_mutable_map_putAll",
+        "kk_mutable_map_getOrPut",
+        "kk_mutable_map_plusAssign_pair",
     ]
 
     func resolveValueClassKind(
@@ -243,14 +247,22 @@ extension ABILoweringPass {
             return true
         }
 
-        // Unboxing is only needed when the source is nullable: a nullable primitive
-        // can carry a boxed RuntimeDoubleBox/RuntimeFloatBox/... or the null sentinel.
-        // Non-null → non-null never needs unboxing: the value is already a raw bit
-        // pattern, and calling kk_unbox_double on it would misinterpret -0.0 (whose
-        // bit pattern equals runtimeNullSentinelInt = Int.min) as null.
+        // Nullable → non-null always needs unboxing (box pointer or null sentinel).
         if case let .primitive(sourcePrimitive, .nullable) = sourceKind,
            case let .primitive(targetPrimitive, .nonNull) = targetKind,
            sourcePrimitive == targetPrimitive
+        {
+            return true
+        }
+        // Non-null → non-null: skip unboxing only for Double and Float.
+        // kk_unbox_double/kk_unbox_float treat the null sentinel (Int.min) as null
+        // and return 0, which corrupts -0.0 whose bit pattern equals Int.min.
+        // Boolean, Int, Long, Char do not share a valid value with the null sentinel,
+        // so their non-null → non-null unboxing is still safe and necessary.
+        if case let .primitive(sourcePrimitive, .nonNull) = sourceKind,
+           case let .primitive(targetPrimitive, .nonNull) = targetKind,
+           sourcePrimitive == targetPrimitive,
+           sourcePrimitive != .double, sourcePrimitive != .float
         {
             return true
         }

@@ -8,9 +8,9 @@ extension CodegenBackendIntegrationTests {
     /// external `_compareTo` reference (which previously failed to link).
     ///
     /// Covers Int both directly and inside a `(Int, Int) -> Int` lambda, plus
-    /// Long, Double (direct and inside a lambda), and Boolean. Each result is
+    /// Long, Double, Float (direct and inside lambdas), and Boolean. Each result is
     /// the sign of the comparison (-1/0/1), matching kotlinc / the JDK
-    /// `Integer.compare` / `Long.compare` / `Double.compare` semantics.
+    /// `Integer.compare` / `Long.compare` / `Double.compare` / `Float.compare` semantics.
     func testCodegenCompilesPrimitiveCompareTo() throws {
         let source = """
         fun main() {
