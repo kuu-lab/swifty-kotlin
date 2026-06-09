@@ -13,6 +13,10 @@ KEEP_TEMP=0
 REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
 DIFF_WORKERS="${DIFF_WORKERS:-}"
+# Distributed sharding: run only every Nth case (interleaved) so multiple CI
+# runners can split the case set. SHARD_INDEX is 0-based, SHARD_COUNT total.
+DIFF_SHARD_INDEX="${DIFF_SHARD_INDEX:-0}"
+DIFF_SHARD_COUNT="${DIFF_SHARD_COUNT:-1}"
 # Set to 0 in CI to omit "PASS <file>" lines (keeps FAIL/SKIP/CASE and summary).
 DIFF_LOG_PASS="${DIFF_LOG_PASS:-1}"
 LAST_ARTIFACT_DIR=""
@@ -37,6 +41,9 @@ Options:
   --parallel [n]    Enable parallel execution with n workers (default: 1, 0 = disabled)
   --no-parallel      Disable parallel execution
   --jobs <n>         Number of parallel workers (default: env DIFF_WORKERS, default: 4, clipped by CPU)
+  --shard-index <n>  0-based shard index for distributed runs (default: \$DIFF_SHARD_INDEX or 0)
+  --shard-count <n>  Total number of shards; case i runs when i % count == index
+                     (default: \$DIFF_SHARD_COUNT or 1 = no sharding)
   --compile-timeout <seconds>
                      Per-compiler timeout (default: \$DIFF_COMPILE_TIMEOUT or 120)
   --run-timeout <seconds>
@@ -54,10 +61,14 @@ Options:
 
 Environment:
   DIFF_LOG_PASS      If 0 or false, omit PASS lines (FAIL/SKIP/CASE unchanged; default: 1)
+  DIFF_SHARD_INDEX / DIFF_SHARD_COUNT
+                     Run only every Nth case (interleaved) so N runners can split
+                     the case set; counts/summary reflect this shard only
 
 Examples:
   bash Scripts/diff_kotlinc.sh Scripts/diff_cases
   bash Scripts/diff_kotlinc.sh path/to/program.kt
+  DIFF_SHARD_INDEX=0 DIFF_SHARD_COUNT=4 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 USAGE
 }
 
@@ -113,6 +124,28 @@ while [[ $# -gt 0 ]]; do
       ;;
     --jobs=*)
       DIFF_WORKERS="${1#*=}"
+      ;;
+    --shard-index)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--shard-index requires an argument" >&2
+        exit 1
+      fi
+      DIFF_SHARD_INDEX="$1"
+      ;;
+    --shard-index=*)
+      DIFF_SHARD_INDEX="${1#*=}"
+      ;;
+    --shard-count)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo "--shard-count requires an argument" >&2
+        exit 1
+      fi
+      DIFF_SHARD_COUNT="$1"
+      ;;
+    --shard-count=*)
+      DIFF_SHARD_COUNT="${1#*=}"
       ;;
     --compile-timeout)
       shift
@@ -253,6 +286,21 @@ if [[ -n "$DIFF_WORKERS" ]] && ! [[ "$DIFF_WORKERS" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+if ! [[ "$DIFF_SHARD_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+  echo "DIFF_SHARD_COUNT must be a positive integer: $DIFF_SHARD_COUNT" >&2
+  exit 1
+fi
+
+if ! [[ "$DIFF_SHARD_INDEX" =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "DIFF_SHARD_INDEX must be a non-negative integer: $DIFF_SHARD_INDEX" >&2
+  exit 1
+fi
+
+if (( DIFF_SHARD_INDEX >= DIFF_SHARD_COUNT )); then
+  echo "DIFF_SHARD_INDEX ($DIFF_SHARD_INDEX) must be < DIFF_SHARD_COUNT ($DIFF_SHARD_COUNT)" >&2
+  exit 1
+fi
+
 if ! [[ "$COMPILE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
   echo "compile timeout must be a positive integer: $COMPILE_TIMEOUT" >&2
   exit 1
@@ -353,6 +401,9 @@ fi
 
 echo "=== diff_kotlinc Configuration ==="
 echo "Workers: $WORKER_COUNT"
+if (( DIFF_SHARD_COUNT > 1 )); then
+  echo "Shard: $DIFF_SHARD_INDEX/$DIFF_SHARD_COUNT (interleaved)"
+fi
 echo "Compile timeout: ${COMPILE_TIMEOUT}s"
 echo "Run timeout: ${RUN_TIMEOUT}s"
 echo "Force run skipped: $FORCE_RUN_SKIPPED"
@@ -366,15 +417,54 @@ warm_kotlinc
 
 collect_cases() {
   local path="$1"
+  local -a all=()
   if [[ -f "$path" ]]; then
-    printf '%s\n' "$path"
-    return
-  fi
-  if [[ ! -d "$path" ]]; then
+    all=("$path")
+  elif [[ -d "$path" ]]; then
+    while IFS= read -r found; do
+      [[ -z "$found" ]] && continue
+      all+=("$found")
+    done < <(find "$path" -type f -name '*.kt' | sort)
+  else
     echo "Target does not exist: $path" >&2
     exit 1
   fi
-  find "$path" -type f -name '*.kt' | sort
+
+  # Interleaved sharding: case i is emitted only when i % count == index.
+  # No sharding when DIFF_SHARD_COUNT == 1 (every case passes the test).
+  local i=0
+  for found in "${all[@]+"${all[@]}"}"; do
+    if (( i % DIFF_SHARD_COUNT == DIFF_SHARD_INDEX )); then
+      printf '%s\n' "$found"
+    fi
+    i=$((i + 1))
+  done
+}
+
+# Number of cases in the target *before* sharding, so an empty shard can be
+# distinguished from a genuinely empty target.
+count_target_cases() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '1'
+  elif [[ -d "$path" ]]; then
+    find "$path" -type f -name '*.kt' | wc -l | tr -d '[:space:]'
+  else
+    printf '0'
+  fi
+}
+
+# Decide what an empty case set means. A genuinely empty target is an error, but
+# an empty shard (sharding on, with every case assigned to other shards) is a
+# normal no-op that must exit 0 so the aggregate gate stays green.
+handle_empty_cases() {
+  if (( DIFF_SHARD_COUNT > 1 )) && (( $(count_target_cases "$TARGET") > 0 )); then
+    echo "No cases assigned to shard ${DIFF_SHARD_INDEX}/${DIFF_SHARD_COUNT}; nothing to do."
+    echo "Summary: total=0 failed=0 passed=0 skipped=0"
+    exit 0
+  fi
+  echo "No .kt files found." >&2
+  exit 1
 }
 
 normalize_text() {
@@ -776,8 +866,7 @@ else
   done < <(collect_cases "$TARGET")
 
   if [[ ${#TEST_CASES[@]} -eq 0 ]]; then
-    echo "No .kt files found." >&2
-    exit 1
+    handle_empty_cases
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
@@ -865,8 +954,7 @@ else
 fi
 
 if [[ $TOTAL -eq 0 && $SKIPPED -eq 0 ]]; then
-  echo "No .kt files found." >&2
-  exit 1
+  handle_empty_cases
 fi
 
 echo "Summary: total=$TOTAL failed=$FAILED passed=$((TOTAL - FAILED)) skipped=$SKIPPED"
