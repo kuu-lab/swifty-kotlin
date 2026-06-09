@@ -93,6 +93,23 @@ final class ABILoweringPass: LoweringPass {
         ]
 
 
+        // Comparison operators return Bool, so the result type cannot guide
+        // operand unboxing. Each operand is unboxed toward the concrete
+        // primitive type of its peer (e.g. typeParam T → Int when the other
+        // side is already a primitive Int after kk_int_narrow).
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+            ctx.interner.intern("kk_op_ult"),
+            ctx.interner.intern("kk_op_ule"),
+            ctx.interner.intern("kk_op_ugt"),
+            ctx.interner.intern("kk_op_uge"),
+        ]
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
@@ -373,6 +390,49 @@ final class ABILoweringPass: LoweringPass {
                             module: module, types: types, symbols: symbols,
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
+                    }
+                }
+
+                // Unbox boxed-primitive operands for inline comparison calls
+                // (kk_op_eq, kk_op_lt, etc.). These return Bool so the result
+                // type cannot be used to determine the unbox target. Instead
+                // each operand is unboxed toward the concrete primitive type
+                // of its peer operand (e.g. typeParam → Int when the other
+                // side is already a narrowed primitive).
+                if signature == nil, let types,
+                   inlineComparisonCallees.contains(effectiveCallee),
+                   boxedArguments.count == 2
+                {
+                    for (i, peerIdx) in [(0, 1), (1, 0)] {
+                        let peer = boxedArguments[peerIdx]
+                        guard let peerType = intrinsicArgType(peer, arena: module.arena, types: types)
+                        else { continue }
+                        let peerKind = resolveValueClassKind(
+                            types.kind(of: peerType), types: types, symbols: symbols
+                        )
+                        guard case .primitive = peerKind else { continue }
+                        let arg = boxedArguments[i]
+                        guard let argType = intrinsicArgType(arg, arena: module.arena, types: types)
+                        else { continue }
+                        let argKind = resolveValueClassKind(
+                            types.kind(of: argType), types: types, symbols: symbols
+                        )
+                        guard needsUnboxing(sourceKind: argKind, targetKind: peerKind, symbols: symbols),
+                              let unboxCallee = unboxingCallee(
+                                  sourceKind: argKind, targetKind: peerKind,
+                                  unboxCallees: unboxCallees, types: types, symbols: symbols
+                              )
+                        else { continue }
+                        let unboxed = module.arena.appendExpr(
+                            .temporary(Int32(module.arena.expressions.count)),
+                            type: peerType
+                        )
+                        newBody.append(.call(
+                            symbol: nil, callee: unboxCallee,
+                            arguments: [arg], result: unboxed,
+                            canThrow: false, thrownResult: nil
+                        ))
+                        boxedArguments[i] = unboxed
                     }
                 }
 
