@@ -2077,6 +2077,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerPathExtensionFunction(
+            named: "visitFileTree",
+            packageFQName: kotlinIOPathPkg,
+            receiverType: pathType,
+            parameters: [
+                ("maxDepth", types.intType),
+                ("followLinks", types.booleanType),
+                ("builderAction", fileVisitorBuilderActionType),
+            ],
+            returnType: types.unitType,
+            externalLinkName: "kk_path_visitFileTree_builder",
+            valueParameterHasDefaultValues: [true, true, false],
+            symbols: symbols,
+            interner: interner
+        )
+
         registerPathTopLevelFunction(
             named: "createTempFile",
             packageFQName: kotlinIOPathPkg,
