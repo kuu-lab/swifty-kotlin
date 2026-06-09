@@ -1077,6 +1077,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // Kotlin declares toList on CharSequence; the runtime treats every
+        // CharSequence as string-backed, so the same kk_string_toList applies.
+        registerSyntheticStringExtensionFunction(
+            named: "toList",
+            externalLinkName: "kk_string_toList",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: listCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // STDLIB-TEXT-FN-104: CharSequence.toMutableList(): MutableList<Char>
         // The return type is modelled as MutableList<Char> when the symbol is
