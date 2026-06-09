@@ -78,6 +78,22 @@ extension DataFlowSemaPhase {
             )
         }
 
+        // vararg overload: fun minOf(a: Int, vararg other: Int): Int (STDLIB-COMP-FN-043).
+        // Modeled after the unsigned vararg stubs: two declared parameter slots
+        // ([Int, Int]) with the trailing one flagged vararg. Resolution prefers the
+        // fixed 2-/3-arg overloads above, so only 4+ argument calls reach this one.
+        registerSyntheticComparisonFunction(
+            named: "minOf",
+            parameterTypes: [types.intType, types.intType],
+            returnType: types.intType,
+            parameterNames: ["a", "other"],
+            valueParameterIsVararg: [false, true],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticMaxOfComparableStubs(
             symbols: symbols,
             types: types,

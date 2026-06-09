@@ -1618,12 +1618,21 @@ final class CallTypeChecker {
                     }
 
                     let paramTypes = Array(repeating: expectedType, count: args.count)
-                    let chosen = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.first(where: { candidate in
+                    let matchingCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.filter { candidate in
                         guard let signature = sema.symbols.functionSignature(for: candidate) else {
                             return false
                         }
                         return signature.parameterTypes == paramTypes
-                    })
+                    }
+                    // Prefer the fixed-arity overload over a vararg one declaring the same
+                    // parameter types (e.g. minOf(Int, Int) vs minOf(Int, vararg Int)), matching
+                    // Kotlin's preference for non-vararg signatures during overload resolution.
+                    let chosen = matchingCandidates.first(where: { candidate in
+                        guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                            return false
+                        }
+                        return !signature.valueParameterIsVararg.contains(true)
+                    }) ?? matchingCandidates.first
                     if let chosen,
                        let signature = sema.symbols.functionSignature(for: chosen)
                     {
