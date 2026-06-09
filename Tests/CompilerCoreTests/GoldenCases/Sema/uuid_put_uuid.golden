@@ -1,0 +1,17 @@
+symbol s0 kind=class fq=kotlin.ByteArray vis=public flags=synthetic type=Class#0
+symbol s1 kind=class fq=kotlin.uuid.Uuid vis=public flags=synthetic
+symbol s2 kind=function fq=kotlin.uuid.putUuid vis=public flags=synthetic sig=recv=Class#0 params=[Int,Class#1] ret=Unit suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s3 kind=function fq=kotlin.uuid.uuid vis=public flags=synthetic sig=recv=Class#0 params=[Int] ret=Class#1 suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=function fq=golden.sema.writeThenReadUuid vis=public flags=_ sig=recv=_ params=[Class#0,Class#1] ret=Class#1 suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s5 kind=valueParameter fq=golden.sema.writeThenReadUuid.$0.arr vis=private flags=_
+symbol s6 kind=valueParameter fq=golden.sema.writeThenReadUuid.$0.u vis=private flags=_
+file f0 package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)]
+  decl d0 fun writeThenReadUuid suspend=0 inline=0 sym=s4
+expr e0 name(arr) type=Class#0 ref=s5
+expr e1 int(0) type=Int
+expr e2 name(u) type=Class#1 ref=s6
+expr e3 memberCall recv=e0 callee=putUuid args=[_:e1,_:e2] type=Unit call=s2 map=[0->0,1->1] targs=[]
+expr e4 name(arr) type=Class#0 ref=s5
+expr e5 int(0) type=Int
+expr e6 memberCall recv=e4 callee=uuid args=[_:e5] type=Class#1 call=s3 map=[0->0] targs=[]
+expr e7 return value=e6 type=Nothing
