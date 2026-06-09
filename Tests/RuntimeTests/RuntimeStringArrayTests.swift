@@ -2280,6 +2280,27 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(runtimeStringValue(Int(bitPattern: result)), "<a|é|?|?>")
     }
 
+    func testStringJoinToStringUsesAggregateListStorageWithoutLegacyStringBoxes() {
+        let listRaw = makeRuntimeValueList([
+            runtimeStringAggregateValue("red"),
+            runtimeStringAggregateValue("green"),
+            runtimeStringAggregateValue("blue"),
+        ])
+        let separatorRaw = rawFromRuntimeString("|")
+        let prefixRaw = rawFromRuntimeString("<")
+        let postfixRaw = rawFromRuntimeString(">")
+        let baselineObjectCount = kk_debugging_global_object_count()
+
+        let resultRaw = kk_string_joinToString(listRaw, separatorRaw, prefixRaw, postfixRaw)
+
+        XCTAssertEqual(runtimeStringValue(resultRaw), "<red|green|blue>")
+        XCTAssertEqual(
+            kk_debugging_global_object_count(),
+            baselineObjectCount + 1,
+            "kk_string_joinToString must not materialize RuntimeStringBox values from aggregate list storage"
+        )
+    }
+
     func testStringAsIterableAsSequencePreservesTaggedSourceValues() {
         let sequenceRaw = kk_iterable_asSequence(flatStringAsIterable("ab"))
         let sequence = runtimeSequenceBox(from: sequenceRaw)
@@ -3455,6 +3476,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     private func makeRuntimeStringValueArray(_ values: [String]) -> Int {
         makeRuntimeValueArray(values.map(runtimeStringAggregateValue))
+    }
+
+    private func makeRuntimeValueList(_ values: [RuntimeValue]) -> Int {
+        registerRuntimeObject(RuntimeListBox(values: values))
     }
 
     private func assertFindAnyOfPair(

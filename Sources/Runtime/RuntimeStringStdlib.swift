@@ -5,20 +5,25 @@ private func runtimeStringScalars(_ raw: Int) -> [UnicodeScalar] {
 }
 
 private func runtimeStringScalars(from value: RuntimeValue, caller: StaticString) -> [UnicodeScalar] {
-    let string: String
+    guard let string = runtimeStringFromValue(value) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received non-string collection element")
+    }
+    return Array(string.unicodeScalars)
+}
+
+private func runtimeStringFromValue(_ value: RuntimeValue) -> String? {
     if value.tag == RuntimeValue.stringTag {
-        string = runtimeStringFromFlat(
+        return runtimeStringFromFlat(
             data: UnsafePointer<UInt8>(bitPattern: value.payload0),
             length: value.payload1,
             byteCount: value.payload2,
             hash: value.payload3
         )
-    } else if value.tag == RuntimeValue.rawTag {
-        string = runtimeStringFromRawOrPanic(value.payload0, caller: caller)
-    } else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received non-string collection element")
     }
-    return Array(string.unicodeScalars)
+    if value.tag == RuntimeValue.rawTag {
+        return extractString(from: UnsafeMutableRawPointer(bitPattern: value.payload0))
+    }
+    return nil
 }
 
 private func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
@@ -7485,7 +7490,7 @@ public func kk_string_joinToString(
     let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
     let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
 
-    let strings = list.elements.compactMap { extractString(from: UnsafeMutableRawPointer(bitPattern: $0)) }
+    let strings = list.values.compactMap(runtimeStringFromValue)
     let result = prefix + strings.joined(separator: separator) + postfix
     return runtimeMakeStringRaw(result)
 }
