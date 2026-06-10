@@ -175,11 +175,130 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertEqual(doubleFromBits(kk_math_pow(doubleToBits(1.0), doubleToBits(Double.infinity))), 1.0)
     }
 
+    func testPowDoubleNegativeBaseNonIntegerExp() {
+        // pow(negative, non-integer) = NaN (C99 Annex F §F.9.4.4)
+        XCTAssertTrue(doubleFromBits(kk_math_pow(doubleToBits(-2.0), doubleToBits(0.5))).isNaN)
+        XCTAssertTrue(doubleFromBits(kk_math_pow(doubleToBits(-3.0), doubleToBits(1.5))).isNaN)
+    }
+
+    func testPowDoubleZeroBaseNegativeExp() {
+        // pow(+0.0, negative) = +Inf (IEEE 754)
+        let result = doubleFromBits(kk_math_pow(doubleToBits(0.0), doubleToBits(-1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testPowDoubleNegativeZeroBaseNegativeOddIntExp() {
+        // pow(-0.0, negative odd integer) = -Inf; negative even integer → +Inf
+        let negOdd1 = doubleFromBits(kk_math_pow(doubleToBits(-0.0), doubleToBits(-1.0)))
+        XCTAssertTrue(negOdd1.isInfinite)
+        XCTAssertLessThan(negOdd1, 0)
+        let negOdd3 = doubleFromBits(kk_math_pow(doubleToBits(-0.0), doubleToBits(-3.0)))
+        XCTAssertTrue(negOdd3.isInfinite)
+        XCTAssertLessThan(negOdd3, 0)
+        let negEven = doubleFromBits(kk_math_pow(doubleToBits(-0.0), doubleToBits(-2.0)))
+        XCTAssertTrue(negEven.isInfinite)
+        XCTAssertGreaterThan(negEven, 0)
+    }
+
+    func testPowDoubleNegativeOneBaseInfinityExp() {
+        // pow(-1.0, ±Inf) = 1.0 (IEEE 754)
+        XCTAssertEqual(doubleFromBits(kk_math_pow(doubleToBits(-1.0), doubleToBits(Double.infinity))), 1.0)
+        XCTAssertEqual(doubleFromBits(kk_math_pow(doubleToBits(-1.0), doubleToBits(-Double.infinity))), 1.0)
+    }
+
+    func testPowDoubleInfinityBaseNegativeExpSign() {
+        // pow(+Inf, negative) = +0.0; sign bit must be positive
+        let result = doubleFromBits(kk_math_pow(doubleToBits(Double.infinity), doubleToBits(-1.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
+    }
+
+    // MARK: - pow(Float, Float) IEEE 754 special cases
+
+    func testPowFloatNegativeBaseNonIntegerExp() {
+        // pow(negative, non-integer) = NaN
+        XCTAssertTrue(floatFromBits(kk_math_pow_float(floatToBits(-2.0), floatToBits(0.5))).isNaN)
+    }
+
+    func testPowFloatZeroBaseNegativeExp() {
+        // pow(+0.0f, negative) = +Inf
+        let result = floatFromBits(kk_math_pow_float(floatToBits(0.0), floatToBits(-1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testPowFloatNegativeZeroBaseNegativeOddIntExp() {
+        // pow(-0.0f, negative odd integer) = -Inf
+        let result = floatFromBits(kk_math_pow_float(floatToBits(-0.0), floatToBits(-1.0)))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testPowFloatNegativeOneBaseInfinityExp() {
+        // pow(-1.0f, ±Inf) = 1.0
+        XCTAssertEqual(floatFromBits(kk_math_pow_float(floatToBits(-1.0), floatToBits(Float.infinity))), 1.0)
+        XCTAssertEqual(floatFromBits(kk_math_pow_float(floatToBits(-1.0), floatToBits(-Float.infinity))), 1.0)
+    }
+
+    func testPowFloatInfinityBaseNegativeExpSign() {
+        // pow(+Inf, negative) = +0.0f
+        let result = floatFromBits(kk_math_pow_float(floatToBits(Float.infinity), floatToBits(-1.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
+    }
+
     func testPowFloatAndIntOverloads() {
         XCTAssertEqual(floatFromBits(kk_math_pow_float(floatToBits(2.0), floatToBits(3.0))), 8.0, accuracy: 1e-6)
         XCTAssertEqual(doubleFromBits(kk_math_pow_int(doubleToBits(2.0), 3)), 8.0, accuracy: 1e-12)
         XCTAssertEqual(floatFromBits(kk_math_pow_float_int(floatToBits(2.0), 3)), 8.0, accuracy: 1e-6)
         XCTAssertTrue(floatFromBits(kk_math_pow_float(floatToBits(Float.nan), floatToBits(2.0))).isNaN)
+    }
+
+    // MARK: - pow_int (Double, Int) IEEE 754 special cases
+
+    func testPowIntExpZeroBaseNegativeExp() {
+        // pow(+0.0, -n) = +Inf
+        let result = doubleFromBits(kk_math_pow_int(doubleToBits(0.0), -1))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testPowIntExpNegativeZeroBaseNegativeOddExp() {
+        // pow(-0.0, -odd) = -Inf (Int exponent converted to Double(-1.0))
+        let result = doubleFromBits(kk_math_pow_int(doubleToBits(-0.0), -1))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testPowIntExpInfinityBaseNegativeExp() {
+        // pow(+Inf, -n) = +0.0
+        let result = doubleFromBits(kk_math_pow_int(doubleToBits(Double.infinity), -1))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
+    }
+
+    // MARK: - pow_float_int (Float, Int) IEEE 754 special cases
+
+    func testPowFloatIntExpZeroBaseNegativeExp() {
+        // pow(+0.0f, -n) = +Inf
+        let result = floatFromBits(kk_math_pow_float_int(floatToBits(0.0), -1))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertGreaterThan(result, 0)
+    }
+
+    func testPowFloatIntExpNegativeZeroBaseNegativeOddExp() {
+        // pow(-0.0f, -odd) = -Inf
+        let result = floatFromBits(kk_math_pow_float_int(floatToBits(-0.0), -1))
+        XCTAssertTrue(result.isInfinite)
+        XCTAssertLessThan(result, 0)
+    }
+
+    func testPowFloatIntExpInfinityBaseNegativeExp() {
+        // pow(+Inf, -n) = +0.0f
+        let result = floatFromBits(kk_math_pow_float_int(floatToBits(Float.infinity), -1))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
     }
 
     // MARK: - ceil / floor / truncate with special values
