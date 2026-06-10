@@ -34,41 +34,49 @@ public inline fun CharSequence.split(
             splitByDelimiter(delimiters[0], false, 0)
         }
     }
-    // For multiple delimiters, split by first delimiter (simplified for now)
-    // Full implementation would need to handle multiple delimiters
-    return splitByDelimiter(delimiters[0], ignoreCase, limit)
+    // For multiple delimiters, split at whichever delimiter matches first at each position
+    return splitByDelimiters(delimiters.toList(), ignoreCase, limit)
 }
 
-// Internal helper for split - this will be replaced by compiler lowering
-private fun CharSequence.splitByDelimiter(delimiter: String, ignoreCase: Boolean, limit: Int): List<String> {
-    // This is a pure Kotlin fallback - the compiler should replace this with bridge calls
+// Internal helper for single-delimiter split - this will be replaced by compiler lowering
+private fun CharSequence.splitByDelimiter(delimiter: String, ignoreCase: Boolean, limit: Int): List<String> =
+    splitByDelimiters(listOf(delimiter), ignoreCase, limit)
+
+// Internal helper for multi-delimiter split supporting trailing-empty semantics
+private fun CharSequence.splitByDelimiters(delimiters: List<String>, ignoreCase: Boolean, limit: Int): List<String> {
     val result = mutableListOf<String>()
     var current = 0
     val source = this.toString()
     var count = 0
-    
-    while (current < source.length) {
+
+    while (current <= source.length) {
         if (limit > 0 && count >= limit - 1) {
             result.add(source.substring(current))
-            break
+            return result
         }
-        
-        val nextIndex = if (ignoreCase) {
-            source.indexOf(delimiter, current, ignoreCase = true)
-        } else {
-            source.indexOf(delimiter, current)
+
+        // Find the earliest match among all delimiters
+        var bestIndex = -1
+        var bestDelimiter = ""
+        for (delimiter in delimiters) {
+            if (delimiter.isEmpty()) continue
+            val idx = source.indexOf(delimiter, current, ignoreCase = ignoreCase)
+            if (idx != -1 && (bestIndex == -1 || idx < bestIndex)) {
+                bestIndex = idx
+                bestDelimiter = delimiter
+            }
         }
-        
-        if (nextIndex == -1) {
+
+        if (bestIndex == -1) {
             result.add(source.substring(current))
-            break
+            return result
         }
-        
-        result.add(source.substring(current, nextIndex))
-        current = nextIndex + delimiter.length
+
+        result.add(source.substring(current, bestIndex))
+        current = bestIndex + bestDelimiter.length
         count++
     }
-    
+
     return result
 }
 

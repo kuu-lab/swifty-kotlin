@@ -1,4 +1,3 @@
-
 /// Synthetic Kotlin/JS collections `JsReadonlyArray<out E>` surfaces.
 extension DataFlowSemaPhase {
     func registerSyntheticJsCollectionsReadonlyArrayStubs(
