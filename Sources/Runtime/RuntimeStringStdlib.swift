@@ -1015,10 +1015,7 @@ public func kk_string_toSortedSet_flat(
 ) -> Int {
     let charCodes = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
     let uniqueSortedCodes = Array(Set(charCodes)).sorted()
-    // Box each char so runtimeElementToString renders it as a character, not an integer.
-    let values = uniqueSortedCodes.map { code in
-        RuntimeValue(raw: registerRuntimeObject(RuntimeCharBox(Int(code))))
-    }
+    let values = uniqueSortedCodes.map { code in RuntimeValue(charScalar: Int(code)) }
     return registerRuntimeObject(RuntimeSetBox(values: values))
 }
 
