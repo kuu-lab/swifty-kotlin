@@ -67,7 +67,7 @@ extension CodegenBackendIntegrationTests {
                 .appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "CharAutoboxingInMutableCollections",
+                moduleName: "PrimitiveAutoboxingInMutableCollections",
                 emit: .executable,
                 outputPath: outputBase
             )

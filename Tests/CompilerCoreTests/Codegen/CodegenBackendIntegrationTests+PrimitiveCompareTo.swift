@@ -8,9 +8,9 @@ extension CodegenBackendIntegrationTests {
     /// external `_compareTo` reference (which previously failed to link).
     ///
     /// Covers Int both directly and inside a `(Int, Int) -> Int` lambda, plus
-    /// Long, Double (direct and inside a lambda), and Boolean. Each result is
+    /// Long, Double, Float (direct and inside lambdas), and Boolean. Each result is
     /// the sign of the comparison (-1/0/1), matching kotlinc / the JDK
-    /// `Integer.compare` / `Long.compare` / `Double.compare` semantics.
+    /// `Integer.compare` / `Long.compare` / `Double.compare` / `Float.compare` semantics.
     func testCodegenCompilesPrimitiveCompareTo() throws {
         let source = """
         fun main() {
@@ -27,6 +27,10 @@ extension CodegenBackendIntegrationTests {
             println(2.5.compareTo(1.5))
             val cmpDouble: (Double, Double) -> Int = { x, y -> x.compareTo(y) }
             println(cmpDouble(1.0, 9.0))
+            // Float — direct and inside a (Float, Float) -> Int lambda
+            println(2.5f.compareTo(1.5f))
+            val cmpFloat: (Float, Float) -> Int = { x, y -> x.compareTo(y) }
+            println(cmpFloat(1.0f, 9.0f))
             // Boolean (false < true)
             println(false.compareTo(true))
         }
@@ -43,7 +47,7 @@ extension CodegenBackendIntegrationTests {
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            XCTAssertEqual(normalizedStdout, "-1\n1\n0\n1\n-1\n1\n-1\n-1\n")
+            XCTAssertEqual(normalizedStdout, "-1\n1\n0\n1\n-1\n1\n-1\n1\n-1\n-1\n")
         }
     }
 }

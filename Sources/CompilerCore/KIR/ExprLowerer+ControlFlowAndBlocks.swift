@@ -93,7 +93,9 @@ extension ExprLowerer {
                     )
                     let exprType = sema.bindings.exprTypes[exprID]
                     if let exprType, exprType != stringType {
-                        let tag: Int64 = switch sema.types.kind(of: sema.types.makeNonNullable(exprType)) {
+                        let nonNullType = sema.types.makeNonNullable(exprType)
+                        let isNullable = exprType != nonNullType
+                        let tag: Int64 = switch sema.types.kind(of: nonNullType) {
                         case .primitive(.boolean, _):
                             2
                         case .primitive(.string, _):
@@ -110,14 +112,44 @@ extension ExprLowerer {
                         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
                         instructions.append(.constValue(result: tagID, value: .intLiteral(tag)))
                         let converted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern("kk_any_to_string"),
-                            arguments: [lowered, tagID],
-                            result: converted,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
+                        // Nullable Float?/Double? needs an explicit null guard before
+                        // kk_any_to_string: the null sentinel (Int.min) is identical to
+                        // the -0.0 bit pattern, so kk_any_to_string with tag 5/6 would
+                        // decode a null as -0.0 instead of "null". Non-nullable Float/
+                        // Double bypass this guard because their raw bits go directly to
+                        // kk_any_to_string and the null-before-tag ordering would have
+                        // already returned "null" for legitimate -0.0 values.
+                        if isNullable, tag == 5 || tag == 6 {
+                            let nonNullLabel = driver.ctx.makeLoopLabel()
+                            let endLabel = driver.ctx.makeLoopLabel()
+                            let nullStr = interner.intern("null")
+                            let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
+                            instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
+                            instructions.append(.jumpIfNotNull(value: lowered, target: nonNullLabel))
+                            instructions.append(.copy(from: nullStrID, to: converted))
+                            instructions.append(.jump(endLabel))
+                            instructions.append(.label(nonNullLabel))
+                            let innerConverted = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: stringType)
+                            instructions.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_any_to_string"),
+                                arguments: [lowered, tagID],
+                                result: innerConverted,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                            instructions.append(.copy(from: innerConverted, to: converted))
+                            instructions.append(.label(endLabel))
+                        } else {
+                            instructions.append(.call(
+                                symbol: nil,
+                                callee: interner.intern("kk_any_to_string"),
+                                arguments: [lowered, tagID],
+                                result: converted,
+                                canThrow: false,
+                                thrownResult: nil
+                            ))
+                        }
                         partIDs.append(converted)
                     } else {
                         partIDs.append(lowered)

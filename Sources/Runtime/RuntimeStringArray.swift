@@ -1819,6 +1819,8 @@ func runtimeFormatFloatingPoint(_ value: Double) -> String {
     if value.isNaN { return "NaN" }
     if value == .infinity { return "Infinity" }
     if value == -.infinity { return "-Infinity" }
+    // Explicit guard: String(describing:) may drop the sign of -0.0 on some platforms.
+    if value == 0.0 && value.sign == .minus { return "-0.0" }
     // Swift's Ryu selects the 1-significant-digit form (5e-324) for the minimum
     // subnormal, but Java's FloatingDecimal emits 4.9E-324.  Both strings
     // round-trip to the same bit pattern, but we must match the Java convention.
@@ -1835,6 +1837,8 @@ func runtimeFormatFloatingPoint(_ value: Float) -> String {
     if value.isNaN { return "NaN" }
     if value == .infinity { return "Infinity" }
     if value == -.infinity { return "-Infinity" }
+    // Explicit guard: String(describing:) may drop the sign of -0.0 on some platforms.
+    if value == 0.0 && value.sign == .minus { return "-0.0" }
     // Same issue for Float: Ryu gives 1e-45, Java gives 1.4E-45.
     if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
     if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }

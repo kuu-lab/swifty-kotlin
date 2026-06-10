@@ -8,6 +8,15 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    // Float/Double MUST be decoded before the null-sentinel check:
+    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt.
+    // Elevating tags 5/6 preserves the sign bit of negative zero and NaN payloads.
+    if tag == 5 {
+        return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedFloatValue(value)))
+    }
+    if tag == 6 {
+        return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedDoubleValue(value)))
+    }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
     }
@@ -17,12 +26,6 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if tag == 4 {
         let rendered = runtimeRenderTaggedChar(value)
         return runtimeMakeStringPointer(rendered)
-    }
-    if tag == 5 {
-        return runtimeMakeStringPointer(String(runtimeTaggedFloatValue(value)))
-    }
-    if tag == 6 {
-        return runtimeMakeStringPointer(String(runtimeTaggedDoubleValue(value)))
     }
     if tag == 3,
        let pointer = UnsafeMutableRawPointer(bitPattern: value),
