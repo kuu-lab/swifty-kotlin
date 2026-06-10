@@ -92,6 +92,16 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_fge"),
         ]
 
+        // Callees that retrieve an element from a generic collection. After
+        // 75507ca0d, kk_mutable_list_add boxes primitives for type erasure, so
+        // these accessors may return a boxed pointer even when the KIR result
+        // type is a non-null primitive. Unbox at the retrieval site so that all
+        // downstream uses of the element (arithmetic, comparisons, calls) see
+        // the plain primitive value.
+        let collectionElementAccessorCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_list_iterator_next"),
+            ctx.interner.intern("kk_list_iterator_previous"),
+        ]
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
@@ -387,7 +397,27 @@ final class ABILoweringPass: LoweringPass {
                     unboxCallees: unboxCallees
                 )
 
-                if let (resolvedUnboxCallee, resolvedReturnType) = resolvedUnbox, let result {
+                // Fallback: collection element accessors may return a boxed primitive.
+                // resolveUnboxForCall cannot handle these because they have no
+                // FunctionSignature entry. Unbox using the KIR result type as the target.
+                var effectiveUnbox: (InternedString, TypeID)? = resolvedUnbox
+                if effectiveUnbox == nil,
+                   collectionElementAccessorCallees.contains(effectiveCallee),
+                   let result, let types,
+                   let resultType = module.arena.exprType(result)
+                {
+                    let resultKind = resolveValueClassKind(
+                        types.kind(of: resultType), types: types, symbols: symbols
+                    )
+                    if let unboxCallee = unboxingCallee(
+                        sourceKind: TypeKind.any(.nullable), targetKind: resultKind,
+                        unboxCallees: unboxCallees, types: types, symbols: symbols
+                    ) {
+                        effectiveUnbox = (unboxCallee, resultType)
+                    }
+                }
+
+                if let (resolvedUnboxCallee, resolvedReturnType) = effectiveUnbox, let result {
                     let tempResult = module.arena.appendExpr(
                         .temporary(Int32(module.arena.expressions.count)),
                         type: resolvedReturnType

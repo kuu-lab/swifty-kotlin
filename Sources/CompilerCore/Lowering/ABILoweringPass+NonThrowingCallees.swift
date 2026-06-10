@@ -25,6 +25,15 @@ extension ABILoweringPass {
             interner.intern("kk_int_to_float"),
             interner.intern("kk_int_to_byte"),
             interner.intern("kk_int_to_short"),
+            // Unsigned toByte / toShort conversions (SPEC-NUM-0007)
+            interner.intern("kk_uint_to_byte"),
+            interner.intern("kk_uint_to_short"),
+            interner.intern("kk_ulong_to_byte"),
+            interner.intern("kk_ulong_to_short"),
+            interner.intern("kk_ubyte_to_byte"),
+            interner.intern("kk_ubyte_to_short"),
+            interner.intern("kk_ushort_to_byte"),
+            interner.intern("kk_ushort_to_short"),
             // UByte and UShort conversions (STDLIB-PRIM-002)
             interner.intern("kk_int_to_ubyte"),
             interner.intern("kk_int_to_ushort"),
@@ -134,6 +143,11 @@ extension ABILoweringPass {
             interner.intern("kk_string_toBooleanStrictOrNull"),
             interner.intern("kk_string_toShortOrNull"),
             interner.intern("kk_string_toByteOrNull"),
+            // SPEC-NUM-0007: unsigned string parsers (no-arg variants)
+            interner.intern("kk_string_toUByteOrNull"),
+            interner.intern("kk_string_toUShortOrNull"),
+            interner.intern("kk_string_toUIntOrNull"),
+            interner.intern("kk_string_toULongOrNull"),
             interner.intern("kk_string_lines"),
             interner.intern("kk_string_lineSequence"),
             interner.intern("kk_string_trimStart"),
