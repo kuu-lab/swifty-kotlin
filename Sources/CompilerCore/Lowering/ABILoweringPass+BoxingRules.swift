@@ -314,6 +314,81 @@ extension ABILoweringPass {
         return unboxed
     }
 
+    /// Unbox an operand to its own declared primitive type.
+    /// Used for comparison operators (==, !=, <, etc.) where the result type is
+    /// Boolean and cannot be used to infer the unboxing target.  If the operand's
+    /// declared type is `.primitive(.int, .nonNull)` we emit `kk_unbox_int`;
+    /// `kk_unbox_int` is idempotent for already-unboxed values (it checks the
+    /// object-pointer registry and returns the raw value unchanged if not found).
+    ///
+    /// When the operand has no type info in the arena (e.g. the result of an
+    /// arithmetic sub-expression whose Sema type was not recorded), `hint` is
+    /// used as the target primitive kind instead.  This covers patterns like
+    /// `x + 0 == x` where the `+` result has nil arena type but the `x` parameter
+    /// has a known Int type.
+    func unboxOperandToOwnType(
+        _ operand: KIRExprID,
+        hint: TypeKind? = nil,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?,
+        unboxCallees: UnboxingCalleeNames,
+        newBody: inout [KIRInstruction]
+    ) -> KIRExprID {
+        if let expr = module.arena.expr(operand) {
+            switch expr {
+            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                 .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral:
+                return operand
+            default:
+                break
+            }
+        }
+        let operandType = intrinsicArgType(operand, arena: module.arena, types: types)
+        let rawOperandKind: TypeKind? = operandType.map { types.kind(of: $0) }
+        let operandKind: TypeKind? = rawOperandKind.map {
+            resolveValueClassKind($0, types: types, symbols: symbols)
+        }
+        // Determine the target kind:
+        //   1. Use the operand's own concrete primitive type if available.
+        //   2. Fall back to the hint (type of a sibling operand) when the
+        //      operand has no type info — this handles arithmetic results whose
+        //      Sema type was not recorded in the arena.
+        let targetKind: TypeKind
+        if let opKind = operandKind, case .primitive(_, .nonNull) = opKind {
+            targetKind = opKind
+        } else if let hintKind = hint, case .primitive(_, .nonNull) = hintKind {
+            targetKind = hintKind
+        } else if let opKind = operandKind {
+            targetKind = opKind
+        } else {
+            return operand
+        }
+        let sourceKind = operandKind ?? targetKind
+        guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
+              let callee = unboxingCallee(
+                  sourceKind: sourceKind, targetKind: targetKind,
+                  unboxCallees: unboxCallees, types: types, symbols: symbols
+              )
+        else {
+            return operand
+        }
+        let resultType = operandType ?? types.make(targetKind)
+        let unboxed = module.arena.appendExpr(
+            .temporary(Int32(module.arena.expressions.count)),
+            type: resultType
+        )
+        newBody.append(.call(
+            symbol: nil,
+            callee: callee,
+            arguments: [operand],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return unboxed
+    }
+
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
         boxCallees: BoxingCalleeNames

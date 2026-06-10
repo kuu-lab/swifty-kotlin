@@ -605,6 +605,33 @@ final class RuntimeKClassIntrospectionEdgeCaseTests: XCTestCase {
         XCTAssertEqual(tpList.count, 0)
     }
 
+    // MARK: - kk_kclass_get_arity (STDLIB-REFLECT-067)
+
+    func testArityFromMetadata() {
+        let token = 12003
+        _ = kk_kclass_register_metadata_v2(
+            token,
+            makeStr("test.Triple"),
+            makeStr("Triple"),
+            0, 0, 0, 0, 0,
+            makeStr("PUBLIC"),
+            3
+        )
+        let kclass = kk_kclass_create(token, 0)
+        XCTAssertEqual(kk_kclass_get_arity(kclass), 3, "arity should equal the registered typeParameterCount")
+    }
+
+    func testArityZeroForNonGenericClass() {
+        let token = 12004
+        let kclass = registerClass(typeToken: token, qualifiedName: "test.Mono", simpleName: "Mono")
+        XCTAssertEqual(kk_kclass_get_arity(kclass), 0)
+    }
+
+    func testArityZeroForUnregisteredKClass() {
+        let kclass = kk_kclass_create(12005, 0)
+        XCTAssertEqual(kk_kclass_get_arity(kclass), 0, "unregistered KClass must return 0 for arity")
+    }
+
     // MARK: - Declared member functions
 
     func testMetadataOnlyDeclaredMemberFunctionsAreEmpty() {

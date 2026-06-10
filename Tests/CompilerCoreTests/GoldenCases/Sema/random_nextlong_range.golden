@@ -1,0 +1,18 @@
+symbol s0 kind=object fq=kotlin.random.Random vis=public flags=synthetic type=Class#0
+symbol s1 kind=constructor fq=kotlin.random.Random.<init> vis=public flags=synthetic sig=recv=_ params=[Int] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=function fq=kotlin.random.Random.nextLong vis=public flags=synthetic sig=recv=Class#0 params=[Long] ret=Long suspend=0 defaults=[0] vararg=[0]
+symbol s3 kind=function fq=useRandomNextLongRange vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s4 kind=local fq=__local_0.r vis=private flags=_ type=Class#0
+symbol s5 kind=local fq=__local_1.a vis=private flags=_ type=Long
+file f0 package=_
+  decl d0 fun useRandomNextLongRange suspend=0 inline=0 sym=s3
+expr e0 name(Random) type=_
+expr e1 int(42) type=Int
+expr e2 call callee=e0 args=[_:e1] type=Class#0 call=s1 map=[0->0] targs=[]
+expr e3 localDecl r mutable=0 type=_ init=e2 type=Unit ref=s4
+expr e4 name(r) type=Class#0 ref=s4
+expr e5 long(10) type=Long
+expr e6 long(15) type=Long
+expr e7 binary(rangeTo) lhs=e5 rhs=e6 type=Long
+expr e8 memberCall recv=e4 callee=nextLong args=[_:e7] type=Long call=s2 map=[0->0] targs=[]
+expr e9 localDecl a mutable=0 type=_ init=e8 type=Unit ref=s5

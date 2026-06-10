@@ -40,6 +40,10 @@ final class RuntimeTimeMarkBox {
     }
 }
 
+final class RuntimeTestTimeSourceBox {
+    var nanoseconds: Int64 = 0
+}
+
 private func runtimeKotlinInstantBox(from raw: Int) -> RuntimeInstantBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeInstantBox.self)
@@ -68,6 +72,11 @@ private func runtimeJSDateBox(from raw: Int) -> RuntimeJSDateBox? {
 private func runtimeTimeMarkBox(from raw: Int) -> RuntimeTimeMarkBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeTimeMarkBox.self)
+}
+
+private func runtimeTestTimeSourceBox(from raw: Int) -> RuntimeTestTimeSourceBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeTestTimeSourceBox.self)
 }
 
 private func runtimeDurationBoxForTime(from raw: Int) -> RuntimeDurationBox? {
@@ -328,6 +337,40 @@ public func kk_time_mark_compare(_ lhsRaw: Int, _ rhsRaw: Int) -> Int {
     if lhs.uptimeNanoseconds < rhs.uptimeNanoseconds { return -1 }
     if lhs.uptimeNanoseconds > rhs.uptimeNanoseconds { return 1 }
     return 0
+}
+
+// MARK: - TestTimeSource runtime (STDLIB-TIME-TYPE-009)
+
+@_cdecl("kk_test_time_source_new")
+public func kk_test_time_source_new() -> Int {
+    return registerRuntimeObject(RuntimeTestTimeSourceBox())
+}
+
+@_cdecl("kk_test_time_source_plus_assign")
+public func kk_test_time_source_plus_assign(_ sourceRaw: Int, _ durationRaw: Int) -> Int {
+    guard let source = runtimeTestTimeSourceBox(from: sourceRaw),
+          let duration = runtimeDurationBoxForTime(from: durationRaw)
+    else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_plus_assign received invalid handle")
+    }
+    source.nanoseconds = runtimeSaturatingAdd(source.nanoseconds, duration.nanoseconds)
+    return 0
+}
+
+@_cdecl("kk_test_time_source_mark_now")
+public func kk_test_time_source_mark_now(_ sourceRaw: Int) -> Int {
+    guard let source = runtimeTestTimeSourceBox(from: sourceRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_mark_now received invalid TestTimeSource handle")
+    }
+    return registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: source.nanoseconds))
+}
+
+@_cdecl("kk_test_time_source_read")
+public func kk_test_time_source_read(_ sourceRaw: Int) -> Int {
+    guard let source = runtimeTestTimeSourceBox(from: sourceRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_read received invalid TestTimeSource handle")
+    }
+    return Int(source.nanoseconds)
 }
 
 // MARK: - java.time.Instant property accessors (STDLIB-TIME-181)

@@ -1,0 +1,14 @@
+symbol s0 kind=function fq=kotlin.comparisons.minOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Int,Int] ret=Int suspend=0 defaults=[0,0] vararg=[0,1]
+symbol s1 kind=function fq=golden.sema.varargMinByte vis=public flags=_ sig=recv=_ params=[Int,Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0,0] vararg=[0,0,0,0]
+symbol s2 kind=valueParameter fq=golden.sema.varargMinByte.$0.a vis=private flags=_
+symbol s3 kind=valueParameter fq=golden.sema.varargMinByte.$0.b vis=private flags=_
+symbol s4 kind=valueParameter fq=golden.sema.varargMinByte.$0.c vis=private flags=_
+symbol s5 kind=valueParameter fq=golden.sema.varargMinByte.$0.d vis=private flags=_
+file f0 package=golden.sema
+  decl d0 fun varargMinByte suspend=0 inline=0 sym=s1
+expr e0 name(minOf) type=_
+expr e1 name(a) type=Int ref=s2
+expr e2 name(b) type=Int ref=s3
+expr e3 name(c) type=Int ref=s4
+expr e4 name(d) type=Int ref=s5
+expr e5 call callee=e0 args=[_:e1,_:e2,_:e3,_:e4] type=Int call=s0 map=[0->0,1->1,2->1,3->1] targs=[]
