@@ -1340,7 +1340,9 @@ public func kk_array_get(_ arrayRaw: Int, _ index: Int, _ outThrown: UnsafeMutab
         return 0
     }
     guard array.elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Array index \(index) out of bounds for length \(array.elements.count).")
+        outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
+            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+        )
         return 0
     }
     return array.elements[index]
@@ -1364,7 +1366,9 @@ public func kk_array_set(_ arrayRaw: Int, _ index: Int, _ value: Int, _ outThrow
         return 0
     }
     guard array.elements.indices.contains(index) else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "Array index \(index) out of bounds for length \(array.elements.count).")
+        outThrown?.pointee = runtimeAllocateArrayIndexOutOfBoundsException(
+            message: "Array index \(index) out of bounds for length \(array.elements.count)."
+        )
         return 0
     }
     array.elements[index] = value
@@ -1812,15 +1816,14 @@ private func runtimeFinishFloatingPointFormat(rendered: String, useScientific: B
 }
 
 func runtimeFormatFloatingPoint(_ value: Double) -> String {
-    if value.isNaN {
-        return "NaN"
-    }
-    if value == .infinity {
-        return "Infinity"
-    }
-    if value == -.infinity {
-        return "-Infinity"
-    }
+    if value.isNaN { return "NaN" }
+    if value == .infinity { return "Infinity" }
+    if value == -.infinity { return "-Infinity" }
+    // Swift's Ryu selects the 1-significant-digit form (5e-324) for the minimum
+    // subnormal, but Java's FloatingDecimal emits 4.9E-324.  Both strings
+    // round-trip to the same bit pattern, but we must match the Java convention.
+    if value == Double.leastNonzeroMagnitude { return "4.9E-324" }
+    if value == -Double.leastNonzeroMagnitude { return "-4.9E-324" }
     let magnitude = abs(value)
     return runtimeFinishFloatingPointFormat(
         rendered: String(describing: value),
@@ -1829,15 +1832,12 @@ func runtimeFormatFloatingPoint(_ value: Double) -> String {
 }
 
 func runtimeFormatFloatingPoint(_ value: Float) -> String {
-    if value.isNaN {
-        return "NaN"
-    }
-    if value == .infinity {
-        return "Infinity"
-    }
-    if value == -.infinity {
-        return "-Infinity"
-    }
+    if value.isNaN { return "NaN" }
+    if value == .infinity { return "Infinity" }
+    if value == -.infinity { return "-Infinity" }
+    // Same issue for Float: Ryu gives 1e-45, Java gives 1.4E-45.
+    if value == Float.leastNonzeroMagnitude { return "1.4E-45" }
+    if value == -Float.leastNonzeroMagnitude { return "-1.4E-45" }
     let magnitude = abs(value)
     return runtimeFinishFloatingPointFormat(
         rendered: String(describing: value),
