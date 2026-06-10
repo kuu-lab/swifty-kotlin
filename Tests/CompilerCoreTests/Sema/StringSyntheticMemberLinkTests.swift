@@ -289,9 +289,21 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     func testNewTransformStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
+        // repeat and reversed are now bundled Kotlin functions — no C external link.
+        let bundledMembers = ["repeat", "reversed"]
+        for member in bundledMembers {
+            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+            XCTAssertFalse(
+                sema.symbols.lookupAll(fqName: fq).isEmpty,
+                "String.\(member) should be registered as a bundled Kotlin symbol"
+            )
+            XCTAssertNil(
+                externalLink(for: member, sema: sema, interner: interner),
+                "String.\(member) must not have a C external link after migration to Kotlin source"
+            )
+        }
+
         let expected: [String: String] = [
-            "repeat": "kk_string_repeat",
-            "reversed": "kk_string_reversed",
             "toList": "kk_string_toList",
             "toCharArray": "kk_string_toCharArray",
             "toTypedArray": "kk_string_toTypedArray",
@@ -308,35 +320,15 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     func testNewPaddingStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        // padStart / padEnd each have two overloads:
-        //   1-arg (default padChar) -> kk_string_padStart_default / kk_string_padEnd_default
-        //   2-arg (explicit padChar) -> kk_string_padStart / kk_string_padEnd
-        // lookup(fqName:) returns .first, which is the 1-arg default overload.
-        XCTAssertEqual(
-            externalLink(for: "padStart", sema: sema, interner: interner),
-            "kk_string_padStart_default",
-            "String.padStart (1-arg default) should link to kk_string_padStart_default"
-        )
-        XCTAssertEqual(
-            externalLink(for: "padEnd", sema: sema, interner: interner),
-            "kk_string_padEnd_default",
-            "String.padEnd (1-arg default) should link to kk_string_padEnd_default"
-        )
-
-        // Verify both overloads are registered via lookupAll and link to distinct ABI functions.
-        let padStartFQ = ["kotlin", "text", "padStart"].map { interner.intern($0) }
-        let padStartSymbols = sema.symbols.lookupAll(fqName: padStartFQ)
-        XCTAssertEqual(padStartSymbols.count, 2, "padStart should have 2 overloads (default + explicit padChar)")
-        let padStartLinks = Set(padStartSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(padStartLinks.contains("kk_string_padStart_default"), "padStart should have a _default overload")
-        XCTAssertTrue(padStartLinks.contains("kk_string_padStart"), "padStart should have a non-default overload")
-
-        let padEndFQ = ["kotlin", "text", "padEnd"].map { interner.intern($0) }
-        let padEndSymbols = sema.symbols.lookupAll(fqName: padEndFQ)
-        XCTAssertEqual(padEndSymbols.count, 2, "padEnd should have 2 overloads (default + explicit padChar)")
-        let padEndLinks = Set(padEndSymbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-        XCTAssertTrue(padEndLinks.contains("kk_string_padEnd_default"), "padEnd should have a _default overload")
-        XCTAssertTrue(padEndLinks.contains("kk_string_padEnd"), "padEnd should have a non-default overload")
+        // padStart and padEnd are now bundled Kotlin functions with a default parameter.
+        // They have a single symbol with no C external link.
+        for member in ["padStart", "padEnd"] {
+            let fq = ["kotlin", "text", member].map { interner.intern($0) }
+            let symbols = sema.symbols.lookupAll(fqName: fq)
+            XCTAssertFalse(symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
+            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+            XCTAssertTrue(links.isEmpty, "String.\(member) must not have C external links after migration to Kotlin source")
+        }
     }
 
     func testNewSlicingStubsHaveCorrectExternalLinks() throws {
@@ -545,14 +537,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
+            // lowercase/uppercase/capitalize still have C external links.
             let expectedLinks: [String: String] = [
                 "lowercase": "kk_string_lowercase",
                 "uppercase": "kk_string_uppercase",
                 "capitalize": "kk_string_capitalize",
-                "repeat": "kk_string_repeat",
-                "reversed": "kk_string_reversed",
             ]
-
             for (memberName, externalLinkName) in expectedLinks {
                 let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
@@ -566,6 +556,22 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                     sema.symbols.externalLinkName(for: chosenCallee),
                     externalLinkName,
                     "Expected \(memberName) to resolve to \(externalLinkName)"
+                )
+            }
+
+            // repeat and reversed are now bundled Kotlin functions — they must resolve but have no C link.
+            for memberName in ["repeat", "reversed"] {
+                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName
+                }, "Expected member call to \(memberName) in AST")
+                let chosenCallee = try XCTUnwrap(
+                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                    "Expected call binding for \(memberName)"
+                )
+                XCTAssertNil(
+                    sema.symbols.externalLinkName(for: chosenCallee),
+                    "Expected \(memberName) to be a bundled Kotlin function with no C external link"
                 )
             }
         }

@@ -107,7 +107,9 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 227)
+        // 6 functions migrated to bundled Kotlin source (padStart, padEnd, padStart_default,
+        // padEnd_default, repeat, reversed) — count reduced from 227 to 221.
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 221)
     }
 
     func testRegexFunctionCount() {

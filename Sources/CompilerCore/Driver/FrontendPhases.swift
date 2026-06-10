@@ -55,6 +55,8 @@ final class LoadSourcesPhase: CompilerPhase {
             throw CompilerPipelineError.loadError
         }
 
+        injectBundledStdlib(into: ctx.sourceManager)
+
         for path in ctx.options.inputs {
             if ctx.sourceManager.containsFile(path: path) { continue }
             do {
@@ -67,6 +69,16 @@ final class LoadSourcesPhase: CompilerPhase {
                 )
                 throw CompilerPipelineError.loadError
             }
+        }
+    }
+
+    private func injectBundledStdlib(into sourceManager: SourceManager) {
+        let sources: [(path: String, source: String)] = [
+            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
+        ]
+        for (path, source) in sources {
+            guard !sourceManager.containsFile(path: path) else { continue }
+            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
         }
     }
 }

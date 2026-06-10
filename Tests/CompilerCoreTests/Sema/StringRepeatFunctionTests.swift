@@ -36,8 +36,7 @@ final class StringRepeatFunctionTests: XCTestCase {
         )
     }
 
-    func testStringRepeatResolvesToRuntimeLink() throws {
-        var resolvedLink: String?
+    func testStringRepeatResolvesToBundledKotlinSymbol() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
@@ -50,17 +49,19 @@ final class StringRepeatFunctionTests: XCTestCase {
                 return signature.receiverType == sema.types.stringType
                     && signature.parameterTypes == [sema.types.intType]
             })
-            resolvedLink = sema.symbols.externalLinkName(for: symbol)
+            XCTAssertNil(
+                sema.symbols.externalLinkName(for: symbol),
+                "String.repeat(n) is now a bundled Kotlin function and must not have a C external link"
+            )
             XCTAssertEqual(
                 sema.symbols.functionSignature(for: symbol)?.returnType,
                 sema.types.stringType,
                 "String.repeat(n) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_repeat")
     }
 
-    func testStringRepeatCallBindingResolvesToRuntimeLink() throws {
+    func testStringRepeatCallBindingResolvesToBundledKotlinSymbol() throws {
         let source = """
         fun makeBanner(token: String): String {
             return token.repeat(4)
@@ -82,10 +83,9 @@ final class StringRepeatFunctionTests: XCTestCase {
                 sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                 "Expected a call binding for the repeat invocation"
             )
-            XCTAssertEqual(
+            XCTAssertNil(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_repeat",
-                "String.repeat(n) member call must resolve to kk_string_repeat"
+                "String.repeat(n) is now a bundled Kotlin function and must not have a C external link"
             )
         }
     }
