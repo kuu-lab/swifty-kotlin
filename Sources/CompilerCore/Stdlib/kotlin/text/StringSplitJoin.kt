@@ -4,7 +4,7 @@ package kotlin.text
 // MIGRATION-TEXT-004
 
 /**
- * Splits this char sequence to a list of lines.
+ * Splits this char sequence around occurrences of the specified [delimiters].
  *
  * @param delimiters One or more strings to be used as delimiters.
  * @param ignoreCase `true` to ignore character case when matching a delimiter. By default `false`.
@@ -73,7 +73,7 @@ private fun CharSequence.splitByDelimiter(delimiter: String, ignoreCase: Boolean
 }
 
 /**
- * Splits this char sequence to a sequence of lines.
+ * Splits this char sequence around occurrences of the specified [delimiters] to a sequence.
  *
  * @param delimiters One or more strings to be used as delimiters.
  * @param ignoreCase `true` to ignore character case when matching a delimiter. By default `false`.

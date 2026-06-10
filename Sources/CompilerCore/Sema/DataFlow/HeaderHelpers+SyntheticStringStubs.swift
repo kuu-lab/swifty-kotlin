@@ -3487,62 +3487,8 @@ extension DataFlowSemaPhase {
         }
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
-            receiverType: stringType,
-            parameters: [
-                ("other", stringType, false, false),
-                ("ignoreCase", boolType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // MIGRATION-TEXT-009: Migrated to Kotlin source (Stdlib/kotlin/text/StringComparison.kt)
+        // The compiler will use the Kotlin implementation instead of synthetic stubs
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 

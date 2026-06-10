@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-05-31
+最終更新: 2026-06-10
 
 ---
 
@@ -280,14 +280,10 @@
 - [ ] STDLIB-UUID-FN-002: `putUuid` 関数の実装
 #### kotlin.uuid 関数の実装
 - [x] STDLIB-UUID-FN-002: `putUuid` 関数の実装
-- [ ] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
+- [x] STDLIB-UUID-FN-004: `toKotlinUuid` 関数の実装
 
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
-- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
-- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
-- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
-- [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
@@ -299,7 +295,7 @@
 - [x] STDLIB-COMP-FN-005: `maxOf` 関数の実装（Comparable版、2引数）
 - [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
 - [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
-- [ ] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
+- [x] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
 - [ ] STDLIB-COMP-FN-011: `maxOf` 関数の実装（Double版、2引数）
 - [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
 - [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
@@ -307,7 +303,7 @@
 - [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
 - [ ] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
-- [ ] STDLIB-COMP-FN-024: `maxOf` 関数の実装（Short版、3引数）
+- [x] STDLIB-COMP-FN-024: `maxOf` 関数の実装（Short版、3引数）
 - [x] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
@@ -380,7 +376,7 @@
 
 ### Phase 5: 非スコープ/高度領域
 - [x] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
-- [ ] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
+- [x] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
@@ -437,7 +433,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
 - [ ] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
-- [ ] MIGRATION-TEXT-009: String commonPrefix/Suffix・比較関数を Kotlin source に移行する（`commonPrefixWith`, `commonSuffixWith`, ignoreCase 版含む）
+- [x] MIGRATION-TEXT-009: String commonPrefix/Suffix・比較関数を Kotlin source に移行する（`commonPrefixWith`, `commonSuffixWith`, ignoreCase 版含む）
 
 ### Phase M2: kotlin.text StringBuilder
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
@@ -562,6 +558,106 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-SETMAP-001: Set/Map ファクトリ・基本操作を Kotlin source に移行する（`contains`, `containsKey`, `containsValue`, `get`, `getOrDefault`, `keys`, `values`, `entries`, `size`, `isEmpty`）
 
 ## ターゲット外バックログ（本体非追跡）
+### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
+#### JS Array関連stub
+- [ ] CLEANUP-STUB-001: `kk_js_array_toArray` stub削除
+- [ ] CLEANUP-STUB-002: `kk_js_array_get` stub削除
+- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
+- [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
+- [ ] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
+#### JS Map関連stub
+- [ ] CLEANUP-STUB-007: `kk_js_map_toMap` stub削除
+- [ ] CLEANUP-STUB-008: `kk_js_map_toMutableMap` stub削除
+#### JS Set関連stub
+- [ ] CLEANUP-STUB-009: `kk_js_set_toSet` stub削除
+- [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
+#### JS型変換関連stub
+- [ ] CLEANUP-STUB-011: `kk_js_bigint_toLong` stub削除
+- [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
+- [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
+- [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
+- [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
+#### Wasm Export stub
+- [ ] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
+#### Wasm Import stub
+- [ ] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
+#### Wasm Unsafe Annotation stub
+- [ ] CLEANUP-STUB-018: Wasm Unsafe Annotation stub削除（`HeaderHelpers+SyntheticWasmUnsafeAnnotationStubs.swift`）
+#### Wasm Unsafe Memory Allocator stub
+- [ ] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
+#### Wasm Unsafe Pointer stub
+- [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
+#### Wasm Unsafe Scoped Allocator stub
+- [ ] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
+#### JVM Time相互運用stub
+- [ ] CLEANUP-STUB-022: `kk_java_instant_to_kotlin_instant` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
+- [ ] CLEANUP-STUB-023: `kk_java_duration_to_kotlin_duration` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
+#### JVM Atomic相互運用stub
+- [ ] CLEANUP-STUB-024: `kk_java_atomic_int_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-025: `kk_java_atomic_long_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-026: `kk_java_atomic_bool_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-027: `kk_java_atomic_ref_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-028: `kk_java_atomic_int_array_asKotlinAtomicArray` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-029: `kk_java_atomic_long_array_asKotlinAtomicArray` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+- [ ] CLEANUP-STUB-030: `kk_java_atomic_ref_array_asKotlinAtomicArray` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
+#### JVM Random相互運用stub
+- [ ] CLEANUP-STUB-031: `kk_java_random_new` stub削除（`HeaderHelpers+SyntheticRandomStubs.swift`, `RuntimeRandom.swift`実装も削除）
+- [ ] CLEANUP-STUB-032: `kk_java_random_new_seed` stub削除（`HeaderHelpers+SyntheticRandomStubs.swift`, `RuntimeRandom.swift`実装も削除）
+#### JS/Wasm/JVM stub登録呼び出し削除
+- [ ] CLEANUP-STUB-033: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift`の全呼び出し削除
+- [ ] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
+#### その他JS固有stub（ファイル単位）
+- [ ] CLEANUP-STUB-035: JS Console stub削除（`HeaderHelpers+SyntheticJsConsoleStubs.swift`）
+- [ ] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
+- [ ] CLEANUP-STUB-037: JS Json stub削除（`HeaderHelpers+SyntheticJsJsonStubs.swift`）
+- [ ] CLEANUP-STUB-038: JS TypeOf stub削除（`HeaderHelpers+SyntheticJsTypeOfStubs.swift`）
+- [ ] CLEANUP-STUB-039: JS ParseInt stub削除（`HeaderHelpers+SyntheticJsParseIntStubs.swift`）
+- [ ] CLEANUP-STUB-040: JS ParseIntRadix stub削除（`HeaderHelpers+SyntheticJsParseIntRadixStubs.swift`）
+- [ ] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
+- [ ] CLEANUP-STUB-042: JS Function stub削除（`HeaderHelpers+SyntheticJsFunctionStubs.swift`）
+- [ ] CLEANUP-STUB-043: JS Class stub削除（`HeaderHelpers+SyntheticJsClassStubs.swift`）
+- [ ] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
+- [ ] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
+- [ ] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
+- [ ] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
+- [ ] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
+- [ ] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
+- [ ] CLEANUP-STUB-050: JS RegExpMatch stub削除（`HeaderHelpers+SyntheticJsRegExpMatchStubs.swift`）
+- [ ] CLEANUP-STUB-051: JS Static stub削除（`HeaderHelpers+SyntheticJsStaticStubs.swift`）
+- [ ] CLEANUP-STUB-052: JS ExternalArgument stub削除（`HeaderHelpers+SyntheticJsExternalArgumentStubs.swift`）
+- [ ] CLEANUP-STUB-053: JS ExternalInheritorsOnly stub削除（`HeaderHelpers+SyntheticJsExternalInheritorsOnlyStubs.swift`）
+- [ ] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
+- [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
+- [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
+- [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
+- [ ] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
+- [ ] CLEANUP-STUB-059: JS NumberInterop stub削除（`HeaderHelpers+SyntheticJsNumberInteropStubs.swift`）
+- [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
+- [ ] CLEANUP-STUB-061: JS IntNumberInterop stub削除（`HeaderHelpers+SyntheticJsIntNumberInteropStubs.swift`）
+- [ ] CLEANUP-STUB-062: JS ArrayInterop stub削除（`HeaderHelpers+SyntheticJsArrayInteropStubs.swift`）
+- [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
+- [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
+- [ ] CLEANUP-STUB-065: JS CollectionsMap stub削除（`HeaderHelpers+SyntheticJsCollectionsMapStubs.swift`）
+- [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
+- [ ] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
+- [ ] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
+- [ ] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
+- [ ] CLEANUP-STUB-070: JS Dynamic stub削除（`HeaderHelpers+SyntheticJsDynamicStubs.swift`）
+- [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
+- [ ] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
+- [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
+- [ ] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
+- [ ] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
+- [ ] CLEANUP-STUB-076: JS BigInt stub削除（`HeaderHelpers+SyntheticJsBigIntStubs.swift`）
+- [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
+- [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
+- [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
+- [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
+- [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
+- [ ] CLEANUP-STUB-082: JVM AnnotationProperty stub削除（`HeaderHelpers+SyntheticJvmAnnotationPropertyStubs.swift`）
+- [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
+- [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換
 - `kotlin.jvm` / `kotlin.js` / `kotlin.wasm*` / `java.nio.file` 系・`kotlin.streams`

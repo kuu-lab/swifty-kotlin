@@ -1,5 +1,5 @@
 import XCTest
-@testable import KotlinRuntime
+@testable import Runtime
 
 /// Tests for string split, join, chunked, windowed, zip functions migrated to Kotlin stdlib
 /// MIGRATION-TEXT-004
