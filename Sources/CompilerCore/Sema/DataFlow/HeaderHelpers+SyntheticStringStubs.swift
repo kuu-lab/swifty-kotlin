@@ -174,17 +174,6 @@ extension DataFlowSemaPhase {
 
 
         registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "lowercase",
             externalLinkName: "kk_string_lowercase",
             receiverType: stringType,
@@ -1260,11 +1249,11 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "drop",
-            externalLinkName: "kk_string_drop",
+            named: "padStart",
+            externalLinkName: "kk_string_padStart_default",
             receiverType: stringType,
             parameters: [
-                ("n", intType, false, false),
+                ("length", intType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1273,11 +1262,12 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "take",
-            externalLinkName: "kk_string_take",
+            named: "padStart",
+            externalLinkName: "kk_string_padStart",
             receiverType: stringType,
             parameters: [
-                ("n", intType, false, false),
+                ("length", intType, false, false),
+                ("padChar", charType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1286,11 +1276,11 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "dropLast",
-            externalLinkName: "kk_string_dropLast",
+            named: "padEnd",
+            externalLinkName: "kk_string_padEnd_default",
             receiverType: stringType,
             parameters: [
-                ("n", intType, false, false),
+                ("length", intType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1299,11 +1289,12 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "takeLast",
-            externalLinkName: "kk_string_takeLast",
+            named: "padEnd",
+            externalLinkName: "kk_string_padEnd",
             receiverType: stringType,
             parameters: [
-                ("n", intType, false, false),
+                ("length", intType, false, false),
+                ("padChar", charType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,

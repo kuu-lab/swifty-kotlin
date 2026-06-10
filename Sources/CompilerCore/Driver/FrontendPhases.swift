@@ -46,6 +46,8 @@ final class LoadSourcesPhase: CompilerPhase {
     init() {}
 
     func run(_ ctx: CompilationContext) throws {
+        injectKotlinStdlibSources(ctx: ctx)
+
         if ctx.options.inputs.isEmpty {
             ctx.diagnostics.error(
                 "KSWIFTK-SOURCE-0001",
@@ -72,16 +74,27 @@ final class LoadSourcesPhase: CompilerPhase {
         }
     }
 
-    private func injectBundledStdlib(into sourceManager: SourceManager) {
-        let sources: [(path: String, source: String)] = [
-            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
-        ]
-        for (path, source) in sources {
-            guard !sourceManager.containsFile(path: path) else { continue }
-            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
+    private func injectKotlinStdlibSources(ctx: CompilationContext) {
+        guard let stdlibURL = Bundle.module.url(forResource: "Stdlib", withExtension: nil) else {
+            return
+        }
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: stdlibURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        var paths: [String] = []
+        for case let fileURL as URL in enumerator {
+            if fileURL.pathExtension == "kt" {
+                paths.append(fileURL.path)
+            }
+        }
+        for path in paths.sorted() {
+            guard !ctx.sourceManager.containsFile(path: path) else { continue }
+            _ = try? ctx.sourceManager.addFile(path: path)
         }
     }
-
 }
 
 final class LexPhase: CompilerPhase {
