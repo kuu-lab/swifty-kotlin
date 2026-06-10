@@ -195,6 +195,39 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticStringExtensionFunction(
+            named: "trim",
+            externalLinkName: "kk_string_trim",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "trimStart",
+            externalLinkName: "kk_string_trimStart",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "trimEnd",
+            externalLinkName: "kk_string_trimEnd",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // capitalize() — deprecated in Kotlin 1.5+ but still callable (STDLIB-GAP-PH1)
         registerSyntheticStringExtensionFunction(
             named: "capitalize",
