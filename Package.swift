@@ -33,7 +33,8 @@ let package = Package(
         ),
         .target(
             name: "CompilerCore",
-            dependencies: ["CLLVM", "RuntimeABI"]
+            dependencies: ["CLLVM", "RuntimeABI"],
+            resources: [.process("Stdlib")]
         ),
         .target(
             name: "GoldenHarnessSupport",

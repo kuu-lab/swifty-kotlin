@@ -222,6 +222,13 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     )
 }
 
+// MARK: - Internal bridge functions for Kotlin stdlib migration (MIGRATION-TEXT-004)
+
+@_cdecl("__string_split_limit")
+public func __string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRaw: Int, _ limitRaw: Int) -> Int {
+    return kk_string_split_limit(strRaw, delimRaw, ignoreCaseRaw, limitRaw)
+}
+
 @_cdecl("kk_string_replace")
 public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
