@@ -1560,6 +1560,39 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "trim" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trim"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "trimStart" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trimStart"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "trimEnd" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trimEnd"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
             }
         }
 
@@ -1825,6 +1858,20 @@ extension CallLowerer {
                     ("kk_string_removeSuffix", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding", [loweredReceiverID, loweredArgIDs[0]])
+                case "trim":
+                    ("kk_string_trim_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimStart":
+                    ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimEnd":
+                    ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "take":
+                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
+                case "drop":
+                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
+                case "takeLast":
+                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
+                case "dropLast":
+                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
@@ -1836,6 +1883,13 @@ extension CallLowerer {
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
+                        || calleeStr == "trim"
+                        || calleeStr == "trimStart"
+                        || calleeStr == "trimEnd"
+                        || calleeStr == "take"
+                        || calleeStr == "drop"
+                        || calleeStr == "takeLast"
+                        || calleeStr == "dropLast"
                     // Only `partition` captures the thrown result into a register so the
                     // caller can inspect it.  All other HOFs propagate exceptions through
                     // the standard thrown-channel codegen path (thrownResult == nil),
@@ -1977,6 +2031,19 @@ extension CallLowerer {
                     symbol: nil,
                     callee: interner.intern("kk_string_chunked_sequence_transform"),
                     arguments: [loweredReceiverID] + normalizedArgIDs,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               calleeStr == "subSequence"
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_subSequence"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,
                     thrownResult: nil
