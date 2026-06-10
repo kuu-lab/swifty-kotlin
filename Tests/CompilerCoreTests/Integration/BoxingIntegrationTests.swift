@@ -28,7 +28,7 @@ final class BoxingIntegrationTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(boxingCalls.count, 4, "Should have boxed primitive arguments for Pair and Triple. Found \(boxingCalls.count)")
     }
 
-    func testMutableListAddNoUnnecessaryBoxing() throws {
+    func testMutableListAddBoxesPrimitiveElement() throws {
         let source = """
         fun test(list: MutableList<Int>) {
             list.add(1)
@@ -48,8 +48,14 @@ final class BoxingIntegrationTests: XCTestCase {
             return false
         }
 
-        // MutableList.add(1) should NOT be boxed by AbiloweringPass (it remains as i32)
-        // because we only box for Pair/Triple explicitly.
-        XCTAssertEqual(boxingCalls.count, 0, "Should NOT have boxed primitive argument for MutableList.add. Found \(boxingCalls.count)")
+        // MutableList.add stores its argument verbatim into the backing element array,
+        // whose element type is the erased type parameter E. A primitive element must
+        // be boxed so it carries its concrete type at runtime — matching how
+        // listOf(...) / mutableListOf(...) already box every element. Storing a raw
+        // primitive breaks toString() for Char (prints the code point), Boolean
+        // (false == 0 collides with the null sentinel) and Double/Float (the bit
+        // pattern is misread as an Int). See
+        // CodegenBackendIntegrationTests.testPrimitiveArgumentBoxedWhenAddedToMutableCollections.
+        XCTAssertEqual(boxingCalls.count, 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
     }
 }
