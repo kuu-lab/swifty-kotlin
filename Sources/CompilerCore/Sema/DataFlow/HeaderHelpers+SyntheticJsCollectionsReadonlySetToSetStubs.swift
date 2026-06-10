@@ -104,18 +104,4 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func appendJsCollectionsSetAnnotation(
-        to symbol: SymbolID,
-        symbols: SymbolTable
-    ) {
-        let experimentalRecord = MetadataAnnotationRecord(
-            annotationFQName: "kotlin.js.ExperimentalJsCollectionsApi"
-        )
-        var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(experimentalRecord) {
-            annotations.append(experimentalRecord)
-            symbols.setAnnotations(annotations, for: symbol)
-        }
-    }
-
 }
