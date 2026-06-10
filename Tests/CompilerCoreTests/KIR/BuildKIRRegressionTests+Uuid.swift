@@ -157,6 +157,7 @@ extension BuildKIRRegressionTests {
             "kk_uuid_parseHexDashOrNull",
             "kk_uuid_toString",
             "kk_uuid_toHexString",
+            "kk_uuid_toKotlinUuid",
             "kk_uuid_toLongs",
             "kk_uuid_toByteArray",
             "kk_uuid_version",
