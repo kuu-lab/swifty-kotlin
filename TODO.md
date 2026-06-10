@@ -401,7 +401,7 @@
 - [ ] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
 - [ ] STDLIB-CINTEROP-FN-038: `CPointer<T>?.toLong()` を追加する
-- [ ] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
+- [x] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
 - [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する

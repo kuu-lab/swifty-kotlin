@@ -240,14 +240,14 @@ extension CollectionLiteralLoweringPass {
         if callee == lookup.kkRangeNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.listIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
+                appendListIteratorNextWithUnboxing(
                     callee: lookup.kkListIteratorNextName,
                     arguments: arguments,
                     result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
+                    module: module,
+                    ctx: ctx,
+                    loweredBody: &loweredBody
+                )
                 return true
             }
             if state.mapIteratorExprIDs.contains(argID.rawValue) {
@@ -353,5 +353,77 @@ extension CollectionLiteralLoweringPass {
         }
 
         return false
+    }
+
+    /// Emits a `kk_list_iterator_next`-style call and, when the result expression
+    /// has a non-null primitive type, appends an unboxing call so that the loop
+    /// variable holds a raw primitive value rather than a boxed heap pointer.
+    private func appendListIteratorNextWithUnboxing(
+        callee: InternedString,
+        arguments: [KIRExprID],
+        result: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout [KIRInstruction]
+    ) {
+        if let result,
+           let resultTypeID = module.arena.exprType(result),
+           let types = ctx.sema?.types,
+           let unboxCallee = primitiveUnboxCalleeForType(resultTypeID, types: types, interner: ctx.interner)
+        {
+            let tempBoxed = module.arena.appendExpr(
+                .temporary(Int32(module.arena.expressions.count)),
+                type: nil
+            )
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: arguments,
+                result: tempBoxed,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: unboxCallee,
+                arguments: [tempBoxed],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        } else {
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: callee,
+                arguments: arguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+
+    private func primitiveUnboxCalleeForType(
+        _ typeID: TypeID,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> InternedString? {
+        switch types.kind(of: typeID) {
+        case .primitive(.int, .nonNull), .primitive(.uint, .nonNull),
+             .primitive(.ubyte, .nonNull), .primitive(.ushort, .nonNull):
+            return interner.intern("kk_unbox_int")
+        case .primitive(.long, .nonNull), .primitive(.ulong, .nonNull):
+            return interner.intern("kk_unbox_long")
+        case .primitive(.boolean, .nonNull):
+            return interner.intern("kk_unbox_bool")
+        case .primitive(.float, .nonNull):
+            return interner.intern("kk_unbox_float")
+        case .primitive(.double, .nonNull):
+            return interner.intern("kk_unbox_double")
+        case .primitive(.char, .nonNull):
+            return interner.intern("kk_unbox_char")
+        default:
+            return nil
+        }
     }
 }

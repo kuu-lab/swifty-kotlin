@@ -17,7 +17,7 @@ symbol s15 kind=function fq=kotlin.sequences.emptySequence vis=public flags=synt
 symbol s16 kind=typeParameter fq=kotlin.sequences.emptySequence.T vis=private flags=synthetic
 symbol s17 kind=function fq=kotlin.sequences.Sequence.toList vis=public flags=synthetic|operatorFunction sig=recv=Class#0<out T#1> params=[] ret=Class#3<out T#1> suspend=0 defaults=[] vararg=[]
 symbol s18 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s19 kind=local fq=__for_51.i vis=private flags=_
+symbol s19 kind=local fq=__for_51.i vis=private flags=_ type=Int
 symbol s20 kind=local fq=__local_0.largeSeq vis=private flags=_ type=Class#0<out Class#3<out Int>>
 symbol s21 kind=local fq=__local_1.flattenedSeq vis=private flags=_ type=Class#3<Int>
 symbol s22 kind=local fq=__local_2.nestedSeq vis=private flags=_ type=Class#0<out Class#0<out Int>>

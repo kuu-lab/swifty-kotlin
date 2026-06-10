@@ -1,0 +1,7 @@
+symbol s0 kind=interface fq=kotlin.reflect.KType vis=public flags=synthetic
+symbol s1 kind=function fq=kotlinx.cinterop.typeOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[] ret=Class#0 suspend=0 defaults=[] vararg=[]
+symbol s2 kind=function fq=getStringType vis=public flags=_ sig=recv=_ params=[] ret=Class#0 suspend=0 defaults=[] vararg=[]
+file f0 package=_
+  decl d0 fun getStringType suspend=0 inline=0 sym=s2
+expr e0 name(typeOf) type=_
+expr e1 call callee=e0 args=[] type=Class#0 call=s1 map=[] targs=[String]
