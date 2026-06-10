@@ -988,4 +988,96 @@ final class RuntimeComparatorTests: XCTestCase {
     func testComparatorThenDescendingTrampolineWithNullClosureRawReturnsZero() {
         XCTAssertEqual(kk_comparator_then_descending_trampoline(0, 1, 2, nil), 0)
     }
+
+    // MARK: - naturalOrder / reverseOrder: runtimeNullSentinelInt 挙動 (TEST-COMP-011)
+
+    func testNaturalOrderTrampolineBothNullSentinelEqual() {
+        // Two null sentinels are the same value — fast-path lhs==rhs fires, returns 0.
+        XCTAssertEqual(kk_comparator_natural_order_trampoline(0, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
+    }
+
+    func testReverseOrderTrampolineBothNullSentinelEqual() {
+        // Same lhs==rhs fast-path; negating 0 stays 0.
+        XCTAssertEqual(kk_comparator_reverse_order_trampoline(0, runtimeNullSentinelInt, runtimeNullSentinelInt, nil), 0)
+    }
+
+    func testNaturalOrderTrampolineNullSentinelVsNonNull() {
+        // naturalOrder delegates to runtimeCompareValues which has no null-sentinel fast-path.
+        // It falls through to string rendering: "null" (Int.min) vs "5" (raw int).
+        // 'n' (U+006E=110) > '5' (U+0035=53), so runtimeCompareValues returns 1 (positive).
+        XCTAssertGreaterThan(kk_comparator_natural_order_trampoline(0, runtimeNullSentinelInt, 5, nil), 0)
+        XCTAssertLessThan(kk_comparator_natural_order_trampoline(0, 5, runtimeNullSentinelInt, nil), 0)
+    }
+
+    func testReverseOrderTrampolineNullSentinelVsNonNull() {
+        // reverseOrder negates naturalOrder's result.
+        XCTAssertLessThan(kk_comparator_reverse_order_trampoline(0, runtimeNullSentinelInt, 5, nil), 0)
+        XCTAssertGreaterThan(kk_comparator_reverse_order_trampoline(0, 5, runtimeNullSentinelInt, nil), 0)
+    }
+
+    // MARK: - compareBy: 全キー等値で 0 を返すこと (TEST-COMP-011)
+
+    func testCompareByAllSelectorsEqualReturnsZero() {
+        // All four slots use selectModTen.  13%10 == 23%10 == 3 for every selector,
+        // so the loop exhausts without finding a non-zero result and returns 0.
+        let selectors = makeArray([
+            selectorPtr(selectModTen), 0,
+            selectorPtr(selectModTen), 0,
+            selectorPtr(selectModTen), 0,
+            selectorPtr(selectModTen), 0,
+        ])
+        let closureRaw = kk_comparator_from_multi_selectors_vararg(selectors)
+        // inputs differ (13 ≠ 23) but all key projections are identical
+        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 13, 23, nil), 0)
+        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 23, 13, nil), 0)
+        // sanity: equal inputs still produce 0
+        XCTAssertEqual(kk_comparator_from_multi_selectors_trampoline(closureRaw, 7, 7, nil), 0)
+    }
+
+    // MARK: - 参照型オブジェクトの安定ソート（原順序保持：インデックスベース検証）(TEST-COMP-011)
+
+    func testStableSortPreservesOriginalOrderOfEqualReferenceObjects() {
+        // Create three distinct RuntimeStringBox objects that all hold "b".
+        // Their raw Int values (heap addresses) are different — we use pointer identity
+        // to verify that a stable sort preserves the input order [b0, b1, b2].
+        let b0 = makeRuntimeString("b")
+        let b1 = makeRuntimeString("b")
+        let b2 = makeRuntimeString("b")
+
+        let source = makeList([b0, b1, b2])
+        let sorted = kk_list_sorted(source)
+
+        let result = listElements(sorted)
+        XCTAssertEqual(result.count, 3)
+        // Stable: original relative order must be preserved for equal elements.
+        XCTAssertEqual(result[0], b0)
+        XCTAssertEqual(result[1], b1)
+        XCTAssertEqual(result[2], b2)
+    }
+
+    func testStableSortWithMixedElementsPreservesEqualGroupOrder() {
+        // Input: [c, b_first, a, b_second, b_third]
+        // Natural string order groups: a < b < c.
+        // Within the "b" group the three objects are equal by value but distinct by identity.
+        // A stable sort must emit them in the same relative order they appeared in the input.
+        let bFirst  = makeRuntimeString("b")
+        let bSecond = makeRuntimeString("b")
+        let bThird  = makeRuntimeString("b")
+        let aStr = makeRuntimeString("a")
+        let cStr = makeRuntimeString("c")
+
+        let source = makeList([cStr, bFirst, aStr, bSecond, bThird])
+        let sorted = kk_list_sorted(source)
+
+        let result = listElements(sorted)
+        XCTAssertEqual(result.count, 5)
+        // "a" group
+        XCTAssertEqual(result[0], aStr)
+        // "b" group — must match input order: bFirst(idx 1) < bSecond(idx 3) < bThird(idx 4)
+        XCTAssertEqual(result[1], bFirst)
+        XCTAssertEqual(result[2], bSecond)
+        XCTAssertEqual(result[3], bThird)
+        // "c" group
+        XCTAssertEqual(result[4], cStr)
+    }
 }
