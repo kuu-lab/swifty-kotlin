@@ -195,6 +195,61 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // TEST-MATH-024: atan2・cbrt・双曲線関数の lowering を検証する
+    // (既存の IEEErem/nextTowards/pow/withSign テストに対する対称性ギャップを補完)
+    func testCodegenMathSignedZeroSymmetryFunctionsLowerToRuntimeHelpers() throws {
+        let source = """
+        import kotlin.math.*
+
+        fun sample(d: Double, f: Float) {
+            val a2d = atan2(d, d)
+            val a2f = atan2(f, f)
+            val cbrtD = cbrt(d)
+            val cbrtF = cbrt(f)
+            val sinhD = sinh(d)
+            val sinhF = sinh(f)
+            val coshD = cosh(d)
+            val coshF = cosh(f)
+            val tanhD = tanh(d)
+            val tanhF = tanh(f)
+            val atanhD = atanh(d)
+            val atanhF = atanh(f)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathSignedZeroSymmetry", emit: .kirDump)
+            try runToLowering(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
+            let calls = body.compactMap { instruction -> String? in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                return ctx.interner.resolve(callee)
+            }
+
+            for expected in [
+                "kk_math_atan2",
+                "kk_math_atan2_float",
+                "kk_math_cbrt",
+                "kk_math_cbrt_float",
+                "kk_math_sinh",
+                "kk_math_sinh_float",
+                "kk_math_cosh",
+                "kk_math_cosh_float",
+                "kk_math_tanh",
+                "kk_math_tanh_float",
+                "kk_math_atanh",
+                "kk_math_atanh_float",
+            ] {
+                XCTAssertTrue(
+                    calls.contains(expected),
+                    "Expected \(expected) in lowered KIR, got \(calls)"
+                )
+            }
+        }
+    }
+
     func testCodegenRemainingFloatingMathOverloadsLowerToRuntimeHelpers() throws {
         let source = """
         import kotlin.math.*

@@ -79,6 +79,7 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_uge"),
         ]
 
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {

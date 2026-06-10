@@ -245,6 +245,13 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(result.sign == .minus)
     }
 
+    func testTruncateDoublePositiveZeroSign() {
+        // truncate(+0.0) == +0.0 (符号保持; -0.0 と対称)
+        let result = doubleFromBits(kk_math_truncate(doubleToBits(0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertFalse(result.sign == .minus)
+    }
+
     func testTruncateFloatNegativeZero() {
         let result = floatFromBits(kk_math_truncate_float(floatToBits(-0.0)))
         XCTAssertEqual(result, 0.0)
@@ -585,6 +592,64 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_atan2(doubleToBits(1.0), doubleToBits(Double.nan))).isNaN)
     }
 
+    // MARK: - atan2 IEEE 754 完全テーブル補完 (TEST-MATH-024)
+
+    func testAtan2DoubleSignedZeroPositiveZeroX() {
+        // IEEE 754: atan2(+0, +0) == +0 (符号は正)
+        let pos = doubleFromBits(kk_math_atan2(doubleToBits(0.0), doubleToBits(0.0)))
+        XCTAssertEqual(pos, 0.0)
+        XCTAssertFalse(pos.sign == .minus)
+        // IEEE 754: atan2(-0, +0) == -0 (符号は負)
+        let neg = doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(0.0)))
+        XCTAssertEqual(neg, 0.0)
+        XCTAssertTrue(neg.sign == .minus)
+    }
+
+    func testAtan2DoubleSignedZeroNegativeZeroX() {
+        // IEEE 754: atan2(+0, -0) == +π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(0.0), doubleToBits(-0.0))),
+            Double.pi, accuracy: 1e-12)
+        // IEEE 754: atan2(-0, -0) == -π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(-0.0))),
+            -Double.pi, accuracy: 1e-12)
+    }
+
+    func testAtan2DoubleZeroYAtInfinityX() {
+        // IEEE 754: atan2(+0, +Inf) == +0 (符号は正)
+        let posAtPosInf = doubleFromBits(kk_math_atan2(doubleToBits(0.0), doubleToBits(Double.infinity)))
+        XCTAssertEqual(posAtPosInf, 0.0)
+        XCTAssertFalse(posAtPosInf.sign == .minus)
+        // IEEE 754: atan2(-0, +Inf) == -0 (符号は負)
+        let negAtPosInf = doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(Double.infinity)))
+        XCTAssertEqual(negAtPosInf, 0.0)
+        XCTAssertTrue(negAtPosInf.sign == .minus)
+        // IEEE 754: atan2(+0, -Inf) == +π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(0.0), doubleToBits(-Double.infinity))),
+            Double.pi, accuracy: 1e-12)
+        // IEEE 754: atan2(-0, -Inf) == -π
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-0.0), doubleToBits(-Double.infinity))),
+            -Double.pi, accuracy: 1e-12)
+    }
+
+    func testAtan2DoubleInfinityBothArgs() {
+        // IEEE 754: atan2(-Inf, +Inf) == -π/4
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-Double.infinity), doubleToBits(Double.infinity))),
+            -Double.pi / 4, accuracy: 1e-12)
+        // IEEE 754: atan2(+Inf, -Inf) == +3π/4
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(Double.infinity), doubleToBits(-Double.infinity))),
+            3 * Double.pi / 4, accuracy: 1e-12)
+        // IEEE 754: atan2(-Inf, -Inf) == -3π/4
+        XCTAssertEqual(
+            doubleFromBits(kk_math_atan2(doubleToBits(-Double.infinity), doubleToBits(-Double.infinity))),
+            -3 * Double.pi / 4, accuracy: 1e-12)
+    }
+
     // MARK: - Float trig NaN / Inf propagation
 
     func testSinFloatNaN() {
@@ -610,6 +675,44 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
     func testTanFloatInfinity() {
         XCTAssertTrue(floatFromBits(kk_math_tan_float(floatToBits(Float.infinity))).isNaN)
         XCTAssertTrue(floatFromBits(kk_math_tan_float(floatToBits(-Float.infinity))).isNaN)
+    }
+
+    // MARK: - atan2(Float) IEEE 754 edge cases (TEST-MATH-024)
+
+    func testAtan2FloatNaN() {
+        XCTAssertTrue(floatFromBits(kk_math_atan2_float(floatToBits(Float.nan), floatToBits(1.0))).isNaN)
+        XCTAssertTrue(floatFromBits(kk_math_atan2_float(floatToBits(1.0), floatToBits(Float.nan))).isNaN)
+    }
+
+    func testAtan2FloatInfinityXFinite() {
+        // atan2(+Inf, finite) == +π/2
+        let posHalfPi = floatFromBits(kk_math_atan2_float(floatToBits(Float.infinity), floatToBits(1.0)))
+        XCTAssertEqual(posHalfPi, Float.pi / 2, accuracy: 1e-6)
+        // atan2(-Inf, finite) == -π/2 (奇関数の対称性)
+        let negHalfPi = floatFromBits(kk_math_atan2_float(floatToBits(-Float.infinity), floatToBits(1.0)))
+        XCTAssertEqual(negHalfPi, -Float.pi / 2, accuracy: 1e-6)
+    }
+
+    func testAtan2FloatSignedZero() {
+        // IEEE 754: atan2(-0, +0) == -0 (符号保持)
+        let result = floatFromBits(kk_math_atan2_float(floatToBits(-0.0), floatToBits(0.0)))
+        XCTAssertEqual(result, 0.0)
+        XCTAssertTrue(result.sign == .minus)
+    }
+
+    func testAtan2FloatInfinityBothArgs() {
+        // IEEE 754: atan2(-Inf, +Inf) == -π/4
+        XCTAssertEqual(
+            floatFromBits(kk_math_atan2_float(floatToBits(-Float.infinity), floatToBits(Float.infinity))),
+            -Float.pi / 4, accuracy: 1e-6)
+        // IEEE 754: atan2(+Inf, -Inf) == +3π/4
+        XCTAssertEqual(
+            floatFromBits(kk_math_atan2_float(floatToBits(Float.infinity), floatToBits(-Float.infinity))),
+            3 * Float.pi / 4, accuracy: 1e-6)
+        // IEEE 754: atan2(-Inf, -Inf) == -3π/4
+        XCTAssertEqual(
+            floatFromBits(kk_math_atan2_float(floatToBits(-Float.infinity), floatToBits(-Float.infinity))),
+            -3 * Float.pi / 4, accuracy: 1e-6)
     }
 
     // MARK: - Hyperbolic functions (Double)
