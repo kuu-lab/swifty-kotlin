@@ -77,6 +77,18 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_ule"),
             ctx.interner.intern("kk_op_ugt"),
             ctx.interner.intern("kk_op_uge"),
+            ctx.interner.intern("kk_op_deq"),
+            ctx.interner.intern("kk_op_dne"),
+            ctx.interner.intern("kk_op_dlt"),
+            ctx.interner.intern("kk_op_dle"),
+            ctx.interner.intern("kk_op_dgt"),
+            ctx.interner.intern("kk_op_dge"),
+            ctx.interner.intern("kk_op_feq"),
+            ctx.interner.intern("kk_op_fne"),
+            ctx.interner.intern("kk_op_flt"),
+            ctx.interner.intern("kk_op_fle"),
+            ctx.interner.intern("kk_op_fgt"),
+            ctx.interner.intern("kk_op_fge"),
         ]
 
 
