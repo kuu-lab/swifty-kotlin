@@ -61,7 +61,6 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
-
         // Comparison operators: result type is Boolean so we cannot use the
         // result to drive unboxing.  Instead unboxOperandToOwnType uses each
         // operand's own declared primitive type as the target, which is

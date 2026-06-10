@@ -8,7 +8,9 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             println("42".toByte())
             println("-42".toByte())
+            println("+42".toByte())
             println("42".toByteOrNull())
+            println("+42".toByteOrNull())
             println("127".toByteOrNull())
             println("128".toByteOrNull())
             println("abc".toByteOrNull())
@@ -37,6 +39,8 @@ extension CodegenBackendIntegrationTests {
                 42
                 -42
                 42
+                42
+                42
                 127
                 null
                 null
@@ -55,13 +59,16 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             println("1000".toShort())
             println("-1000".toShort())
+            println("+1000".toShort())
             println("32767".toShortOrNull())
             println("-32768".toShortOrNull())
             println("32768".toShortOrNull())
             println("40000".toShortOrNull())
             println("abc".toShortOrNull())
+            println(" 1000 ".toShortOrNull())
             try { "40000".toShort() } catch (e: Throwable) { println("overflow") }
             try { "abc".toShort() } catch (e: Throwable) { println("invalid") }
+            try { " 1000 ".toShort() } catch (e: Throwable) { println("whitespace") }
         }
         """
 
@@ -82,13 +89,16 @@ extension CodegenBackendIntegrationTests {
                 """
                 1000
                 -1000
+                1000
                 32767
                 -32768
                 null
                 null
                 null
+                null
                 overflow
                 invalid
+                whitespace
                 """
                 + "\n"
             )
@@ -100,11 +110,14 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             println("9999999999".toLong())
             println("-9999999999".toLong())
+            println("+9999999999".toLong())
             println("9999999999".toLongOrNull())
             println("99999999999999999999".toLongOrNull())
             println("abc".toLongOrNull())
+            println(" 9999999999 ".toLongOrNull())
             try { "99999999999999999999".toLong() } catch (e: Throwable) { println("overflow") }
             try { "abc".toLong() } catch (e: Throwable) { println("invalid") }
+            try { " 9999999999 ".toLong() } catch (e: Throwable) { println("whitespace") }
         }
         """
 
@@ -126,10 +139,13 @@ extension CodegenBackendIntegrationTests {
                 9999999999
                 -9999999999
                 9999999999
+                9999999999
+                null
                 null
                 null
                 overflow
                 invalid
+                whitespace
                 """
                 + "\n"
             )
