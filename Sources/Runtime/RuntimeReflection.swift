@@ -146,17 +146,18 @@ public func kk_kclass_get_instance_size_words(_ kclassRaw: Int) -> Int {
     guard runtimeReflectionKClassBox(from: kclassRaw) != nil else {
         return 0
     }
-    // The current metadata registry does not expose instance size yet.
+    // Instance size in machine words is not stored in the metadata registry
+    // (fieldCount is a different metric — it counts declared fields, not memory words).
+    // Returns 0 until the metadata schema is extended with layout information.
     return 0
 }
 
 @_cdecl("kk_kclass_get_arity")
 public func kk_kclass_get_arity(_ kclassRaw: Int) -> Int {
-    guard runtimeReflectionKClassBox(from: kclassRaw) != nil else {
+    guard let kclass = runtimeReflectionKClassBox(from: kclassRaw) else {
         return 0
     }
-    // The current metadata registry does not expose type-parameter arity yet.
-    return 0
+    return kclass.metadata?.typeParameterCount ?? 0
 }
 
 // MARK: - Annotation Reflection (STDLIB-REFLECT-065)

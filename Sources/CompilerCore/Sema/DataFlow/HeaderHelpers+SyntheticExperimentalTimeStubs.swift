@@ -413,12 +413,13 @@ extension DataFlowSemaPhase {
             ownerSymbol: testTimeSourceSymbol,
             ownerType: testTimeSourceType,
             parameters: [],
+            externalLinkName: "kk_test_time_source_new",
             symbols: symbols,
             interner: interner
         )
         registerExperimentalTimeMemberFunction(
             named: "read",
-            externalLinkName: nil,
+            externalLinkName: "kk_test_time_source_read",
             ownerSymbol: testTimeSourceSymbol,
             ownerType: testTimeSourceType,
             parameters: [],
@@ -430,7 +431,7 @@ extension DataFlowSemaPhase {
         )
         registerExperimentalTimeMemberFunction(
             named: "plusAssign",
-            externalLinkName: nil,
+            externalLinkName: "kk_test_time_source_plus_assign",
             ownerSymbol: testTimeSourceSymbol,
             ownerType: testTimeSourceType,
             parameters: [(name: "duration", type: durationType)],
@@ -438,6 +439,17 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner,
             isOperator: true
+        )
+        registerExperimentalTimeMemberFunction(
+            named: "markNow",
+            externalLinkName: "kk_test_time_source_mark_now",
+            ownerSymbol: testTimeSourceSymbol,
+            ownerType: testTimeSourceType,
+            parameters: [],
+            returnType: comparableTimeMarkType,
+            symbols: symbols,
+            interner: interner,
+            flags: [.synthetic, .openType, .overrideMember]
         )
 
         let monotonicFQName = ensureExperimentalTimeNestedObject(
@@ -718,6 +730,7 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         parameters: [(name: String, type: TypeID)],
+        externalLinkName: String? = nil,
         symbols: SymbolTable,
         interner: StringInterner
     ) {
@@ -747,6 +760,9 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
+        }
 
         var valueParameterSymbols: [SymbolID] = []
         for parameter in parameters {
