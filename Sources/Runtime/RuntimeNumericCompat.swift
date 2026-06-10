@@ -8,6 +8,15 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    // Float/Double MUST be decoded before the null-sentinel check:
+    // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt.
+    // Elevating tags 5/6 preserves the sign bit of negative zero and NaN payloads.
+    if tag == 5 {
+        return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedFloatValue(value)))
+    }
+    if tag == 6 {
+        return runtimeMakeStringPointer(runtimeFormatFloatingPoint(runtimeTaggedDoubleValue(value)))
+    }
     if value == runtimeNullSentinelInt {
         return runtimeMakeStringPointer("null")
     }
@@ -17,12 +26,6 @@ public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointe
     if tag == 4 {
         let rendered = runtimeRenderTaggedChar(value)
         return runtimeMakeStringPointer(rendered)
-    }
-    if tag == 5 {
-        return runtimeMakeStringPointer(String(runtimeTaggedFloatValue(value)))
-    }
-    if tag == 6 {
-        return runtimeMakeStringPointer(String(runtimeTaggedDoubleValue(value)))
     }
     if tag == 3,
        let pointer = UnsafeMutableRawPointer(bitPattern: value),
@@ -1618,9 +1621,27 @@ public func kk_op_lfloor_div(_ lhs: Int, _ rhs: Int) -> Int {
     runtimeFloorDiv(lhs, rhs)
 }
 
+// PEC-NUM-0002: integer division/remainder must throw ArithmeticException("/ by zero").
+// kk_op_div is a throwing callee; outThrown is set and 0 is returned when rhs == 0.
+// Int.MIN_VALUE / -1 wraps silently per Kotlin two's-complement semantics.
+@_cdecl("kk_op_div")
+public func kk_op_div(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    if lhs == Int.min && rhs == -1 { return Int.min }
+    return lhs / rhs
+}
+
+// PEC-NUM-0002: kk_op_mod is a throwing callee; outThrown is set and 0 returned when rhs == 0.
 @_cdecl("kk_op_mod")
-public func kk_op_mod(_ lhs: Int, _ rhs: Int) -> Int {
-    if rhs == 0 { return 0 } // Handle division by zero
+public func kk_op_mod(_ lhs: Int, _ rhs: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    if rhs == 0 {
+        outThrown?.pointee = runtimeAllocateArithmeticException(message: "/ by zero")
+        return 0
+    }
+    if lhs == Int.min && rhs == -1 { return 0 }
     return lhs % rhs
 }
 

@@ -14,6 +14,10 @@ extension ABILoweringPass {
         "kk_mutable_list_add_at",
         "kk_mutable_list_set",
         "kk_mutable_set_add",
+        "kk_mutable_map_put",
+        "kk_mutable_map_putAll",
+        "kk_mutable_map_getOrPut",
+        "kk_mutable_map_plusAssign_pair",
     ]
 
     func resolveValueClassKind(
@@ -243,9 +247,22 @@ extension ABILoweringPass {
             return true
         }
 
-        if case let .primitive(sourcePrimitive, _) = sourceKind,
+        // Nullable → non-null always needs unboxing (box pointer or null sentinel).
+        if case let .primitive(sourcePrimitive, .nullable) = sourceKind,
            case let .primitive(targetPrimitive, .nonNull) = targetKind,
            sourcePrimitive == targetPrimitive
+        {
+            return true
+        }
+        // Non-null → non-null: skip unboxing only for Double and Float.
+        // kk_unbox_double/kk_unbox_float treat the null sentinel (Int.min) as null
+        // and return 0, which corrupts -0.0 whose bit pattern equals Int.min.
+        // Boolean, Int, Long, Char do not share a valid value with the null sentinel,
+        // so their non-null → non-null unboxing is still safe and necessary.
+        if case let .primitive(sourcePrimitive, .nonNull) = sourceKind,
+           case let .primitive(targetPrimitive, .nonNull) = targetKind,
+           sourcePrimitive == targetPrimitive,
+           sourcePrimitive != .double, sourcePrimitive != .float
         {
             return true
         }
@@ -314,40 +331,27 @@ extension ABILoweringPass {
         return unboxed
     }
 
-    /// Unbox one operand of an equality/comparison builtin (`kk_op_eq`, etc.).
+    /// Unbox an operand to its own declared primitive type.
+    /// Used for comparison operators (==, !=, <, etc.) where the result type is
+    /// Boolean and cannot be used to infer the unboxing target.  If the operand's
+    /// declared type is `.primitive(.int, .nonNull)` we emit `kk_unbox_int`;
+    /// `kk_unbox_int` is idempotent for already-unboxed values (it checks the
+    /// object-pointer registry and returns the raw value unchanged if not found).
     ///
-    /// These callees return `Bool`, so the normal `unboxBinaryOperandIfNeeded`
-    /// (which derives the `kk_unbox_*` callee from the *result* type) would
-    /// emit `kk_unbox_bool` — wrong for integer comparisons.
-    ///
-    /// Two situations are handled:
-    ///
-    /// * **Primitive operand** — derive the unbox callee from the operand's
-    ///   own non-null primitive type.  This is the common lambda-parameter
-    ///   case: the parameter is typed `Int` in sema, but at runtime it may
-    ///   hold a boxed heap pointer because the caller passed a list element
-    ///   via `kk_function_invoke`.  `kk_unbox_int` is a safe passthrough for
-    ///   values that are already plain integers.
-    ///
-    /// * **`Any?`/reference operand** — look at the *peer* operand's type to
-    ///   find the primitive target.  This arises after `InlineLowering`
-    ///   substitutes a `kk_list_iterator_next` result (type `Any?` in the
-    ///   arena) for a lambda parameter that was `Int`-typed at
-    ///   `OperatorLowering` time; the generated `kk_op_eq` now has a
-    ///   mismatched `Any?` argument.
-    ///
-    /// Pass the *original* (pre-unboxing) peer operand so peer-type lookup
-    /// reflects the source instruction rather than an intermediate result.
-    func unboxEqualityOperandIfNeeded(
-        operand: KIRExprID,
-        peerOperand: KIRExprID,
+    /// When the operand has no type info in the arena (e.g. the result of an
+    /// arithmetic sub-expression whose Sema type was not recorded), `hint` is
+    /// used as the target primitive kind instead.  This covers patterns like
+    /// `x + 0 == x` where the `+` result has nil arena type but the `x` parameter
+    /// has a known Int type.
+    func unboxOperandToOwnType(
+        _ operand: KIRExprID,
+        hint: TypeKind? = nil,
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
         unboxCallees: UnboxingCalleeNames,
         newBody: inout [KIRInstruction]
     ) -> KIRExprID {
-        // Literal expressions hold raw (never-boxed) values — skip.
         if let expr = module.arena.expr(operand) {
             switch expr {
             case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
@@ -357,50 +361,47 @@ extension ABILoweringPass {
                 break
             }
         }
-        guard let operandType = intrinsicArgType(operand, arena: module.arena, types: types)
-        else {
-            return operand
+        let operandType = intrinsicArgType(operand, arena: module.arena, types: types)
+        let rawOperandKind: TypeKind? = operandType.map { types.kind(of: $0) }
+        let operandKind: TypeKind? = rawOperandKind.map {
+            resolveValueClassKind($0, types: types, symbols: symbols)
         }
-        let operandKind = resolveValueClassKind(
-            types.kind(of: operandType), types: types, symbols: symbols
-        )
-
-        // Determine the unboxing target:
-        // (a) primitive operand → own non-null primitive type
-        // (b) Any?/reference operand → peer's primitive type (post-inline
-        //     substitution replaced an Int-typed sema param with Any?)
+        // Determine the target kind:
+        //   1. Use the operand's own concrete primitive type if available.
+        //   2. Fall back to the hint (type of a sibling operand) when the
+        //      operand has no type info — this handles arithmetic results whose
+        //      Sema type was not recorded in the arena.
         let targetKind: TypeKind
-        if case let .primitive(prim, .nonNull) = operandKind {
-            targetKind = TypeKind.primitive(prim, .nonNull)
-        } else if isAnyOrNullableAny(operandKind)
-                    || isNonValueClassReference(operandKind, symbols: symbols) {
-            guard let peerType = intrinsicArgType(
-                      peerOperand, arena: module.arena, types: types),
-                  case let .primitive(peerPrim, .nonNull) = resolveValueClassKind(
-                      types.kind(of: peerType), types: types, symbols: symbols)
-            else {
-                return operand
-            }
-            targetKind = TypeKind.primitive(peerPrim, .nonNull)
+        if let opKind = operandKind, case .primitive(_, .nonNull) = opKind {
+            targetKind = opKind
+        } else if let hintKind = hint, case .primitive(_, .nonNull) = hintKind {
+            targetKind = hintKind
+        } else if let opKind = operandKind {
+            targetKind = opKind
         } else {
             return operand
         }
-
-        guard needsUnboxing(sourceKind: operandKind, targetKind: targetKind, symbols: symbols),
+        let sourceKind = operandKind ?? targetKind
+        guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
               let callee = unboxingCallee(
-                  sourceKind: operandKind, targetKind: targetKind,
+                  sourceKind: sourceKind, targetKind: targetKind,
                   unboxCallees: unboxCallees, types: types, symbols: symbols
               )
         else {
             return operand
         }
+        let resultType = operandType ?? types.make(targetKind)
         let unboxed = module.arena.appendExpr(
             .temporary(Int32(module.arena.expressions.count)),
-            type: types.make(targetKind)
+            type: resultType
         )
         newBody.append(.call(
-            symbol: nil, callee: callee, arguments: [operand],
-            result: unboxed, canThrow: false, thrownResult: nil
+            symbol: nil,
+            callee: callee,
+            arguments: [operand],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
         ))
         return unboxed
     }

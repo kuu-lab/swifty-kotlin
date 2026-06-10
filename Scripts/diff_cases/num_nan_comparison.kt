@@ -1,11 +1,7 @@
-// SKIP-DIFF: SPEC-NUM-0003 — Double/Float relational operators (<, <=, >, >=)
-// must use IEEE-754 comparison, where any comparison involving NaN is false.
-// kswiftk desugars them through Comparable.compareTo (a total order in which NaN
-// is the largest value) or, after bypassing that, through integer bit comparison,
-// both of which diverge from IEEE. Remove SKIP-DIFF once primitive float
-// relational operators are lowered to kk_op_dlt/dle/dgt/dge with proper rank.
-//
-// Expected (kotlinc): every NaN comparison below prints false.
+// SPEC-NUM-0003: Double/Float relational operators (<, <=, >, >=) must use
+// IEEE-754 comparison, where any comparison involving NaN returns false,
+// and NaN != NaN returns true.  Lowered to kk_op_dlt/dle/dgt/dge/dne which
+// delegate to Swift operators that are IEEE-754 compliant.
 fun main() {
     val nan = Double.NaN
     println(nan < 1.0)

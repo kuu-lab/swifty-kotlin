@@ -484,6 +484,166 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-032: minOf(Byte, Byte) — Byte resolves to Int internally
+    func testTwoArgMinOfByteResolvesToInt2Overload() throws {
+        let source = """
+        fun sample(a: Byte, b: Byte): Byte = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Byte arguments"
+            )
+
+            // Byte maps to Int internally, so the result type is Int
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // Resolves via the Int 2-arg special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfInt)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
+        }
+    }
+
+    // STDLIB-COMP-FN-034: minOf(Byte, Byte, ..., Byte) — Byte widens to Int, vararg Int overload resolves
+    func testVarargMinOfByteResolvesToIntVarargOverload() throws {
+        let source = """
+        fun sample(a: Byte, b: Byte, c: Byte, d: Byte): Byte = minOf(a, b, c, d)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 4
+                },
+                "Expected 4-arg minOf call with Byte arguments"
+            )
+
+            // Byte maps to Int internally, so the result type is Int
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
+            XCTAssertEqual(sig.returnType, sema.types.intType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-038: minOf(Float, Float) — 2-arg Float overload
+    func testTwoArgMinOfFloatResolvesToFloat2Overload() throws {
+        let source = """
+        fun sample(a: Float, b: Float): Float = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Float arguments"
+            )
+
+            // Float is preserved end-to-end (no widening to Double)
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.floatType)
+            // Resolves via the Float 2-arg special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfFloat)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType])
+        }
+    }
+
+    // STDLIB-COMP-FN-035: minOf(Double, Double) — Double is preserved (no widening)
+    func testTwoArgMinOfDoubleResolvesToDoubleOverload() throws {
+        let source = """
+        fun sample(a: Double, b: Double): Double = minOf(a, b)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 2
+                },
+                "Expected 2-arg minOf call with Double arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.doubleType)
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfDouble)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType, sema.types.doubleType])
+        }
+    }
+
     // STDLIB-COMP-FN-012: maxOf(Double, Double, Double) — Double is preserved (no widening)
     func testThreeArgMaxOfDoubleResolvesToDouble3Overload() throws {
         let source = """
@@ -521,6 +681,84 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
             ])
             let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
             XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType, sema.types.doubleType, sema.types.doubleType])
+        }
+    }
+
+    // STDLIB-COMP-FN-036: minOf(Double, Double, Double) — Double is preserved (no widening)
+    func testThreeArgMinOfDoubleResolvesToDouble3Overload() throws {
+        let source = """
+        fun sample(a: Double, b: Double, c: Double): Double = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                },
+                "Expected 3-arg minOf call with Double arguments"
+            )
+
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.doubleType)
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfDouble3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.doubleType, sema.types.doubleType, sema.types.doubleType])
+        }
+    }
+
+    // STDLIB-COMP-FN-039: minOf(Float, Float, Float) — Float is preserved (no widening to Double)
+    func testThreeArgMinOfFloatResolvesToFloat3Overload() throws {
+        let source = """
+        fun sample(a: Float, b: Float, c: Float): Float = minOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "minOf" && args.count == 3
+                },
+                "Expected 3-arg minOf call with Float arguments"
+            )
+
+            // Float is preserved end-to-end (no widening to Double)
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.floatType)
+            // Resolves via the Float3 special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .minOfFloat3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.floatType, sema.types.floatType, sema.types.floatType])
         }
     }
 }

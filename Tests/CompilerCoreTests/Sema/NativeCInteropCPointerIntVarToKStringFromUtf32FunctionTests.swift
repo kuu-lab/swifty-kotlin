@@ -21,6 +21,28 @@ final class NativeCInteropCPointerIntVarToKStringFromUtf32FunctionTests: XCTestC
         XCTAssertTrue(try XCTUnwrap(sema.symbols.symbol(fn)?.flags).contains(.synthetic))
     }
 
+    func testCPointerIntVarToKStringFromUtf32FunctionLinksToRuntimeSymbol() throws {
+        let ctx = makeContextFromSource("fun noop() {}")
+        try runSema(ctx)
+        let sema = try XCTUnwrap(ctx.sema)
+        let interner = ctx.interner
+        let cinteropPkg = ["kotlinx", "cinterop"].map { interner.intern($0) }
+        let cPointerSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("CPointer")]))
+        let intVarSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: cinteropPkg + [interner.intern("IntVar")]))
+        let intVarType = sema.types.make(.classType(ClassType(classSymbol: intVarSymbol, args: [], nullability: .nonNull)))
+        let expectedReceiverType = sema.types.make(.classType(ClassType(classSymbol: cPointerSymbol, args: [.invariant(intVarType)], nullability: .nonNull)))
+        let candidates = sema.symbols.lookupAll(fqName: cinteropPkg + [interner.intern("toKStringFromUtf32")])
+        let fn = try XCTUnwrap(candidates.first { symbolID in
+            guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+            return sig.receiverType == expectedReceiverType && sig.parameterTypes.isEmpty && sig.returnType == sema.types.stringType
+        })
+        XCTAssertEqual(
+            sema.symbols.externalLinkName(for: fn),
+            "kk_cpointer_toKStringFromUtf32",
+            "CPointer<IntVar>.toKStringFromUtf32() must link to kk_cpointer_toKStringFromUtf32"
+        )
+    }
+
     func testCPointerIntVarToKStringFromUtf32FunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import kotlinx.cinterop.CPointer

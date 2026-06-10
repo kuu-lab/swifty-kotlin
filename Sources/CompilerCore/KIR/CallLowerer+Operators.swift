@@ -389,6 +389,43 @@ extension CallLowerer {
                 break
             }
         }
+        // SPEC-NUM-0003: IEEE-754 path for Double/Float relational and inequality operators
+        // must run before builtinBinaryRuntimeCallee, which maps them to integer ops
+        // (kk_op_lt/le/gt/ge/ne) that use total ordering where NaN is the maximum value.
+        // IEEE-754 requires comparisons involving NaN to return false, and NaN != NaN
+        // to return true.  The typed kk_op_d*/kk_op_f* runtime functions use Swift
+        // operators that are IEEE-754 compliant.
+        switch op {
+        case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
+            let floatTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+                           ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            if let typeID = floatTypeID, isFloatingPointPrimitiveType(typeID, types: sema.types) {
+                let isDouble: Bool = switch sema.types.kind(of: typeID) {
+                case .primitive(.double, _): true
+                default: false
+                }
+                let prefix = isDouble ? "d" : "f"
+                let suffix: String = switch op {
+                case .lessThan: "lt"
+                case .lessOrEqual: "le"
+                case .greaterThan: "gt"
+                case .greaterOrEqual: "ge"
+                case .notEqual: "ne"
+                default: fatalError("Unreachable: switch only reached for relational ops and notEqual")
+                }
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_\(prefix)\(suffix)"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
+        default:
+            break
+        }
         if let runtimeCallee = driver.callSupportLowerer.builtinBinaryRuntimeCallee(for: op, interner: interner) {
             instructions.append(
                 .call(
@@ -411,9 +448,37 @@ extension CallLowerer {
         case .multiply:
             kirOp = .multiply
         case .divide:
-            kirOp = .divide
+            // PEC-NUM-0002: Integer division must throw ArithmeticException("/ by zero") on zero divisor.
+            // Float/Double division falls through to .binary so OperatorLoweringPass emits kk_op_fdiv/ddiv.
+            if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
+               prim == .float || prim == .double {
+                kirOp = .divide
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_div"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         case .modulo:
-            kirOp = .modulo
+            if let bt = boundType, case let .primitive(prim, _) = sema.types.kind(of: bt),
+               prim == .float || prim == .double {
+                kirOp = .modulo
+            } else {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_op_mod"),
+                    arguments: [lhsID, rhsID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         case .equal:
             kirOp = .equal
         case .notEqual:
@@ -497,6 +562,13 @@ extension CallLowerer {
         }
         instructions.append(.binary(op: kirOp, lhs: lhsID, rhs: rhsID, result: result))
         return result
+    }
+
+    private func isFloatingPointPrimitiveType(_ typeID: TypeID, types: TypeSystem) -> Bool {
+        switch types.kind(of: typeID) {
+        case .primitive(.double, _), .primitive(.float, _): return true
+        default: return false
+        }
     }
 
     private func shouldLowerComparableTypeParamViaRuntime(

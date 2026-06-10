@@ -88,8 +88,6 @@ extension NativeEmitter {
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
             lowered = bindings.buildMul(state.builder, lhs: lhs, rhs: rhs, name: "mul_\(instructionIndex)")
-        case "kk_op_div":
-            lowered = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "div_\(instructionIndex)")
         case "kk_op_floor_div", "kk_op_lfloor_div":
             if let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "floordiv_q_\(instructionIndex)"),
                let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "floordiv_p_\(instructionIndex)"),
@@ -114,14 +112,6 @@ extension NativeEmitter {
             }
         case "kk_op_udiv":
             lowered = bindings.buildUDiv(state.builder, lhs: lhs, rhs: rhs, name: "udiv_\(instructionIndex)")
-        case "kk_op_mod":
-            if let quotient = bindings.buildSDiv(state.builder, lhs: lhs, rhs: rhs, name: "mod_q_\(instructionIndex)"),
-               let product = bindings.buildMul(state.builder, lhs: quotient, rhs: rhs, name: "mod_p_\(instructionIndex)")
-            {
-                lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: product, name: "mod_\(instructionIndex)")
-            } else {
-                lowered = nil
-            }
         case "kk_op_floor_mod":
             lowered = buildSignedFloorMod(name: "floor_mod")
         case "kk_op_lfloor_mod":

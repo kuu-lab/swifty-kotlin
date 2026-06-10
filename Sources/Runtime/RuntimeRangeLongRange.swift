@@ -286,6 +286,15 @@ public func kk_random_nextLong_rangeObject(_ randomRaw: Int, _ rangeRaw: Int, _ 
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_random_nextLong_rangeObject")
     }
+    // Random.nextLong(range) throws IllegalArgumentException (not NoSuchElementException) for empty ranges.
+    let isEmpty = range.step == 0
+        || (range.step > 0 ? range.first > range.last : range.first < range.last)
+    if isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "Random range is empty: \(range.first)..\(range.last)."
+        )
+        return 0
+    }
     return runtimeSignedRangeRandom(
         first: range.first,
         last: range.last,

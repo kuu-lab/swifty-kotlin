@@ -1,0 +1,35 @@
+symbol s0 kind=class fq=kotlin.time.Duration vis=public flags=synthetic type=Class#0
+symbol s1 kind=property fq=kotlin.time.Duration.inWholeMilliseconds vis=public flags=synthetic type=Long
+symbol s2 kind=function fq=kotlin.time.Duration.Companion.milliseconds.$get vis=public flags=synthetic sig=recv=Int params=[] ret=Class#0 suspend=0 defaults=[] vararg=[]
+symbol s3 kind=class fq=kotlin.time.ComparableTimeMark vis=public flags=synthetic
+symbol s4 kind=function fq=kotlin.time.ComparableTimeMark.minus vis=public flags=synthetic|operatorFunction sig=recv=Class#3 params=[Class#3] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=class fq=kotlin.time.TestTimeSource vis=public flags=synthetic
+symbol s6 kind=constructor fq=kotlin.time.TestTimeSource.<init> vis=public flags=synthetic sig=recv=Class#5 params=[] ret=Class#5 suspend=0 defaults=[] vararg=[]
+symbol s7 kind=function fq=kotlin.time.TestTimeSource.plusAssign vis=public flags=synthetic|operatorFunction sig=recv=Class#5 params=[Class#0] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=function fq=kotlin.time.TestTimeSource.markNow vis=public flags=synthetic|openType|overrideMember sig=recv=Class#5 params=[] ret=Class#3 suspend=0 defaults=[] vararg=[]
+symbol s9 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s11 kind=local fq=__local_0.source vis=private flags=_ type=Class#5
+symbol s12 kind=local fq=__local_1.mark1 vis=private flags=_ type=Class#3
+symbol s13 kind=local fq=__local_2.mark2 vis=private flags=_ type=Class#3
+file f0 package=_
+  decl d0 fun main suspend=0 inline=0 sym=s10
+expr e0 name(TestTimeSource) type=_
+expr e1 call callee=e0 args=[] type=Class#5 call=s6 map=[] targs=[]
+expr e2 localDecl source mutable=0 type=_ init=e1 type=Unit ref=s11
+expr e3 name(source) type=Class#5 ref=s11
+expr e4 memberCall recv=e3 callee=markNow args=[] type=Class#3 call=s8 map=[] targs=[]
+expr e5 localDecl mark1 mutable=0 type=_ init=e4 type=Unit ref=s12
+expr e6 name(source) type=_
+expr e7 int(5) type=Int
+expr e8 memberCall recv=e7 callee=milliseconds args=[] type=Class#0 call=s2 map=[] targs=[]
+expr e9 compoundAssign(plusAssign) name=source value=e8 type=Unit ref=s11 call=s7 map=[0->0] targs=[]
+expr e10 name(source) type=Class#5 ref=s11
+expr e11 memberCall recv=e10 callee=markNow args=[] type=Class#3 call=s8 map=[] targs=[]
+expr e12 localDecl mark2 mutable=0 type=_ init=e11 type=Unit ref=s13
+expr e13 name(println) type=_
+expr e14 name(mark2) type=Class#3 ref=s13
+expr e15 name(mark1) type=Class#3 ref=s12
+expr e16 binary(subtract) lhs=e14 rhs=e15 type=Class#0 call=s4 map=[0->0] targs=[]
+expr e17 memberCall recv=e16 callee=inWholeMilliseconds args=[] type=Long ref=s1
+expr e18 call callee=e13 args=[_:e17] type=Unit call=s9 map=[0->0] targs=[]

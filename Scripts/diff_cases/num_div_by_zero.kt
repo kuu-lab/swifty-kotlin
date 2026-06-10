@@ -1,8 +1,5 @@
-// SKIP-DIFF: SPEC-NUM-0002 — integer division/remainder by zero must throw a
-// catchable kotlin.ArithmeticException ("/ by zero"). kswiftk instead raises a
-// hardware SIGFPE and aborts the process (uncatchable), so the try/catch below
-// never runs. Floating-point division by zero is already correct (Infinity/NaN).
-// Remove the SKIP-DIFF marker once codegen emits a divisor zero-check.
+// PEC-NUM-0002: integer division/remainder by zero now throws ArithmeticException.
+// Floating-point division by zero produces Infinity/NaN (IEEE 754).
 fun main() {
     val n = 1
     val zero = 0

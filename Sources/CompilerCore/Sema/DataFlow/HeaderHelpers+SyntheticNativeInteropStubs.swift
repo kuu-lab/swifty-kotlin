@@ -3323,6 +3323,7 @@ extension DataFlowSemaPhase {
                 receiverType: toKStringFromUtf32ReceiverType,
                 parameters: [],
                 returnType: types.stringType,
+                externalLinkName: "kk_cpointer_toKStringFromUtf32",
                 symbols: symbols,
                 interner: interner
             )
@@ -3460,6 +3461,48 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 interner: interner
             )
+        }
+        // STDLIB-CINTEROP-FN-039: typeOf<T>(): KType — inline reified function in kotlinx.cinterop.
+        // Mirrors kotlin.typeOf<T>() for call sites that already import from this package.
+        let cinteropTypeOfKTypeName = interner.intern("KType")
+        let kotlinReflectInteropPkg = ensurePackage(
+            path: ["kotlin", "reflect"],
+            symbols: symbols,
+            interner: interner
+        )
+        if let cinteropTypeOfKTypeSymbol = symbols.lookup(
+            fqName: kotlinReflectInteropPkg + [cinteropTypeOfKTypeName]
+        ) {
+            let cinteropKTypeType = types.make(.classType(ClassType(
+                classSymbol: cinteropTypeOfKTypeSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let cinteropTypeOfFQName = cinteropPkg + [interner.intern("typeOf")]
+            if symbols.lookupAll(fqName: cinteropTypeOfFQName).isEmpty {
+                let tParamName = interner.intern("T")
+                let tParamSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: tParamName,
+                    fqName: cinteropTypeOfFQName + [tParamName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic, .reifiedTypeParameter]
+                )
+                registerSyntheticNativeTopLevelFunction(
+                    named: "typeOf",
+                    packageFQName: cinteropPkg,
+                    receiverType: nil,
+                    parameters: [],
+                    returnType: cinteropKTypeType,
+                    typeParameterSymbols: [tParamSymbol],
+                    typeParameterUpperBoundsList: [[]],
+                    reifiedTypeParameterIndices: [0],
+                    flags: [.synthetic, .inlineFunction],
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
         }
         registerSyntheticCInteropVector128Stubs(
             cinteropPkg: cinteropPkg,
