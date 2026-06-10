@@ -222,6 +222,7 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     )
 }
 
+
 @_cdecl("kk_string_replace")
 public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -862,6 +863,44 @@ public func kk_string_toIntOrNull_radix(
         return runtimeNullSentinelInt
     }
     return Int(value)
+}
+
+// SPEC-NUM-0007: String.toUByteOrNull() / toUShortOrNull() / toUIntOrNull() / toULongOrNull() — no-arg (radix 10)
+
+@_cdecl("kk_string_toUByteOrNull")
+public func kk_string_toUByteOrNull(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = UInt8(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toUShortOrNull")
+public func kk_string_toUShortOrNull(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = UInt16(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toUIntOrNull")
+public func kk_string_toUIntOrNull(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = UInt32(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(value)
+}
+
+@_cdecl("kk_string_toULongOrNull")
+public func kk_string_toULongOrNull(_ strRaw: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard let value = UInt64(source) else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: UInt(value))
 }
 
 @_cdecl("kk_string_toUByteOrNull_radix")

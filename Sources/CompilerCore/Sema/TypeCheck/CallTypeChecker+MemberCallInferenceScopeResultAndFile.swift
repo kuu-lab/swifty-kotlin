@@ -171,8 +171,30 @@ extension CallTypeChecker {
                             return nil
                         } ?? sema.types.anyType
                     }
-                    let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+                    // Refine the call result type using the lambda body's concrete type,
+                    // but ONLY when no expected type was provided (i.e. expected was anyType).
+                    // This lets downstream sema resolve member accesses on the result:
+                    //   val lines = bufferedReader().use { reader -> reader.readLines() }
+                    //   lines.size  ← resolves because lines is List<String>, not Any
+                    // We skip Nothing-typed bodies (always-throw lambdas) to avoid
+                    // disrupting the KIR try-finally exception propagation for use{}.
+                    let refinedReturnType: TypeID = {
+                        guard returnType == sema.types.anyType else { return returnType }
+                        guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                              case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                              let bodyType = sema.bindings.exprTypes[bodyExprID],
+                              bodyType != sema.types.anyType
+                        else { return returnType }
+                        if case .nothing = sema.types.kind(of: bodyType) { return returnType }
+                        return bodyType
+                    }()
+                    let finalType = safeCall ? sema.types.makeNullable(refinedReturnType) : refinedReturnType
                     sema.bindings.markScopeFunctionExpr(id, kind: scopeKind)
+                    // markCollectionHOFLambdaExpr is required here to force the lambda through
+                    // the capturing-lambda lowering path (needsClosureParam=true), which ensures
+                    // exception propagation works correctly for use{} lambdas that may throw.
+                    // Without this, a non-capturing lambda (e.g. `{ error("boom") }`) goes through
+                    // lowerNonCapturingLambda (isInline:true) which breaks try/catch around use{}.
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                     sema.bindings.bindExprType(id, type: finalType)
                     return finalType

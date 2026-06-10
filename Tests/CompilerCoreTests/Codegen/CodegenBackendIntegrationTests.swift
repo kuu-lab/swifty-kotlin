@@ -1532,6 +1532,33 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-024: maxOf(Short, Short, Short)
+    func testCodegenCompilesMaxOfShortThreeArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Short = 1
+            val b: Short = 7
+            val c: Short = 3
+            println(maxOf(a, b, c))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfShortThreeArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "7\n")
+        }
+    }
+
     // STDLIB-COMP-FN-036: minOf(Double, Double, Double)
     func testCodegenCompilesMinOfDoubleThreeArgTopLevelCall() throws {
         let source = """

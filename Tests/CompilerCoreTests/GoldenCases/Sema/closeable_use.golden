@@ -28,7 +28,7 @@ expr e10 name(println) type=_
 expr e11 string(using) type=String
 expr e12 call callee=e10 args=[_:e11] type=Unit call=s2 map=[0->0] targs=[]
 expr e13 lambda params=[] body=e12 label=use type=(Class#3) -> Any
-expr e14 memberCall recv=e6 callee=use args=[_:e13] type=Any
+expr e14 memberCall recv=e6 callee=use args=[_:e13] type=Unit
 expr e15 name(MyResource) type=_
 expr e16 call callee=e15 args=[] type=Class#3 call=s4 map=[] targs=[]
 expr e17 localDecl r mutable=0 type=_ init=e16 type=Unit ref=s9

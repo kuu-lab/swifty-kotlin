@@ -115,6 +115,44 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-IO-USE-001: bufferedReader().use { reader -> reader.readLines() }
+    // Regression: use{} returning a heap-allocated List<String> previously
+    // failed codegen because the lambda result type was inferred as Any instead
+    // of List<String>, making subsequent member accesses (lines.size) unresolvable.
+    func testCodegenFileBufferedReaderUseBlockReadLines() throws {
+        let tmpPath = "/tmp/kswiftk_buffered_reader_readLines_test.txt"
+        try "alpha\nbeta\ngamma\n".write(toFile: tmpPath, atomically: true, encoding: .utf8)
+
+        let source = """
+        import java.io.File
+
+        fun main() {
+            val file = File("\(tmpPath)")
+            val lines = file.bufferedReader().use { reader -> reader.readLines() }
+            println(lines.size)
+            for (line in lines) println(line)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "FileBufferedReaderUseBlockReadLines",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                "3\nalpha\nbeta\ngamma\n"
+            )
+        }
+    }
+
     // MARK: - File.bufferedWriter().use {}
 
     func testCodegenFileBufferedWriterUseWrite() throws {

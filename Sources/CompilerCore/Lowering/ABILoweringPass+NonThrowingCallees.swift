@@ -25,6 +25,15 @@ extension ABILoweringPass {
             interner.intern("kk_int_to_float"),
             interner.intern("kk_int_to_byte"),
             interner.intern("kk_int_to_short"),
+            // Unsigned toByte / toShort conversions (SPEC-NUM-0007)
+            interner.intern("kk_uint_to_byte"),
+            interner.intern("kk_uint_to_short"),
+            interner.intern("kk_ulong_to_byte"),
+            interner.intern("kk_ulong_to_short"),
+            interner.intern("kk_ubyte_to_byte"),
+            interner.intern("kk_ubyte_to_short"),
+            interner.intern("kk_ushort_to_byte"),
+            interner.intern("kk_ushort_to_short"),
             // UByte and UShort conversions (STDLIB-PRIM-002)
             interner.intern("kk_int_to_ubyte"),
             interner.intern("kk_int_to_ushort"),
@@ -134,6 +143,11 @@ extension ABILoweringPass {
             interner.intern("kk_string_toBooleanStrictOrNull"),
             interner.intern("kk_string_toShortOrNull"),
             interner.intern("kk_string_toByteOrNull"),
+            // SPEC-NUM-0007: unsigned string parsers (no-arg variants)
+            interner.intern("kk_string_toUByteOrNull"),
+            interner.intern("kk_string_toUShortOrNull"),
+            interner.intern("kk_string_toUIntOrNull"),
+            interner.intern("kk_string_toULongOrNull"),
             interner.intern("kk_string_lines"),
             interner.intern("kk_string_lineSequence"),
             interner.intern("kk_string_trimStart"),
@@ -1078,6 +1092,15 @@ extension ABILoweringPass {
             interner.intern("kk_arraydeque_size"),
             interner.intern("kk_arraydeque_isEmpty"),
             interner.intern("kk_arraydeque_toString"),
+            // BufferedReader non-throwing operations (no outThrown in ABI spec)
+            // kk_buffered_reader_useLines and kk_buffered_reader_forEachLine are
+            // intentionally excluded — they accept a lambda and an outThrown parameter.
+            interner.intern("kk_buffered_reader_readLine"),
+            interner.intern("kk_buffered_reader_readLines"),
+            interner.intern("kk_buffered_reader_close"),
+            interner.intern("kk_buffered_reader_read"),
+            interner.intern("kk_buffered_reader_ready"),
+            interner.intern("kk_buffered_reader_iterator"),
             // File I/O (STDLIB-320/321/323/IO-087) — non-throwing file operations
             interner.intern("kk_file_new"),
             interner.intern("kk_file_new_parent_child"),

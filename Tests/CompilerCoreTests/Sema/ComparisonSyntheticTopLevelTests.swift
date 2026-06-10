@@ -403,6 +403,46 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-024: maxOf(Short, Short, Short) — Short resolves to Int internally
+    func testThreeArgMaxOfShortResolvesToInt3Overload() throws {
+        let source = """
+        fun sample(a: Short, b: Short, c: Short): Short = maxOf(a, b, c)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 3
+                },
+                "Expected 3-arg maxOf call with Short arguments"
+            )
+
+            // Short maps to Int internally, so the result type is Int
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // Resolves via the Int3 special-call path
+            XCTAssertEqual(sema.bindings.stdlibSpecialCallKind(for: callExpr), .maxOfInt3)
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType, sema.types.intType])
+        }
+    }
+
     // STDLIB-COMP-FN-041: minOf(Int, Int) — 2-arg Int overload
     func testTwoArgMinOfIntResolvesToInt2Overload() throws {
         let source = """
@@ -558,6 +598,48 @@ final class ComparisonSyntheticTopLevelTests: XCTestCase {
                 interner.intern("kotlin"),
                 interner.intern("comparisons"),
                 interner.intern("minOf"),
+            ])
+            let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
+            XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
+            XCTAssertEqual(sig.returnType, sema.types.intType)
+            XCTAssertEqual(sig.valueParameterIsVararg, [false, true])
+        }
+    }
+
+    // STDLIB-COMP-FN-010: maxOf(Byte, Byte, ..., Byte) — Byte widens to Int, vararg Int overload resolves
+    func testVarargMaxOfByteResolvesToIntVarargOverload() throws {
+        let source = """
+        fun sample(a: Byte, b: Byte, c: Byte, d: Byte): Byte = maxOf(a, b, c, d)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let ast = try XCTUnwrap(ctx.ast)
+            let sema = try XCTUnwrap(ctx.sema)
+            let interner = ctx.interner
+
+            let callExpr = try XCTUnwrap(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .call(calleeExpr, _, args, _) = expr,
+                          case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
+                    else { return false }
+                    return interner.resolve(calleeName) == "maxOf" && args.count == 4
+                },
+                "Expected 4-arg maxOf call with Byte arguments"
+            )
+
+            // Byte maps to Int internally, so the result type is Int
+            XCTAssertEqual(sema.bindings.exprTypes[callExpr], sema.types.intType)
+            // The vararg overload is lowered inline, not via a fixed-arity special-call kind.
+            XCTAssertNil(sema.bindings.stdlibSpecialCallKind(for: callExpr))
+            let chosen = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let symbol = try XCTUnwrap(sema.symbols.symbol(chosen))
+            XCTAssertEqual(symbol.fqName, [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                interner.intern("maxOf"),
             ])
             let sig = try XCTUnwrap(sema.symbols.functionSignature(for: chosen))
             XCTAssertEqual(sig.parameterTypes, [sema.types.intType, sema.types.intType])
