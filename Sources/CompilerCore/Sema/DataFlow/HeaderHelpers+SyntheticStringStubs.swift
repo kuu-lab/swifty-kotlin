@@ -1122,10 +1122,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Kotlin declares toList on CharSequence; the runtime treats every
-        // CharSequence as string-backed, so the same kk_string_toList applies.
+        // CharSequence as string-backed, so the flat implementation applies.
         registerSyntheticStringExtensionFunction(
             named: "toList",
-            externalLinkName: "kk_string_toList",
+            externalLinkName: "kk_string_toList_flat",
             receiverType: charSequenceType,
             parameters: [],
             returnType: listCharType,

@@ -145,7 +145,7 @@ final class StringToBooleanFunctionTests: XCTestCase {
         }
     }
 
-    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull`
+    /// `toBooleanStrictOrNull()` should lower to `kk_string_toBooleanStrictOrNull_flat`
     /// and be classified as non-throwing: unlike `toBooleanStrict`, the OrNull
     /// variant signals failure with a `null` sentinel rather than an exception, so
     /// no thrown-pointer plumbing is emitted at the call site.
@@ -169,13 +169,13 @@ final class StringToBooleanFunctionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let orNullFlags = try XCTUnwrap(
-                throwFlags["kk_string_toBooleanStrictOrNull"],
-                "Expected kk_string_toBooleanStrictOrNull calls to appear in main()"
+                throwFlags["kk_string_toBooleanStrictOrNull_flat"],
+                "Expected kk_string_toBooleanStrictOrNull_flat calls to appear in main()"
             )
             XCTAssertEqual(orNullFlags.count, 3)
             XCTAssertTrue(
                 orNullFlags.allSatisfy { $0 == false },
-                "kk_string_toBooleanStrictOrNull must be lowered as non-throwing"
+                "kk_string_toBooleanStrictOrNull_flat must be lowered as non-throwing"
             )
         }
     }

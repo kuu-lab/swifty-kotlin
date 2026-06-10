@@ -359,26 +359,51 @@ extension CallLowerer {
         let lhsType = sema.bindings.exprTypes[lhs]
         let rhsType = sema.bindings.exprTypes[rhs]
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
-        let isStringOperand = (lhsType == stringType || lhsType == nullableStringType)
-            && (rhsType == stringType || rhsType == nullableStringType)
+        let lhsIsString = lhsType == stringType || lhsType == nullableStringType
+        let rhsIsString = rhsType == stringType || rhsType == nullableStringType
+        // null literals get type nothing(.nullable), not stringStruct — detect them so
+        // we can pass a properly-typed null string aggregate to kk_string_equals_flat.
+        let lhsIsNullLiteral: Bool = {
+            guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let rhsIsNullLiteral: Bool = {
+            guard let t = rhsType, case .nothing = sema.types.kind(of: t) else { return false }
+            return true
+        }()
+        let isStringOperand = (lhsIsString && (rhsIsString || rhsIsNullLiteral))
+            || (rhsIsString && lhsIsNullLiteral)
         if isStringOperand {
+            // When one side is a null literal, we need an expression typed as
+            // nullableStringType so the flat-string codegen generates a null string
+            // aggregate (nullptr, 0, 0, 0) instead of a raw i64 null sentinel.
+            func resolvedStringID(for id: KIRExprID, isNull: Bool) -> KIRExprID {
+                guard isNull else { return id }
+                let nullStringID = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: nullableStringType)
+                instructions.append(.constValue(result: nullStringID, value: .null))
+                return nullStringID
+            }
             switch op {
             case .equal:
+                let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
+                let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_equals_flat"),
-                    arguments: [lhsID, rhsID],
+                    arguments: [actualLhsID, actualRhsID],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
                 ))
                 return result
             case .notEqual:
+                let actualLhsID = resolvedStringID(for: lhsID, isNull: lhsIsNullLiteral)
+                let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 let eqResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: boolType)
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_string_equals_flat"),
-                    arguments: [lhsID, rhsID],
+                    arguments: [actualLhsID, actualRhsID],
                     result: eqResult,
                     canThrow: false,
                     thrownResult: nil
