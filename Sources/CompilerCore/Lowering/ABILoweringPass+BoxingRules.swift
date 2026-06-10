@@ -1,5 +1,21 @@
 
 extension ABILoweringPass {
+    /// Callees whose `typeParam`-typed parameter stores the argument verbatim into a
+    /// generic container. Because type parameters are erased to Any at runtime, a
+    /// primitive argument to one of these must be boxed so it carries its concrete
+    /// type (notably `Char`, which would otherwise be stored as a bare code point and
+    /// render as a number). This mirrors the collection-literal lowering path, so an
+    /// element inserted via `add`/`set` is boxed identically to one created by
+    /// `listOf(...)` / `setOf(...)` / `toMutableList()`.
+    static let typeParamBoxingBoundaryCallees: Set<String> = [
+        "kk_pair_new",
+        "kk_triple_new",
+        "kk_mutable_list_add",
+        "kk_mutable_list_add_at",
+        "kk_mutable_list_set",
+        "kk_mutable_set_add",
+    ]
+
     func resolveValueClassKind(
         _ kind: TypeKind,
         types: TypeSystem,
@@ -43,12 +59,18 @@ extension ABILoweringPass {
                 return true
             }
             if case .typeParam = paramKind {
-                // Surgical fix for Pair/Triple to ensure their arguments are boxed.
-                // In swifty-kotlin, these are currently the primary generic containers
-                // that expect boxed primitives for compatibility with toList() etc.
+                // Type parameters are erased to Any at runtime, so a primitive stored
+                // into a generic container must be boxed. Otherwise its raw value is
+                // indistinguishable from an Int code point — e.g. a Char added to a
+                // MutableList would be stored as a bare code point and print as a
+                // number rather than the character. We box for the generic containers
+                // whose runtime helpers store the element verbatim (Pair/Triple
+                // constructors and the mutable-collection element-insertion helpers),
+                // keeping `add`/`set` consistent with how `listOf(...)` / `setOf(...)`
+                // / `toMutableList()` already box every element.
                 if let callee {
                     let calleeName = interner.resolve(callee)
-                    if calleeName == "kk_pair_new" || calleeName == "kk_triple_new" {
+                    if ABILoweringPass.typeParamBoxingBoundaryCallees.contains(calleeName) {
                         return true
                     }
                 }
