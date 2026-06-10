@@ -441,6 +441,13 @@ extension NativeEmitter {
             isStringAggregateType(module.arena.exprType(id))
         }
 
+        func isPrimitiveType(_ type: TypeID?) -> Bool {
+            guard let type, let typeSystem,
+                  case .primitive = typeSystem.kind(of: type)
+            else { return false }
+            return true
+        }
+
         func isCharSequenceRuntimeStringType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -543,12 +550,14 @@ extension NativeEmitter {
                                   suffix: "\(suffix)_arg\(index)_charseq"
                               ) {
                         stringValue = bridged
-                    } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                    } else if !isPrimitiveType(argumentTypes[index]),
+                              let bridged = bridgeRuntimeRawToStringAggregate(
                                   argumentValues[index],
                                   suffix: "\(suffix)_arg\(index)_raw"
                               ) {
-                        // Fallback for boxed string pointers in raw/any-typed expressions
+                        // Fallback for boxed string pointers in any/unknown-typed expressions
                         // (e.g. kk_list_iterator_next result used in a string template).
+                        // Excluded: primitive types (Int, Bool, Char…) which are never string boxes.
                         stringValue = bridged
                     } else {
                         return nil

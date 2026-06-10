@@ -1013,13 +1013,13 @@ public func kk_string_toSortedSet_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    let charValues = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
-        .map { RuntimeValue(charScalar: Int($0)) }
-    let deduped = runtimeDeduplicatePreservingOrder(charValues)
-    let sorted = deduped.sorted { lhs, rhs in
-        lhs.payload0 < rhs.payload0
+    let charCodes = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let uniqueSortedCodes = Array(Set(charCodes)).sorted()
+    // Box each char so runtimeElementToString renders it as a character, not an integer.
+    let values = uniqueSortedCodes.map { code in
+        RuntimeValue(raw: registerRuntimeObject(RuntimeCharBox(Int(code))))
     }
-    return registerRuntimeObject(RuntimeSetBox(values: sorted))
+    return registerRuntimeObject(RuntimeSetBox(values: values))
 }
 
 // MARK: - STDLIB-640: CharArray.concatToString()
@@ -5692,6 +5692,10 @@ public func kk_string_equals_flat(
     _ otherHash: Int
 ) -> Int {
     guard otherData != nil else {
+        // null == null → true; non-null == null → false
+        return data == nil ? 1 : 0
+    }
+    guard data != nil else {
         return 0
     }
     let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
