@@ -31,41 +31,32 @@ public func kk_cpointer_new(_ address: Int) -> Int {
     registerRuntimeObject(RuntimeCPointerBox(address: UInt(bitPattern: address)))
 }
 
-@_cdecl("kk_cpointer_address")
-public func kk_cpointer_address(_ handle: Int) -> Int {
+/// Resolves a runtime handle to its `RuntimeCPointerBox`, performing all
+/// null-safety and registry checks. Returns `nil` for invalid handles.
+func resolveCPointerBox(from handle: Int) -> RuntimeCPointerBox? {
     guard handle != 0, handle != runtimeNullSentinelInt,
           let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
+        return nil
     }
     let key = UInt(bitPattern: ptr)
     let isRegistered = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(key)
     }
     guard isRegistered else {
-        return 0
+        return nil
     }
-    guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else {
-        return 0
-    }
+    return tryCast(ptr, to: RuntimeCPointerBox.self)
+}
+
+@_cdecl("kk_cpointer_address")
+public func kk_cpointer_address(_ handle: Int) -> Int {
+    guard let box = resolveCPointerBox(from: handle) else { return 0 }
     return Int(bitPattern: box.address)
 }
 
 @_cdecl("kk_cpointer_toLong")
 public func kk_cpointer_toLong(_ handle: Int) -> Int {
-    guard handle != 0, handle != runtimeNullSentinelInt,
-          let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let key = UInt(bitPattern: ptr)
-    let isRegistered = runtimeStorage.withGCLock { state in
-        state.objectPointers.contains(key)
-    }
-    guard isRegistered else {
-        return 0
-    }
-    guard let box = tryCast(ptr, to: RuntimeCPointerBox.self) else {
-        return 0
-    }
+    guard let box = resolveCPointerBox(from: handle) else { return 0 }
     return Int(bitPattern: box.address)
 }
 
