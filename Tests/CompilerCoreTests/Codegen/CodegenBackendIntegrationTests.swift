@@ -1613,5 +1613,31 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-035: minOf(Double, Double)
+    func testCodegenCompilesMinOfDoubleTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Double = 1.5
+            val b: Double = 7.25
+            println(minOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MinOfDoubleTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "1.5\n")
+        }
+    }
+
     // MARK: - Private Helpers
 }
