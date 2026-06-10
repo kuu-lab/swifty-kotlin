@@ -1,0 +1,48 @@
+symbol s0 kind=class fq=java.io.File vis=public flags=synthetic type=Class#0
+symbol s1 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#0 suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=class fq=java.io.BufferedWriter vis=public flags=synthetic type=Class#2
+symbol s3 kind=function fq=java.io.File.bufferedWriter vis=public flags=synthetic sig=recv=Class#0 params=[] ret=Class#2 suspend=0 defaults=[] vararg=[]
+symbol s4 kind=function fq=java.io.BufferedWriter.write vis=public flags=synthetic sig=recv=Class#2 params=[String] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=function fq=java.io.BufferedWriter.newLine vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s6 kind=function fq=java.io.BufferedWriter.flush vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s7 kind=function fq=golden.sema.writeWithBufferedWriter vis=public flags=_ sig=recv=_ params=[String,String] ret=Unit suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s8 kind=valueParameter fq=golden.sema.writeWithBufferedWriter.$0.path vis=private flags=_
+symbol s9 kind=valueParameter fq=golden.sema.writeWithBufferedWriter.$0.text vis=private flags=_
+symbol s10 kind=function fq=golden.sema.appendWithBufferedWriter vis=public flags=_ sig=recv=_ params=[String,String] ret=Unit suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s11 kind=valueParameter fq=golden.sema.appendWithBufferedWriter.$1.path vis=private flags=_
+symbol s12 kind=valueParameter fq=golden.sema.appendWithBufferedWriter.$1.line vis=private flags=_
+symbol s13 kind=local fq=__local_0.file vis=private flags=_ type=Class#0
+symbol s14 kind=local fq=__local_1.file vis=private flags=_ type=Class#0
+file f0 package=golden.sema
+  decl d0 fun writeWithBufferedWriter suspend=0 inline=0 sym=s7
+  decl d1 fun appendWithBufferedWriter suspend=0 inline=0 sym=s10
+expr e0 name(File) type=_
+expr e1 name(path) type=String ref=s8
+expr e2 call callee=e0 args=[_:e1] type=Class#0 call=s1 map=[0->0] targs=[]
+expr e3 localDecl file mutable=0 type=_ init=e2 type=Unit ref=s13
+expr e4 name(file) type=Class#0 ref=s13
+expr e5 memberCall recv=e4 callee=bufferedWriter args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e6 name(writer) type=Class#2 ref=s-0
+expr e7 name(text) type=String ref=s9
+expr e8 memberCall recv=e6 callee=write args=[_:e7] type=Unit call=s4 map=[0->0] targs=[]
+expr e9 name(writer) type=Class#2 ref=s-0
+expr e10 memberCall recv=e9 callee=newLine args=[] type=Unit call=s5 map=[] targs=[]
+expr e11 name(writer) type=Class#2 ref=s-0
+expr e12 memberCall recv=e11 callee=flush args=[] type=Unit call=s6 map=[] targs=[]
+expr e13 blockExpr stmts=[e8,e10] trailing=e12 type=Unit
+expr e14 lambda params=[writer] body=e13 label=use type=(Class#2) -> Any
+expr e15 memberCall recv=e5 callee=use args=[_:e14] type=Any
+expr e16 name(File) type=_
+expr e17 name(path) type=String ref=s11
+expr e18 call callee=e16 args=[_:e17] type=Class#0 call=s1 map=[0->0] targs=[]
+expr e19 localDecl file mutable=0 type=_ init=e18 type=Unit ref=s14
+expr e20 name(file) type=Class#0 ref=s14
+expr e21 memberCall recv=e20 callee=bufferedWriter args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e22 name(writer) type=Class#2 ref=s-1
+expr e23 name(line) type=String ref=s12
+expr e24 memberCall recv=e22 callee=write args=[_:e23] type=Unit call=s4 map=[0->0] targs=[]
+expr e25 name(writer) type=Class#2 ref=s-1
+expr e26 memberCall recv=e25 callee=newLine args=[] type=Unit call=s5 map=[] targs=[]
+expr e27 blockExpr stmts=[e24] trailing=e26 type=Unit
+expr e28 lambda params=[writer] body=e27 label=use type=(Class#2) -> Any
+expr e29 memberCall recv=e21 callee=use args=[_:e28] type=Any
