@@ -61,16 +61,22 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
-        // Comparison callees need peer-type unboxing: when one operand is Any (e.g.
-        // from kk_list_iterator_next) and the other is a primitive (e.g. after
-        // inlineArithmetic unboxing), unbox the Any side using the peer's primitive type.
-        let peerTypeComparisonCallees: Set<InternedString> = [
+        // Comparison operators: result type is Boolean so we cannot use the
+        // result to drive unboxing.  Instead unboxOperandToOwnType uses each
+        // operand's own declared primitive type as the target, which is
+        // idempotent for already-unboxed values (kk_unbox_int checks the
+        // object-pointer registry and passes raw values through unchanged).
+        let inlineComparisonCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_eq"),
             ctx.interner.intern("kk_op_ne"),
             ctx.interner.intern("kk_op_lt"),
             ctx.interner.intern("kk_op_le"),
             ctx.interner.intern("kk_op_gt"),
             ctx.interner.intern("kk_op_ge"),
+            ctx.interner.intern("kk_op_ult"),
+            ctx.interner.intern("kk_op_ule"),
+            ctx.interner.intern("kk_op_ugt"),
+            ctx.interner.intern("kk_op_uge"),
             ctx.interner.intern("kk_op_deq"),
             ctx.interner.intern("kk_op_dne"),
             ctx.interner.intern("kk_op_dlt"),
@@ -338,22 +344,35 @@ final class ABILoweringPass: LoweringPass {
                     }
                 }
 
-                // Unbox Any/reference-typed operands in comparison calls using
-                // the PEER operand's primitive type. This handles the case
-                // where one side was already unboxed by inlineArithmeticCallees
-                // (e.g. `sample + 0`) while the other side (`sample`) is still
-                // a boxed Any from kk_list_iterator_next.
+                // Unbox operands for comparison operators (==, !=, <, etc.).
+                // The result is Boolean so the arithmetic path above cannot
+                // determine the operand's primitive type from the result; use
+                // each operand's own declared type instead.
+                // When one operand has no type info (e.g. the result of x+0 whose
+                // Sema type was not recorded), collect a hint from a sibling operand
+                // that does have type info and forward it so the unboxing can still
+                // emit the correct kk_unbox_* call.
                 if signature == nil, let types,
-                   peerTypeComparisonCallees.contains(effectiveCallee)
+                   inlineComparisonCallees.contains(effectiveCallee)
                 {
-                    boxedArguments = applyPeerTypeUnboxing(
-                        arguments: boxedArguments,
-                        module: module,
-                        types: types,
-                        symbols: symbols,
-                        unboxCallees: unboxCallees,
-                        newBody: &newBody
-                    )
+                    var primitiveHint: TypeKind?
+                    for operand in boxedArguments {
+                        if let opType = intrinsicArgType(operand, arena: module.arena, types: types) {
+                            let opKind = resolveValueClassKind(types.kind(of: opType), types: types, symbols: symbols)
+                            if case .primitive(_, .nonNull) = opKind {
+                                primitiveHint = opKind
+                                break
+                            }
+                        }
+                    }
+                    for i in boxedArguments.indices {
+                        boxedArguments[i] = unboxOperandToOwnType(
+                            boxedArguments[i],
+                            hint: primitiveHint,
+                            module: module, types: types, symbols: symbols,
+                            unboxCallees: unboxCallees, newBody: &newBody
+                        )
+                    }
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(

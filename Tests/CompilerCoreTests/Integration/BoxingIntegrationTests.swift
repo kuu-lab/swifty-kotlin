@@ -55,7 +55,7 @@ final class BoxingIntegrationTests: XCTestCase {
         // primitive breaks toString() for Char (prints the code point), Boolean
         // (false == 0 collides with the null sentinel) and Double/Float (the bit
         // pattern is misread as an Int). See
-        // CodegenBackendIntegrationTests.testCharArgumentBoxedWhenAddedToMutableCollections.
+        // CodegenBackendIntegrationTests.testPrimitiveArgumentBoxedWhenAddedToMutableCollections.
         XCTAssertEqual(boxingCalls.count, 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
     }
 }

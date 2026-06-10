@@ -314,51 +314,79 @@ extension ABILoweringPass {
         return unboxed
     }
 
-    /// Unbox any Any/reference-typed operand in a two-argument comparison call
-    /// (kk_op_eq, kk_op_ne, etc.) using the peer operand's type as the
-    /// unboxing target. This handles the case where one side has been unboxed
-    /// by inlineArithmeticCallees processing (e.g. `sample + 0`) while the
-    /// other side is still a boxed Any pointer.
-    func applyPeerTypeUnboxing(
-        arguments: [KIRExprID],
+    /// Unbox an operand to its own declared primitive type.
+    /// Used for comparison operators (==, !=, <, etc.) where the result type is
+    /// Boolean and cannot be used to infer the unboxing target.  If the operand's
+    /// declared type is `.primitive(.int, .nonNull)` we emit `kk_unbox_int`;
+    /// `kk_unbox_int` is idempotent for already-unboxed values (it checks the
+    /// object-pointer registry and returns the raw value unchanged if not found).
+    ///
+    /// When the operand has no type info in the arena (e.g. the result of an
+    /// arithmetic sub-expression whose Sema type was not recorded), `hint` is
+    /// used as the target primitive kind instead.  This covers patterns like
+    /// `x + 0 == x` where the `+` result has nil arena type but the `x` parameter
+    /// has a known Int type.
+    func unboxOperandToOwnType(
+        _ operand: KIRExprID,
+        hint: TypeKind? = nil,
         module: KIRModule,
         types: TypeSystem,
         symbols: SymbolTable?,
         unboxCallees: UnboxingCalleeNames,
         newBody: inout [KIRInstruction]
-    ) -> [KIRExprID] {
-        guard arguments.count == 2 else { return arguments }
-        var result = arguments
-        for (argIdx, peerIdx) in [(0, 1), (1, 0)] {
-            let argType = intrinsicArgType(result[argIdx], arena: module.arena, types: types)
-            let peerType = intrinsicArgType(result[peerIdx], arena: module.arena, types: types)
-            guard let argType, let peerType else { continue }
-            let argKind = resolveValueClassKind(types.kind(of: argType), types: types, symbols: symbols)
-            let peerKind = resolveValueClassKind(types.kind(of: peerType), types: types, symbols: symbols)
-            guard isAnyOrNullableAny(argKind) || isNonValueClassReference(argKind, symbols: symbols) else { continue }
-            guard case .primitive = peerKind else { continue }
-            guard let callee = unboxingCallee(
-                sourceKind: argKind,
-                targetKind: peerKind,
-                unboxCallees: unboxCallees,
-                types: types,
-                symbols: symbols
-            ) else { continue }
-            let unboxedExpr = module.arena.appendExpr(
-                .temporary(Int32(module.arena.expressions.count)),
-                type: peerType
-            )
-            newBody.append(.call(
-                symbol: nil,
-                callee: callee,
-                arguments: [result[argIdx]],
-                result: unboxedExpr,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            result[argIdx] = unboxedExpr
+    ) -> KIRExprID {
+        if let expr = module.arena.expr(operand) {
+            switch expr {
+            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                 .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral:
+                return operand
+            default:
+                break
+            }
         }
-        return result
+        let operandType = intrinsicArgType(operand, arena: module.arena, types: types)
+        let rawOperandKind: TypeKind? = operandType.map { types.kind(of: $0) }
+        let operandKind: TypeKind? = rawOperandKind.map {
+            resolveValueClassKind($0, types: types, symbols: symbols)
+        }
+        // Determine the target kind:
+        //   1. Use the operand's own concrete primitive type if available.
+        //   2. Fall back to the hint (type of a sibling operand) when the
+        //      operand has no type info — this handles arithmetic results whose
+        //      Sema type was not recorded in the arena.
+        let targetKind: TypeKind
+        if let opKind = operandKind, case .primitive(_, .nonNull) = opKind {
+            targetKind = opKind
+        } else if let hintKind = hint, case .primitive(_, .nonNull) = hintKind {
+            targetKind = hintKind
+        } else if let opKind = operandKind {
+            targetKind = opKind
+        } else {
+            return operand
+        }
+        let sourceKind = operandKind ?? targetKind
+        guard needsUnboxing(sourceKind: sourceKind, targetKind: targetKind, symbols: symbols),
+              let callee = unboxingCallee(
+                  sourceKind: sourceKind, targetKind: targetKind,
+                  unboxCallees: unboxCallees, types: types, symbols: symbols
+              )
+        else {
+            return operand
+        }
+        let resultType = operandType ?? types.make(targetKind)
+        let unboxed = module.arena.appendExpr(
+            .temporary(Int32(module.arena.expressions.count)),
+            type: resultType
+        )
+        newBody.append(.call(
+            symbol: nil,
+            callee: callee,
+            arguments: [operand],
+            result: unboxed,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return unboxed
     }
 
     func boxCalleeForPrimitive(

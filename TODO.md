@@ -53,7 +53,7 @@
 - [~] STDLIB-GAP-PH3: `kotlin.io`（common） / `kotlin.time` / `kotlin.concurrent` / `kotlin.concurrent.atomics` の未対応を潰す
 
 #### kotlin.concurrent 型の実装
-- [ ] STDLIB-030: `kotlin.io` common 範囲の file / buffered / `use` を仕様単位で締める
+- [x] STDLIB-030: `kotlin.io` common 範囲の file / buffered / `use` を仕様単位で締める
 
 #### kotlin.concurrent 関数の実装
 
@@ -212,6 +212,34 @@
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
+- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
+- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
+- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
+- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
+- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
+- [x] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
+- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
+- [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
+- [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
+- [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
+- [ ] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
 - [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
@@ -227,7 +255,7 @@
 #### kotlin.time 型の実装
 - [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
 - [x] STDLIB-TIME-TYPE-007: `ExperimentalTime` アノテーションの実装
-- [ ] STDLIB-TIME-TYPE-009: `TestTimeSource` クラスの実装
+- [x] STDLIB-TIME-TYPE-009: `TestTimeSource` クラスの実装
 - [x] STDLIB-TIME-TYPE-010: `TimedValue` クラスの実装
 - [x] STDLIB-TIME-TYPE-012: `TimeSource` インターフェースの実装
 
@@ -257,6 +285,8 @@
 ### Phase 4: リフレクション・数値・テキスト・その他 stdlib
 - [x] STDLIB-REFLECT-067: `KClass` / metadata / メンバ introspection の残差を詰める
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
+- [ ] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
+- [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
 - [x] STDLIB-COMP-001: `kotlin.comparisons` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-001: `kotlin.random` の対象 API 一覧を固定
 - [x] STDLIB-RANDOM-002: `kotlin.random` の sema / lowering を整える
@@ -282,7 +312,12 @@
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
 - [ ] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
 - [x] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-030: `minOf` 関数の実装（Comparable版、3引数）
+- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
 - [ ] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
+- [ ] STDLIB-COMP-FN-032: `minOf` 関数の実装（Byte版、2引数）
+- [x] STDLIB-COMP-FN-034: `minOf` 関数の実装（Byte版、vararg）
+- [ ] STDLIB-COMP-FN-039: `minOf` 関数の実装（Float版、3引数）
 - [ ] STDLIB-COMP-FN-035: `minOf` 関数の実装（Double版、2引数）
 - [ ] STDLIB-COMP-FN-036: `minOf` 関数の実装（Double版、3引数）
 - [ ] STDLIB-COMP-FN-038: `minOf` 関数の実装（Float版、2引数）
@@ -321,11 +356,11 @@
 - [x] STDLIB-RANDOM-FN-021: `nextInt()` 関数の実装
 - [x] STDLIB-RANDOM-FN-022: `nextInt(until: Int)` 関数の実装
 - [x] STDLIB-RANDOM-FN-023: `nextInt(from: Int, until: Int)` 関数の実装
-- [ ] STDLIB-RANDOM-FN-024: `nextInt(range: IntRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextInt_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-024: `nextInt(range: IntRange)` 関数の実装
 - [x] STDLIB-RANDOM-FN-025: `nextLong()` 関数の実装
 - [x] STDLIB-RANDOM-FN-026: `nextLong(until: Long)` 関数の実装
 - [x] STDLIB-RANDOM-FN-027: `nextLong(from: Long, until: Long)` 関数の実装
-- [ ] STDLIB-RANDOM-FN-028: `nextLong(range: LongRange)` 関数の実装（sema/ABI 配線済み・runtime `kk_random_nextLong_rangeObject` 未実装）
+- [x] STDLIB-RANDOM-FN-028: `nextLong(range: LongRange)` 関数の実装
 - [x] STDLIB-RANDOM-FN-029: `nextUBytes(size: Int)` 関数の実装
 - [x] STDLIB-RANDOM-FN-030: `nextUBytes(array: UByteArray)` 関数の実装
 - [x] STDLIB-RANDOM-FN-031: `nextUBytes(array: UByteArray, fromIndex: Int, toIndex: Int)` 関数の実装
