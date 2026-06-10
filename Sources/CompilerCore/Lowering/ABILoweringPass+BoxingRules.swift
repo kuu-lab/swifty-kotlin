@@ -314,6 +314,97 @@ extension ABILoweringPass {
         return unboxed
     }
 
+    /// Unbox one operand of an equality/comparison builtin (`kk_op_eq`, etc.).
+    ///
+    /// These callees return `Bool`, so the normal `unboxBinaryOperandIfNeeded`
+    /// (which derives the `kk_unbox_*` callee from the *result* type) would
+    /// emit `kk_unbox_bool` — wrong for integer comparisons.
+    ///
+    /// Two situations are handled:
+    ///
+    /// * **Primitive operand** — derive the unbox callee from the operand's
+    ///   own non-null primitive type.  This is the common lambda-parameter
+    ///   case: the parameter is typed `Int` in sema, but at runtime it may
+    ///   hold a boxed heap pointer because the caller passed a list element
+    ///   via `kk_function_invoke`.  `kk_unbox_int` is a safe passthrough for
+    ///   values that are already plain integers.
+    ///
+    /// * **`Any?`/reference operand** — look at the *peer* operand's type to
+    ///   find the primitive target.  This arises after `InlineLowering`
+    ///   substitutes a `kk_list_iterator_next` result (type `Any?` in the
+    ///   arena) for a lambda parameter that was `Int`-typed at
+    ///   `OperatorLowering` time; the generated `kk_op_eq` now has a
+    ///   mismatched `Any?` argument.
+    ///
+    /// Pass the *original* (pre-unboxing) peer operand so peer-type lookup
+    /// reflects the source instruction rather than an intermediate result.
+    func unboxEqualityOperandIfNeeded(
+        operand: KIRExprID,
+        peerOperand: KIRExprID,
+        module: KIRModule,
+        types: TypeSystem,
+        symbols: SymbolTable?,
+        unboxCallees: UnboxingCalleeNames,
+        newBody: inout [KIRInstruction]
+    ) -> KIRExprID {
+        // Literal expressions hold raw (never-boxed) values — skip.
+        if let expr = module.arena.expr(operand) {
+            switch expr {
+            case .intLiteral, .longLiteral, .uintLiteral, .ulongLiteral,
+                 .floatLiteral, .doubleLiteral, .charLiteral, .boolLiteral:
+                return operand
+            default:
+                break
+            }
+        }
+        guard let operandType = intrinsicArgType(operand, arena: module.arena, types: types)
+        else {
+            return operand
+        }
+        let operandKind = resolveValueClassKind(
+            types.kind(of: operandType), types: types, symbols: symbols
+        )
+
+        // Determine the unboxing target:
+        // (a) primitive operand → own non-null primitive type
+        // (b) Any?/reference operand → peer's primitive type (post-inline
+        //     substitution replaced an Int-typed sema param with Any?)
+        let targetKind: TypeKind
+        if case let .primitive(prim, .nonNull) = operandKind {
+            targetKind = TypeKind.primitive(prim, .nonNull)
+        } else if isAnyOrNullableAny(operandKind)
+                    || isNonValueClassReference(operandKind, symbols: symbols) {
+            guard let peerType = intrinsicArgType(
+                      peerOperand, arena: module.arena, types: types),
+                  case let .primitive(peerPrim, .nonNull) = resolveValueClassKind(
+                      types.kind(of: peerType), types: types, symbols: symbols)
+            else {
+                return operand
+            }
+            targetKind = TypeKind.primitive(peerPrim, .nonNull)
+        } else {
+            return operand
+        }
+
+        guard needsUnboxing(sourceKind: operandKind, targetKind: targetKind, symbols: symbols),
+              let callee = unboxingCallee(
+                  sourceKind: operandKind, targetKind: targetKind,
+                  unboxCallees: unboxCallees, types: types, symbols: symbols
+              )
+        else {
+            return operand
+        }
+        let unboxed = module.arena.appendExpr(
+            .temporary(Int32(module.arena.expressions.count)),
+            type: types.make(targetKind)
+        )
+        newBody.append(.call(
+            symbol: nil, callee: callee, arguments: [operand],
+            result: unboxed, canThrow: false, thrownResult: nil
+        ))
+        return unboxed
+    }
+
     func boxCalleeForPrimitive(
         _ kind: TypeKind,
         boxCallees: BoxingCalleeNames

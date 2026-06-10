@@ -43,6 +43,20 @@ final class ABILoweringPass: LoweringPass {
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
 
+        // Comparison / equality builtins that return Bool. Because the result
+        // type is Bool, unboxBinaryOperandIfNeeded (which keys off the result
+        // type to pick kk_unbox_*) would look for kk_unbox_bool. We handle
+        // these separately via unboxEqualityOperandIfNeeded, which uses the
+        // operand's own primitive type to select the correct unbox callee.
+        let inlineEqualityCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+        ]
+
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
             ctx.interner.intern("kk_op_sub"),
@@ -313,6 +327,37 @@ final class ABILoweringPass: LoweringPass {
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
                     }
+                }
+
+                // Unbox primitive operands for equality / comparison builtins
+                // (kk_op_eq, kk_op_ne, kk_op_lt, …). The result type of these
+                // callees is Bool, so unboxBinaryOperandIfNeeded (which derives
+                // the kk_unbox_* name from the result type) would emit
+                // kk_unbox_bool instead of kk_unbox_int.
+                //
+                // Two cases handled by unboxEqualityOperandIfNeeded:
+                // (a) primitive-typed operand: use its own type for kk_unbox_*
+                // (b) Any?-typed operand (e.g. a kk_list_iterator_next result
+                //     substituted for an Int param by InlineLowering): use the
+                //     peer operand's primitive type as the unboxing target.
+                // We pass the *original* operands as peers so type lookup
+                // always reflects the source instruction.
+                if signature == nil, let types,
+                   inlineEqualityCallees.contains(effectiveCallee),
+                   boxedArguments.count == 2
+                {
+                    let origLhs = boxedArguments[0]
+                    let origRhs = boxedArguments[1]
+                    boxedArguments[0] = unboxEqualityOperandIfNeeded(
+                        operand: origLhs, peerOperand: origRhs,
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
+                    boxedArguments[1] = unboxEqualityOperandIfNeeded(
+                        operand: origRhs, peerOperand: origLhs,
+                        module: module, types: types, symbols: symbols,
+                        unboxCallees: unboxCallees, newBody: &newBody
+                    )
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(
