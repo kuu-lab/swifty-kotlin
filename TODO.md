@@ -622,7 +622,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - 採番は `SPEC-NUM-{NUMBER}`。修正できない大規模/横断要因は再現 diff ケースを `// SKIP-DIFF` で残し追跡する（修正後にマーカーを外せば回帰テストになる）。
 
 ### 数値・プリミティブ型（第1バッチ）
-- [ ] SPEC-NUM-0001: `Int`/`Short`/`Byte` の算術・シフトが 64bit 幅で計算され 32/16/8bit へ切り詰められない。符号付きオーバーフローがラップせず、`Int.MAX_VALUE + 1`→`2147483648`（正: `-2147483648`）、`1 shl 32`→`4294967296`（正: シフト量マスクで `1`）等。実行時（関数引数）でも再現。codegen の整数幅の根本変更が必要。再現: `Scripts/diff_cases/num_int_overflow.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0001: `Int`/`Short`/`Byte` の算術・シフトが 64bit 幅で計算され 32/16/8bit へ切り詰められない。符号付きオーバーフローがラップせず、`Int.MAX_VALUE + 1`→`2147483648`（正: `-2147483648`）、`1 shl 32`→`4294967296`（正: シフト量マスクで `1`）等。`IntegerNarrowingPass`（KIR 段で `kk_int_narrow` / `kk_uint_narrow` 挿入）と型別シフト callee（`kk_op_ishl` 等）で修正済み。再現: `Scripts/diff_cases/num_int_overflow.kt`。
 - [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
 - [ ] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [ ] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現が `java.lang.*.toString` と異なる（Kotlin: `4.9E-324`/`1.4E-45`、kswiftk: `5.0E-324`/`1.0E-45`）。Swift の最短表現と Java の FloatingDecimal の差。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`（SKIP-DIFF）。
