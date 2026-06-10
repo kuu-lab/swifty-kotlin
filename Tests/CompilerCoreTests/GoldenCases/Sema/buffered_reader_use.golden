@@ -62,4 +62,4 @@ expr e36 name(line) type=String? ref=s19
 expr e37 call callee=e35 args=[_:e36] type=Unit call=s1 map=[0->0] targs=[]
 expr e38 blockExpr stmts=[e34] trailing=e37 type=Unit
 expr e39 lambda params=[reader] body=e38 label=use type=(Class#5) -> Any
-expr e40 memberCall recv=e31 callee=use args=[_:e39] type=Any
+expr e40 memberCall recv=e31 callee=use args=[_:e39] type=Unit

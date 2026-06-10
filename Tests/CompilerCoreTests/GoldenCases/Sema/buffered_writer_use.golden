@@ -31,7 +31,7 @@ expr e11 name(writer) type=Class#2 ref=s-0
 expr e12 memberCall recv=e11 callee=flush args=[] type=Unit call=s6 map=[] targs=[]
 expr e13 blockExpr stmts=[e8,e10] trailing=e12 type=Unit
 expr e14 lambda params=[writer] body=e13 label=use type=(Class#2) -> Any
-expr e15 memberCall recv=e5 callee=use args=[_:e14] type=Any
+expr e15 memberCall recv=e5 callee=use args=[_:e14] type=Unit
 expr e16 name(File) type=_
 expr e17 name(path) type=String ref=s11
 expr e18 call callee=e16 args=[_:e17] type=Class#0 call=s1 map=[0->0] targs=[]
@@ -45,4 +45,4 @@ expr e25 name(writer) type=Class#2 ref=s-1
 expr e26 memberCall recv=e25 callee=newLine args=[] type=Unit call=s5 map=[] targs=[]
 expr e27 blockExpr stmts=[e24] trailing=e26 type=Unit
 expr e28 lambda params=[writer] body=e27 label=use type=(Class#2) -> Any
-expr e29 memberCall recv=e21 callee=use args=[_:e28] type=Any
+expr e29 memberCall recv=e21 callee=use args=[_:e28] type=Unit

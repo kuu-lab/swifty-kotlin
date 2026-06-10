@@ -56,6 +56,6 @@ expr e37 memberCall recv=e35 callee=add args=[_:e36] type=<error>
 expr e38 lambda params=[line] body=e37 label=forEachLine type=(String) -> Unit
 expr e39 memberCall recv=e31 callee=forEachLine args=[_:e38] type=Unit
 expr e40 lambda params=[reader] body=e39 label=use type=(Class#5) -> Any
-expr e41 memberCall recv=e21 callee=use args=[_:e40] type=Any
+expr e41 memberCall recv=e21 callee=use args=[_:e40] type=Unit
 expr e42 name(result) type=Class#1<String> ref=s12
 expr e43 return value=e42 type=Nothing
