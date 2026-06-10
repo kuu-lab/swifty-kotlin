@@ -543,6 +543,13 @@ extension NativeEmitter {
                                   suffix: "\(suffix)_arg\(index)_charseq"
                               ) {
                         stringValue = bridged
+                    } else if let bridged = bridgeRuntimeRawToStringAggregate(
+                                  argumentValues[index],
+                                  suffix: "\(suffix)_arg\(index)_raw"
+                              ) {
+                        // Fallback for boxed string pointers in raw/any-typed expressions
+                        // (e.g. kk_list_iterator_next result used in a string template).
+                        stringValue = bridged
                     } else {
                         return nil
                     }
