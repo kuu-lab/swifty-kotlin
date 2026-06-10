@@ -1589,6 +1589,19 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result, 0)
     }
 
+    func testReduceIndexedSingleElementReturnsElementWithoutCallingAccumulator() {
+        let seq = makeSequence([42])
+        var thrown = 0
+        let result = kk_sequence_reduceIndexed(
+            seq,
+            unsafeBitCast(throwingIndexedAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0, "accumulator must not be called for single-element sequence")
+        XCTAssertEqual(result, 42)
+    }
+
     // MARK: - Sequence right-indexed reduction tests (STDLIB-SEQ-FN-095)
 
     func testReduceRightIndexedEmptySequenceThrows() {
@@ -1634,6 +1647,19 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertNotEqual(thrown, 0)
         XCTAssertEqual(result, 0)
+    }
+
+    func testReduceRightIndexedSingleElementReturnsElementWithoutCallingAccumulator() {
+        let seq = makeSequence([99])
+        var thrown = 0
+        let result = kk_sequence_reduceRightIndexed(
+            seq,
+            unsafeBitCast(throwingIndexedAccumulator, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0, "accumulator must not be called for single-element sequence")
+        XCTAssertEqual(result, 99)
     }
 
     // MARK: - Sequence nullable right-indexed reduction tests (STDLIB-SEQ-FN-096)
@@ -1969,6 +1995,42 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [3, 2])
     }
 
+    func testDistinctByEmptySequenceReturnsEmpty() {
+        var thrown = 0
+        let result = kk_sequence_distinctBy(
+            makeSequence([]),
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [])
+    }
+
+    func testDistinctByAllSameKeyPreservesFirstElement() {
+        var thrown = 0
+        let result = kk_sequence_distinctBy(
+            makeSequence([2, 4, 6]),
+            unsafeBitCast(sequenceParitySelector, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_sequence_to_list(result, nil)), [2])
+    }
+
+    func testDistinctByKeySelectorExceptionPropagatesOnMaterialization() {
+        let result = kk_sequence_distinctBy(
+            makeSequence([1, 2, 3]),
+            unsafeBitCast(throwingSelector, to: Int.self),
+            0,
+            nil
+        )
+        var thrown = 0
+        _ = kk_sequence_to_list(result, &thrown)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testElementAtReturnsIndexedValue() {
         var thrown = 0
         let result = kk_sequence_elementAt(makeSequence([10, 20, 30]), 1, &thrown)
@@ -1998,6 +2060,25 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
         let filtered = kk_sequence_filterIsInstance(seq, 3)
         XCTAssertEqual(sequenceElements(filtered), [1, 3])
+    }
+
+    func testFilterIsInstanceEmptySequenceReturnsEmpty() {
+        let filtered = kk_sequence_filterIsInstance(makeSequence([]), 3)
+        XCTAssertEqual(sequenceElements(filtered), [])
+    }
+
+    func testFilterIsInstanceAllMatchReturnsAllElements() {
+        let filtered = kk_sequence_filterIsInstance(makeSequence([1, 2, 3]), 3)
+        XCTAssertEqual(sequenceElements(filtered), [1, 2, 3])
+    }
+
+    func testFilterIsInstanceNoneMatchReturnsEmpty() {
+        let seq = makeSequence([
+            runtimeTestStringHandle("a"),
+            runtimeTestStringHandle("b"),
+        ])
+        let filtered = kk_sequence_filterIsInstance(seq, 3)
+        XCTAssertEqual(sequenceElements(filtered), [])
     }
 
     func testFilterIndexedKeepsElementsMatchingIndexedPredicate() {
