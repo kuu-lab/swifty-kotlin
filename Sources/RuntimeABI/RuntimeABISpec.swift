@@ -71,7 +71,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 
 // swiftlint:disable:next type_body_length
 public enum RuntimeABISpec {
-    public static let specVersion = "J32"
+    public static let specVersion = "J33"
 
     public static let memoryFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
@@ -2269,6 +2269,17 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Bitwise"
         ),
+        // Int/Long truncating division and remainder — throwing (PEC-NUM-0002)
+        RuntimeABIFunctionSpec(
+            name: "kk_op_div",
+            parameters: [
+                RuntimeABIParameter(name: "lhs", type: .intptr),
+                RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Bitwise"
+        ),
         // Int/Long flooring division and modulo operators
         RuntimeABIFunctionSpec(
             name: "kk_op_floor_div",
@@ -2293,6 +2304,7 @@ public enum RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "lhs", type: .intptr),
                 RuntimeABIParameter(name: "rhs", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Bitwise"

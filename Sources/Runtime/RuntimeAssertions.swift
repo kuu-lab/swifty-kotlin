@@ -145,6 +145,25 @@ final class RuntimeNumberFormatExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeArithmeticExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.ArithmeticException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.ArithmeticException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        "ArithmeticException: \(message)"
+    }
+}
+
 // MARK: - Typed Allocators
 
 /// Allocates an `AssertionError` with the given message.
@@ -206,6 +225,15 @@ func runtimeAllocateArrayIndexOutOfBoundsException(message: String) -> Int {
 
 func runtimeAllocateNumberFormatException(message: String) -> Int {
     let throwable = RuntimeNumberFormatExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+func runtimeAllocateArithmeticException(message: String) -> Int {
+    let throwable = RuntimeArithmeticExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))

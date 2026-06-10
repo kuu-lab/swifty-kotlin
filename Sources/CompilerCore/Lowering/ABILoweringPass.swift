@@ -63,9 +63,10 @@ final class ABILoweringPass: LoweringPass {
         ]
         // Comparison operators: result type is Boolean so we cannot use the
         // result to drive unboxing.  Instead unboxOperandToOwnType uses each
-        // operand's own declared primitive type as the target, which is
-        // idempotent for already-unboxed values (kk_unbox_int checks the
-        // object-pointer registry and passes raw values through unchanged).
+        // operand's own declared primitive type as the target, with a hint
+        // from a sibling operand when one side has no direct type info.
+        // Idempotent for already-unboxed values (kk_unbox_* passes raw
+        // primitives through unchanged).
         let inlineComparisonCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_eq"),
             ctx.interner.intern("kk_op_ne"),
@@ -344,7 +345,6 @@ final class ABILoweringPass: LoweringPass {
                         )
                     }
                 }
-
                 // Unbox operands for comparison operators (==, !=, <, etc.).
                 // The result is Boolean so the arithmetic path above cannot
                 // determine the operand's primitive type from the result; use

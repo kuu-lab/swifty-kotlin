@@ -53,7 +53,6 @@ final class RuntimeABIExternalLinkValidationTests: XCTestCase {
             "kk_long",
             "kk_op_add",
             "kk_op_and",
-            "kk_op_div",
             "kk_op_ishl",
             "kk_op_ishr",
             "kk_op_iushr",
