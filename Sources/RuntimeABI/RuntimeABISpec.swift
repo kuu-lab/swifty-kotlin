@@ -3483,6 +3483,38 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "Duration"
         ),
+        // STDLIB-TIME-TYPE-009: TestTimeSource
+        RuntimeABIFunctionSpec(
+            name: "kk_test_time_source_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_test_time_source_plus_assign",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+                RuntimeABIParameter(name: "durationRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_test_time_source_mark_now",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_test_time_source_read",
+            parameters: [
+                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Duration"
+        ),
     ]
 
     /// Concatenation of every sub-array of `RuntimeABIFunctionSpec` defined in this module.

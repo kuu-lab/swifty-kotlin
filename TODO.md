@@ -255,7 +255,7 @@
 #### kotlin.time 型の実装
 - [x] STDLIB-TIME-TYPE-005: `Duration` クラスの実装
 - [x] STDLIB-TIME-TYPE-007: `ExperimentalTime` アノテーションの実装
-- [ ] STDLIB-TIME-TYPE-009: `TestTimeSource` クラスの実装
+- [x] STDLIB-TIME-TYPE-009: `TestTimeSource` クラスの実装
 - [x] STDLIB-TIME-TYPE-010: `TimedValue` クラスの実装
 - [x] STDLIB-TIME-TYPE-012: `TimeSource` インターフェースの実装
 
