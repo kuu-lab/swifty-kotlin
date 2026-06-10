@@ -3487,8 +3487,64 @@ extension DataFlowSemaPhase {
         }
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-        // MIGRATION-TEXT-009: Migrated to Kotlin source (Stdlib/kotlin/text/StringComparison.kt)
-        // The compiler will use the Kotlin implementation instead of synthetic stubs
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonPrefixWith",
+            externalLinkName: "kk_string_commonPrefixWith",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonSuffixWith",
+            externalLinkName: "kk_string_commonSuffixWith",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonPrefixWith",
+            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonSuffixWith",
+            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 
