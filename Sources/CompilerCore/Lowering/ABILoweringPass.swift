@@ -43,20 +43,6 @@ final class ABILoweringPass: LoweringPass {
         let types = ctx.sema?.types
         let symbols = ctx.sema?.symbols
 
-        // Comparison helpers like kk_op_eq(Int, Int) -> Bool require both
-        // arguments to be unboxed.  Unlike arithmetic callees the result type is
-        // Bool, so unboxBinaryOperandIfNeeded (which uses result type as the
-        // target) cannot be reused here.  We use unboxComparisonOperandIfNeeded
-        // instead, which derives the target type from the peer operand.
-        let inlineComparisonCallees: Set<InternedString> = [
-            ctx.interner.intern("kk_op_eq"),
-            ctx.interner.intern("kk_op_ne"),
-            ctx.interner.intern("kk_op_lt"),
-            ctx.interner.intern("kk_op_le"),
-            ctx.interner.intern("kk_op_gt"),
-            ctx.interner.intern("kk_op_ge"),
-        ]
-
         let inlineArithmeticCallees: Set<InternedString> = [
             ctx.interner.intern("kk_op_add"),
             ctx.interner.intern("kk_op_sub"),
@@ -75,6 +61,25 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_op_usub"),
             ctx.interner.intern("kk_op_umul"),
         ]
+
+        // Comparison operators: result type is Boolean so we cannot use the
+        // result to drive unboxing.  Instead unboxOperandToOwnType uses each
+        // operand's own declared primitive type as the target, which is
+        // idempotent for already-unboxed values (kk_unbox_int checks the
+        // object-pointer registry and passes raw values through unchanged).
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+            ctx.interner.intern("kk_op_ult"),
+            ctx.interner.intern("kk_op_ule"),
+            ctx.interner.intern("kk_op_ugt"),
+            ctx.interner.intern("kk_op_uge"),
+        ]
+
 
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
@@ -329,26 +334,35 @@ final class ABILoweringPass: LoweringPass {
                     }
                 }
 
-                // Unbox Any/reference-typed arguments for inline comparison calls
-                // (kk_op_eq, kk_op_ne, kk_op_lt, etc.).  These return Bool so the
-                // arithmetic path above cannot be reused (it uses result type as the
-                // unbox target).  Instead we use peer-type inference: if one operand
-                // is an unboxed primitive and the other is boxed, unbox the boxed one
-                // to the peer's type.
+                // Unbox operands for comparison operators (==, !=, <, etc.).
+                // The result is Boolean so the arithmetic path above cannot
+                // determine the operand's primitive type from the result; use
+                // each operand's own declared type instead.
+                // When one operand has no type info (e.g. the result of x+0 whose
+                // Sema type was not recorded), collect a hint from a sibling operand
+                // that does have type info and forward it so the unboxing can still
+                // emit the correct kk_unbox_* call.
                 if signature == nil, let types,
-                   inlineComparisonCallees.contains(effectiveCallee),
-                   boxedArguments.count == 2
+                   inlineComparisonCallees.contains(effectiveCallee)
                 {
-                    boxedArguments[0] = unboxComparisonOperandIfNeeded(
-                        operand: boxedArguments[0], peerOperand: boxedArguments[1],
-                        module: module, types: types, symbols: symbols,
-                        unboxCallees: unboxCallees, newBody: &newBody
-                    )
-                    boxedArguments[1] = unboxComparisonOperandIfNeeded(
-                        operand: boxedArguments[1], peerOperand: boxedArguments[0],
-                        module: module, types: types, symbols: symbols,
-                        unboxCallees: unboxCallees, newBody: &newBody
-                    )
+                    var primitiveHint: TypeKind?
+                    for operand in boxedArguments {
+                        if let opType = intrinsicArgType(operand, arena: module.arena, types: types) {
+                            let opKind = resolveValueClassKind(types.kind(of: opType), types: types, symbols: symbols)
+                            if case .primitive(_, .nonNull) = opKind {
+                                primitiveHint = opKind
+                                break
+                            }
+                        }
+                    }
+                    for i in boxedArguments.indices {
+                        boxedArguments[i] = unboxOperandToOwnType(
+                            boxedArguments[i],
+                            hint: primitiveHint,
+                            module: module, types: types, symbols: symbols,
+                            unboxCallees: unboxCallees, newBody: &newBody
+                        )
+                    }
                 }
 
                 let resolvedUnbox = resolveUnboxForCall(

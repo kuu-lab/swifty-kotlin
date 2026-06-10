@@ -1,0 +1,36 @@
+symbol s0 kind=class fq=kotlin.Pair vis=public flags=synthetic
+symbol s1 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s2 kind=interface fq=kotlin.CharSequence vis=public flags=synthetic type=Class#2
+symbol s3 kind=function fq=kotlin.text.zip vis=public flags=synthetic sig=recv=String params=[Class#2] ret=Class#1<out Class#0<out Char, out Char>> suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=function fq=kotlin.text.zip vis=public flags=synthetic sig=recv=Class#2 params=[Class#2] ret=Class#1<out Class#0<out Char, out Char>> suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=typeParameter fq=kotlin.text.zip.R vis=private flags=_
+symbol s6 kind=function fq=kotlin.text.zip vis=public flags=inlineFunction|synthetic sig=recv=String params=[Class#2,(Char, Char) -> T#5] ret=Class#1<out T#5> suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s7 kind=function fq=stringZip vis=public flags=_ sig=recv=_ params=[String,Class#2] ret=Class#1<Class#0<Char, Char>> suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s8 kind=valueParameter fq=stringZip.$0.s vis=private flags=_
+symbol s9 kind=valueParameter fq=stringZip.$0.other vis=private flags=_
+symbol s10 kind=function fq=charSequenceZip vis=public flags=_ sig=recv=_ params=[Class#2,Class#2] ret=Class#1<Class#0<Char, Char>> suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s11 kind=valueParameter fq=charSequenceZip.$1.cs vis=private flags=_
+symbol s12 kind=valueParameter fq=charSequenceZip.$1.other vis=private flags=_
+symbol s13 kind=function fq=stringZipTransform vis=public flags=_ sig=recv=_ params=[String,Class#2] ret=Class#1<String> suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s14 kind=valueParameter fq=stringZipTransform.$2.s vis=private flags=_
+symbol s15 kind=valueParameter fq=stringZipTransform.$2.other vis=private flags=_
+file f0 package=_
+  decl d0 fun stringZip suspend=0 inline=0 sym=s7
+  decl d1 fun charSequenceZip suspend=0 inline=0 sym=s10
+  decl d2 fun stringZipTransform suspend=0 inline=0 sym=s13
+expr e0 name(s) type=String ref=s8
+expr e1 name(other) type=Class#2 ref=s9
+expr e2 memberCall recv=e0 callee=zip args=[_:e1] type=Class#1<out Class#0<out Char, out Char>> call=s3 map=[0->0] targs=[]
+expr e3 name(cs) type=Class#2 ref=s11
+expr e4 name(other) type=Class#2 ref=s12
+expr e5 memberCall recv=e3 callee=zip args=[_:e4] type=Class#1<out Class#0<out Char, out Char>> call=s4 map=[0->0] targs=[]
+expr e6 name(s) type=String ref=s14
+expr e7 name(other) type=Class#2 ref=s15
+expr e8 name(a) type=_
+expr e9 name(b) type=_
+expr e10 stringTemplate[expr(e8),expr(e9)] type=_
+expr e11 name(a) type=Char ref=s-0
+expr e12 name(b) type=Char ref=s-1
+expr e13 stringTemplate[expr(e11),expr(e12)] type=String
+expr e14 lambda params=[a,b] body=e13 label=zip type=(Char, Char) -> T#5
+expr e15 memberCall recv=e6 callee=zip args=[_:e7,_:e14] type=Class#1<out String> call=s6 map=[0->0,1->1] targs=[String]

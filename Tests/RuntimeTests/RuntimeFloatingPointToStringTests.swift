@@ -40,6 +40,12 @@ final class RuntimeFloatingPointToStringTests: XCTestCase {
         XCTAssertEqual(runtimeFormatFloatingPoint(-Double.infinity), "-Infinity")
     }
 
+    func testDoubleMinValue() {
+        // SPEC-NUM-0006: Java's FloatingDecimal emits "4.9E-324", not Swift/Ryu's "5.0E-324".
+        XCTAssertEqual(runtimeFormatFloatingPoint(Double.leastNonzeroMagnitude), "4.9E-324")
+        XCTAssertEqual(runtimeFormatFloatingPoint(-Double.leastNonzeroMagnitude), "-4.9E-324")
+    }
+
     func testFloatDecimalRange() {
         XCTAssertEqual(runtimeFormatFloatingPoint(Float(0.0)), "0.0")
         XCTAssertEqual(runtimeFormatFloatingPoint(Float(-0.0)), "-0.0")
@@ -64,5 +70,11 @@ final class RuntimeFloatingPointToStringTests: XCTestCase {
         XCTAssertEqual(runtimeFormatFloatingPoint(Float.nan), "NaN")
         XCTAssertEqual(runtimeFormatFloatingPoint(Float.infinity), "Infinity")
         XCTAssertEqual(runtimeFormatFloatingPoint(-Float.infinity), "-Infinity")
+    }
+
+    func testFloatMinValue() {
+        // SPEC-NUM-0006: Java's FloatingDecimal emits "1.4E-45", not Swift/Ryu's "1.0E-45".
+        XCTAssertEqual(runtimeFormatFloatingPoint(Float.leastNonzeroMagnitude), "1.4E-45")
+        XCTAssertEqual(runtimeFormatFloatingPoint(-Float.leastNonzeroMagnitude), "-1.4E-45")
     }
 }
