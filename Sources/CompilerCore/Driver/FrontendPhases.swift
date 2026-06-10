@@ -95,14 +95,16 @@ final class LoadSourcesPhase: CompilerPhase {
             options: [.skipsHiddenFiles]
         ) else { return }
         var paths: [String] = []
-        for case let fileURL as URL in enumerator {
-            if fileURL.pathExtension == "kt" {
-                paths.append(fileURL.path)
-            }
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "kt" {
+            paths.append(fileURL.path)
         }
         for path in paths.sorted() {
             guard !ctx.sourceManager.containsFile(path: path) else { continue }
-            _ = try? ctx.sourceManager.addFile(path: path)
+            do {
+                _ = try ctx.sourceManager.addFile(path: path)
+            } catch {
+                print("Warning: Failed to inject stdlib source: \(path), error: \(error)")
+            }
         }
     }
 }
