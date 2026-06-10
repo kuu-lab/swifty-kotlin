@@ -103,6 +103,19 @@ final class ABILoweringPass: LoweringPass {
             ctx.interner.intern("kk_list_iterator_previous"),
         ]
 
+        // Comparison operators whose result is Boolean but whose operands are
+        // primitives. Unlike arithmetic, the result type does not match the
+        // operand type, so we cannot use `resultExpr` to drive unboxing.
+        // Instead each operand is unboxed against its *own* type.
+        let inlineComparisonCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_op_eq"),
+            ctx.interner.intern("kk_op_ne"),
+            ctx.interner.intern("kk_op_lt"),
+            ctx.interner.intern("kk_op_le"),
+            ctx.interner.intern("kk_op_gt"),
+            ctx.interner.intern("kk_op_ge"),
+        ]
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
@@ -380,6 +393,43 @@ final class ABILoweringPass: LoweringPass {
                         boxedArguments[i] = unboxOperandToOwnType(
                             boxedArguments[i],
                             hint: primitiveHint,
+                            module: module, types: types, symbols: symbols,
+                            unboxCallees: unboxCallees, newBody: &newBody
+                        )
+                    }
+                }
+
+                // Unbox boxed-primitive arguments for inline comparison calls
+                // (kk_op_eq, kk_op_ne, kk_op_lt, etc.). These operators have a
+                // Boolean result, so `resultExpr` cannot drive unboxing — we use
+                // the *peer* operand's type as the unboxing target instead.
+                //
+                // This handles two call-site shapes with one mechanism:
+                //
+                //   A. Inlined lambda after InlineLoweringPass:
+                //      kk_op_eq(Int_nonNull_raw_int, anyType_boxed_ptr)
+                //      → for anyType side: peer=Int_nonNull →
+                //        needsUnboxing(.any, .primitive) = true → kk_unbox_int ✓
+                //      → for Int_nonNull side: peer=anyType →
+                //        needsUnboxing(.primitive, .any) = false → no-op ✓
+                //
+                //   B. Non-inlined lambda (lambda still a function):
+                //      kk_op_eq(Int_nonNull_raw_int, Int_nonNull_symbolRef_boxed_ptr)
+                //      → peer of each is Int_nonNull →
+                //        needsUnboxing(.primitive, .primitive) = true on both.
+                //      kk_unbox_int on the raw-int side is a no-op at runtime
+                //      (the runtime returns the value unchanged when it is not a
+                //      GC-tracked object pointer), so correctness is preserved.
+                if signature == nil, let types,
+                   inlineComparisonCallees.contains(effectiveCallee),
+                   boxedArguments.count == 2
+                {
+                    let snapshot = boxedArguments
+                    for i in 0..<2 {
+                        let peerExpr = snapshot[1 - i]
+                        boxedArguments[i] = unboxBinaryOperandIfNeeded(
+                            operand: boxedArguments[i],
+                            resultExpr: peerExpr,
                             module: module, types: types, symbols: symbols,
                             unboxCallees: unboxCallees, newBody: &newBody
                         )
