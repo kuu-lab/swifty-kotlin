@@ -222,6 +222,7 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     )
 }
 
+
 @_cdecl("kk_string_replace")
 public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)

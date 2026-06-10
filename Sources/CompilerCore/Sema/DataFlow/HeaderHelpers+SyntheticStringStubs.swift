@@ -3532,6 +3532,8 @@ extension DataFlowSemaPhase {
         }
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
