@@ -32,6 +32,8 @@ enum CLIParser {
       -Xir <flag>            IR/lowering feature flag (e.g. trace-lowering)
       -Xruntime <flag>       Runtime feature flag
       -Xdiagnostics <format> Diagnostic output format (text|json)
+      --stdlib               Include stdlib search paths (default)
+      --no-stdlib            Disable automatic stdlib inclusion
       -g                     Emit debug info
     """
 
@@ -49,6 +51,7 @@ enum CLIParser {
         var irFlags: [String] = []
         var runtimeFlags: [String] = []
         var diagnosticsFormat: DiagnosticsFormat = .text
+        var includeStdlib: Bool = true
         var target = TargetTriple.hostDefault()
 
         if args.isEmpty {
@@ -118,6 +121,10 @@ enum CLIParser {
                 try libraryPaths.append(requireValue(option: arg, args: args, index: &index))
             case "-l":
                 try linkLibraries.append(requireValue(option: arg, args: args, index: &index))
+            case "--stdlib":
+                includeStdlib = true
+            case "--no-stdlib":
+                includeStdlib = false
             case "-g":
                 debugInfo = true
             default:
@@ -148,6 +155,8 @@ enum CLIParser {
             frontendFlags: frontendFlags,
             irFlags: irFlags,
             runtimeFlags: runtimeFlags,
+            stdlibSearchPaths: CompilerOptions.defaultStdlibSearchPaths(),
+            includeStdlib: includeStdlib,
             diagnosticsFormat: diagnosticsFormat
         )
     }
