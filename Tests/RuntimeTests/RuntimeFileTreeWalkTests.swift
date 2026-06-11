@@ -449,6 +449,52 @@ final class RuntimeFileTreeWalkTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(treeWalkOnLeaveCount, 2)
     }
 
+    // MARK: - STDLIB-IO-PATH-FN-039: kk_file_walk (no-arg, defaults to TOP_DOWN)
+
+    func testFileWalkDefaultIsTopDown() throws {
+        let root = try makeTempDirTree()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let paths = treeWalkPaths(kk_file_walk(rtwFileHandle(root)))
+
+        XCTAssertFalse(paths.isEmpty)
+        XCTAssertEqual(paths.first, root, "kk_file_walk must default to TOP_DOWN (root first)")
+    }
+
+    func testFileWalkIncludesAllNodes() throws {
+        let root = try makeTempDirTree()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let paths = treeWalkPaths(kk_file_walk(rtwFileHandle(root)))
+
+        // root + file1.txt + subdir + subdir/file2.txt = 4
+        XCTAssertEqual(paths.count, 4)
+    }
+
+    func testFileWalkWithDirectionTopDown() throws {
+        let root = try makeTempDirTree()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        // Direction ordinal: 0 = TOP_DOWN
+        let walkRaw = kk_file_walk_with_direction(rtwFileHandle(root), kk_box_int(0))
+        let paths = treeWalkPaths(walkRaw)
+
+        XCTAssertEqual(paths.first, root, "Direction TOP_DOWN (0) must yield root first")
+        XCTAssertEqual(paths.count, 4)
+    }
+
+    func testFileWalkWithDirectionBottomUp() throws {
+        let root = try makeTempDirTree()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        // Direction ordinal: 1 = BOTTOM_UP
+        let walkRaw = kk_file_walk_with_direction(rtwFileHandle(root), kk_box_int(1))
+        let paths = treeWalkPaths(walkRaw)
+
+        XCTAssertEqual(paths.last, root, "Direction BOTTOM_UP (1) must yield root last")
+        XCTAssertEqual(paths.count, 4)
+    }
+
     // MARK: - forEach
 
     func testForEachVisitsAllNodes() throws {

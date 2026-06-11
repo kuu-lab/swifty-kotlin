@@ -22,3 +22,13 @@ public func kk_js_reference_get(_ jsRefRaw: Int) -> Int {
     }
     return reference.valueRaw
 }
+
+// MARK: - kotlin.js.collections JsReadonlySet conversions (STDLIB-JS-COLLECTIONS-FN-005)
+
+@_cdecl("kk_js_set_toMutableSet")
+public func kk_js_set_toMutableSet(_ jsSetRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: jsSetRaw) else {
+        return registerRuntimeObject(RuntimeSetBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
+}

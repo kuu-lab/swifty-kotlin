@@ -103,9 +103,9 @@
 - [ ] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
+- [x] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
+- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
 - [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
 
@@ -205,46 +205,17 @@
 - [ ] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
 - [ ] STDLIB-TEXT-FN-086: `toBigIntegerOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
+- [x] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
 - [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
-- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
-- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
-- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
-- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
-- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
-- [x] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
-- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
-- [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
-- [ ] STDLIB-TEXT-FN-101: `toList` 関数の実装
-- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
-- [ ] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
-- [ ] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
-- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [ ] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
-- [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
-- [x] STDLIB-TEXT-FN-108: `toSortedSet` 関数の実装
-- [x] STDLIB-TEXT-FN-088: `toBooleanStrict` 関数の実装
-- [x] STDLIB-TEXT-FN-089: `toBooleanStrictOrNull` 関数の実装
-- [x] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
-- [ ] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-092: `toByteArray` 関数の実装
-- [x] STDLIB-TEXT-FN-096: `toDoubleOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-098: `toFloatOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-101: `toList` 関数の実装
-- [ ] STDLIB-TEXT-FN-102: `toLong` 関数の実装
-- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [x] STDLIB-TEXT-FN-102: `toLong` 関数の実装
+- [x] STDLIB-TEXT-FN-104: `toMutableList` 関数の実装
 - [x] STDLIB-TEXT-FN-105: `toRegex` 関数の実装
 - [x] STDLIB-TEXT-FN-106: `toShort` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
@@ -382,6 +353,8 @@
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [ ] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [x] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
+- [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
+- [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [ ] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
 - [ ] STDLIB-CINTEROP-FN-016: `CPointer<T>.set(index, value)` を追加する
