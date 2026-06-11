@@ -577,6 +577,43 @@ public func kk_mem_scope_exit(_ handle: Int) -> Int {
     return 0
 }
 
+// MARK: - CValues<T> (STDLIB-CINTEROP-FN-018)
+
+/// Runtime backing for `kotlinx.cinterop.CValues<ByteVar>`.
+///
+/// Holds a copy of the ByteArray contents in a C-layout buffer allocated on
+/// the unmanaged heap. The buffer is freed when this box is deallocated by
+/// the KSwiftK GC. The raw address can be wrapped in a `RuntimeCPointerBox`
+/// to satisfy `CValuesRef.getPointer(scope)` at the call site.
+final class RuntimeCValuesBox: @unchecked Sendable {
+    let storage: UnsafeMutableBufferPointer<Int8>
+
+    init(bytes: [Int]) {
+        let count = bytes.count
+        storage = UnsafeMutableBufferPointer<Int8>.allocate(capacity: max(1, count))
+        for (i, b) in bytes.enumerated() {
+            storage[i] = Int8(truncatingIfNeeded: b)
+        }
+    }
+
+    deinit {
+        storage.deallocate()
+    }
+
+    var rawAddress: UInt {
+        guard let base = storage.baseAddress else { return 0 }
+        return UInt(bitPattern: base)
+    }
+}
+
+@_cdecl("kk_byteArray_toCValues")
+public func kk_byteArray_toCValues(_ arrayRaw: Int) -> Int {
+    guard let array = runtimeArrayBox(from: arrayRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_byteArray_toCValues")
+    }
+    return registerRuntimeObject(RuntimeCValuesBox(bytes: array.elements))
+}
+
 // MARK: - Pinned<T>
 
 /// Runtime backing for `kotlin.native.ref.Pinned<T>`.
