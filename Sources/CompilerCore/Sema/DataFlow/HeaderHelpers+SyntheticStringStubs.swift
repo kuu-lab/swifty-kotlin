@@ -2136,12 +2136,6 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        let charToAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let charToIntType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: intType,
@@ -2154,42 +2148,6 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-        let charToNullableAnyType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: types.nullableAnyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let charCharToCharType = types.make(.functionType(FunctionType(
-            params: [charType, charType],
-            returnType: charType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let intCharToAnyType = types.make(.functionType(FunctionType(
-            params: [intType, charType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let intCharToBoolType = types.make(.functionType(FunctionType(
-            params: [intType, charType],
-            returnType: boolType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let intCharCharToCharType = types.make(.functionType(FunctionType(
-            params: [intType, charType, charType],
-            returnType: charType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let listAnyType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: types.anyType
-        )
         let sequenceStringType = makeSequenceType(
             symbols: symbols,
             types: types,
