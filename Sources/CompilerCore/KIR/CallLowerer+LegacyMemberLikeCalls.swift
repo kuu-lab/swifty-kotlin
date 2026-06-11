@@ -1693,17 +1693,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "windowed" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_windowed_default"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 let stringGetThrownExpr: KIRExprID?
                 if calleeStr == "get" {
                     let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
@@ -1799,6 +1788,14 @@ extension CallLowerer {
                     ("kk_string_ifEmpty", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
                     ("kk_string_chunked", [loweredReceiverID, loweredArgIDs[0]])
+                case "take":
+                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
+                case "drop":
+                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
+                case "takeLast":
+                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
+                case "dropLast":
+                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
                     ("kk_string_chunked_sequence", [loweredReceiverID, loweredArgIDs[0]])
                 case "toByteArray":
@@ -1820,6 +1817,18 @@ extension CallLowerer {
                         ("kk_string_commonSuffixWith_ignoreCase", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
                     } else {
                         ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
+                    }
+                case "padStart":
+                    if loweredArgIDs.count >= 2 {
+                        ("kk_string_padStart", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                    } else {
+                        ("kk_string_padStart_default", [loweredReceiverID, loweredArgIDs[0]])
+                    }
+                case "padEnd":
+                    if loweredArgIDs.count >= 2 {
+                        ("kk_string_padEnd", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
+                    } else {
+                        ("kk_string_padEnd_default", [loweredReceiverID, loweredArgIDs[0]])
                     }
                 case "removePrefix":
                     ("kk_string_removePrefix", [loweredReceiverID, loweredArgIDs[0]])
@@ -2049,19 +2058,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "windowed"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_windowed"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) || isCharSequenceReceiver,
                calleeStr == "chunkedSequence"
             {
@@ -2142,23 +2138,6 @@ extension CallLowerer {
                 ))
                 return result
             }
-            // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "commonPrefixWith" || calleeStr == "commonSuffixWith"
-            {
-                let runtimeName = calleeStr == "commonPrefixWith"
-                    ? "kk_string_commonPrefixWith_ignoreCase"
-                    : "kk_string_commonSuffixWith_ignoreCase"
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern(runtimeName),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
                calleeStr == "substring"
             {
@@ -2193,25 +2172,10 @@ extension CallLowerer {
             }
         }
 
-        // String stdlib: windowed(size, step, partialWindows) — STDLIB-549
-        // NOTE: Same name-based matching limitation as the 2-arg case above.
         if args.count == 3 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             let calleeStr = interner.resolve(calleeName)
-            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "windowed"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_string_windowed_partial"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1], loweredArgIDs[2]],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
             let isCharSequenceReceiver: Bool = {
                 guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
                       case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
