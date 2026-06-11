@@ -4507,3 +4507,65 @@ public func kk_string_partition(
     let second = runtimeMakeStringRaw(runtimeStringFromScalars(unmatched))
     return kk_pair_new(first, second)
 }
+
+// MARK: - Internal bridge functions for Kotlin stdlib migration (MIGRATION-TEXT-002)
+
+@_cdecl("__string_replace")
+public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+    return kk_string_replace(strRaw, oldRaw, newRaw)
+}
+
+@_cdecl("__string_replace_ignoreCase")
+public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    return kk_string_replace_ignoreCase(strRaw, oldRaw, newRaw, ignoreCaseRaw)
+}
+
+@_cdecl("__string_replace_char")
+public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
+    return kk_string_replace_char(strRaw, oldCharRaw, newCharRaw)
+}
+
+@_cdecl("__string_replace_char_ignoreCase")
+public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    return kk_string_replace_char_ignoreCase(strRaw, oldCharRaw, newCharRaw, ignoreCaseRaw)
+}
+
+@_cdecl("__string_replaceFirst")
+public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
+}
+
+@_cdecl("__string_replaceRange")
+public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange")
+public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange_range")
+public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
+}
+
+@_cdecl("__string_removePrefix")
+public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
+    return kk_string_removePrefix(strRaw, prefixRaw)
+}
+
+@_cdecl("__string_removeSuffix")
+public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
+    return kk_string_removeSuffix(strRaw, suffixRaw)
+}
+
+@_cdecl("__string_removeSurrounding")
+public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
+    return kk_string_removeSurrounding(strRaw, delimiterRaw)
+}
+
+@_cdecl("__string_removeSurrounding_pair")
+public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
+    return kk_string_removeSurrounding_pair(strRaw, prefixRaw, suffixRaw)
+}

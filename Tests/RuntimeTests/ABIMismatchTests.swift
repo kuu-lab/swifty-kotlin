@@ -44,7 +44,7 @@ final class ABIMismatchTests: XCTestCase {
         ]
         for spec in RuntimeABISpec.allFunctions {
             XCTAssertTrue(
-                spec.name.hasPrefix("kk_") || legacyNonKKRuntimeExports.contains(spec.name),
+                spec.name.hasPrefix("kk_") || spec.name.hasPrefix("__") || legacyNonKKRuntimeExports.contains(spec.name),
                 "Function '\(spec.name)' does not follow kk_ naming convention"
             )
         }
