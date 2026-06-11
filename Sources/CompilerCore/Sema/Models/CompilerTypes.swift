@@ -89,6 +89,11 @@ public struct CompilerOptions: Equatable {
     public var runtimeFlags: [String]
     public var diagnosticsFormat: DiagnosticsFormat
 
+    /// Additional search paths for Kotlin stdlib sources.
+    public var stdlibSearchPaths: [String]
+    /// Whether to include stdlib search paths during compilation.
+    public var includeStdlib: Bool
+
     /// Path to the incremental compilation cache directory, if any.
     /// Incremental compilation is enabled when either this is non-nil or the
     /// `incremental` frontend flag is set; when enabled and a cache is
@@ -109,6 +114,8 @@ public struct CompilerOptions: Equatable {
         frontendFlags: [String] = [],
         irFlags: [String] = [],
         runtimeFlags: [String] = [],
+        stdlibSearchPaths: [String] = [],
+        includeStdlib: Bool = true,
         incrementalCachePath: String? = nil,
         diagnosticsFormat: DiagnosticsFormat = .text
     ) {
@@ -125,8 +132,25 @@ public struct CompilerOptions: Equatable {
         self.frontendFlags = frontendFlags
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
+        self.stdlibSearchPaths = stdlibSearchPaths
+        self.includeStdlib = includeStdlib
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
+    }
+
+    /// Default search paths for locating Kotlin stdlib sources.
+    public static func defaultStdlibSearchPaths() -> [String] {
+        // Discover stdlib source directories relative to the compiler binary.
+        var paths: [String] = []
+        #if os(macOS)
+            // Typical install layout: <prefix>/bin/kswiftc → <prefix>/lib/kswiftk/stdlib
+            let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+            let binDir = execURL.deletingLastPathComponent()
+            let prefixDir = binDir.deletingLastPathComponent()
+            let stdlibDir = prefixDir.appendingPathComponent("lib/kswiftk/stdlib").path
+            paths.append(stdlibDir)
+        #endif
+        return paths
     }
 
     /// Marker annotations accepted by compiler-wide `-opt-in=<fqName>` flags.
