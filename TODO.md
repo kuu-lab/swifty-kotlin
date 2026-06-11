@@ -582,7 +582,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
-- [ ] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
+- [x] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
 #### Wasm Import stub
 - [ ] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
 #### Wasm Unsafe Annotation stub
