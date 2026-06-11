@@ -2886,9 +2886,24 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-573: String.encodeToByteArray()
+        // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
-            named: "encodeToByteArray",
+            named: "toByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_range",
+            receiverType: stringType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: byteArrayTypeForEncode,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MIGRATION-TEXT-007: Private primitives — called from BundledKotlinStdlib encodeToByteArray wrappers
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_encodeToByteArray",
             externalLinkName: "kk_string_encodeToByteArray",
             receiverType: stringType,
             parameters: [],
@@ -2898,26 +2913,22 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
-        for functionName in ["encodeToByteArray", "toByteArray"] {
-            registerSyntheticStringExtensionFunction(
-                named: functionName,
-                externalLinkName: "kk_string_encodeToByteArray_range",
-                receiverType: stringType,
-                parameters: [
-                    ("startIndex", intType, false, false),
-                    ("endIndex", intType, false, false),
-                ],
-                returnType: byteArrayTypeForEncode,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload
         registerSyntheticStringExtensionFunction(
-            named: "encodeToByteArray",
+            named: "__kk_encodeToByteArray_range",
+            externalLinkName: "kk_string_encodeToByteArray_range",
+            receiverType: stringType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: byteArrayTypeForEncode,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_encodeToByteArray_charset",
             externalLinkName: "kk_string_encodeToByteArray_charset",
             receiverType: stringType,
             parameters: [
@@ -3002,26 +3013,24 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // STDLIB-574: ByteArray.decodeToString()
+        // STDLIB-574: ByteArray / List<Int> internal representation
         let byteArrayType = makeNominalType(
             symbols: symbols,
             types: types,
             fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
         )
 
-        // Register on both List<Int> (internal representation) and ByteArray (user-facing type)
-        for receiverType in [listIntType, byteArrayType] {
-            registerSyntheticStringExtensionFunction(
-                named: "decodeToString",
-                externalLinkName: "kk_bytearray_decodeToString",
-                receiverType: receiverType,
-                parameters: [],
-                returnType: stringType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // Register decodeToString on List<Int> only — ByteArray variant is now in BundledKotlinStdlib (MIGRATION-TEXT-007)
+        registerSyntheticStringExtensionFunction(
+            named: "decodeToString",
+            externalLinkName: "kk_bytearray_decodeToString",
+            receiverType: listIntType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         for charsetPropName in ["UTF_8", "US_ASCII", "ISO_8859_1"] {
             let propName = interner.intern(charsetPropName)
@@ -3039,53 +3048,103 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(charsetType, for: propSymbol)
         }
 
-        // STDLIB-574: ByteArray.decodeToString(charset: Charset) overload
-        for receiverType in [listIntType, byteArrayType] {
-            registerSyntheticStringExtensionFunction(
-                named: "decodeToString",
-                externalLinkName: "kk_bytearray_decodeToString_charset",
-                receiverType: receiverType,
-                parameters: [
-                    ("charset", charsetType, false, false),
-                ],
-                returnType: stringType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // STDLIB-574: List<Int>.decodeToString(charset) — internal path only
+        registerSyntheticStringExtensionFunction(
+            named: "decodeToString",
+            externalLinkName: "kk_bytearray_decodeToString_charset",
+            receiverType: listIntType,
+            parameters: [
+                ("charset", charsetType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
-        // STDLIB-TEXT-EDGE-006: ByteArray.decodeToString(startIndex, endIndex, throwOnInvalidSequence)
-        for receiverType in [listIntType, byteArrayType] {
-            registerSyntheticStringExtensionFunction(
-                named: "decodeToString",
-                externalLinkName: "kk_bytearray_decodeToString_range",
-                receiverType: receiverType,
-                parameters: [
-                    ("startIndex", intType, false, false),
-                    ("endIndex", intType, false, false),
-                ],
-                returnType: stringType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
+        // STDLIB-TEXT-EDGE-006: List<Int>.decodeToString range variants — internal path only
+        registerSyntheticStringExtensionFunction(
+            named: "decodeToString",
+            externalLinkName: "kk_bytearray_decodeToString_range",
+            receiverType: listIntType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
-            registerSyntheticStringExtensionFunction(
-                named: "decodeToString",
-                externalLinkName: "kk_bytearray_decodeToString_range_throw",
-                receiverType: receiverType,
-                parameters: [
-                    ("startIndex", intType, false, false),
-                    ("endIndex", intType, false, false),
-                    ("throwOnInvalidSequence", types.booleanType, false, false),
-                ],
-                returnType: stringType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        registerSyntheticStringExtensionFunction(
+            named: "decodeToString",
+            externalLinkName: "kk_bytearray_decodeToString_range_throw",
+            receiverType: listIntType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+                ("throwOnInvalidSequence", types.booleanType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // MIGRATION-TEXT-007: Private primitives for ByteArray.decodeToString — called from BundledKotlinStdlib wrappers
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_decodeToString",
+            externalLinkName: "kk_bytearray_decodeToString",
+            receiverType: byteArrayType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_decodeToString_charset",
+            externalLinkName: "kk_bytearray_decodeToString_charset",
+            receiverType: byteArrayType,
+            parameters: [
+                ("charset", charsetType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_decodeToString_range",
+            externalLinkName: "kk_bytearray_decodeToString_range",
+            receiverType: byteArrayType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "__kk_decodeToString_range_throw",
+            externalLinkName: "kk_bytearray_decodeToString_range_throw",
+            receiverType: byteArrayType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+                ("throwOnInvalidSequence", types.booleanType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // STDLIB-STR-125: String(ByteArray, Charset) constructor
         // Allows decoding a byte array with an explicit charset: String(bytes, Charsets.UTF_8)

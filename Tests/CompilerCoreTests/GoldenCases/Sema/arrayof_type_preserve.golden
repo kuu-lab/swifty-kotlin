@@ -28,407 +28,461 @@ symbol s26 kind=function fq=kotlin.byteArrayOf vis=public flags=synthetic sig=re
 symbol s27 kind=function fq=kotlin.shortArrayOf vis=public flags=synthetic sig=recv=_ params=[Int] ret=Class#5 suspend=0 defaults=[0] vararg=[1]
 symbol s28 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
 symbol s29 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
-symbol s30 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#30
-symbol s31 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#30 suspend=0 defaults=[0] vararg=[0]
-symbol s32 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
-symbol s33 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#32 params=[String?] ret=Class#32 suspend=0 defaults=[0] vararg=[0]
-symbol s34 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#32 params=[Char] ret=Class#32 suspend=0 defaults=[0] vararg=[0]
-symbol s35 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#32 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s36 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s37 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s38 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
-symbol s39 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s40 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
-symbol s41 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
-symbol s42 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
-symbol s43 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
-symbol s44 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
-symbol s45 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
-symbol s46 kind=function fq=arrayOfInts vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s47 kind=function fq=arrayOfStrings vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s48 kind=function fq=intArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s49 kind=function fq=longArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s50 kind=function fq=doubleArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s51 kind=function fq=floatArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s52 kind=function fq=booleanArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s53 kind=function fq=charArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s54 kind=function fq=arrayOfMixed vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s55 kind=function fq=arrayConstructorWithInit vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s56 kind=function fq=arrayOfWithExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s57 kind=function fq=arrayConstructorExplicitTypeArgWinsOverExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s58 kind=function fq=arrayConstructorExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s59 kind=function fq=doubleArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s60 kind=function fq=floatArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s61 kind=function fq=booleanArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s62 kind=function fq=charArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s63 kind=function fq=shortArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s64 kind=function fq=byteArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s65 kind=local fq=__local_0.sb vis=private flags=_ type=Class#32
-symbol s66 kind=local fq=__local_1.i vis=private flags=mutable type=Int
-symbol s67 kind=local fq=__local_2.len vis=private flags=_ type=Int
-symbol s68 kind=local fq=__local_3.sb vis=private flags=_ type=Class#32
-symbol s69 kind=local fq=__local_4.i vis=private flags=mutable type=Int
-symbol s70 kind=local fq=__local_5.padding vis=private flags=_ type=Int
-symbol s71 kind=local fq=__local_6.sb vis=private flags=_ type=Class#32
-symbol s72 kind=local fq=__local_7.i vis=private flags=mutable type=Int
-symbol s73 kind=local fq=__local_8.padding vis=private flags=_ type=Int
-symbol s74 kind=local fq=__local_9.sb vis=private flags=_ type=Class#32
-symbol s75 kind=local fq=__local_10.i vis=private flags=mutable type=Int
-symbol s76 kind=local fq=__local_11.a vis=private flags=_ type=Class#0<Int>
-symbol s77 kind=local fq=__local_12.b vis=private flags=_ type=Class#0<String>
-symbol s78 kind=local fq=__local_13.c vis=private flags=_ type=Class#11
-symbol s79 kind=local fq=__local_14.d vis=private flags=_ type=Class#13
-symbol s80 kind=local fq=__local_15.e vis=private flags=_ type=Class#7
-symbol s81 kind=local fq=__local_16.f vis=private flags=_ type=Class#9
-symbol s82 kind=local fq=__local_17.g vis=private flags=_ type=Class#3
-symbol s83 kind=local fq=__local_18.h vis=private flags=_ type=Class#1
-symbol s84 kind=local fq=__local_19.mixed vis=private flags=_ type=Class#0<Any>
-symbol s85 kind=local fq=__local_20.i vis=private flags=_ type=Class#0<Int>
-symbol s86 kind=local fq=__local_21.strings vis=private flags=_ type=Class#0<String>
-symbol s87 kind=local fq=__local_22.array vis=private flags=_ type=Class#0<out Any>
-symbol s88 kind=local fq=__local_23.array vis=private flags=_ type=Class#0<String>
-symbol s89 kind=local fq=__local_24.a vis=private flags=_ type=Class#7
-symbol s90 kind=local fq=__local_25.a vis=private flags=_ type=Class#9
-symbol s91 kind=local fq=__local_26.a vis=private flags=_ type=Class#3
-symbol s92 kind=local fq=__local_27.a vis=private flags=_ type=Class#1
-symbol s93 kind=local fq=__local_28.a vis=private flags=_ type=Class#5
-symbol s94 kind=local fq=__local_29.a vis=private flags=_ type=Class#15
+symbol s30 kind=class fq=kotlin.text.Charset vis=public flags=synthetic type=Class#30
+symbol s31 kind=function fq=kotlin.text.__kk_encodeToByteArray vis=public flags=synthetic sig=recv=String params=[] ret=Class#15 suspend=0 defaults=[] vararg=[]
+symbol s32 kind=function fq=kotlin.text.__kk_encodeToByteArray_range vis=public flags=synthetic sig=recv=String params=[Int,Int] ret=Class#15 suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s33 kind=function fq=kotlin.text.__kk_encodeToByteArray_charset vis=public flags=synthetic sig=recv=String params=[Class#30] ret=Class#15 suspend=0 defaults=[0] vararg=[0]
+symbol s34 kind=function fq=kotlin.text.__kk_decodeToString vis=public flags=synthetic sig=recv=Class#15 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s35 kind=function fq=kotlin.text.__kk_decodeToString_charset vis=public flags=synthetic sig=recv=Class#15 params=[Class#30] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s36 kind=function fq=kotlin.text.__kk_decodeToString_range vis=public flags=synthetic sig=recv=Class#15 params=[Int,Int] ret=String suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s37 kind=function fq=kotlin.text.__kk_decodeToString_range_throw vis=public flags=synthetic sig=recv=Class#15 params=[Int,Int,Boolean] ret=String suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s38 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#38
+symbol s39 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#38 suspend=0 defaults=[0] vararg=[0]
+symbol s40 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s41 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#40 params=[String?] ret=Class#40 suspend=0 defaults=[0] vararg=[0]
+symbol s42 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#40 params=[Char] ret=Class#40 suspend=0 defaults=[0] vararg=[0]
+symbol s43 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#40 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s44 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s45 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s46 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s47 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s48 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s49 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s50 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s51 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s52 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s53 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s54 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[] ret=Class#15 suspend=0 defaults=[] vararg=[]
+symbol s55 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Int,Int] ret=Class#15 suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s56 kind=valueParameter fq=kotlin.text.encodeToByteArray.$3.startIndex vis=private flags=_
+symbol s57 kind=valueParameter fq=kotlin.text.encodeToByteArray.$3.endIndex vis=private flags=_
+symbol s58 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Class#30] ret=Class#15 suspend=0 defaults=[0] vararg=[0]
+symbol s59 kind=valueParameter fq=kotlin.text.encodeToByteArray.$4.charset vis=private flags=_
+symbol s60 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#15 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s61 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#15 params=[Class#30] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s62 kind=valueParameter fq=kotlin.text.decodeToString.$5.charset vis=private flags=_
+symbol s63 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#15 params=[Int,Int] ret=String suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s64 kind=valueParameter fq=kotlin.text.decodeToString.$6.startIndex vis=private flags=_
+symbol s65 kind=valueParameter fq=kotlin.text.decodeToString.$6.endIndex vis=private flags=_
+symbol s66 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#15 params=[Int,Int,Boolean] ret=String suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s67 kind=valueParameter fq=kotlin.text.decodeToString.$7.startIndex vis=private flags=_
+symbol s68 kind=valueParameter fq=kotlin.text.decodeToString.$7.endIndex vis=private flags=_
+symbol s69 kind=valueParameter fq=kotlin.text.decodeToString.$7.throwOnInvalidSequence vis=private flags=_
+symbol s70 kind=function fq=arrayOfInts vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s71 kind=function fq=arrayOfStrings vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s72 kind=function fq=intArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s73 kind=function fq=longArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s74 kind=function fq=doubleArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s75 kind=function fq=floatArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s76 kind=function fq=booleanArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s77 kind=function fq=charArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s78 kind=function fq=arrayOfMixed vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s79 kind=function fq=arrayConstructorWithInit vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s80 kind=function fq=arrayOfWithExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s81 kind=function fq=arrayConstructorExplicitTypeArgWinsOverExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s82 kind=function fq=arrayConstructorExpectedType vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s83 kind=function fq=doubleArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s84 kind=function fq=floatArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s85 kind=function fq=booleanArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s86 kind=function fq=charArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s87 kind=function fq=shortArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s88 kind=function fq=byteArrayOfLiteral vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s89 kind=local fq=__local_0.sb vis=private flags=_ type=Class#40
+symbol s90 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s91 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s92 kind=local fq=__local_3.sb vis=private flags=_ type=Class#40
+symbol s93 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s94 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s95 kind=local fq=__local_6.sb vis=private flags=_ type=Class#40
+symbol s96 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s97 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s98 kind=local fq=__local_9.sb vis=private flags=_ type=Class#40
+symbol s99 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s100 kind=local fq=__local_11.a vis=private flags=_ type=Class#0<Int>
+symbol s101 kind=local fq=__local_12.b vis=private flags=_ type=Class#0<String>
+symbol s102 kind=local fq=__local_13.c vis=private flags=_ type=Class#11
+symbol s103 kind=local fq=__local_14.d vis=private flags=_ type=Class#13
+symbol s104 kind=local fq=__local_15.e vis=private flags=_ type=Class#7
+symbol s105 kind=local fq=__local_16.f vis=private flags=_ type=Class#9
+symbol s106 kind=local fq=__local_17.g vis=private flags=_ type=Class#3
+symbol s107 kind=local fq=__local_18.h vis=private flags=_ type=Class#1
+symbol s108 kind=local fq=__local_19.mixed vis=private flags=_ type=Class#0<Any>
+symbol s109 kind=local fq=__local_20.i vis=private flags=_ type=Class#0<Int>
+symbol s110 kind=local fq=__local_21.strings vis=private flags=_ type=Class#0<String>
+symbol s111 kind=local fq=__local_22.array vis=private flags=_ type=Class#0<out Any>
+symbol s112 kind=local fq=__local_23.array vis=private flags=_ type=Class#0<String>
+symbol s113 kind=local fq=__local_24.a vis=private flags=_ type=Class#7
+symbol s114 kind=local fq=__local_25.a vis=private flags=_ type=Class#9
+symbol s115 kind=local fq=__local_26.a vis=private flags=_ type=Class#3
+symbol s116 kind=local fq=__local_27.a vis=private flags=_ type=Class#1
+symbol s117 kind=local fq=__local_28.a vis=private flags=_ type=Class#5
+symbol s118 kind=local fq=__local_29.a vis=private flags=_ type=Class#15
 file f0 package=kotlin.text
-  decl d0 fun repeat suspend=0 inline=0 sym=s37
-  decl d1 fun reversed suspend=0 inline=0 sym=s39
-  decl d2 fun padStart suspend=0 inline=0 sym=s40
-  decl d3 fun padEnd suspend=0 inline=0 sym=s43
+  decl d0 fun repeat suspend=0 inline=0 sym=s45
+  decl d1 fun reversed suspend=0 inline=0 sym=s47
+  decl d2 fun padStart suspend=0 inline=0 sym=s48
+  decl d3 fun padEnd suspend=0 inline=0 sym=s51
+  decl d4 fun encodeToByteArray suspend=0 inline=0 sym=s54
+  decl d5 fun encodeToByteArray suspend=0 inline=0 sym=s55
+  decl d6 fun encodeToByteArray suspend=0 inline=0 sym=s58
+  decl d7 fun decodeToString suspend=0 inline=0 sym=s60
+  decl d8 fun decodeToString suspend=0 inline=0 sym=s61
+  decl d9 fun decodeToString suspend=0 inline=0 sym=s63
+  decl d10 fun decodeToString suspend=0 inline=0 sym=s66
 file f1 package=_
-  decl d4 fun arrayOfInts suspend=0 inline=0 sym=s46
-  decl d5 fun arrayOfStrings suspend=0 inline=0 sym=s47
-  decl d6 fun intArrayOfLiteral suspend=0 inline=0 sym=s48
-  decl d7 fun longArrayOfLiteral suspend=0 inline=0 sym=s49
-  decl d8 fun doubleArrayOfLiteral suspend=0 inline=0 sym=s50
-  decl d9 fun floatArrayOfLiteral suspend=0 inline=0 sym=s51
-  decl d10 fun booleanArrayOfLiteral suspend=0 inline=0 sym=s52
-  decl d11 fun charArrayOfLiteral suspend=0 inline=0 sym=s53
-  decl d12 fun arrayOfMixed suspend=0 inline=0 sym=s54
-  decl d13 fun arrayConstructorWithInit suspend=0 inline=0 sym=s55
-  decl d14 fun arrayOfWithExpectedType suspend=0 inline=0 sym=s56
-  decl d15 fun arrayConstructorExplicitTypeArgWinsOverExpectedType suspend=0 inline=0 sym=s57
-  decl d16 fun arrayConstructorExpectedType suspend=0 inline=0 sym=s58
-  decl d17 fun doubleArrayOfLiteral suspend=0 inline=0 sym=s59
-  decl d18 fun floatArrayOfLiteral suspend=0 inline=0 sym=s60
-  decl d19 fun booleanArrayOfLiteral suspend=0 inline=0 sym=s61
-  decl d20 fun charArrayOfLiteral suspend=0 inline=0 sym=s62
-  decl d21 fun shortArrayOfLiteral suspend=0 inline=0 sym=s63
-  decl d22 fun byteArrayOfLiteral suspend=0 inline=0 sym=s64
-expr e0 name(count) type=Int ref=s38
+  decl d11 fun arrayOfInts suspend=0 inline=0 sym=s70
+  decl d12 fun arrayOfStrings suspend=0 inline=0 sym=s71
+  decl d13 fun intArrayOfLiteral suspend=0 inline=0 sym=s72
+  decl d14 fun longArrayOfLiteral suspend=0 inline=0 sym=s73
+  decl d15 fun doubleArrayOfLiteral suspend=0 inline=0 sym=s74
+  decl d16 fun floatArrayOfLiteral suspend=0 inline=0 sym=s75
+  decl d17 fun booleanArrayOfLiteral suspend=0 inline=0 sym=s76
+  decl d18 fun charArrayOfLiteral suspend=0 inline=0 sym=s77
+  decl d19 fun arrayOfMixed suspend=0 inline=0 sym=s78
+  decl d20 fun arrayConstructorWithInit suspend=0 inline=0 sym=s79
+  decl d21 fun arrayOfWithExpectedType suspend=0 inline=0 sym=s80
+  decl d22 fun arrayConstructorExplicitTypeArgWinsOverExpectedType suspend=0 inline=0 sym=s81
+  decl d23 fun arrayConstructorExpectedType suspend=0 inline=0 sym=s82
+  decl d24 fun doubleArrayOfLiteral suspend=0 inline=0 sym=s83
+  decl d25 fun floatArrayOfLiteral suspend=0 inline=0 sym=s84
+  decl d26 fun booleanArrayOfLiteral suspend=0 inline=0 sym=s85
+  decl d27 fun charArrayOfLiteral suspend=0 inline=0 sym=s86
+  decl d28 fun shortArrayOfLiteral suspend=0 inline=0 sym=s87
+  decl d29 fun byteArrayOfLiteral suspend=0 inline=0 sym=s88
+expr e0 name(count) type=Int ref=s46
 expr e1 int(0) type=Int
 expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
 expr e3 name(IllegalArgumentException) type=_
-expr e4 name(count) type=Int ref=s38
+expr e4 name(count) type=Int ref=s46
 expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
-expr e6 call callee=e3 args=[_:e5] type=Class#30 call=s31 map=[0->0] targs=[]
+expr e6 call callee=e3 args=[_:e5] type=Class#38 call=s39 map=[0->0] targs=[]
 expr e7 throw value=e6 type=Nothing
 expr e8 if cond=e2 then=e7 else=_ type=Unit
-expr e9 name(StringBuilder) type=Any ref=s32
-expr e10 call callee=e9 args=[] type=Class#32
-expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s65
+expr e9 name(StringBuilder) type=Any ref=s40
+expr e10 call callee=e9 args=[] type=Class#40
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s89
 expr e12 int(0) type=Int
-expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s66
-expr e14 name(i) type=Int ref=s66
-expr e15 name(count) type=Int ref=s38
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s90
+expr e14 name(i) type=Int ref=s90
+expr e15 name(count) type=Int ref=s46
 expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
-expr e17 name(sb) type=Class#32 ref=s65
+expr e17 name(sb) type=Class#40 ref=s89
 expr e18 this type=String
-expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#32 call=s33 map=[0->0] targs=[]
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#40 call=s41 map=[0->0] targs=[]
 expr e20 name(i) type=_
 expr e21 int(1) type=Int
-expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s66
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s90
 expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
 expr e24 while cond=e16 body=e23 type=Unit
-expr e25 name(sb) type=Class#32 ref=s65
-expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s35 map=[] targs=[]
+expr e25 name(sb) type=Class#40 ref=s89
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s43 map=[] targs=[]
 expr e27 return value=e26 type=Nothing
 expr e28 this type=String
 expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s28 map=[] targs=[]
-expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s67
-expr e31 name(StringBuilder) type=Any ref=s32
-expr e32 call callee=e31 args=[] type=Class#32
-expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s68
-expr e34 name(len) type=Int ref=s67
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s91
+expr e31 name(StringBuilder) type=Any ref=s40
+expr e32 call callee=e31 args=[] type=Class#40
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s92
+expr e34 name(len) type=Int ref=s91
 expr e35 int(1) type=Int
 expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
-expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s69
-expr e38 name(i) type=Int ref=s69
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s93
+expr e38 name(i) type=Int ref=s93
 expr e39 int(0) type=Int
 expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
-expr e41 name(sb) type=Class#32 ref=s68
+expr e41 name(sb) type=Class#40 ref=s92
 expr e42 this type=String
-expr e43 name(i) type=Int ref=s69
+expr e43 name(i) type=Int ref=s93
 expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s29 map=[0->0] targs=[]
-expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#32 call=s34 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#40 call=s42 map=[0->0] targs=[]
 expr e46 name(i) type=_
 expr e47 int(1) type=Int
-expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s69
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s93
 expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
 expr e50 while cond=e40 body=e49 type=Unit
-expr e51 name(sb) type=Class#32 ref=s68
-expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s35 map=[] targs=[]
+expr e51 name(sb) type=Class#40 ref=s92
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s43 map=[] targs=[]
 expr e53 return value=e52 type=Nothing
 expr e54 char(32) type=_
-expr e55 name(length) type=Int ref=s41
+expr e55 name(length) type=Int ref=s49
 expr e56 this type=String
 expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s28 map=[] targs=[]
 expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
-expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s70
-expr e60 name(padding) type=Int ref=s70
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s94
+expr e60 name(padding) type=Int ref=s94
 expr e61 int(0) type=Int
 expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
 expr e63 this type=String
 expr e64 return value=e63 type=Nothing
 expr e65 if cond=e62 then=e64 else=_ type=Unit
-expr e66 name(StringBuilder) type=Any ref=s32
-expr e67 call callee=e66 args=[] type=Class#32
-expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s71
+expr e66 name(StringBuilder) type=Any ref=s40
+expr e67 call callee=e66 args=[] type=Class#40
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s95
 expr e69 int(0) type=Int
-expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s72
-expr e71 name(i) type=Int ref=s72
-expr e72 name(padding) type=Int ref=s70
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s96
+expr e71 name(i) type=Int ref=s96
+expr e72 name(padding) type=Int ref=s94
 expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
-expr e74 name(sb) type=Class#32 ref=s71
-expr e75 name(padChar) type=Char ref=s42
-expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#32 call=s34 map=[0->0] targs=[]
+expr e74 name(sb) type=Class#40 ref=s95
+expr e75 name(padChar) type=Char ref=s50
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#40 call=s42 map=[0->0] targs=[]
 expr e77 name(i) type=_
 expr e78 int(1) type=Int
-expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s72
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s96
 expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
 expr e81 while cond=e73 body=e80 type=Unit
-expr e82 name(sb) type=Class#32 ref=s71
+expr e82 name(sb) type=Class#40 ref=s95
 expr e83 this type=String
-expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#32 call=s33 map=[0->0] targs=[]
-expr e85 name(sb) type=Class#32 ref=s71
-expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s35 map=[] targs=[]
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#40 call=s41 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#40 ref=s95
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s43 map=[] targs=[]
 expr e87 return value=e86 type=Nothing
 expr e88 char(32) type=_
-expr e89 name(length) type=Int ref=s44
+expr e89 name(length) type=Int ref=s52
 expr e90 this type=String
 expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s28 map=[] targs=[]
 expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
-expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s73
-expr e94 name(padding) type=Int ref=s73
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s97
+expr e94 name(padding) type=Int ref=s97
 expr e95 int(0) type=Int
 expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
 expr e97 this type=String
 expr e98 return value=e97 type=Nothing
 expr e99 if cond=e96 then=e98 else=_ type=Unit
-expr e100 name(StringBuilder) type=Any ref=s32
-expr e101 call callee=e100 args=[] type=Class#32
-expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s74
-expr e103 name(sb) type=Class#32 ref=s74
+expr e100 name(StringBuilder) type=Any ref=s40
+expr e101 call callee=e100 args=[] type=Class#40
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s98
+expr e103 name(sb) type=Class#40 ref=s98
 expr e104 this type=String
-expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#32 call=s33 map=[0->0] targs=[]
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#40 call=s41 map=[0->0] targs=[]
 expr e106 int(0) type=Int
-expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s75
-expr e108 name(i) type=Int ref=s75
-expr e109 name(padding) type=Int ref=s73
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s99
+expr e108 name(i) type=Int ref=s99
+expr e109 name(padding) type=Int ref=s97
 expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
-expr e111 name(sb) type=Class#32 ref=s74
-expr e112 name(padChar) type=Char ref=s45
-expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#32 call=s34 map=[0->0] targs=[]
+expr e111 name(sb) type=Class#40 ref=s98
+expr e112 name(padChar) type=Char ref=s53
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#40 call=s42 map=[0->0] targs=[]
 expr e114 name(i) type=_
 expr e115 int(1) type=Int
-expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s75
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s99
 expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
 expr e118 while cond=e110 body=e117 type=Unit
-expr e119 name(sb) type=Class#32 ref=s74
-expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s35 map=[] targs=[]
+expr e119 name(sb) type=Class#40 ref=s98
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s43 map=[] targs=[]
 expr e121 return value=e120 type=Nothing
-expr e122 name(arrayOf) type=_
-expr e123 int(1) type=Int
-expr e124 int(2) type=Int
-expr e125 int(3) type=Int
-expr e126 call callee=e122 args=[_:e123,_:e124,_:e125] type=Class#0<Int> call=s18 map=[0->0,1->0,2->0] targs=[Int]
-expr e127 localDecl a mutable=0 type=_ init=e126 type=Unit ref=s76
-expr e128 name(println) type=_
-expr e129 name(a) type=Class#0<Int> ref=s76
-expr e130 memberCall recv=e129 callee=size args=[] type=Int ref=s17
-expr e131 call callee=e128 args=[_:e130] type=Unit call=s36 map=[0->0] targs=[]
-expr e132 name(arrayOf) type=_
-expr e133 string(hello) type=String
-expr e134 string(world) type=String
-expr e135 call callee=e132 args=[_:e133,_:e134] type=Class#0<String> call=s18 map=[0->0,1->0] targs=[String]
-expr e136 localDecl b mutable=0 type=_ init=e135 type=Unit ref=s77
-expr e137 name(println) type=_
-expr e138 name(b) type=Class#0<String> ref=s77
-expr e139 memberCall recv=e138 callee=size args=[] type=Int ref=s17
-expr e140 call callee=e137 args=[_:e139] type=Unit call=s36 map=[0->0] targs=[]
-expr e141 name(intArrayOf) type=_
-expr e142 int(10) type=Int
-expr e143 int(20) type=Int
-expr e144 int(30) type=Int
-expr e145 call callee=e141 args=[_:e142,_:e143,_:e144] type=Class#11 call=s20 map=[0->0,1->0,2->0] targs=[]
-expr e146 localDecl c mutable=0 type=_ init=e145 type=Unit ref=s78
-expr e147 name(println) type=_
-expr e148 name(c) type=Class#11 ref=s78
-expr e149 memberCall recv=e148 callee=size args=[] type=Int ref=s12
-expr e150 call callee=e147 args=[_:e149] type=Unit call=s36 map=[0->0] targs=[]
-expr e151 name(longArrayOf) type=_
-expr e152 long(1) type=Long
-expr e153 long(2) type=Long
-expr e154 long(3) type=Long
-expr e155 call callee=e151 args=[_:e152,_:e153,_:e154] type=Class#13 call=s21 map=[0->0,1->0,2->0] targs=[]
-expr e156 localDecl d mutable=0 type=_ init=e155 type=Unit ref=s79
-expr e157 name(println) type=_
-expr e158 name(d) type=Class#13 ref=s79
-expr e159 memberCall recv=e158 callee=size args=[] type=Int ref=s14
-expr e160 call callee=e157 args=[_:e159] type=Unit call=s36 map=[0->0] targs=[]
-expr e161 name(doubleArrayOf) type=_
-expr e162 double(1.5) type=Double
-expr e163 double(2.5) type=Double
-expr e164 double(3.5) type=Double
-expr e165 call callee=e161 args=[_:e162,_:e163,_:e164] type=Class#7 call=s22 map=[0->0,1->0,2->0] targs=[]
-expr e166 localDecl e mutable=0 type=_ init=e165 type=Unit ref=s80
-expr e167 name(println) type=_
-expr e168 name(e) type=Class#7 ref=s80
-expr e169 memberCall recv=e168 callee=size args=[] type=Int ref=s8
-expr e170 call callee=e167 args=[_:e169] type=Unit call=s36 map=[0->0] targs=[]
-expr e171 name(floatArrayOf) type=_
-expr e172 float(1.5) type=Float
-expr e173 float(2.5) type=Float
-expr e174 float(3.5) type=Float
-expr e175 call callee=e171 args=[_:e172,_:e173,_:e174] type=Class#9 call=s23 map=[0->0,1->0,2->0] targs=[]
-expr e176 localDecl f mutable=0 type=_ init=e175 type=Unit ref=s81
-expr e177 name(println) type=_
-expr e178 name(f) type=Class#9 ref=s81
-expr e179 memberCall recv=e178 callee=size args=[] type=Int ref=s10
-expr e180 call callee=e177 args=[_:e179] type=Unit call=s36 map=[0->0] targs=[]
-expr e181 name(booleanArrayOf) type=_
-expr e182 bool(true) type=Boolean
-expr e183 bool(false) type=Boolean
-expr e184 bool(true) type=Boolean
-expr e185 call callee=e181 args=[_:e182,_:e183,_:e184] type=Class#3 call=s24 map=[0->0,1->0,2->0] targs=[]
-expr e186 localDecl g mutable=0 type=_ init=e185 type=Unit ref=s82
-expr e187 name(println) type=_
-expr e188 name(g) type=Class#3 ref=s82
-expr e189 memberCall recv=e188 callee=size args=[] type=Int ref=s4
-expr e190 call callee=e187 args=[_:e189] type=Unit call=s36 map=[0->0] targs=[]
-expr e191 name(charArrayOf) type=_
-expr e192 char(97) type=Char
-expr e193 char(98) type=Char
-expr e194 char(99) type=Char
-expr e195 call callee=e191 args=[_:e192,_:e193,_:e194] type=Class#1 call=s25 map=[0->0,1->0,2->0] targs=[]
-expr e196 localDecl h mutable=0 type=_ init=e195 type=Unit ref=s83
-expr e197 name(println) type=_
-expr e198 name(h) type=Class#1 ref=s83
-expr e199 memberCall recv=e198 callee=size args=[] type=Int ref=s2
-expr e200 call callee=e197 args=[_:e199] type=Unit call=s36 map=[0->0] targs=[]
-expr e201 name(arrayOf) type=_
-expr e202 int(1) type=Int
-expr e203 string(two) type=String
-expr e204 double(3.0) type=Double
-expr e205 call callee=e201 args=[_:e202,_:e203,_:e204] type=Class#0<Any> call=s18 map=[0->0,1->0,2->0] targs=[Any]
-expr e206 localDecl mixed mutable=0 type=_ init=e205 type=Unit ref=s84
-expr e207 name(println) type=_
-expr e208 name(mixed) type=Class#0<Any> ref=s84
-expr e209 memberCall recv=e208 callee=size args=[] type=Int ref=s17
-expr e210 call callee=e207 args=[_:e209] type=Unit call=s36 map=[0->0] targs=[]
-expr e211 name(Array) type=_
-expr e212 int(5) type=Int
-expr e213 name(it) type=_
-expr e214 int(2) type=_
-expr e215 binary(multiply) lhs=e213 rhs=e214 type=_
-expr e216 name(it) type=Int ref=s-0
-expr e217 int(2) type=Int
-expr e218 binary(multiply) lhs=e216 rhs=e217 type=Int
-expr e219 lambda params=[] body=e218 label=Array type=(Int) -> Int
-expr e220 call callee=e211 args=[_:e212,_:e219] type=Class#0<Int>
-expr e221 localDecl i mutable=0 type=_ init=e220 type=Unit ref=s85
-expr e222 name(println) type=_
-expr e223 name(i) type=Class#0<Int> ref=s85
-expr e224 memberCall recv=e223 callee=size args=[] type=Int ref=s17
-expr e225 call callee=e222 args=[_:e224] type=Unit call=s36 map=[0->0] targs=[]
-expr e226 name(arrayOf) type=_
-expr e227 call callee=e226 args=[] type=Class#0<String> call=s18 map=[] targs=[String]
-expr e228 localDecl strings mutable=0 type=t17 init=e227 type=Unit ref=s86
-expr e229 name(println) type=_
-expr e230 name(strings) type=Class#0<String> ref=s86
-expr e231 memberCall recv=e230 callee=size args=[] type=Int ref=s17
-expr e232 call callee=e229 args=[_:e231] type=Unit call=s36 map=[0->0] targs=[]
-expr e233 name(Array) type=_
-expr e234 int(3) type=Int
-expr e235 name(it) type=_
+expr e122 this type=String
+expr e123 memberCall recv=e122 callee=__kk_encodeToByteArray args=[] type=Class#15 call=s31 map=[] targs=[]
+expr e124 this type=String
+expr e125 name(startIndex) type=Int ref=s56
+expr e126 name(endIndex) type=Int ref=s57
+expr e127 memberCall recv=e124 callee=__kk_encodeToByteArray_range args=[_:e125,_:e126] type=Class#15 call=s32 map=[0->0,1->1] targs=[]
+expr e128 this type=String
+expr e129 name(charset) type=Class#30 ref=s59
+expr e130 memberCall recv=e128 callee=__kk_encodeToByteArray_charset args=[_:e129] type=Class#15 call=s33 map=[0->0] targs=[]
+expr e131 this type=Class#15
+expr e132 memberCall recv=e131 callee=__kk_decodeToString args=[] type=String call=s34 map=[] targs=[]
+expr e133 this type=Class#15
+expr e134 name(charset) type=Class#30 ref=s62
+expr e135 memberCall recv=e133 callee=__kk_decodeToString_charset args=[_:e134] type=String call=s35 map=[0->0] targs=[]
+expr e136 this type=Class#15
+expr e137 name(startIndex) type=Int ref=s64
+expr e138 name(endIndex) type=Int ref=s65
+expr e139 memberCall recv=e136 callee=__kk_decodeToString_range args=[_:e137,_:e138] type=String call=s36 map=[0->0,1->1] targs=[]
+expr e140 this type=Class#15
+expr e141 name(startIndex) type=Int ref=s67
+expr e142 name(endIndex) type=Int ref=s68
+expr e143 name(throwOnInvalidSequence) type=Boolean ref=s69
+expr e144 memberCall recv=e140 callee=__kk_decodeToString_range_throw args=[_:e141,_:e142,_:e143] type=String call=s37 map=[0->0,1->1,2->2] targs=[]
+expr e145 name(arrayOf) type=_
+expr e146 int(1) type=Int
+expr e147 int(2) type=Int
+expr e148 int(3) type=Int
+expr e149 call callee=e145 args=[_:e146,_:e147,_:e148] type=Class#0<Int> call=s18 map=[0->0,1->0,2->0] targs=[Int]
+expr e150 localDecl a mutable=0 type=_ init=e149 type=Unit ref=s100
+expr e151 name(println) type=_
+expr e152 name(a) type=Class#0<Int> ref=s100
+expr e153 memberCall recv=e152 callee=size args=[] type=Int ref=s17
+expr e154 call callee=e151 args=[_:e153] type=Unit call=s44 map=[0->0] targs=[]
+expr e155 name(arrayOf) type=_
+expr e156 string(hello) type=String
+expr e157 string(world) type=String
+expr e158 call callee=e155 args=[_:e156,_:e157] type=Class#0<String> call=s18 map=[0->0,1->0] targs=[String]
+expr e159 localDecl b mutable=0 type=_ init=e158 type=Unit ref=s101
+expr e160 name(println) type=_
+expr e161 name(b) type=Class#0<String> ref=s101
+expr e162 memberCall recv=e161 callee=size args=[] type=Int ref=s17
+expr e163 call callee=e160 args=[_:e162] type=Unit call=s44 map=[0->0] targs=[]
+expr e164 name(intArrayOf) type=_
+expr e165 int(10) type=Int
+expr e166 int(20) type=Int
+expr e167 int(30) type=Int
+expr e168 call callee=e164 args=[_:e165,_:e166,_:e167] type=Class#11 call=s20 map=[0->0,1->0,2->0] targs=[]
+expr e169 localDecl c mutable=0 type=_ init=e168 type=Unit ref=s102
+expr e170 name(println) type=_
+expr e171 name(c) type=Class#11 ref=s102
+expr e172 memberCall recv=e171 callee=size args=[] type=Int ref=s12
+expr e173 call callee=e170 args=[_:e172] type=Unit call=s44 map=[0->0] targs=[]
+expr e174 name(longArrayOf) type=_
+expr e175 long(1) type=Long
+expr e176 long(2) type=Long
+expr e177 long(3) type=Long
+expr e178 call callee=e174 args=[_:e175,_:e176,_:e177] type=Class#13 call=s21 map=[0->0,1->0,2->0] targs=[]
+expr e179 localDecl d mutable=0 type=_ init=e178 type=Unit ref=s103
+expr e180 name(println) type=_
+expr e181 name(d) type=Class#13 ref=s103
+expr e182 memberCall recv=e181 callee=size args=[] type=Int ref=s14
+expr e183 call callee=e180 args=[_:e182] type=Unit call=s44 map=[0->0] targs=[]
+expr e184 name(doubleArrayOf) type=_
+expr e185 double(1.5) type=Double
+expr e186 double(2.5) type=Double
+expr e187 double(3.5) type=Double
+expr e188 call callee=e184 args=[_:e185,_:e186,_:e187] type=Class#7 call=s22 map=[0->0,1->0,2->0] targs=[]
+expr e189 localDecl e mutable=0 type=_ init=e188 type=Unit ref=s104
+expr e190 name(println) type=_
+expr e191 name(e) type=Class#7 ref=s104
+expr e192 memberCall recv=e191 callee=size args=[] type=Int ref=s8
+expr e193 call callee=e190 args=[_:e192] type=Unit call=s44 map=[0->0] targs=[]
+expr e194 name(floatArrayOf) type=_
+expr e195 float(1.5) type=Float
+expr e196 float(2.5) type=Float
+expr e197 float(3.5) type=Float
+expr e198 call callee=e194 args=[_:e195,_:e196,_:e197] type=Class#9 call=s23 map=[0->0,1->0,2->0] targs=[]
+expr e199 localDecl f mutable=0 type=_ init=e198 type=Unit ref=s105
+expr e200 name(println) type=_
+expr e201 name(f) type=Class#9 ref=s105
+expr e202 memberCall recv=e201 callee=size args=[] type=Int ref=s10
+expr e203 call callee=e200 args=[_:e202] type=Unit call=s44 map=[0->0] targs=[]
+expr e204 name(booleanArrayOf) type=_
+expr e205 bool(true) type=Boolean
+expr e206 bool(false) type=Boolean
+expr e207 bool(true) type=Boolean
+expr e208 call callee=e204 args=[_:e205,_:e206,_:e207] type=Class#3 call=s24 map=[0->0,1->0,2->0] targs=[]
+expr e209 localDecl g mutable=0 type=_ init=e208 type=Unit ref=s106
+expr e210 name(println) type=_
+expr e211 name(g) type=Class#3 ref=s106
+expr e212 memberCall recv=e211 callee=size args=[] type=Int ref=s4
+expr e213 call callee=e210 args=[_:e212] type=Unit call=s44 map=[0->0] targs=[]
+expr e214 name(charArrayOf) type=_
+expr e215 char(97) type=Char
+expr e216 char(98) type=Char
+expr e217 char(99) type=Char
+expr e218 call callee=e214 args=[_:e215,_:e216,_:e217] type=Class#1 call=s25 map=[0->0,1->0,2->0] targs=[]
+expr e219 localDecl h mutable=0 type=_ init=e218 type=Unit ref=s107
+expr e220 name(println) type=_
+expr e221 name(h) type=Class#1 ref=s107
+expr e222 memberCall recv=e221 callee=size args=[] type=Int ref=s2
+expr e223 call callee=e220 args=[_:e222] type=Unit call=s44 map=[0->0] targs=[]
+expr e224 name(arrayOf) type=_
+expr e225 int(1) type=Int
+expr e226 string(two) type=String
+expr e227 double(3.0) type=Double
+expr e228 call callee=e224 args=[_:e225,_:e226,_:e227] type=Class#0<Any> call=s18 map=[0->0,1->0,2->0] targs=[Any]
+expr e229 localDecl mixed mutable=0 type=_ init=e228 type=Unit ref=s108
+expr e230 name(println) type=_
+expr e231 name(mixed) type=Class#0<Any> ref=s108
+expr e232 memberCall recv=e231 callee=size args=[] type=Int ref=s17
+expr e233 call callee=e230 args=[_:e232] type=Unit call=s44 map=[0->0] targs=[]
+expr e234 name(Array) type=_
+expr e235 int(5) type=Int
 expr e236 name(it) type=_
-expr e237 lambda params=[] body=e236 label=Array type=_
-expr e238 call callee=e233 args=[_:e234,_:e237] type=Class#0<Int>
-expr e239 localDecl array mutable=0 type=t19 init=e238 type=Unit ref=s87
-expr e240 name(println) type=_
-expr e241 name(array) type=Class#0<out Any> ref=s87
-expr e242 memberCall recv=e241 callee=size args=[] type=Int ref=s17
-expr e243 call callee=e240 args=[_:e242] type=Unit call=s36 map=[0->0] targs=[]
-expr e244 name(Array) type=_
-expr e245 int(3) type=Int
-expr e246 string(x) type=_
-expr e247 string(x) type=_
-expr e248 lambda params=[] body=e247 label=Array type=_
-expr e249 call callee=e244 args=[_:e245,_:e248] type=Class#0<String>
-expr e250 localDecl array mutable=0 type=t22 init=e249 type=Unit ref=s88
-expr e251 name(println) type=_
-expr e252 name(array) type=Class#0<String> ref=s88
-expr e253 memberCall recv=e252 callee=size args=[] type=Int ref=s17
-expr e254 call callee=e251 args=[_:e253] type=Unit call=s36 map=[0->0] targs=[]
-expr e255 name(doubleArrayOf) type=_
-expr e256 double(1.0) type=Double
-expr e257 double(2.0) type=Double
-expr e258 double(3.0) type=Double
-expr e259 call callee=e255 args=[_:e256,_:e257,_:e258] type=Class#7 call=s22 map=[0->0,1->0,2->0] targs=[]
-expr e260 localDecl a mutable=0 type=_ init=e259 type=Unit ref=s89
-expr e261 name(println) type=_
-expr e262 name(a) type=Class#7 ref=s89
-expr e263 memberCall recv=e262 callee=size args=[] type=Int ref=s8
-expr e264 call callee=e261 args=[_:e263] type=Unit call=s36 map=[0->0] targs=[]
-expr e265 name(floatArrayOf) type=_
-expr e266 float(0.5) type=Float
-expr e267 float(1.5) type=Float
-expr e268 call callee=e265 args=[_:e266,_:e267] type=Class#9 call=s23 map=[0->0,1->0] targs=[]
-expr e269 localDecl a mutable=0 type=_ init=e268 type=Unit ref=s90
-expr e270 name(println) type=_
-expr e271 name(a) type=Class#9 ref=s90
-expr e272 memberCall recv=e271 callee=size args=[] type=Int ref=s10
-expr e273 call callee=e270 args=[_:e272] type=Unit call=s36 map=[0->0] targs=[]
-expr e274 name(booleanArrayOf) type=_
-expr e275 bool(true) type=Boolean
-expr e276 bool(false) type=Boolean
-expr e277 call callee=e274 args=[_:e275,_:e276] type=Class#3 call=s24 map=[0->0,1->0] targs=[]
-expr e278 localDecl a mutable=0 type=_ init=e277 type=Unit ref=s91
-expr e279 name(println) type=_
-expr e280 name(a) type=Class#3 ref=s91
-expr e281 memberCall recv=e280 callee=size args=[] type=Int ref=s4
-expr e282 call callee=e279 args=[_:e281] type=Unit call=s36 map=[0->0] targs=[]
-expr e283 name(charArrayOf) type=_
-expr e284 char(97) type=Char
-expr e285 char(98) type=Char
-expr e286 call callee=e283 args=[_:e284,_:e285] type=Class#1 call=s25 map=[0->0,1->0] targs=[]
-expr e287 localDecl a mutable=0 type=_ init=e286 type=Unit ref=s92
-expr e288 name(println) type=_
-expr e289 name(a) type=Class#1 ref=s92
-expr e290 memberCall recv=e289 callee=size args=[] type=Int ref=s2
-expr e291 call callee=e288 args=[_:e290] type=Unit call=s36 map=[0->0] targs=[]
-expr e292 name(shortArrayOf) type=_
-expr e293 int(1) type=Int
-expr e294 memberCall recv=e293 callee=toShort args=[] type=Int
-expr e295 int(2) type=Int
-expr e296 memberCall recv=e295 callee=toShort args=[] type=Int
-expr e297 call callee=e292 args=[_:e294,_:e296] type=Class#5 call=s27 map=[0->0,1->0] targs=[]
-expr e298 localDecl a mutable=0 type=_ init=e297 type=Unit ref=s93
-expr e299 name(println) type=_
-expr e300 name(a) type=Class#5 ref=s93
-expr e301 memberCall recv=e300 callee=size args=[] type=Int ref=s6
-expr e302 call callee=e299 args=[_:e301] type=Unit call=s36 map=[0->0] targs=[]
-expr e303 name(byteArrayOf) type=_
-expr e304 int(1) type=Int
-expr e305 memberCall recv=e304 callee=toByte args=[] type=Int
-expr e306 int(2) type=Int
-expr e307 memberCall recv=e306 callee=toByte args=[] type=Int
-expr e308 call callee=e303 args=[_:e305,_:e307] type=Class#15 call=s26 map=[0->0,1->0] targs=[]
-expr e309 localDecl a mutable=0 type=_ init=e308 type=Unit ref=s94
-expr e310 name(println) type=_
-expr e311 name(a) type=Class#15 ref=s94
-expr e312 memberCall recv=e311 callee=size args=[] type=Int ref=s16
-expr e313 call callee=e310 args=[_:e312] type=Unit call=s36 map=[0->0] targs=[]
+expr e237 int(2) type=_
+expr e238 binary(multiply) lhs=e236 rhs=e237 type=_
+expr e239 name(it) type=Int ref=s-0
+expr e240 int(2) type=Int
+expr e241 binary(multiply) lhs=e239 rhs=e240 type=Int
+expr e242 lambda params=[] body=e241 label=Array type=(Int) -> Int
+expr e243 call callee=e234 args=[_:e235,_:e242] type=Class#0<Int>
+expr e244 localDecl i mutable=0 type=_ init=e243 type=Unit ref=s109
+expr e245 name(println) type=_
+expr e246 name(i) type=Class#0<Int> ref=s109
+expr e247 memberCall recv=e246 callee=size args=[] type=Int ref=s17
+expr e248 call callee=e245 args=[_:e247] type=Unit call=s44 map=[0->0] targs=[]
+expr e249 name(arrayOf) type=_
+expr e250 call callee=e249 args=[] type=Class#0<String> call=s18 map=[] targs=[String]
+expr e251 localDecl strings mutable=0 type=t40 init=e250 type=Unit ref=s110
+expr e252 name(println) type=_
+expr e253 name(strings) type=Class#0<String> ref=s110
+expr e254 memberCall recv=e253 callee=size args=[] type=Int ref=s17
+expr e255 call callee=e252 args=[_:e254] type=Unit call=s44 map=[0->0] targs=[]
+expr e256 name(Array) type=_
+expr e257 int(3) type=Int
+expr e258 name(it) type=_
+expr e259 name(it) type=_
+expr e260 lambda params=[] body=e259 label=Array type=_
+expr e261 call callee=e256 args=[_:e257,_:e260] type=Class#0<Int>
+expr e262 localDecl array mutable=0 type=t42 init=e261 type=Unit ref=s111
+expr e263 name(println) type=_
+expr e264 name(array) type=Class#0<out Any> ref=s111
+expr e265 memberCall recv=e264 callee=size args=[] type=Int ref=s17
+expr e266 call callee=e263 args=[_:e265] type=Unit call=s44 map=[0->0] targs=[]
+expr e267 name(Array) type=_
+expr e268 int(3) type=Int
+expr e269 string(x) type=_
+expr e270 string(x) type=_
+expr e271 lambda params=[] body=e270 label=Array type=_
+expr e272 call callee=e267 args=[_:e268,_:e271] type=Class#0<String>
+expr e273 localDecl array mutable=0 type=t45 init=e272 type=Unit ref=s112
+expr e274 name(println) type=_
+expr e275 name(array) type=Class#0<String> ref=s112
+expr e276 memberCall recv=e275 callee=size args=[] type=Int ref=s17
+expr e277 call callee=e274 args=[_:e276] type=Unit call=s44 map=[0->0] targs=[]
+expr e278 name(doubleArrayOf) type=_
+expr e279 double(1.0) type=Double
+expr e280 double(2.0) type=Double
+expr e281 double(3.0) type=Double
+expr e282 call callee=e278 args=[_:e279,_:e280,_:e281] type=Class#7 call=s22 map=[0->0,1->0,2->0] targs=[]
+expr e283 localDecl a mutable=0 type=_ init=e282 type=Unit ref=s113
+expr e284 name(println) type=_
+expr e285 name(a) type=Class#7 ref=s113
+expr e286 memberCall recv=e285 callee=size args=[] type=Int ref=s8
+expr e287 call callee=e284 args=[_:e286] type=Unit call=s44 map=[0->0] targs=[]
+expr e288 name(floatArrayOf) type=_
+expr e289 float(0.5) type=Float
+expr e290 float(1.5) type=Float
+expr e291 call callee=e288 args=[_:e289,_:e290] type=Class#9 call=s23 map=[0->0,1->0] targs=[]
+expr e292 localDecl a mutable=0 type=_ init=e291 type=Unit ref=s114
+expr e293 name(println) type=_
+expr e294 name(a) type=Class#9 ref=s114
+expr e295 memberCall recv=e294 callee=size args=[] type=Int ref=s10
+expr e296 call callee=e293 args=[_:e295] type=Unit call=s44 map=[0->0] targs=[]
+expr e297 name(booleanArrayOf) type=_
+expr e298 bool(true) type=Boolean
+expr e299 bool(false) type=Boolean
+expr e300 call callee=e297 args=[_:e298,_:e299] type=Class#3 call=s24 map=[0->0,1->0] targs=[]
+expr e301 localDecl a mutable=0 type=_ init=e300 type=Unit ref=s115
+expr e302 name(println) type=_
+expr e303 name(a) type=Class#3 ref=s115
+expr e304 memberCall recv=e303 callee=size args=[] type=Int ref=s4
+expr e305 call callee=e302 args=[_:e304] type=Unit call=s44 map=[0->0] targs=[]
+expr e306 name(charArrayOf) type=_
+expr e307 char(97) type=Char
+expr e308 char(98) type=Char
+expr e309 call callee=e306 args=[_:e307,_:e308] type=Class#1 call=s25 map=[0->0,1->0] targs=[]
+expr e310 localDecl a mutable=0 type=_ init=e309 type=Unit ref=s116
+expr e311 name(println) type=_
+expr e312 name(a) type=Class#1 ref=s116
+expr e313 memberCall recv=e312 callee=size args=[] type=Int ref=s2
+expr e314 call callee=e311 args=[_:e313] type=Unit call=s44 map=[0->0] targs=[]
+expr e315 name(shortArrayOf) type=_
+expr e316 int(1) type=Int
+expr e317 memberCall recv=e316 callee=toShort args=[] type=Int
+expr e318 int(2) type=Int
+expr e319 memberCall recv=e318 callee=toShort args=[] type=Int
+expr e320 call callee=e315 args=[_:e317,_:e319] type=Class#5 call=s27 map=[0->0,1->0] targs=[]
+expr e321 localDecl a mutable=0 type=_ init=e320 type=Unit ref=s117
+expr e322 name(println) type=_
+expr e323 name(a) type=Class#5 ref=s117
+expr e324 memberCall recv=e323 callee=size args=[] type=Int ref=s6
+expr e325 call callee=e322 args=[_:e324] type=Unit call=s44 map=[0->0] targs=[]
+expr e326 name(byteArrayOf) type=_
+expr e327 int(1) type=Int
+expr e328 memberCall recv=e327 callee=toByte args=[] type=Int
+expr e329 int(2) type=Int
+expr e330 memberCall recv=e329 callee=toByte args=[] type=Int
+expr e331 call callee=e326 args=[_:e328,_:e330] type=Class#15 call=s26 map=[0->0,1->0] targs=[]
+expr e332 localDecl a mutable=0 type=_ init=e331 type=Unit ref=s118
+expr e333 name(println) type=_
+expr e334 name(a) type=Class#15 ref=s118
+expr e335 memberCall recv=e334 callee=size args=[] type=Int ref=s16
+expr e336 call callee=e333 args=[_:e335] type=Unit call=s44 map=[0->0] targs=[]

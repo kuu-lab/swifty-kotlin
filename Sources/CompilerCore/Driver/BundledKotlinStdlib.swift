@@ -42,5 +42,28 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     while (i < padding) { sb.append(padChar); i += 1 }
     return sb.toString()
 }
+
+// MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
+
+fun String.encodeToByteArray(): ByteArray = this.__kk_encodeToByteArray()
+
+fun String.encodeToByteArray(startIndex: Int, endIndex: Int): ByteArray =
+    this.__kk_encodeToByteArray_range(startIndex, endIndex)
+
+fun String.encodeToByteArray(charset: Charset): ByteArray =
+    this.__kk_encodeToByteArray_charset(charset)
+
+// MIGRATION-TEXT-007: ByteArray.decodeToString — delegate to private C-bridge primitives
+
+fun ByteArray.decodeToString(): String = this.__kk_decodeToString()
+
+fun ByteArray.decodeToString(charset: Charset): String =
+    this.__kk_decodeToString_charset(charset)
+
+fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
+    this.__kk_decodeToString_range(startIndex, endIndex)
+
+fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSequence: Boolean): String =
+    this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
 """
 }
