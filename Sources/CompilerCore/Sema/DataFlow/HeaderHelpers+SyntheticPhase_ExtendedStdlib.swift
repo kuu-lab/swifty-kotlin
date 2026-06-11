@@ -52,7 +52,6 @@ extension DataFlowSemaPhase {
         registerSyntheticCoroutineCancellationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineIntrinsicsStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsQualifierStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsRegExpStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsRegExpMatchStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsDynamicStubs(symbols: symbols, interner: interner)
