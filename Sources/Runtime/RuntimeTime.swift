@@ -156,16 +156,6 @@ public func kk_instant_to_java_instant(_ instantRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_java_instant_to_kotlin_instant")
-public func kk_java_instant_to_kotlin_instant(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeJavaInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_instant_to_kotlin_instant received invalid java.time.Instant handle")
-    }
-    return registerRuntimeObject(
-        RuntimeInstantBox(epochSeconds: instant.epochSeconds, nanoOfSecond: instant.nanoOfSecond)
-    )
-}
-
 @_cdecl("kk_duration_to_java_duration")
 public func kk_duration_to_java_duration(_ durationRaw: Int) -> Int {
     guard let duration = runtimeKotlinDurationBox(from: durationRaw) else {

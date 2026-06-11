@@ -735,14 +735,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_java_instant_to_kotlin_instant",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_instant_to_js_date",
             parameters: [
                 RuntimeABIParameter(name: "instantRaw", type: .intptr),

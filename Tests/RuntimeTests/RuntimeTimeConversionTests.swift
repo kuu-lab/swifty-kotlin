@@ -2,15 +2,6 @@
 import XCTest
 
 final class RuntimeTimeConversionTests: XCTestCase {
-    func testInstantJavaInstantRoundTripPreservesComponents() {
-        let instant = kk_instant_from_epoch_millis(1_234)
-        let javaInstant = kk_instant_to_java_instant(instant)
-        let roundTrip = kk_java_instant_to_kotlin_instant(javaInstant)
-
-        XCTAssertEqual(kk_instant_epoch_seconds(roundTrip), 1)
-        XCTAssertEqual(kk_instant_nano_of_second(roundTrip), 234_000_000)
-    }
-
     func testInstantJSDateRoundTripPreservesFractionalMilliseconds() {
         let instant = registerRuntimeObject(RuntimeInstantBox(epochSeconds: 12, nanoOfSecond: 345_678_900))
         let jsDate = kk_instant_to_js_date(instant)
