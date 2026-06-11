@@ -55,8 +55,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsQualifierStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsRegExpStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsRegExpMatchStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsDynamicStubs(symbols: symbols, interner: interner)
-        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsReferenceStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
