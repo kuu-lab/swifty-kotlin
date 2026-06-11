@@ -174,6 +174,17 @@ extension DataFlowSemaPhase {
 
 
         registerSyntheticStringExtensionFunction(
+            named: "trim",
+            externalLinkName: "kk_string_trim",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
             named: "lowercase",
             externalLinkName: "kk_string_lowercase",
             receiverType: stringType,
@@ -187,39 +198,6 @@ extension DataFlowSemaPhase {
         registerSyntheticStringExtensionFunction(
             named: "uppercase",
             externalLinkName: "kk_string_uppercase",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2627,12 +2605,12 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-144: String.trim / trimStart / trimEnd (predicate overloads) ---
+        // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_predicate",
+            named: "trimStart",
+            externalLinkName: "kk_string_trimStart",
             receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
+            parameters: [],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
@@ -2650,7 +2628,28 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
+            externalLinkName: "kk_string_trimEnd",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimEnd",
             externalLinkName: "kk_string_trimEnd_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // --- STDLIB-144: String.trim (predicate overload) ---
+        registerSyntheticStringExtensionFunction(
+            named: "trim",
+            externalLinkName: "kk_string_trim_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
