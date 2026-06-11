@@ -1796,6 +1796,142 @@ public func kk_path_writeLines_sequence(
     return pathRaw
 }
 
+// MARK: - STDLIB-IO-PATH-FN-030: Path.readAttributes
+
+/// Runtime box for `java.nio.file.attribute.BasicFileAttributes`.
+final class RuntimeBasicFileAttributesBox {
+    let lastModifiedTimeMillis: Int
+    let lastAccessTimeMillis: Int
+    let creationTimeMillis: Int
+    let isRegularFile: Bool
+    let isDirectory: Bool
+    let isSymbolicLink: Bool
+    let isOther: Bool
+    let size: Int
+
+    init(
+        lastModifiedTimeMillis: Int,
+        lastAccessTimeMillis: Int,
+        creationTimeMillis: Int,
+        isRegularFile: Bool,
+        isDirectory: Bool,
+        isSymbolicLink: Bool,
+        isOther: Bool,
+        size: Int
+    ) {
+        self.lastModifiedTimeMillis = lastModifiedTimeMillis
+        self.lastAccessTimeMillis = lastAccessTimeMillis
+        self.creationTimeMillis = creationTimeMillis
+        self.isRegularFile = isRegularFile
+        self.isDirectory = isDirectory
+        self.isSymbolicLink = isSymbolicLink
+        self.isOther = isOther
+        self.size = size
+    }
+}
+
+private func pathReadBasicFileAttributes(_ pathString: String) -> RuntimeBasicFileAttributesBox? {
+    guard let attrs = try? FileManager.default.attributesOfItem(atPath: pathString) else {
+        return nil
+    }
+    let fileType = attrs[.type] as? FileAttributeType
+    let isDir = fileType == .typeDirectory
+    let isRegular = fileType == .typeRegular
+    let isSymlink = fileType == .typeSymbolicLink
+    let isOther = !isDir && !isRegular && !isSymlink
+    let modDate = attrs[.modificationDate] as? Date
+    let createDate = attrs[.creationDate] as? Date
+    let modMillis = modDate.map { Int($0.timeIntervalSince1970 * 1000) } ?? 0
+    let createMillis = createDate.map { Int($0.timeIntervalSince1970 * 1000) } ?? 0
+    let fileSize = (attrs[.size] as? Int) ?? 0
+    return RuntimeBasicFileAttributesBox(
+        lastModifiedTimeMillis: modMillis,
+        lastAccessTimeMillis: modMillis,
+        creationTimeMillis: createMillis,
+        isRegularFile: isRegular,
+        isDirectory: isDir,
+        isSymbolicLink: isSymlink,
+        isOther: isOther,
+        size: fileSize
+    )
+}
+
+private func pathBuildAttributesMap(
+    _ attrsBox: RuntimeBasicFileAttributesBox,
+    attrSpec: String
+) -> RuntimeMapBox {
+    let allAttrs: [(String, Int)] = [
+        ("lastModifiedTime", registerRuntimeObject(RuntimeFileTimeBox(milliseconds: attrsBox.lastModifiedTimeMillis))),
+        ("lastAccessTime", registerRuntimeObject(RuntimeFileTimeBox(milliseconds: attrsBox.lastAccessTimeMillis))),
+        ("creationTime", registerRuntimeObject(RuntimeFileTimeBox(milliseconds: attrsBox.creationTimeMillis))),
+        ("isRegularFile", kk_box_bool(attrsBox.isRegularFile ? 1 : 0)),
+        ("isDirectory", kk_box_bool(attrsBox.isDirectory ? 1 : 0)),
+        ("isSymbolicLink", kk_box_bool(attrsBox.isSymbolicLink ? 1 : 0)),
+        ("isOther", kk_box_bool(attrsBox.isOther ? 1 : 0)),
+        ("size", kk_box_long(attrsBox.size)),
+        ("fileKey", runtimeNullSentinelInt),
+    ]
+    let selected: [(String, Int)]
+    if attrSpec == "*" {
+        selected = allAttrs
+    } else {
+        let requested = Set(attrSpec.split(separator: ",").map(String.init))
+        selected = allAttrs.filter { requested.contains($0.0) }
+    }
+    return RuntimeMapBox(
+        keys: selected.map { pathMakeStringRaw($0.0) },
+        values: selected.map { $0.1 }
+    )
+}
+
+/// Path.readAttributes(attributes: String, vararg options: LinkOption): Map<String, Any?>
+///
+/// Parses the JVM NIO attribute view string (e.g. `"basic:*"`, `"basic:size,isDirectory"`)
+/// and returns a map of attribute names to their boxed values.
+@_cdecl("kk_path_readAttributes_string")
+public func kk_path_readAttributes_string(
+    _ pathRaw: Int,
+    _ attributesRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_readAttributes_string received invalid Path handle")
+    }
+    let attrString = pathStringValue(from: attributesRaw) ?? "basic:*"
+    let parts = attrString.split(separator: ":", maxSplits: 1)
+    let attrSpec = parts.count > 1 ? String(parts[1]) : "*"
+
+    guard let attrsBox = pathReadBasicFileAttributes(path.pathString) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read attributes of \(path.pathString)")
+        return registerRuntimeObject(RuntimeMapBox(keys: [], values: []))
+    }
+    return registerRuntimeObject(pathBuildAttributesMap(attrsBox, attrSpec: attrSpec))
+}
+
+/// Path.readAttributes<A : BasicFileAttributes>(vararg options: LinkOption): A
+///
+/// Returns a `BasicFileAttributes` box for the file at this path.
+@_cdecl("kk_path_readAttributes")
+public func kk_path_readAttributes(
+    _ pathRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_readAttributes received invalid Path handle")
+    }
+    guard let attrsBox = pathReadBasicFileAttributes(path.pathString) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot read attributes of \(path.pathString)")
+        return 0
+    }
+    return registerRuntimeObject(attrsBox)
+}
+
 // MARK: - STDLIB-IO-PATH-FN-023: Path.getOwner / Path.setOwner
 
 /// Path.getOwner(vararg options: LinkOption): UserPrincipal
