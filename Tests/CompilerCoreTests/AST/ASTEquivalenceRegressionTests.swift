@@ -44,8 +44,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 6, "Expected 6 top-level declarations (2 user + 4 bundled stdlib)")
+        // 2 user declarations + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 13, "Expected 13 top-level declarations (2 user + 11 bundled stdlib)")
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2, "Expected at least 2 expressions")
 
         for decl in ast.arena.declarations() {
@@ -72,8 +72,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 6)
+        // 2 user declarations + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 13)
         // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
 
@@ -96,8 +96,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 6)
+        // classDecl + funDecl(main) + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 13)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(c) = decl else { return nil }
@@ -131,8 +131,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 6)
+        // 2 user declarations + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 13)
         // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 8)
 
@@ -162,8 +162,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 3 user declarations + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 7)
+        // 3 user declarations + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 14)
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
 
         for i in ast.arena.exprs.indices {
@@ -186,8 +186,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // interface + class + fun(main) + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 7)
+        // interface + class + fun(main) + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 14)
 
         let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
             guard case let .interfaceDecl(i) = decl else { return nil }
@@ -209,8 +209,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 6)
+        // 2 user declarations + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 13)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -242,8 +242,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // class + factorial + main + 4 bundled stdlib functions
-        XCTAssertEqual(ast.declarationCount, 7)
+        // class + factorial + main + 11 bundled stdlib functions
+        XCTAssertEqual(ast.declarationCount, 14)
 
         // Verify ALL decl ranges are valid
         for decl in ast.arena.declarations() {

@@ -1829,10 +1829,6 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
 
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
-            let expectedLinks = [
-                "kk_bytearray_decodeToString_range",
-                "kk_bytearray_decodeToString_range_throw",
-            ]
 
             let callExprIDs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
                 let exprID = ExprID(rawValue: Int32(index))
@@ -1844,17 +1840,19 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 }
                 return exprID
             }
-            XCTAssertEqual(callExprIDs.count, expectedLinks.count, "Expected two decodeToString range calls")
+            XCTAssertEqual(callExprIDs.count, 2, "Expected two decodeToString range calls")
 
+            // After MIGRATION-TEXT-007, ByteArray.decodeToString range/range+throw variants are
+            // defined in BundledKotlinStdlib Kotlin source (not synthetic stubs), so they have
+            // no externalLinkName. The C bridge is called internally via __kk_decodeToString_range.
             for (index, callExprID) in callExprIDs.enumerated() {
                 let chosenCallee = try XCTUnwrap(
                     sema.bindings.callBinding(for: callExprID)?.chosenCallee,
                     "Expected call binding for decodeToString overload \(index)"
                 )
-                XCTAssertEqual(
+                XCTAssertNil(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    expectedLinks[index],
-                    "Expected decodeToString overload \(index) to resolve to \(expectedLinks[index])"
+                    "kotlin.text.decodeToString range overload \(index) should resolve to Kotlin-source (no externalLinkName after migration)"
                 )
             }
         }
