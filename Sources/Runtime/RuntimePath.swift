@@ -1315,6 +1315,35 @@ public func kk_path_writer(
     }
 }
 
+// MARK: - STDLIB-IO-PATH-FN-028: Path.outputStream
+
+/// Path.outputStream(vararg options: OpenOption): OutputStream
+///
+/// Opens or creates the file at this path and returns a raw byte-level
+/// `OutputStream` for writing. The default behaviour (no options) creates or
+/// truncates the file. The `optionsRaw` parameter represents the vararg
+/// `OpenOption` array and is accepted for ABI symmetry; option values are not
+/// inspected by the macOS Foundation-backed runtime today. Returns 0 if the
+/// file cannot be opened.
+@_cdecl("kk_path_outputStream")
+public func kk_path_outputStream(_ pathRaw: Int, _ optionsRaw: Int) -> Int {
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_outputStream received invalid Path handle")
+    }
+    let url = URL(fileURLWithPath: path.pathString)
+    if !FileManager.default.fileExists(atPath: path.pathString) {
+        _ = FileManager.default.createFile(atPath: path.pathString, contents: Data())
+    }
+    do {
+        let handle = try FileHandle(forWritingTo: url)
+        handle.truncateFile(atOffset: 0)
+        return registerRuntimeObject(RuntimeOutputStreamBox(fileHandle: handle))
+    } catch {
+        return 0
+    }
+}
+
 /// Path.getLastModifiedTime(vararg options: LinkOption): FileTime
 ///
 /// Returns the last-modified time of the file or directory at this path as a
