@@ -6,76 +6,231 @@ symbol s4 kind=function fq=kotlin.comparisons.maxOf vis=public flags=inlineFunct
 symbol s5 kind=function fq=kotlin.comparisons.minOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Long,Long,Long] ret=Long suspend=0 defaults=[0,0,0] vararg=[0,0,0]
 symbol s6 kind=function fq=kotlin.comparisons.maxOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
 symbol s7 kind=function fq=kotlin.comparisons.minOf vis=public flags=inlineFunction|synthetic sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s8 kind=function fq=golden.sema.twoArgInt vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s9 kind=function fq=golden.sema.twoArgMinInt vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s10 kind=function fq=golden.sema.threeArgMaxInt vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s11 kind=valueParameter fq=golden.sema.threeArgMaxInt.$0.a vis=private flags=_
-symbol s12 kind=valueParameter fq=golden.sema.threeArgMaxInt.$0.b vis=private flags=_
-symbol s13 kind=valueParameter fq=golden.sema.threeArgMaxInt.$0.c vis=private flags=_
-symbol s14 kind=function fq=golden.sema.threeArgMinInt vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s15 kind=valueParameter fq=golden.sema.threeArgMinInt.$1.a vis=private flags=_
-symbol s16 kind=valueParameter fq=golden.sema.threeArgMinInt.$1.b vis=private flags=_
-symbol s17 kind=valueParameter fq=golden.sema.threeArgMinInt.$1.c vis=private flags=_
-symbol s18 kind=function fq=golden.sema.threeArgMaxLong vis=public flags=_ sig=recv=_ params=[Long,Long,Long] ret=Long suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s19 kind=valueParameter fq=golden.sema.threeArgMaxLong.$2.a vis=private flags=_
-symbol s20 kind=valueParameter fq=golden.sema.threeArgMaxLong.$2.b vis=private flags=_
-symbol s21 kind=valueParameter fq=golden.sema.threeArgMaxLong.$2.c vis=private flags=_
-symbol s22 kind=function fq=golden.sema.threeArgMinLong vis=public flags=_ sig=recv=_ params=[Long,Long,Long] ret=Long suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s23 kind=valueParameter fq=golden.sema.threeArgMinLong.$3.a vis=private flags=_
-symbol s24 kind=valueParameter fq=golden.sema.threeArgMinLong.$3.b vis=private flags=_
-symbol s25 kind=valueParameter fq=golden.sema.threeArgMinLong.$3.c vis=private flags=_
-symbol s26 kind=function fq=golden.sema.threeArgMaxDouble vis=public flags=_ sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s27 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$4.a vis=private flags=_
-symbol s28 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$4.b vis=private flags=_
-symbol s29 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$4.c vis=private flags=_
-symbol s30 kind=function fq=golden.sema.threeArgMinDouble vis=public flags=_ sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s31 kind=valueParameter fq=golden.sema.threeArgMinDouble.$5.a vis=private flags=_
-symbol s32 kind=valueParameter fq=golden.sema.threeArgMinDouble.$5.b vis=private flags=_
-symbol s33 kind=valueParameter fq=golden.sema.threeArgMinDouble.$5.c vis=private flags=_
-file f0 package=golden.sema
-  decl d0 fun twoArgInt suspend=0 inline=0 sym=s8
-  decl d1 fun twoArgMinInt suspend=0 inline=0 sym=s9
-  decl d2 fun threeArgMaxInt suspend=0 inline=0 sym=s10
-  decl d3 fun threeArgMinInt suspend=0 inline=0 sym=s14
-  decl d4 fun threeArgMaxLong suspend=0 inline=0 sym=s18
-  decl d5 fun threeArgMinLong suspend=0 inline=0 sym=s22
-  decl d6 fun threeArgMaxDouble suspend=0 inline=0 sym=s26
-  decl d7 fun threeArgMinDouble suspend=0 inline=0 sym=s30
-expr e0 name(maxOf) type=_
-expr e1 int(3) type=Int
-expr e2 int(7) type=Int
-expr e3 call callee=e0 args=[_:e1,_:e2] type=Int call=s0 map=[0->0,1->1] targs=[]
-expr e4 name(minOf) type=_
-expr e5 int(3) type=Int
-expr e6 int(7) type=Int
-expr e7 call callee=e4 args=[_:e5,_:e6] type=Int call=s1 map=[0->0,1->1] targs=[]
-expr e8 name(maxOf) type=_
-expr e9 name(a) type=Int ref=s11
-expr e10 name(b) type=Int ref=s12
-expr e11 name(c) type=Int ref=s13
-expr e12 call callee=e8 args=[_:e9,_:e10,_:e11] type=Int call=s2 map=[0->0,1->1,2->2] targs=[]
-expr e13 name(minOf) type=_
-expr e14 name(a) type=Int ref=s15
-expr e15 name(b) type=Int ref=s16
-expr e16 name(c) type=Int ref=s17
-expr e17 call callee=e13 args=[_:e14,_:e15,_:e16] type=Int call=s3 map=[0->0,1->1,2->2] targs=[]
-expr e18 name(maxOf) type=_
-expr e19 name(a) type=Long ref=s19
-expr e20 name(b) type=Long ref=s20
-expr e21 name(c) type=Long ref=s21
-expr e22 call callee=e18 args=[_:e19,_:e20,_:e21] type=Long call=s4 map=[0->0,1->1,2->2] targs=[]
-expr e23 name(minOf) type=_
-expr e24 name(a) type=Long ref=s23
-expr e25 name(b) type=Long ref=s24
-expr e26 name(c) type=Long ref=s25
-expr e27 call callee=e23 args=[_:e24,_:e25,_:e26] type=Long call=s5 map=[0->0,1->1,2->2] targs=[]
-expr e28 name(maxOf) type=_
-expr e29 name(a) type=Double ref=s27
-expr e30 name(b) type=Double ref=s28
-expr e31 name(c) type=Double ref=s29
-expr e32 call callee=e28 args=[_:e29,_:e30,_:e31] type=Double call=s6 map=[0->0,1->1,2->2] targs=[]
-expr e33 name(minOf) type=_
-expr e34 name(a) type=Double ref=s31
-expr e35 name(b) type=Double ref=s32
-expr e36 name(c) type=Double ref=s33
-expr e37 call callee=e33 args=[_:e34,_:e35,_:e36] type=Double call=s7 map=[0->0,1->1,2->2] targs=[]
+symbol s8 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s9 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#10
+symbol s11 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#10 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s13 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#12 params=[String?] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#12 params=[Char] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s15 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#12 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s16 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s17 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s18 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s19 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s20 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s21 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s22 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s23 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s24 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s25 kind=function fq=golden.sema.twoArgInt vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s26 kind=function fq=golden.sema.twoArgMinInt vis=public flags=_ sig=recv=_ params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s27 kind=function fq=golden.sema.threeArgMaxInt vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s28 kind=valueParameter fq=golden.sema.threeArgMaxInt.$3.a vis=private flags=_
+symbol s29 kind=valueParameter fq=golden.sema.threeArgMaxInt.$3.b vis=private flags=_
+symbol s30 kind=valueParameter fq=golden.sema.threeArgMaxInt.$3.c vis=private flags=_
+symbol s31 kind=function fq=golden.sema.threeArgMinInt vis=public flags=_ sig=recv=_ params=[Int,Int,Int] ret=Int suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s32 kind=valueParameter fq=golden.sema.threeArgMinInt.$4.a vis=private flags=_
+symbol s33 kind=valueParameter fq=golden.sema.threeArgMinInt.$4.b vis=private flags=_
+symbol s34 kind=valueParameter fq=golden.sema.threeArgMinInt.$4.c vis=private flags=_
+symbol s35 kind=function fq=golden.sema.threeArgMaxLong vis=public flags=_ sig=recv=_ params=[Long,Long,Long] ret=Long suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s36 kind=valueParameter fq=golden.sema.threeArgMaxLong.$5.a vis=private flags=_
+symbol s37 kind=valueParameter fq=golden.sema.threeArgMaxLong.$5.b vis=private flags=_
+symbol s38 kind=valueParameter fq=golden.sema.threeArgMaxLong.$5.c vis=private flags=_
+symbol s39 kind=function fq=golden.sema.threeArgMinLong vis=public flags=_ sig=recv=_ params=[Long,Long,Long] ret=Long suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s40 kind=valueParameter fq=golden.sema.threeArgMinLong.$6.a vis=private flags=_
+symbol s41 kind=valueParameter fq=golden.sema.threeArgMinLong.$6.b vis=private flags=_
+symbol s42 kind=valueParameter fq=golden.sema.threeArgMinLong.$6.c vis=private flags=_
+symbol s43 kind=function fq=golden.sema.threeArgMaxDouble vis=public flags=_ sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s44 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$7.a vis=private flags=_
+symbol s45 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$7.b vis=private flags=_
+symbol s46 kind=valueParameter fq=golden.sema.threeArgMaxDouble.$7.c vis=private flags=_
+symbol s47 kind=function fq=golden.sema.threeArgMinDouble vis=public flags=_ sig=recv=_ params=[Double,Double,Double] ret=Double suspend=0 defaults=[0,0,0] vararg=[0,0,0]
+symbol s48 kind=valueParameter fq=golden.sema.threeArgMinDouble.$8.a vis=private flags=_
+symbol s49 kind=valueParameter fq=golden.sema.threeArgMinDouble.$8.b vis=private flags=_
+symbol s50 kind=valueParameter fq=golden.sema.threeArgMinDouble.$8.c vis=private flags=_
+symbol s51 kind=local fq=__local_0.sb vis=private flags=_ type=Class#12
+symbol s52 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s53 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s54 kind=local fq=__local_3.sb vis=private flags=_ type=Class#12
+symbol s55 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s56 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s57 kind=local fq=__local_6.sb vis=private flags=_ type=Class#12
+symbol s58 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s59 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s60 kind=local fq=__local_9.sb vis=private flags=_ type=Class#12
+symbol s61 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s16
+  decl d1 fun reversed suspend=0 inline=0 sym=s18
+  decl d2 fun padStart suspend=0 inline=0 sym=s19
+  decl d3 fun padEnd suspend=0 inline=0 sym=s22
+file f1 package=golden.sema
+  decl d4 fun twoArgInt suspend=0 inline=0 sym=s25
+  decl d5 fun twoArgMinInt suspend=0 inline=0 sym=s26
+  decl d6 fun threeArgMaxInt suspend=0 inline=0 sym=s27
+  decl d7 fun threeArgMinInt suspend=0 inline=0 sym=s31
+  decl d8 fun threeArgMaxLong suspend=0 inline=0 sym=s35
+  decl d9 fun threeArgMinLong suspend=0 inline=0 sym=s39
+  decl d10 fun threeArgMaxDouble suspend=0 inline=0 sym=s43
+  decl d11 fun threeArgMinDouble suspend=0 inline=0 sym=s47
+expr e0 name(count) type=Int ref=s17
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s17
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#10 call=s11 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s12
+expr e10 call callee=e9 args=[] type=Class#12
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s51
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s52
+expr e14 name(i) type=Int ref=s52
+expr e15 name(count) type=Int ref=s17
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#12 ref=s51
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#12 call=s13 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s52
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#12 ref=s51
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s15 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s8 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s53
+expr e31 name(StringBuilder) type=Any ref=s12
+expr e32 call callee=e31 args=[] type=Class#12
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s54
+expr e34 name(len) type=Int ref=s53
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s55
+expr e38 name(i) type=Int ref=s55
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#12 ref=s54
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s55
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s9 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#12 call=s14 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s55
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#12 ref=s54
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s15 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s20
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s8 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s56
+expr e60 name(padding) type=Int ref=s56
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s12
+expr e67 call callee=e66 args=[] type=Class#12
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s57
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s58
+expr e71 name(i) type=Int ref=s58
+expr e72 name(padding) type=Int ref=s56
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#12 ref=s57
+expr e75 name(padChar) type=Char ref=s21
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#12 call=s14 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s58
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#12 ref=s57
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#12 call=s13 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#12 ref=s57
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s15 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s23
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s8 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s59
+expr e94 name(padding) type=Int ref=s59
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s12
+expr e101 call callee=e100 args=[] type=Class#12
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s60
+expr e103 name(sb) type=Class#12 ref=s60
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#12 call=s13 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s61
+expr e108 name(i) type=Int ref=s61
+expr e109 name(padding) type=Int ref=s59
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#12 ref=s60
+expr e112 name(padChar) type=Char ref=s24
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#12 call=s14 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s61
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#12 ref=s60
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s15 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(maxOf) type=_
+expr e123 int(3) type=Int
+expr e124 int(7) type=Int
+expr e125 call callee=e122 args=[_:e123,_:e124] type=Int call=s0 map=[0->0,1->1] targs=[]
+expr e126 name(minOf) type=_
+expr e127 int(3) type=Int
+expr e128 int(7) type=Int
+expr e129 call callee=e126 args=[_:e127,_:e128] type=Int call=s1 map=[0->0,1->1] targs=[]
+expr e130 name(maxOf) type=_
+expr e131 name(a) type=Int ref=s28
+expr e132 name(b) type=Int ref=s29
+expr e133 name(c) type=Int ref=s30
+expr e134 call callee=e130 args=[_:e131,_:e132,_:e133] type=Int call=s2 map=[0->0,1->1,2->2] targs=[]
+expr e135 name(minOf) type=_
+expr e136 name(a) type=Int ref=s32
+expr e137 name(b) type=Int ref=s33
+expr e138 name(c) type=Int ref=s34
+expr e139 call callee=e135 args=[_:e136,_:e137,_:e138] type=Int call=s3 map=[0->0,1->1,2->2] targs=[]
+expr e140 name(maxOf) type=_
+expr e141 name(a) type=Long ref=s36
+expr e142 name(b) type=Long ref=s37
+expr e143 name(c) type=Long ref=s38
+expr e144 call callee=e140 args=[_:e141,_:e142,_:e143] type=Long call=s4 map=[0->0,1->1,2->2] targs=[]
+expr e145 name(minOf) type=_
+expr e146 name(a) type=Long ref=s40
+expr e147 name(b) type=Long ref=s41
+expr e148 name(c) type=Long ref=s42
+expr e149 call callee=e145 args=[_:e146,_:e147,_:e148] type=Long call=s5 map=[0->0,1->1,2->2] targs=[]
+expr e150 name(maxOf) type=_
+expr e151 name(a) type=Double ref=s44
+expr e152 name(b) type=Double ref=s45
+expr e153 name(c) type=Double ref=s46
+expr e154 call callee=e150 args=[_:e151,_:e152,_:e153] type=Double call=s6 map=[0->0,1->1,2->2] targs=[]
+expr e155 name(minOf) type=_
+expr e156 name(a) type=Double ref=s48
+expr e157 name(b) type=Double ref=s49
+expr e158 name(c) type=Double ref=s50
+expr e159 call callee=e155 args=[_:e156,_:e157,_:e158] type=Double call=s7 map=[0->0,1->1,2->2] targs=[]
