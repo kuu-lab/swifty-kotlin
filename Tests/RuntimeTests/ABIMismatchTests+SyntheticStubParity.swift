@@ -343,7 +343,6 @@ extension ABIMismatchTests {
         "kk_atomic_ref_load",
         "kk_atomic_ref_store",
         "kk_atomic_ref_updateAndGet",
-        "kk_java_atomic_bool_asKotlinAtomic",
         "kk_java_atomic_int_array_asKotlinAtomicArray",
         "kk_java_atomic_int_asKotlinAtomic",
         "kk_java_atomic_long_asKotlinAtomic",
