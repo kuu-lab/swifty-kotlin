@@ -30,9 +30,6 @@ public extension RuntimeABISpec {
             p("p0", .intptr),
             p("p1", .intptr),
         ]),
-        abiParitySpec("kk_kclass_java", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
         abiParitySpec("kk_kclass_js", parameters: [
             p("kclassRaw", .intptr),
         ]),
@@ -83,21 +80,6 @@ public extension RuntimeABISpec {
             p("refRaw", .intptr),
             p("expectedRaw", .intptr),
             p("newRaw", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_javaClass", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_javaPrimitiveType", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_javaObjectType", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
-        abiParitySpec("kk_enum_declaringJavaClass", parameters: [
-            p("enumRaw", .intptr),
-        ]),
-        abiParitySpec("kk_class_kotlin", parameters: [
-            p("classRaw", .intptr),
         ]),
         // Runtime @_cdecl entries awaiting a dedicated RuntimeABISpec category.
         abiParitySpec("component1", parameters: [
@@ -1161,9 +1143,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_worker_request_termination", parameters: [
             p("workerHandle", .intptr),
             p("processScheduledRaw", .intptr),
-        ]),
-        abiParitySpec("kk_ktype_javaType", parameters: [
-            p("ktypeRaw", .intptr),
         ]),
     ]
 }
