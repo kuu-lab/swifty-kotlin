@@ -1,473 +1,18 @@
 
-/// STDLIB-METAPROG-116: Basic metaprogramming annotation stubs.
+/// Kotlin-native metaprogramming annotation stubs.
 ///
-/// Registers synthetic `kotlin.jvm.*` annotation classes so that
-/// `@JvmStatic`, `@JvmField`, and `@JvmOverloads` are resolvable during
-/// name-resolution and type-checking without errors.  Also ensures
-/// `kotlin.Suppress` and `kotlin.annotation.*` metaprogramming stubs are present so that
-/// `@Suppress("...")` suppression records are created correctly even when
-/// no library metadata has been loaded.
+/// Registers synthetic `kotlin.*`, `kotlin.annotation.*`, and
+/// `kotlin.experimental.*` annotation classes that are needed for
+/// name-resolution and type-checking on any Kotlin target (including Native).
 ///
-/// These are compile-time stubs only; runtime behaviour for `@JvmStatic`
-/// is handled by `JvmStaticLoweringPass`.
+/// JVM-specific annotations (`kotlin.jvm.*`) were removed as part of
+/// CLEANUP-STUB-084 since this compiler targets macOS native via LLVM.
 extension DataFlowSemaPhase {
-    func registerSyntheticMetaprogStubs(
+    func registerSyntheticKotlinAnnotationStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // kotlin.jvm package hierarchy
-        let kotlinJvmPkg = ensurePackage(
-            path: ["kotlin", "jvm"],
-            symbols: symbols,
-            interner: interner
-        )
-        let kotlinJvmPkgSymbol = symbols.lookup(fqName: kotlinJvmPkg) ?? .invalid
-
-        // @JvmStatic — companion object members promoted to class-level statics.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmStatic",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // @JvmField — exposes a Kotlin property as a plain JVM field (no getter/setter).
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmField",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // @JvmOverloads — instructs the compiler to generate overloaded JVM methods
-        // for functions with default parameter values.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmOverloads",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // @JvmRecord - marks a class as a JVM record candidate.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmRecord",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.CLASS"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmRecord")],
-            symbols: symbols
-        )
-
-        // @JvmSerializableLambda - marks a lambda expression as JVM serializable.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmSerializableLambda",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let jvmSerializableLambdaSymbol = symbols.lookup(
-            fqName: kotlinJvmPkg + [interner.intern("JvmSerializableLambda")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.EXPRESSION"]
-                ),
-                to: jvmSerializableLambdaSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.8"]
-                ),
-                to: jvmSerializableLambdaSymbol,
-                symbols: symbols
-            )
-        }
-
-        // @JvmWildcard - forces wildcard generation for an annotated type use.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmWildcard",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let jvmWildcardSymbol = symbols.lookup(fqName: kotlinJvmPkg + [interner.intern("JvmWildcard")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.TYPE"]
-                ),
-                to: jvmWildcardSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.0"]
-                ),
-                to: jvmWildcardSymbol,
-                symbols: symbols
-            )
-        }
-
-        // @JvmSynthetic - hides Kotlin declarations from Java source by setting
-        // the JVM ACC_SYNTHETIC flag.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmSynthetic",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.FILE",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.FIELD",
-                ]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmSynthetic")],
-            symbols: symbols
-        )
-
-        // @JvmSuppressWildcards - suppresses JVM wildcard generation.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmSuppressWildcards",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let jvmSuppressWildcardsSymbol = symbols.lookup(
-            fqName: kotlinJvmPkg + [interner.intern("JvmSuppressWildcards")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.TYPE",
-                    ]
-                ),
-                to: jvmSuppressWildcardsSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.0"]
-                ),
-                to: jvmSuppressWildcardsSymbol,
-                symbols: symbols
-            )
-            registerSyntheticBooleanAnnotationPropertyAndConstructor(
-                ownerSymbol: jvmSuppressWildcardsSymbol,
-                ownerFQName: kotlinJvmPkg + [interner.intern("JvmSuppressWildcards")],
-                propertyName: "suppress",
-                hasDefaultValue: true,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-        // @JvmDefaultWithCompatibility - generates JVM default methods with
-        // DefaultImpls compatibility accessors for annotated classes/interfaces.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmDefaultWithCompatibility",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.CLASS"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmDefaultWithCompatibility")],
-            symbols: symbols
-        )
-
-        // @JvmDefaultWithoutCompatibility - generates JVM default methods without
-        // DefaultImpls compatibility accessors for annotated classes/interfaces.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmDefaultWithoutCompatibility",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.CLASS"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmDefaultWithoutCompatibility")],
-            symbols: symbols
-        )
-
-        // @JvmMultifileClass - marks a Kotlin source file as part of a
-        // generated JVM multifile class facade.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmMultifileClass",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.FILE"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmMultifileClass")],
-            symbols: symbols
-        )
-
-        // @Strictfp - marks generated JVM methods/classes for strict floating-point semantics.
-        registerSyntheticJvmAnnotationClass(
-            named: "Strictfp",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.CLASS",
-                ]
-            ),
-            to: kotlinJvmPkg + [interner.intern("Strictfp")],
-            symbols: symbols
-        )
-
-        // @Synchronized - marks generated JVM methods as synchronized.
-        registerSyntheticJvmAnnotationClass(
-            named: "Synchronized",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                ]
-            ),
-            to: kotlinJvmPkg + [interner.intern("Synchronized")],
-            symbols: symbols
-        )
-
-        // @Volatile - marks the JVM backing field as volatile.
-        registerSyntheticJvmAnnotationClass(
-            named: "Volatile",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.FIELD"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("Volatile")],
-            symbols: symbols
-        )
-
-        // @Transient - marks the JVM backing field as transient.
-        registerSyntheticJvmAnnotationClass(
-            named: "Transient",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.FIELD"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("Transient")],
-            symbols: symbols
-        )
-
-        // @JvmExposeBoxed - exposes value-class based JVM APIs as boxed variants.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmExposeBoxed",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let exposeBoxedSymbol = symbols.lookup(fqName: kotlinJvmPkg + [interner.intern("JvmExposeBoxed")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalStdlibApi"),
-                to: exposeBoxedSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Target",
-                    arguments: [
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.CLASS",
-                    ]
-                ),
-                to: exposeBoxedSymbol,
-                symbols: symbols
-            )
-            registerSyntheticStringAnnotationPropertyAndConstructor(
-                ownerSymbol: exposeBoxedSymbol,
-                ownerFQName: kotlinJvmPkg + [interner.intern("JvmExposeBoxed")],
-                propertyName: "jvmName",
-                parameterHasDefaultValue: true,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-        // @ImplicitlyActualizedByJvmDeclaration - marks expect declarations
-        // that are implicitly actualized by Java/JVM declarations.
-        registerSyntheticJvmAnnotationClass(
-            named: "ImplicitlyActualizedByJvmDeclaration",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.CLASS"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("ImplicitlyActualizedByJvmDeclaration")],
-            symbols: symbols
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
-            to: kotlinJvmPkg + [interner.intern("ImplicitlyActualizedByJvmDeclaration")],
-            symbols: symbols
-        )
-
-        // @JvmName — controls the JVM-level name of the generated class or member.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmName",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // @JvmPackageName — changes the JVM package name generated for a file.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmPackageName",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let jvmPackageNameSymbol = symbols.lookup(fqName: kotlinJvmPkg + [interner.intern("JvmPackageName")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.FILE"]
-                ),
-                to: jvmPackageNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.SOURCE"]
-                ),
-                to: jvmPackageNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
-                to: jvmPackageNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.2"]
-                ),
-                to: jvmPackageNameSymbol,
-                symbols: symbols
-            )
-            registerSyntheticStringAnnotationPropertyAndConstructor(
-                ownerSymbol: jvmPackageNameSymbol,
-                ownerFQName: kotlinJvmPkg + [interner.intern("JvmPackageName")],
-                propertyName: "name",
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-        // @JvmInline - marks value classes for JVM inline class ABI.
-        registerSyntheticJvmAnnotationClass(
-            named: "JvmInline",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.CLASS"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmInline")],
-            symbols: symbols
-        )
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-            to: kotlinJvmPkg + [interner.intern("JvmInline")],
-            symbols: symbols
-        )
-
         // kotlin package — ensure built-in metadata annotations are present.
         let kotlinPkg = ensurePackage(
             path: ["kotlin"],
@@ -476,36 +21,28 @@ extension DataFlowSemaPhase {
         )
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
-        registerSyntheticJvmAnnotationClass(
-            named: "Throws",
-            packageFQName: kotlinJvmPkg,
-            packageSymbol: kotlinJvmPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "Suppress",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "Deprecated",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "DeprecatedSinceKotlin",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ReplaceWith",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -531,42 +68,42 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "WasExperimental",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "OptionalExpectation",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "Throws",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "SinceKotlin",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "DslMarker",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "IntroducedAt",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -574,7 +111,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ExtensionFunctionType",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -600,7 +137,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "Metadata",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -608,7 +145,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "OptIn",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -616,42 +153,42 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "RequiresOptIn",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "SubclassOptInRequired",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ConsistentCopyVisibility",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ExposedCopyVisibility",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ParameterName",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "PublishedApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -659,7 +196,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "PublishedApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -667,14 +204,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "IgnorableReturnValue",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "MustUseReturnValues",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -682,14 +219,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "BuilderInference",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -720,7 +257,7 @@ extension DataFlowSemaPhase {
             symbols.setAnnotations(annotations, for: optInSymbol)
         }
 
-        registerSyntheticJvmAnnotationClass(
+        registerSyntheticAnnotationClass(
             named: "OverloadResolutionByLambdaReturnType",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -1074,39 +611,6 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
-
-        if let throwsSymbol = symbols.lookup(fqName: kotlinJvmPkg + [interner.intern("Throws")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                    ]
-                ),
-                to: throwsSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.sinceKotlin.qualifiedName,
-                    arguments: ["1.0"]
-                ),
-                to: throwsSymbol,
-                symbols: symbols
-            )
-            registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
-                ownerSymbol: throwsSymbol,
-                ownerFQName: kotlinJvmPkg + [interner.intern("Throws")],
-                kotlinPkg: kotlinPkg,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
         if let sinceKotlinSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SinceKotlin")]) {
             appendSyntheticAnnotation(
                 MetadataAnnotationRecord(
@@ -1291,5 +795,4 @@ extension DataFlowSemaPhase {
             )
         }
     }
-
 }
