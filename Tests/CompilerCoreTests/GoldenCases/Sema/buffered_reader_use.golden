@@ -1,65 +1,220 @@
 symbol s0 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
-symbol s1 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s2 kind=class fq=java.io.File vis=public flags=synthetic type=Class#2
-symbol s3 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
-symbol s4 kind=class fq=java.io.Reader vis=public flags=synthetic type=Class#4
-symbol s5 kind=class fq=java.io.BufferedReader vis=public flags=synthetic type=Class#5
-symbol s6 kind=function fq=java.io.File.bufferedReader vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#5 suspend=0 defaults=[] vararg=[]
-symbol s7 kind=function fq=java.io.BufferedReader.readLine vis=public flags=synthetic sig=recv=Class#5 params=[] ret=String? suspend=0 defaults=[] vararg=[]
-symbol s8 kind=function fq=java.io.BufferedReader.readLines vis=public flags=synthetic sig=recv=Class#5 params=[] ret=Class#0<out String> suspend=0 defaults=[] vararg=[]
-symbol s9 kind=function fq=kotlin.io.readText vis=public flags=synthetic sig=recv=Class#4 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s10 kind=function fq=golden.sema.readWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s11 kind=valueParameter fq=golden.sema.readWithBufferedReader.$0.path vis=private flags=_
-symbol s12 kind=function fq=golden.sema.readLinesWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=Class#0<String> suspend=0 defaults=[0] vararg=[0]
-symbol s13 kind=valueParameter fq=golden.sema.readLinesWithBufferedReader.$1.path vis=private flags=_
-symbol s14 kind=function fq=golden.sema.readLineByLine vis=public flags=_ sig=recv=_ params=[String] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s15 kind=valueParameter fq=golden.sema.readLineByLine.$2.path vis=private flags=_
-symbol s16 kind=local fq=__local_0.file vis=private flags=_ type=Class#2
-symbol s17 kind=local fq=__local_1.file vis=private flags=_ type=Class#2
-symbol s18 kind=local fq=__local_2.file vis=private flags=_ type=Class#2
-symbol s19 kind=local fq=__local_3.line vis=private flags=_ type=String?
-file f0 package=golden.sema
-  decl d0 fun readWithBufferedReader suspend=0 inline=0 sym=s10
-  decl d1 fun readLinesWithBufferedReader suspend=0 inline=0 sym=s12
-  decl d2 fun readLineByLine suspend=0 inline=0 sym=s14
-expr e0 name(File) type=_
-expr e1 name(path) type=String ref=s11
-expr e2 call callee=e0 args=[_:e1] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e3 localDecl file mutable=0 type=_ init=e2 type=Unit ref=s16
-expr e4 name(file) type=Class#2 ref=s16
-expr e5 memberCall recv=e4 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
-expr e6 name(reader) type=_
-expr e7 memberCall recv=e6 callee=readText args=[] type=_
-expr e8 name(reader) type=Class#5 ref=s-0
-expr e9 memberCall recv=e8 callee=readText args=[] type=String call=s9 map=[] targs=[]
-expr e10 lambda params=[reader] body=e9 label=use type=(Class#5) -> String
-expr e11 memberCall recv=e5 callee=use args=[_:e10] type=String
-expr e12 return value=e11 type=Nothing
-expr e13 name(File) type=_
-expr e14 name(path) type=String ref=s13
-expr e15 call callee=e13 args=[_:e14] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e16 localDecl file mutable=0 type=_ init=e15 type=Unit ref=s17
-expr e17 name(file) type=Class#2 ref=s17
-expr e18 memberCall recv=e17 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
-expr e19 name(reader) type=_
-expr e20 memberCall recv=e19 callee=readLines args=[] type=_
-expr e21 name(reader) type=Class#5 ref=s-1
-expr e22 memberCall recv=e21 callee=readLines args=[] type=Class#0<out String> call=s8 map=[] targs=[]
-expr e23 lambda params=[reader] body=e22 label=use type=(Class#5) -> Class#0<String>
-expr e24 memberCall recv=e18 callee=use args=[_:e23] type=Class#0<String>
-expr e25 return value=e24 type=Nothing
-expr e26 name(File) type=_
-expr e27 name(path) type=String ref=s15
-expr e28 call callee=e26 args=[_:e27] type=Class#2 call=s3 map=[0->0] targs=[]
-expr e29 localDecl file mutable=0 type=_ init=e28 type=Unit ref=s18
-expr e30 name(file) type=Class#2 ref=s18
-expr e31 memberCall recv=e30 callee=bufferedReader args=[] type=Class#5 call=s6 map=[] targs=[]
-expr e32 name(reader) type=Class#5 ref=s-2
-expr e33 memberCall recv=e32 callee=readLine args=[] type=String? call=s7 map=[] targs=[]
-expr e34 localDecl line mutable=0 type=t6 init=e33 type=Unit ref=s19
-expr e35 name(println) type=_
-expr e36 name(line) type=String? ref=s19
-expr e37 call callee=e35 args=[_:e36] type=Unit call=s1 map=[0->0] targs=[]
-expr e38 blockExpr stmts=[e34] trailing=e37 type=Unit
-expr e39 lambda params=[reader] body=e38 label=use type=(Class#5) -> Any
-expr e40 memberCall recv=e31 callee=use args=[_:e39] type=Unit
+symbol s1 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s2 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s3 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#3
+symbol s4 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#3 suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s6 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#5 params=[String?] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#5 params=[Char] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#5 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s9 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=class fq=java.io.File vis=public flags=synthetic type=Class#10
+symbol s11 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#10 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=class fq=java.io.Reader vis=public flags=synthetic type=Class#12
+symbol s13 kind=class fq=java.io.BufferedReader vis=public flags=synthetic type=Class#13
+symbol s14 kind=function fq=java.io.File.bufferedReader vis=public flags=synthetic sig=recv=Class#10 params=[] ret=Class#13 suspend=0 defaults=[] vararg=[]
+symbol s15 kind=function fq=java.io.BufferedReader.readLine vis=public flags=synthetic sig=recv=Class#13 params=[] ret=String? suspend=0 defaults=[] vararg=[]
+symbol s16 kind=function fq=java.io.BufferedReader.readLines vis=public flags=synthetic sig=recv=Class#13 params=[] ret=Class#0<out String> suspend=0 defaults=[] vararg=[]
+symbol s17 kind=function fq=kotlin.io.readText vis=public flags=synthetic sig=recv=Class#12 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s18 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s19 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s20 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s21 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s22 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s23 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s24 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s25 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s26 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s27 kind=function fq=golden.sema.readWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s28 kind=valueParameter fq=golden.sema.readWithBufferedReader.$3.path vis=private flags=_
+symbol s29 kind=function fq=golden.sema.readLinesWithBufferedReader vis=public flags=_ sig=recv=_ params=[String] ret=Class#0<String> suspend=0 defaults=[0] vararg=[0]
+symbol s30 kind=valueParameter fq=golden.sema.readLinesWithBufferedReader.$4.path vis=private flags=_
+symbol s31 kind=function fq=golden.sema.readLineByLine vis=public flags=_ sig=recv=_ params=[String] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s32 kind=valueParameter fq=golden.sema.readLineByLine.$5.path vis=private flags=_
+symbol s33 kind=local fq=__local_0.sb vis=private flags=_ type=Class#5
+symbol s34 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s35 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s36 kind=local fq=__local_3.sb vis=private flags=_ type=Class#5
+symbol s37 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s38 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s39 kind=local fq=__local_6.sb vis=private flags=_ type=Class#5
+symbol s40 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s41 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s42 kind=local fq=__local_9.sb vis=private flags=_ type=Class#5
+symbol s43 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s44 kind=local fq=__local_11.file vis=private flags=_ type=Class#10
+symbol s45 kind=local fq=__local_12.file vis=private flags=_ type=Class#10
+symbol s46 kind=local fq=__local_13.file vis=private flags=_ type=Class#10
+symbol s47 kind=local fq=__local_14.line vis=private flags=_ type=String?
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s18
+  decl d1 fun reversed suspend=0 inline=0 sym=s20
+  decl d2 fun padStart suspend=0 inline=0 sym=s21
+  decl d3 fun padEnd suspend=0 inline=0 sym=s24
+file f1 package=golden.sema
+  decl d4 fun readWithBufferedReader suspend=0 inline=0 sym=s27
+  decl d5 fun readLinesWithBufferedReader suspend=0 inline=0 sym=s29
+  decl d6 fun readLineByLine suspend=0 inline=0 sym=s31
+expr e0 name(count) type=Int ref=s19
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s19
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#3 call=s4 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s5
+expr e10 call callee=e9 args=[] type=Class#5
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s33
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s34
+expr e14 name(i) type=Int ref=s34
+expr e15 name(count) type=Int ref=s19
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#5 ref=s33
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s34
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#5 ref=s33
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s35
+expr e31 name(StringBuilder) type=Any ref=s5
+expr e32 call callee=e31 args=[] type=Class#5
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s36
+expr e34 name(len) type=Int ref=s35
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s37
+expr e38 name(i) type=Int ref=s37
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#5 ref=s36
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s37
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s2 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s37
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#5 ref=s36
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s22
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s38
+expr e60 name(padding) type=Int ref=s38
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s5
+expr e67 call callee=e66 args=[] type=Class#5
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s39
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s40
+expr e71 name(i) type=Int ref=s40
+expr e72 name(padding) type=Int ref=s38
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#5 ref=s39
+expr e75 name(padChar) type=Char ref=s23
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s40
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#5 ref=s39
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#5 ref=s39
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s25
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s41
+expr e94 name(padding) type=Int ref=s41
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s5
+expr e101 call callee=e100 args=[] type=Class#5
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s42
+expr e103 name(sb) type=Class#5 ref=s42
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s43
+expr e108 name(i) type=Int ref=s43
+expr e109 name(padding) type=Int ref=s41
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#5 ref=s42
+expr e112 name(padChar) type=Char ref=s26
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s43
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#5 ref=s42
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(File) type=_
+expr e123 name(path) type=String ref=s28
+expr e124 call callee=e122 args=[_:e123] type=Class#10 call=s11 map=[0->0] targs=[]
+expr e125 localDecl file mutable=0 type=_ init=e124 type=Unit ref=s44
+expr e126 name(file) type=Class#10 ref=s44
+expr e127 memberCall recv=e126 callee=bufferedReader args=[] type=Class#13 call=s14 map=[] targs=[]
+expr e128 name(reader) type=_
+expr e129 memberCall recv=e128 callee=readText args=[] type=_
+expr e130 name(reader) type=Class#13 ref=s-0
+expr e131 memberCall recv=e130 callee=readText args=[] type=String call=s17 map=[] targs=[]
+expr e132 lambda params=[reader] body=e131 label=use type=(Class#13) -> String
+expr e133 memberCall recv=e127 callee=use args=[_:e132] type=String
+expr e134 return value=e133 type=Nothing
+expr e135 name(File) type=_
+expr e136 name(path) type=String ref=s30
+expr e137 call callee=e135 args=[_:e136] type=Class#10 call=s11 map=[0->0] targs=[]
+expr e138 localDecl file mutable=0 type=_ init=e137 type=Unit ref=s45
+expr e139 name(file) type=Class#10 ref=s45
+expr e140 memberCall recv=e139 callee=bufferedReader args=[] type=Class#13 call=s14 map=[] targs=[]
+expr e141 name(reader) type=_
+expr e142 memberCall recv=e141 callee=readLines args=[] type=_
+expr e143 name(reader) type=Class#13 ref=s-1
+expr e144 memberCall recv=e143 callee=readLines args=[] type=Class#0<out String> call=s16 map=[] targs=[]
+expr e145 lambda params=[reader] body=e144 label=use type=(Class#13) -> Class#0<String>
+expr e146 memberCall recv=e140 callee=use args=[_:e145] type=Class#0<String>
+expr e147 return value=e146 type=Nothing
+expr e148 name(File) type=_
+expr e149 name(path) type=String ref=s32
+expr e150 call callee=e148 args=[_:e149] type=Class#10 call=s11 map=[0->0] targs=[]
+expr e151 localDecl file mutable=0 type=_ init=e150 type=Unit ref=s46
+expr e152 name(file) type=Class#10 ref=s46
+expr e153 memberCall recv=e152 callee=bufferedReader args=[] type=Class#13 call=s14 map=[] targs=[]
+expr e154 name(reader) type=Class#13 ref=s-2
+expr e155 memberCall recv=e154 callee=readLine args=[] type=String? call=s15 map=[] targs=[]
+expr e156 localDecl line mutable=0 type=t22 init=e155 type=Unit ref=s47
+expr e157 name(println) type=_
+expr e158 name(line) type=String? ref=s47
+expr e159 call callee=e157 args=[_:e158] type=Unit call=s9 map=[0->0] targs=[]
+expr e160 blockExpr stmts=[e156] trailing=e159 type=Unit
+expr e161 lambda params=[reader] body=e160 label=use type=(Class#13) -> Any
+expr e162 memberCall recv=e153 callee=use args=[_:e161] type=Unit

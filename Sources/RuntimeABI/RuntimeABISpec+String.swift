@@ -1401,62 +1401,6 @@ public extension RuntimeABISpec {
             section: "String"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_padStart_default",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "lengthRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_padEnd_default",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "lengthRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_padStart",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "lengthRaw", type: .intptr),
-                RuntimeABIParameter(name: "padCharRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_padEnd",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "lengthRaw", type: .intptr),
-                RuntimeABIParameter(name: "padCharRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_repeat",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "countRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_toList",
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),

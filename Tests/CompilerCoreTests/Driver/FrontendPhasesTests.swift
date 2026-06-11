@@ -35,7 +35,8 @@ final class FrontendPhasesTests: XCTestCase {
             let ctx = makeCompilationContext(inputs: [path, path])
             XCTAssertNoThrow(try LoadSourcesPhase().run(ctx))
             // File should be loaded only once
-            XCTAssertEqual(ctx.sourceManager.fileIDs().count, 1, "Duplicate paths should be loaded only once")
+            // 1 user file (deduped) + 1 bundled stdlib file
+            XCTAssertEqual(ctx.sourceManager.fileIDs().count, 2, "Duplicate paths should be loaded only once (+ bundled stdlib)")
         }
     }
 
@@ -85,15 +86,16 @@ final class FrontendPhasesTests: XCTestCase {
             incrementalCtx.installIncrementalFrontendState(cachedState)
 
             try LexPhase().run(incrementalCtx)
-            XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 1)])
+            // FileID 0 = bundled stdlib, FileID 1 = kept, FileID 2 = changed
+            XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 2)])
 
             try ParsePhase().run(incrementalCtx)
-            XCTAssertEqual(incrementalCtx.syntaxTrees.map(\.0), [FileID(rawValue: 1)])
+            XCTAssertEqual(incrementalCtx.syntaxTrees.map(\.0), [FileID(rawValue: 2)])
 
             try BuildASTPhase().run(incrementalCtx)
             let ast = try XCTUnwrap(incrementalCtx.ast)
-            XCTAssertEqual(ast.files.map(\.fileID), [FileID(rawValue: 0), FileID(rawValue: 1)])
-            XCTAssertEqual(Set(ast.activeDeclsByFileRawID.keys), Set([0, 1]))
+            XCTAssertEqual(ast.files.map(\.fileID), [FileID(rawValue: 0), FileID(rawValue: 1), FileID(rawValue: 2)])
+            XCTAssertEqual(Set(ast.activeDeclsByFileRawID.keys), Set([0, 1, 2]))
 
             let topLevelNames = ast.files.flatMap(\.topLevelDecls).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID), case let .funDecl(funDecl) = decl else {

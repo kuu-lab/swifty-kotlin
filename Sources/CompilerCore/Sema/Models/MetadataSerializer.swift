@@ -147,10 +147,10 @@ final class MetadataEncoder {
                 if lhs.fqName.count != rhs.fqName.count {
                     return lhs.fqName.count < rhs.fqName.count
                 }
-                let lhsRaw = lhs.fqName.map(\.rawValue)
-                let rhsRaw = rhs.fqName.map(\.rawValue)
-                if lhsRaw != rhsRaw {
-                    return lhsRaw.lexicographicallyPrecedes(rhsRaw)
+                let lhsResolved = lhs.fqName.map { interner.resolve($0) }
+                let rhsResolved = rhs.fqName.map { interner.resolve($0) }
+                if lhsResolved != rhsResolved {
+                    return lhsResolved.lexicographicallyPrecedes(rhsResolved)
                 }
                 return lhs.id.rawValue < rhs.id.rawValue
             }

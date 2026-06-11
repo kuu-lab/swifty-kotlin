@@ -353,7 +353,7 @@ public final class KIRModule {
         case let .jumpIfEqual(lhs, rhs, target):
             return "jumpIfEqual r\(lhs.rawValue), r\(rhs.rawValue) -> L\(target)"
         case let .constValue(result, value):
-            return "const r\(result.rawValue)=\(value)"
+            return "const r\(result.rawValue)=\(valueDescription(value, interner: interner))"
         case let .binary(op, lhs, rhs, result):
             return "binary \(op) r\(lhs.rawValue), r\(rhs.rawValue) -> r\(result.rawValue)"
         case let .unary(op, operand, result):
@@ -416,6 +416,17 @@ public final class KIRModule {
             return "beginFinallyGuard"
         case .endFinallyGuard:
             return "endFinallyGuard"
+        }
+    }
+
+    private func valueDescription(_ value: KIRExprKind, interner: StringInterner) -> String {
+        switch value {
+        case let .stringLiteral(interned):
+            return "stringLiteral(\"\(interner.resolve(interned))\")"
+        case let .externSymbolAddress(interned):
+            return "externSymbolAddress(\"\(interner.resolve(interned))\")"
+        default:
+            return "\(value)"
         }
     }
 }

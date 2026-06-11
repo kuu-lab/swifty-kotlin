@@ -1365,17 +1365,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "reversed" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_reversed"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1754,8 +1743,6 @@ extension CallLowerer {
                     ("kk_string_compareTo_member", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
-                case "repeat":
-                    ("kk_string_repeat", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
                     ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
@@ -1832,18 +1819,6 @@ extension CallLowerer {
                     } else {
                         ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
                     }
-                case "padStart":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_padStart", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_padStart_default", [loweredReceiverID, loweredArgIDs[0]])
-                    }
-                case "padEnd":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_padEnd", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_padEnd_default", [loweredReceiverID, loweredArgIDs[0]])
-                    }
                 case "removePrefix":
                     ("kk_string_removePrefix", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
@@ -1854,8 +1829,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "repeat"
-                        || calleeStr == "replaceFirstChar"
+                    let stringHOFCanThrow = calleeStr == "replaceFirstChar"
                         || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
@@ -2157,30 +2131,8 @@ extension CallLowerer {
                 return result
             }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "substring" || calleeStr == "padStart" || calleeStr == "padEnd"
+               calleeStr == "substring"
             {
-                if calleeStr == "padStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_padStart"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "padEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_padEnd"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 let hasEndExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
                 instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(1)))
                 instructions.append(.call(

@@ -190,9 +190,7 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(list?.elements.map(runtimeStringValue), ["1", "2", "3"])
     }
 
-    func testStringReversedProducesReversedString() {
-        XCTAssertEqual(runtimeStringValue(kk_string_reversed(rawFromRuntimeString("abc"))), "cba")
-    }
+
 
     func testStringToListAndToCharArrayReturnCharElements() {
         let listRaw = kk_string_toList(rawFromRuntimeString("abc"))
@@ -410,8 +408,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
 
     func testStringFunctionsWithNonASCII() {
         let text = "aé🐻"
-        XCTAssertEqual(runtimeStringValue(kk_string_reversed(rawFromRuntimeString(text))), "🐻éa")
-
         let listRaw = kk_string_toList(rawFromRuntimeString(text))
         let list = runtimeListBox(from: listRaw)
         let expectedScalars: [Int] = [97, 233, 128_059] // 'a', 'é', '🐻'
@@ -425,8 +421,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         let textRaw = rawFromRuntimeString("aé🐻")
 
         XCTAssertEqual(runtimeStringValue(kk_string_substring(textRaw, 1, 3, 1, nil)), "é🐻")
-        XCTAssertEqual(runtimeStringValue(kk_string_padStart(textRaw, 5, kk_box_char(48))), "00aé🐻")
-        XCTAssertEqual(runtimeStringValue(kk_string_padEnd(textRaw, 5, kk_box_char(48))), "aé🐻00")
         XCTAssertEqual(kk_string_indexOf(textRaw, rawFromRuntimeString("é🐻")), 1)
         XCTAssertEqual(kk_string_lastIndexOf(textRaw, rawFromRuntimeString("é")), 1)
     }
@@ -810,17 +804,6 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
-    }
-
-    func testStringRepeatThrowsOnNegativeCount() {
-        var thrown = 0
-        let repeated = kk_string_repeat(rawFromRuntimeString("a"), -1, &thrown)
-
-        XCTAssertEqual(repeated, 0)
-        XCTAssertNotEqual(thrown, 0)
-
-        let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
-        XCTAssertTrue(thrownOutput.contains("IllegalArgumentException"))
     }
 
     func testStringFormatSupportsStringIntAndDoubleSpecifiers() {

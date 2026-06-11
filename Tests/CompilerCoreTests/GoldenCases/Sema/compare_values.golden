@@ -1,27 +1,182 @@
 symbol s0 kind=typeParameter fq=kotlin.Comparator.T vis=private flags=_
 symbol s1 kind=function fq=kotlin.comparisons.compareValues vis=public flags=inlineFunction|synthetic sig=recv=_ params=[T#0?,T#0?] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s2 kind=function fq=golden.sema.compareInts vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s3 kind=valueParameter fq=golden.sema.compareInts.$0.a vis=private flags=_
-symbol s4 kind=valueParameter fq=golden.sema.compareInts.$0.b vis=private flags=_
-symbol s5 kind=function fq=golden.sema.compareStrings vis=public flags=_ sig=recv=_ params=[String,String] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s6 kind=valueParameter fq=golden.sema.compareStrings.$1.a vis=private flags=_
-symbol s7 kind=valueParameter fq=golden.sema.compareStrings.$1.b vis=private flags=_
-symbol s8 kind=function fq=golden.sema.compareNullableInts vis=public flags=_ sig=recv=_ params=[Int?,Int?] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s9 kind=valueParameter fq=golden.sema.compareNullableInts.$2.a vis=private flags=_
-symbol s10 kind=valueParameter fq=golden.sema.compareNullableInts.$2.b vis=private flags=_
-file f0 package=golden.sema
-  decl d0 fun compareInts suspend=0 inline=0 sym=s2
-  decl d1 fun compareStrings suspend=0 inline=0 sym=s5
-  decl d2 fun compareNullableInts suspend=0 inline=0 sym=s8
-expr e0 name(compareValues) type=_
-expr e1 name(a) type=Int ref=s3
-expr e2 name(b) type=Int ref=s4
-expr e3 call callee=e0 args=[_:e1,_:e2] type=Int call=s1 map=[0->0,1->1] targs=[Int]
-expr e4 name(compareValues) type=_
-expr e5 name(a) type=String ref=s6
-expr e6 name(b) type=String ref=s7
-expr e7 call callee=e4 args=[_:e5,_:e6] type=Int call=s1 map=[0->0,1->1] targs=[String]
-expr e8 name(compareValues) type=_
-expr e9 name(a) type=Int? ref=s9
-expr e10 name(b) type=Int? ref=s10
-expr e11 call callee=e8 args=[_:e9,_:e10] type=Int call=s1 map=[0->0,1->1] targs=[Int]
+symbol s2 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s3 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s4 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#4
+symbol s5 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
+symbol s6 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s7 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#6 params=[String?] ret=Class#6 suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#6 params=[Char] ret=Class#6 suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#6 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s10 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s12 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s13 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s14 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s15 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s16 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s17 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s18 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s19 kind=function fq=golden.sema.compareInts vis=public flags=_ sig=recv=_ params=[Int,Int] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s20 kind=valueParameter fq=golden.sema.compareInts.$3.a vis=private flags=_
+symbol s21 kind=valueParameter fq=golden.sema.compareInts.$3.b vis=private flags=_
+symbol s22 kind=function fq=golden.sema.compareStrings vis=public flags=_ sig=recv=_ params=[String,String] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s23 kind=valueParameter fq=golden.sema.compareStrings.$4.a vis=private flags=_
+symbol s24 kind=valueParameter fq=golden.sema.compareStrings.$4.b vis=private flags=_
+symbol s25 kind=function fq=golden.sema.compareNullableInts vis=public flags=_ sig=recv=_ params=[Int?,Int?] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s26 kind=valueParameter fq=golden.sema.compareNullableInts.$5.a vis=private flags=_
+symbol s27 kind=valueParameter fq=golden.sema.compareNullableInts.$5.b vis=private flags=_
+symbol s28 kind=local fq=__local_0.sb vis=private flags=_ type=Class#6
+symbol s29 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s30 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s31 kind=local fq=__local_3.sb vis=private flags=_ type=Class#6
+symbol s32 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s33 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s34 kind=local fq=__local_6.sb vis=private flags=_ type=Class#6
+symbol s35 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s36 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s37 kind=local fq=__local_9.sb vis=private flags=_ type=Class#6
+symbol s38 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s10
+  decl d1 fun reversed suspend=0 inline=0 sym=s12
+  decl d2 fun padStart suspend=0 inline=0 sym=s13
+  decl d3 fun padEnd suspend=0 inline=0 sym=s16
+file f1 package=golden.sema
+  decl d4 fun compareInts suspend=0 inline=0 sym=s19
+  decl d5 fun compareStrings suspend=0 inline=0 sym=s22
+  decl d6 fun compareNullableInts suspend=0 inline=0 sym=s25
+expr e0 name(count) type=Int ref=s11
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s11
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#4 call=s5 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s6
+expr e10 call callee=e9 args=[] type=Class#6
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s28
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s29
+expr e14 name(i) type=Int ref=s29
+expr e15 name(count) type=Int ref=s11
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#6 ref=s28
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s29
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#6 ref=s28
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s9 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s2 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s30
+expr e31 name(StringBuilder) type=Any ref=s6
+expr e32 call callee=e31 args=[] type=Class#6
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s31
+expr e34 name(len) type=Int ref=s30
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s32
+expr e38 name(i) type=Int ref=s32
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#6 ref=s31
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s32
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s3 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#6 call=s8 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s32
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#6 ref=s31
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s9 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s14
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s2 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s33
+expr e60 name(padding) type=Int ref=s33
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s6
+expr e67 call callee=e66 args=[] type=Class#6
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s34
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s35
+expr e71 name(i) type=Int ref=s35
+expr e72 name(padding) type=Int ref=s33
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#6 ref=s34
+expr e75 name(padChar) type=Char ref=s15
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#6 call=s8 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s35
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#6 ref=s34
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#6 ref=s34
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s9 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s17
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s2 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s36
+expr e94 name(padding) type=Int ref=s36
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s6
+expr e101 call callee=e100 args=[] type=Class#6
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s37
+expr e103 name(sb) type=Class#6 ref=s37
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s38
+expr e108 name(i) type=Int ref=s38
+expr e109 name(padding) type=Int ref=s36
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#6 ref=s37
+expr e112 name(padChar) type=Char ref=s18
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#6 call=s8 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s38
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#6 ref=s37
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s9 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(compareValues) type=_
+expr e123 name(a) type=Int ref=s20
+expr e124 name(b) type=Int ref=s21
+expr e125 call callee=e122 args=[_:e123,_:e124] type=Int call=s1 map=[0->0,1->1] targs=[Int]
+expr e126 name(compareValues) type=_
+expr e127 name(a) type=String ref=s23
+expr e128 name(b) type=String ref=s24
+expr e129 call callee=e126 args=[_:e127,_:e128] type=Int call=s1 map=[0->0,1->1] targs=[String]
+expr e130 name(compareValues) type=_
+expr e131 name(a) type=Int? ref=s26
+expr e132 name(b) type=Int? ref=s27
+expr e133 call callee=e130 args=[_:e131,_:e132] type=Int call=s1 map=[0->0,1->1] targs=[Int]
