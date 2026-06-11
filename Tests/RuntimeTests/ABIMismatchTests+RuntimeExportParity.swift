@@ -74,7 +74,6 @@ extension ABIMismatchTests {
             "kk_js_array_set",
             "kk_js_array_create",
             "kk_js_reference_get",
-            "kk_js_array_toArray",
             "kk_js_array_toList",
             "kk_js_array_toMutableList",
             "kk_js_bigint_toLong",

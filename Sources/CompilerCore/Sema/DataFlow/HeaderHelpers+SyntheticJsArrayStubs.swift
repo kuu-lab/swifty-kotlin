@@ -73,26 +73,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([jsAnySymbol], for: jsArraySymbol)
         types.setNominalDirectSupertypes([jsAnySymbol], for: jsArraySymbol)
 
-        let arraySymbol = ensureClassSymbol(
-            named: "Array",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let arrayReturnType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerJsArrayToArray(
-            ownerSymbol: jsArraySymbol,
-            ownerType: jsArrayType,
-            returnType: arrayReturnType,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         registerJsArrayGet(
             ownerSymbol: jsArraySymbol,
             ownerType: jsArrayType,
@@ -118,63 +98,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-    }
-
-    private func registerJsArrayToArray(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        returnType: TypeID,
-        typeParamSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let functionName = interner.intern("toArray")
-        let functionFQName = ownerInfo.fqName + [functionName]
-        let externalLinkName = "kk_js_array_toArray"
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == ownerType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == returnType
-                && signature.typeParameterSymbols == [typeParamSymbol]
-                && signature.classTypeParameterCount == 1
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [],
-                returnType: returnType,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: [],
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: functionSymbol
-        )
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
     }
 
     private func registerJsArrayGet(
