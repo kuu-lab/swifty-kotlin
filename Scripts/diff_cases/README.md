@@ -69,5 +69,6 @@ Cases:
 - `property_based_test.kt`: seeded samples, shrinking, statistics report を持つ property-based style parity
 - `test_framework_basic.kt`: `kotlin.test` の `@Test` / `@Before` / `@After` と `assertEquals` / `assertTrue` / `assertNull` の基本 parity
 - `assertions.kt`: stdlib `assert(...)` / `assert(...) { ... }` の基本 parity
+- `uuid_put_uuid.kt`: `ByteArray.putUuid(at, uuid)` / `ByteArray.uuid(at)` の round-trip と offset 書き込み parity（STDLIB-UUID-FN-002）
 
 The set intentionally includes both successful programs and compile-error cases.
