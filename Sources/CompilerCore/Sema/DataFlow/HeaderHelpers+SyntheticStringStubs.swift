@@ -704,6 +704,15 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
             returnType: stringType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use substring(startIndex, endIndex) instead.\"",
+                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
+                    ]
+                ),
+            ],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
