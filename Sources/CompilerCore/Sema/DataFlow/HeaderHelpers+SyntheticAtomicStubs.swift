@@ -2009,17 +2009,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicArrayAsKotlinAtomicArrayFunction(
-            packageFQName: packageFQName,
-            javaPackageFQName: javaPackageFQName,
-            javaClassName: "AtomicLongArray",
-            kotlinClassName: "AtomicLongArray",
-            constructorLinkName: "kk_atomic_long_array_create",
-            externalLinkName: "kk_java_atomic_long_array_asKotlinAtomicArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerAtomicReferenceArrayAsKotlinAtomicArrayFunction(
             packageFQName: packageFQName,
             javaPackageFQName: javaPackageFQName,
