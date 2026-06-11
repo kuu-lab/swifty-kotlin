@@ -346,7 +346,7 @@ extension ABIMismatchTests {
         "kk_java_atomic_int_array_asKotlinAtomicArray",
         "kk_java_atomic_int_asKotlinAtomic",
         "kk_java_atomic_long_asKotlinAtomic",
-        "kk_java_atomic_ref_array_asKotlinAtomicArray",
+        "kk_java_atomic_ref_asKotlinAtomic",
     ]
 
     // MARK: kotlin.native.ref (WeakReference, Cleaner, GC, debugging)
