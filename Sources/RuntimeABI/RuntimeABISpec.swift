@@ -848,14 +848,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_set_toSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_js_number_toDouble",
             parameters: [
                 RuntimeABIParameter(name: "jsNumberRaw", type: .intptr),
