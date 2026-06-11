@@ -84,9 +84,15 @@ final class NothingTypeFlowTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            let ifExprIDs = exprIDs(in: ast) { expr in
+            // Bundled stdlib (padStart/padEnd) also contributes if-expressions
+            // typed as String. Filter to user-code if-expressions only by
+            // checking against intType (the LUB result for Nothing branches).
+            let allIfExprIDs = exprIDs(in: ast) { expr in
                 if case .ifExpr = expr { return true }
                 return false
+            }
+            let ifExprIDs = allIfExprIDs.filter {
+                sema.bindings.exprType(for: $0) == sema.types.intType
             }
             let whenExprIDs = exprIDs(in: ast) { expr in
                 if case .whenExpr = expr { return true }
@@ -97,7 +103,8 @@ final class NothingTypeFlowTests: XCTestCase {
                 return false
             }
 
-            XCTAssertFalse(ifExprIDs.isEmpty)
+            // 2 user if-expressions (ifCase + tryCase), bundled stdlib adds more
+            XCTAssertEqual(ifExprIDs.count, 2, "Expected 2 if-expressions typed as Int via Nothing-as-bottom LUB")
             XCTAssertFalse(whenExprIDs.isEmpty)
             XCTAssertFalse(tryExprIDs.isEmpty)
 

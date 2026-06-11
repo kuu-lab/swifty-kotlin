@@ -3,94 +3,249 @@ symbol s1 kind=typeParameter fq=kotlin.collections.Collection.E vis=private flag
 symbol s2 kind=property fq=kotlin.collections.Collection.size vis=public flags=synthetic type=Int
 symbol s3 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
 symbol s4 kind=function fq=kotlin.collections.Collection.toList vis=public flags=synthetic sig=recv=Class#0<out T#1> params=[] ret=Class#3<out T#1> suspend=0 defaults=[] vararg=[]
-symbol s5 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s6 kind=class fq=java.io.File vis=public flags=synthetic type=Class#6
-symbol s7 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#6 suspend=0 defaults=[0] vararg=[0]
-symbol s8 kind=function fq=java.io.File.delete vis=public flags=synthetic sig=recv=Class#6 params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
-symbol s9 kind=function fq=java.io.File.mkdirs vis=public flags=synthetic sig=recv=Class#6 params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
-symbol s10 kind=function fq=java.io.File.listFiles vis=public flags=synthetic sig=recv=Class#6 params=[] ret=Class#3<out Class#6>? suspend=0 defaults=[] vararg=[]
-symbol s11 kind=function fq=java.io.File.walk vis=public flags=synthetic sig=recv=Class#6 params=[] ret=Class#12 suspend=0 defaults=[] vararg=[]
-symbol s12 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#12
-symbol s13 kind=function fq=kotlin.io.FileTreeWalk.toList vis=public flags=synthetic sig=recv=Class#12 params=[] ret=Class#3<out Class#6> suspend=0 defaults=[] vararg=[]
-symbol s14 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s15 kind=local fq=__local_0.baseDir vis=private flags=_ type=Class#6
-symbol s16 kind=local fq=__local_1.subDir vis=private flags=_ type=Class#6
-symbol s17 kind=local fq=__local_2.nestedDir vis=private flags=_ type=Class#6
-symbol s18 kind=local fq=__local_3.mkdirsResult vis=private flags=_ type=Boolean
-symbol s19 kind=local fq=__local_4.walkedFiles vis=private flags=_ type=Class#12
-symbol s20 kind=local fq=__local_5.baseFiles vis=private flags=_ type=Class#3<out Class#6>?
-symbol s21 kind=local fq=__local_6.subFiles vis=private flags=_ type=Class#3<out Class#6>?
-symbol s22 kind=local fq=__local_7.deleteBaseResult vis=private flags=_ type=Boolean
-symbol s23 kind=local fq=__local_8.finalDeleteResult vis=private flags=_ type=Boolean
-file f0 package=_
-  decl d0 fun main suspend=0 inline=0 sym=s14
-expr e0 name(File) type=_
-expr e1 string(/tmp/advanced_test) type=String
-expr e2 call callee=e0 args=[_:e1] type=Class#6 call=s7 map=[0->0] targs=[]
-expr e3 localDecl baseDir mutable=0 type=_ init=e2 type=Unit ref=s15
-expr e4 name(File) type=_
-expr e5 string(/tmp/advanced_test/subdir) type=String
-expr e6 call callee=e4 args=[_:e5] type=Class#6 call=s7 map=[0->0] targs=[]
-expr e7 localDecl subDir mutable=0 type=_ init=e6 type=Unit ref=s16
-expr e8 name(File) type=_
-expr e9 string(/tmp/advanced_test/subdir/nested) type=String
-expr e10 call callee=e8 args=[_:e9] type=Class#6 call=s7 map=[0->0] targs=[]
-expr e11 localDecl nestedDir mutable=0 type=_ init=e10 type=Unit ref=s17
-expr e12 name(nestedDir) type=Class#6 ref=s17
-expr e13 memberCall recv=e12 callee=mkdirs args=[] type=Boolean call=s9 map=[] targs=[]
-expr e14 localDecl mkdirsResult mutable=0 type=_ init=e13 type=Unit ref=s18
-expr e15 name(println) type=_
-expr e16 name(mkdirsResult) type=Boolean ref=s18
-expr e17 stringTemplate[lit(mkdirs nested: ),expr(e16)] type=String
-expr e18 call callee=e15 args=[_:e17] type=Unit call=s5 map=[0->0] targs=[]
-expr e19 name(baseDir) type=Class#6 ref=s15
-expr e20 memberCall recv=e19 callee=walk args=[] type=Class#12 call=s11 map=[] targs=[]
-expr e21 localDecl walkedFiles mutable=0 type=_ init=e20 type=Unit ref=s19
-expr e22 name(println) type=_
-expr e23 name(walkedFiles) type=Class#12 ref=s19
-expr e24 memberCall recv=e23 callee=toList args=[] type=Class#3<out Class#6> call=s13 map=[] targs=[]
-expr e25 memberCall recv=e24 callee=size args=[] type=Int ref=s2
-expr e26 stringTemplate[lit(walk count: ),expr(e25)] type=String
-expr e27 call callee=e22 args=[_:e26] type=Unit call=s5 map=[0->0] targs=[]
-expr e28 name(baseDir) type=Class#6 ref=s15
-expr e29 memberCall recv=e28 callee=listFiles args=[] type=Class#3<out Class#6>? call=s10 map=[] targs=[]
-expr e30 localDecl baseFiles mutable=0 type=_ init=e29 type=Unit ref=s20
-expr e31 name(println) type=_
-expr e32 name(baseFiles) type=Class#3<out Class#6>? ref=s20
-expr e33 safeMemberCall recv=e32 callee=toList args=[] type=Class#3<Class#6>? call=s4 map=[] targs=[]
-expr e34 safeMemberCall recv=e33 callee=size args=[] type=Int? ref=s2
-expr e35 stringTemplate[lit(baseDir listFiles count: ),expr(e34)] type=String
-expr e36 call callee=e31 args=[_:e35] type=Unit call=s5 map=[0->0] targs=[]
-expr e37 name(subDir) type=Class#6 ref=s16
-expr e38 memberCall recv=e37 callee=listFiles args=[] type=Class#3<out Class#6>? call=s10 map=[] targs=[]
-expr e39 localDecl subFiles mutable=0 type=_ init=e38 type=Unit ref=s21
-expr e40 name(println) type=_
-expr e41 name(subFiles) type=Class#3<out Class#6>? ref=s21
-expr e42 safeMemberCall recv=e41 callee=toList args=[] type=Class#3<Class#6>? call=s4 map=[] targs=[]
-expr e43 safeMemberCall recv=e42 callee=size args=[] type=Int? ref=s2
-expr e44 stringTemplate[lit(subDir listFiles count: ),expr(e43)] type=String
-expr e45 call callee=e40 args=[_:e44] type=Unit call=s5 map=[0->0] targs=[]
-expr e46 name(baseDir) type=Class#6 ref=s15
-expr e47 memberCall recv=e46 callee=delete args=[] type=Boolean call=s8 map=[] targs=[]
-expr e48 localDecl deleteBaseResult mutable=0 type=_ init=e47 type=Unit ref=s22
-expr e49 name(println) type=_
-expr e50 name(deleteBaseResult) type=Boolean ref=s22
-expr e51 stringTemplate[lit(delete base (should be false due to contents): ),expr(e50)] type=String
-expr e52 call callee=e49 args=[_:e51] type=Unit call=s5 map=[0->0] targs=[]
-expr e53 name(File) type=_
-expr e54 string(/tmp/advanced_test/file1.txt) type=String
-expr e55 call callee=e53 args=[_:e54] type=Class#6 call=s7 map=[0->0] targs=[]
-expr e56 memberCall recv=e55 callee=delete args=[] type=Boolean call=s8 map=[] targs=[]
-expr e57 name(File) type=_
-expr e58 string(/tmp/advanced_test/subdir/file2.txt) type=String
-expr e59 call callee=e57 args=[_:e58] type=Class#6 call=s7 map=[0->0] targs=[]
-expr e60 memberCall recv=e59 callee=delete args=[] type=Boolean call=s8 map=[] targs=[]
-expr e61 name(subDir) type=Class#6 ref=s16
-expr e62 memberCall recv=e61 callee=delete args=[] type=Boolean call=s8 map=[] targs=[]
-expr e63 name(baseDir) type=Class#6 ref=s15
-expr e64 memberCall recv=e63 callee=delete args=[] type=Boolean call=s8 map=[] targs=[]
-expr e65 localDecl finalDeleteResult mutable=0 type=_ init=e64 type=Unit ref=s23
-expr e66 name(println) type=_
-expr e67 name(finalDeleteResult) type=Boolean ref=s23
-expr e68 stringTemplate[lit(final delete result: ),expr(e67)] type=String
-expr e69 call callee=e66 args=[_:e68] type=Unit call=s5 map=[0->0] targs=[]
+symbol s5 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s6 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#7
+symbol s8 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#7 suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s10 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#9 params=[String?] ret=Class#9 suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#9 params=[Char] ret=Class#9 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#9 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s13 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=class fq=java.io.File vis=public flags=synthetic type=Class#14
+symbol s15 kind=constructor fq=java.io.File.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#14 suspend=0 defaults=[0] vararg=[0]
+symbol s16 kind=function fq=java.io.File.delete vis=public flags=synthetic sig=recv=Class#14 params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
+symbol s17 kind=function fq=java.io.File.mkdirs vis=public flags=synthetic sig=recv=Class#14 params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
+symbol s18 kind=function fq=java.io.File.listFiles vis=public flags=synthetic sig=recv=Class#14 params=[] ret=Class#3<out Class#14>? suspend=0 defaults=[] vararg=[]
+symbol s19 kind=function fq=java.io.File.walk vis=public flags=synthetic sig=recv=Class#14 params=[] ret=Class#20 suspend=0 defaults=[] vararg=[]
+symbol s20 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#20
+symbol s21 kind=function fq=kotlin.io.FileTreeWalk.toList vis=public flags=synthetic sig=recv=Class#20 params=[] ret=Class#3<out Class#14> suspend=0 defaults=[] vararg=[]
+symbol s22 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s23 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s24 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s25 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s26 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s27 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s28 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s29 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s30 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s31 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s32 kind=local fq=__local_0.sb vis=private flags=_ type=Class#9
+symbol s33 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s34 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s35 kind=local fq=__local_3.sb vis=private flags=_ type=Class#9
+symbol s36 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s37 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s38 kind=local fq=__local_6.sb vis=private flags=_ type=Class#9
+symbol s39 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s40 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s41 kind=local fq=__local_9.sb vis=private flags=_ type=Class#9
+symbol s42 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s43 kind=local fq=__local_11.baseDir vis=private flags=_ type=Class#14
+symbol s44 kind=local fq=__local_12.subDir vis=private flags=_ type=Class#14
+symbol s45 kind=local fq=__local_13.nestedDir vis=private flags=_ type=Class#14
+symbol s46 kind=local fq=__local_14.mkdirsResult vis=private flags=_ type=Boolean
+symbol s47 kind=local fq=__local_15.walkedFiles vis=private flags=_ type=Class#20
+symbol s48 kind=local fq=__local_16.baseFiles vis=private flags=_ type=Class#3<out Class#14>?
+symbol s49 kind=local fq=__local_17.subFiles vis=private flags=_ type=Class#3<out Class#14>?
+symbol s50 kind=local fq=__local_18.deleteBaseResult vis=private flags=_ type=Boolean
+symbol s51 kind=local fq=__local_19.finalDeleteResult vis=private flags=_ type=Boolean
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s22
+  decl d1 fun reversed suspend=0 inline=0 sym=s24
+  decl d2 fun padStart suspend=0 inline=0 sym=s25
+  decl d3 fun padEnd suspend=0 inline=0 sym=s28
+file f1 package=_
+  decl d4 fun main suspend=0 inline=0 sym=s31
+expr e0 name(count) type=Int ref=s23
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s23
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#7 call=s8 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s9
+expr e10 call callee=e9 args=[] type=Class#9
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s32
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s33
+expr e14 name(i) type=Int ref=s33
+expr e15 name(count) type=Int ref=s23
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#9 ref=s32
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#9 call=s10 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s33
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#9 ref=s32
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s12 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s5 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s34
+expr e31 name(StringBuilder) type=Any ref=s9
+expr e32 call callee=e31 args=[] type=Class#9
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s35
+expr e34 name(len) type=Int ref=s34
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s36
+expr e38 name(i) type=Int ref=s36
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#9 ref=s35
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s36
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s6 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#9 call=s11 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s36
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#9 ref=s35
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s12 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s26
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s5 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s37
+expr e60 name(padding) type=Int ref=s37
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s9
+expr e67 call callee=e66 args=[] type=Class#9
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s38
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s39
+expr e71 name(i) type=Int ref=s39
+expr e72 name(padding) type=Int ref=s37
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#9 ref=s38
+expr e75 name(padChar) type=Char ref=s27
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#9 call=s11 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s39
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#9 ref=s38
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#9 call=s10 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#9 ref=s38
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s12 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s29
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s5 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s40
+expr e94 name(padding) type=Int ref=s40
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s9
+expr e101 call callee=e100 args=[] type=Class#9
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s41
+expr e103 name(sb) type=Class#9 ref=s41
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#9 call=s10 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s42
+expr e108 name(i) type=Int ref=s42
+expr e109 name(padding) type=Int ref=s40
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#9 ref=s41
+expr e112 name(padChar) type=Char ref=s30
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#9 call=s11 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s42
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#9 ref=s41
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s12 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(File) type=_
+expr e123 string(/tmp/advanced_test) type=String
+expr e124 call callee=e122 args=[_:e123] type=Class#14 call=s15 map=[0->0] targs=[]
+expr e125 localDecl baseDir mutable=0 type=_ init=e124 type=Unit ref=s43
+expr e126 name(File) type=_
+expr e127 string(/tmp/advanced_test/subdir) type=String
+expr e128 call callee=e126 args=[_:e127] type=Class#14 call=s15 map=[0->0] targs=[]
+expr e129 localDecl subDir mutable=0 type=_ init=e128 type=Unit ref=s44
+expr e130 name(File) type=_
+expr e131 string(/tmp/advanced_test/subdir/nested) type=String
+expr e132 call callee=e130 args=[_:e131] type=Class#14 call=s15 map=[0->0] targs=[]
+expr e133 localDecl nestedDir mutable=0 type=_ init=e132 type=Unit ref=s45
+expr e134 name(nestedDir) type=Class#14 ref=s45
+expr e135 memberCall recv=e134 callee=mkdirs args=[] type=Boolean call=s17 map=[] targs=[]
+expr e136 localDecl mkdirsResult mutable=0 type=_ init=e135 type=Unit ref=s46
+expr e137 name(println) type=_
+expr e138 name(mkdirsResult) type=Boolean ref=s46
+expr e139 stringTemplate[lit(mkdirs nested: ),expr(e138)] type=String
+expr e140 call callee=e137 args=[_:e139] type=Unit call=s13 map=[0->0] targs=[]
+expr e141 name(baseDir) type=Class#14 ref=s43
+expr e142 memberCall recv=e141 callee=walk args=[] type=Class#20 call=s19 map=[] targs=[]
+expr e143 localDecl walkedFiles mutable=0 type=_ init=e142 type=Unit ref=s47
+expr e144 name(println) type=_
+expr e145 name(walkedFiles) type=Class#20 ref=s47
+expr e146 memberCall recv=e145 callee=toList args=[] type=Class#3<out Class#14> call=s21 map=[] targs=[]
+expr e147 memberCall recv=e146 callee=size args=[] type=Int ref=s2
+expr e148 stringTemplate[lit(walk count: ),expr(e147)] type=String
+expr e149 call callee=e144 args=[_:e148] type=Unit call=s13 map=[0->0] targs=[]
+expr e150 name(baseDir) type=Class#14 ref=s43
+expr e151 memberCall recv=e150 callee=listFiles args=[] type=Class#3<out Class#14>? call=s18 map=[] targs=[]
+expr e152 localDecl baseFiles mutable=0 type=_ init=e151 type=Unit ref=s48
+expr e153 name(println) type=_
+expr e154 name(baseFiles) type=Class#3<out Class#14>? ref=s48
+expr e155 safeMemberCall recv=e154 callee=toList args=[] type=Class#3<Class#14>? call=s4 map=[] targs=[]
+expr e156 safeMemberCall recv=e155 callee=size args=[] type=Int? ref=s2
+expr e157 stringTemplate[lit(baseDir listFiles count: ),expr(e156)] type=String
+expr e158 call callee=e153 args=[_:e157] type=Unit call=s13 map=[0->0] targs=[]
+expr e159 name(subDir) type=Class#14 ref=s44
+expr e160 memberCall recv=e159 callee=listFiles args=[] type=Class#3<out Class#14>? call=s18 map=[] targs=[]
+expr e161 localDecl subFiles mutable=0 type=_ init=e160 type=Unit ref=s49
+expr e162 name(println) type=_
+expr e163 name(subFiles) type=Class#3<out Class#14>? ref=s49
+expr e164 safeMemberCall recv=e163 callee=toList args=[] type=Class#3<Class#14>? call=s4 map=[] targs=[]
+expr e165 safeMemberCall recv=e164 callee=size args=[] type=Int? ref=s2
+expr e166 stringTemplate[lit(subDir listFiles count: ),expr(e165)] type=String
+expr e167 call callee=e162 args=[_:e166] type=Unit call=s13 map=[0->0] targs=[]
+expr e168 name(baseDir) type=Class#14 ref=s43
+expr e169 memberCall recv=e168 callee=delete args=[] type=Boolean call=s16 map=[] targs=[]
+expr e170 localDecl deleteBaseResult mutable=0 type=_ init=e169 type=Unit ref=s50
+expr e171 name(println) type=_
+expr e172 name(deleteBaseResult) type=Boolean ref=s50
+expr e173 stringTemplate[lit(delete base (should be false due to contents): ),expr(e172)] type=String
+expr e174 call callee=e171 args=[_:e173] type=Unit call=s13 map=[0->0] targs=[]
+expr e175 name(File) type=_
+expr e176 string(/tmp/advanced_test/file1.txt) type=String
+expr e177 call callee=e175 args=[_:e176] type=Class#14 call=s15 map=[0->0] targs=[]
+expr e178 memberCall recv=e177 callee=delete args=[] type=Boolean call=s16 map=[] targs=[]
+expr e179 name(File) type=_
+expr e180 string(/tmp/advanced_test/subdir/file2.txt) type=String
+expr e181 call callee=e179 args=[_:e180] type=Class#14 call=s15 map=[0->0] targs=[]
+expr e182 memberCall recv=e181 callee=delete args=[] type=Boolean call=s16 map=[] targs=[]
+expr e183 name(subDir) type=Class#14 ref=s44
+expr e184 memberCall recv=e183 callee=delete args=[] type=Boolean call=s16 map=[] targs=[]
+expr e185 name(baseDir) type=Class#14 ref=s43
+expr e186 memberCall recv=e185 callee=delete args=[] type=Boolean call=s16 map=[] targs=[]
+expr e187 localDecl finalDeleteResult mutable=0 type=_ init=e186 type=Unit ref=s51
+expr e188 name(println) type=_
+expr e189 name(finalDeleteResult) type=Boolean ref=s51
+expr e190 stringTemplate[lit(final delete result: ),expr(e189)] type=String
+expr e191 call callee=e188 args=[_:e190] type=Unit call=s13 map=[0->0] targs=[]

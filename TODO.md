@@ -400,8 +400,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/text/`
 
 - [ ] MIGRATION-TEXT-001: String 変換・切り出し関数を Kotlin source に移行する（`trim`, `trimStart`, `trimEnd`, `substring`, `subSequence`, `take`, `takeLast`, `drop`, `dropLast`）
-- [ ] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
-- [ ] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
+- [x] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
+- [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
 - [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
 - [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
 - [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）

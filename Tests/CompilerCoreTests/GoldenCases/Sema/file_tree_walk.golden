@@ -1,93 +1,248 @@
 symbol s0 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
-symbol s1 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s2 kind=class fq=java.io.File vis=public flags=synthetic type=Class#2
-symbol s3 kind=property fq=java.io.File.name vis=public flags=synthetic type=String
-symbol s4 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#4
-symbol s5 kind=function fq=kotlin.io.FileTreeWalk.toList vis=public flags=synthetic sig=recv=Class#4 params=[] ret=Class#0<out Class#2> suspend=0 defaults=[] vararg=[]
-symbol s6 kind=function fq=kotlin.io.FileTreeWalk.maxDepth vis=public flags=synthetic sig=recv=Class#4 params=[Int] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s7 kind=function fq=kotlin.io.FileTreeWalk.onEnter vis=public flags=synthetic sig=recv=Class#4 params=[(Class#2) -> Boolean] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s8 kind=function fq=kotlin.io.FileTreeWalk.onLeave vis=public flags=synthetic sig=recv=Class#4 params=[(Class#2) -> Unit] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s9 kind=function fq=kotlin.io.FileTreeWalk.forEach vis=public flags=synthetic sig=recv=Class#4 params=[(Class#2) -> Unit] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s10 kind=function fq=java.io.File.walkTopDown vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#4 suspend=0 defaults=[] vararg=[]
-symbol s11 kind=function fq=java.io.File.walkBottomUp vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#4 suspend=0 defaults=[] vararg=[]
-symbol s12 kind=function fq=testWalkTopDown vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s13 kind=valueParameter fq=testWalkTopDown.$0.dir vis=private flags=_
-symbol s14 kind=function fq=testWalkBottomUp vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s15 kind=valueParameter fq=testWalkBottomUp.$1.dir vis=private flags=_
-symbol s16 kind=function fq=testMaxDepth vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s17 kind=valueParameter fq=testMaxDepth.$2.dir vis=private flags=_
-symbol s18 kind=function fq=testToList vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#0<Class#2> suspend=0 defaults=[0] vararg=[0]
-symbol s19 kind=valueParameter fq=testToList.$3.dir vis=private flags=_
-symbol s20 kind=function fq=testOnEnter vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s21 kind=valueParameter fq=testOnEnter.$4.dir vis=private flags=_
-symbol s22 kind=function fq=testOnLeave vis=public flags=_ sig=recv=_ params=[Class#2] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s23 kind=valueParameter fq=testOnLeave.$5.dir vis=private flags=_
-symbol s24 kind=function fq=testForEach vis=public flags=_ sig=recv=_ params=[Class#2] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s25 kind=valueParameter fq=testForEach.$6.dir vis=private flags=_
-file f0 package=_
-  decl d0 fun testWalkTopDown suspend=0 inline=0 sym=s12
-  decl d1 fun testWalkBottomUp suspend=0 inline=0 sym=s14
-  decl d2 fun testMaxDepth suspend=0 inline=0 sym=s16
-  decl d3 fun testToList suspend=0 inline=0 sym=s18
-  decl d4 fun testOnEnter suspend=0 inline=0 sym=s20
-  decl d5 fun testOnLeave suspend=0 inline=0 sym=s22
-  decl d6 fun testForEach suspend=0 inline=0 sym=s24
-expr e0 name(dir) type=Class#2 ref=s13
-expr e1 memberCall recv=e0 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e2 name(dir) type=Class#2 ref=s15
-expr e3 memberCall recv=e2 callee=walkBottomUp args=[] type=Class#4 call=s11 map=[] targs=[]
-expr e4 name(dir) type=Class#2 ref=s17
-expr e5 memberCall recv=e4 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e6 int(2) type=Int
-expr e7 memberCall recv=e5 callee=maxDepth args=[_:e6] type=Class#4 call=s6 map=[0->0] targs=[]
-expr e8 name(dir) type=Class#2 ref=s19
-expr e9 memberCall recv=e8 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e10 memberCall recv=e9 callee=toList args=[] type=Class#0<out Class#2> call=s5 map=[] targs=[]
-expr e11 name(dir) type=Class#2 ref=s21
-expr e12 memberCall recv=e11 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e13 name(it) type=_
-expr e14 memberCall recv=e13 callee=name args=[] type=_
-expr e15 string(skip) type=_
-expr e16 binary(notEqual) lhs=e14 rhs=e15 type=_
-expr e17 name(it) type=Class#2 ref=s-0
-expr e18 memberCall recv=e17 callee=name args=[] type=String ref=s3
-expr e19 string(skip) type=String
-expr e20 binary(notEqual) lhs=e18 rhs=e19 type=Boolean
-expr e21 lambda params=[] body=e20 label=onEnter type=(Class#2) -> Boolean
-expr e22 memberCall recv=e12 callee=onEnter args=[_:e21] type=Class#4 call=s7 map=[0->0] targs=[]
-expr e23 name(dir) type=Class#2 ref=s23
-expr e24 memberCall recv=e23 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e25 name(println) type=_
-expr e26 name(it) type=_
-expr e27 memberCall recv=e26 callee=name args=[] type=_
-expr e28 call callee=e25 args=[_:e27] type=_
-expr e29 name(println) type=_
-expr e30 name(it) type=Class#2 ref=s-1
-expr e31 memberCall recv=e30 callee=name args=[] type=String ref=s3
-expr e32 call callee=e29 args=[_:e31] type=Unit call=s1 map=[0->0] targs=[]
-expr e33 lambda params=[] body=e32 label=onLeave type=(Class#2) -> Unit
-expr e34 memberCall recv=e24 callee=onLeave args=[_:e33] type=Class#4 call=s8 map=[0->0] targs=[]
-expr e35 name(dir) type=Class#2 ref=s25
-expr e36 memberCall recv=e35 callee=walkTopDown args=[] type=Class#4 call=s10 map=[] targs=[]
-expr e37 int(3) type=Int
-expr e38 memberCall recv=e36 callee=maxDepth args=[_:e37] type=Class#4 call=s6 map=[0->0] targs=[]
-expr e39 name(d) type=_
-expr e40 memberCall recv=e39 callee=name args=[] type=_
-expr e41 string(skip) type=_
-expr e42 binary(notEqual) lhs=e40 rhs=e41 type=_
-expr e43 name(d) type=Class#2 ref=s-2
-expr e44 memberCall recv=e43 callee=name args=[] type=String ref=s3
-expr e45 string(skip) type=String
-expr e46 binary(notEqual) lhs=e44 rhs=e45 type=Boolean
-expr e47 lambda params=[d] body=e46 label=onEnter type=(Class#2) -> Boolean
-expr e48 memberCall recv=e38 callee=onEnter args=[_:e47] type=Class#4 call=s7 map=[0->0] targs=[]
-expr e49 name(println) type=_
-expr e50 name(f) type=_
-expr e51 memberCall recv=e50 callee=name args=[] type=_
-expr e52 call callee=e49 args=[_:e51] type=_
-expr e53 name(println) type=_
-expr e54 name(f) type=Class#2 ref=s-3
-expr e55 memberCall recv=e54 callee=name args=[] type=String ref=s3
-expr e56 call callee=e53 args=[_:e55] type=Unit call=s1 map=[0->0] targs=[]
-expr e57 lambda params=[f] body=e56 label=forEach type=(Class#2) -> Unit
-expr e58 memberCall recv=e48 callee=forEach args=[_:e57] type=Unit call=s9 map=[0->0] targs=[]
+symbol s1 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s2 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s3 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#3
+symbol s4 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#3 suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s6 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#5 params=[String?] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s7 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#5 params=[Char] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#5 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s9 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=class fq=java.io.File vis=public flags=synthetic type=Class#10
+symbol s11 kind=property fq=java.io.File.name vis=public flags=synthetic type=String
+symbol s12 kind=class fq=kotlin.io.FileTreeWalk vis=public flags=synthetic type=Class#12
+symbol s13 kind=function fq=kotlin.io.FileTreeWalk.toList vis=public flags=synthetic sig=recv=Class#12 params=[] ret=Class#0<out Class#10> suspend=0 defaults=[] vararg=[]
+symbol s14 kind=function fq=kotlin.io.FileTreeWalk.maxDepth vis=public flags=synthetic sig=recv=Class#12 params=[Int] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s15 kind=function fq=kotlin.io.FileTreeWalk.onEnter vis=public flags=synthetic sig=recv=Class#12 params=[(Class#10) -> Boolean] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s16 kind=function fq=kotlin.io.FileTreeWalk.onLeave vis=public flags=synthetic sig=recv=Class#12 params=[(Class#10) -> Unit] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s17 kind=function fq=kotlin.io.FileTreeWalk.forEach vis=public flags=synthetic sig=recv=Class#12 params=[(Class#10) -> Unit] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s18 kind=function fq=java.io.File.walkTopDown vis=public flags=synthetic sig=recv=Class#10 params=[] ret=Class#12 suspend=0 defaults=[] vararg=[]
+symbol s19 kind=function fq=java.io.File.walkBottomUp vis=public flags=synthetic sig=recv=Class#10 params=[] ret=Class#12 suspend=0 defaults=[] vararg=[]
+symbol s20 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s21 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s22 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s23 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s24 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s25 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s26 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s27 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s28 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s29 kind=function fq=testWalkTopDown vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s30 kind=valueParameter fq=testWalkTopDown.$3.dir vis=private flags=_
+symbol s31 kind=function fq=testWalkBottomUp vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s32 kind=valueParameter fq=testWalkBottomUp.$4.dir vis=private flags=_
+symbol s33 kind=function fq=testMaxDepth vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s34 kind=valueParameter fq=testMaxDepth.$5.dir vis=private flags=_
+symbol s35 kind=function fq=testToList vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#0<Class#10> suspend=0 defaults=[0] vararg=[0]
+symbol s36 kind=valueParameter fq=testToList.$6.dir vis=private flags=_
+symbol s37 kind=function fq=testOnEnter vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s38 kind=valueParameter fq=testOnEnter.$7.dir vis=private flags=_
+symbol s39 kind=function fq=testOnLeave vis=public flags=_ sig=recv=_ params=[Class#10] ret=Class#12 suspend=0 defaults=[0] vararg=[0]
+symbol s40 kind=valueParameter fq=testOnLeave.$8.dir vis=private flags=_
+symbol s41 kind=function fq=testForEach vis=public flags=_ sig=recv=_ params=[Class#10] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s42 kind=valueParameter fq=testForEach.$9.dir vis=private flags=_
+symbol s43 kind=local fq=__local_0.sb vis=private flags=_ type=Class#5
+symbol s44 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s45 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s46 kind=local fq=__local_3.sb vis=private flags=_ type=Class#5
+symbol s47 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s48 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s49 kind=local fq=__local_6.sb vis=private flags=_ type=Class#5
+symbol s50 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s51 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s52 kind=local fq=__local_9.sb vis=private flags=_ type=Class#5
+symbol s53 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s20
+  decl d1 fun reversed suspend=0 inline=0 sym=s22
+  decl d2 fun padStart suspend=0 inline=0 sym=s23
+  decl d3 fun padEnd suspend=0 inline=0 sym=s26
+file f1 package=_
+  decl d4 fun testWalkTopDown suspend=0 inline=0 sym=s29
+  decl d5 fun testWalkBottomUp suspend=0 inline=0 sym=s31
+  decl d6 fun testMaxDepth suspend=0 inline=0 sym=s33
+  decl d7 fun testToList suspend=0 inline=0 sym=s35
+  decl d8 fun testOnEnter suspend=0 inline=0 sym=s37
+  decl d9 fun testOnLeave suspend=0 inline=0 sym=s39
+  decl d10 fun testForEach suspend=0 inline=0 sym=s41
+expr e0 name(count) type=Int ref=s21
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s21
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#3 call=s4 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s5
+expr e10 call callee=e9 args=[] type=Class#5
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s43
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s44
+expr e14 name(i) type=Int ref=s44
+expr e15 name(count) type=Int ref=s21
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#5 ref=s43
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s44
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#5 ref=s43
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s45
+expr e31 name(StringBuilder) type=Any ref=s5
+expr e32 call callee=e31 args=[] type=Class#5
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s46
+expr e34 name(len) type=Int ref=s45
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s47
+expr e38 name(i) type=Int ref=s47
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#5 ref=s46
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s47
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s2 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s47
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#5 ref=s46
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s24
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s48
+expr e60 name(padding) type=Int ref=s48
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s5
+expr e67 call callee=e66 args=[] type=Class#5
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s49
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s50
+expr e71 name(i) type=Int ref=s50
+expr e72 name(padding) type=Int ref=s48
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#5 ref=s49
+expr e75 name(padChar) type=Char ref=s25
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s50
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#5 ref=s49
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#5 ref=s49
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s27
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s1 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s51
+expr e94 name(padding) type=Int ref=s51
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s5
+expr e101 call callee=e100 args=[] type=Class#5
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s52
+expr e103 name(sb) type=Class#5 ref=s52
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#5 call=s6 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s53
+expr e108 name(i) type=Int ref=s53
+expr e109 name(padding) type=Int ref=s51
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#5 ref=s52
+expr e112 name(padChar) type=Char ref=s28
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#5 call=s7 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s53
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#5 ref=s52
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s8 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(dir) type=Class#10 ref=s30
+expr e123 memberCall recv=e122 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e124 name(dir) type=Class#10 ref=s32
+expr e125 memberCall recv=e124 callee=walkBottomUp args=[] type=Class#12 call=s19 map=[] targs=[]
+expr e126 name(dir) type=Class#10 ref=s34
+expr e127 memberCall recv=e126 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e128 int(2) type=Int
+expr e129 memberCall recv=e127 callee=maxDepth args=[_:e128] type=Class#12 call=s14 map=[0->0] targs=[]
+expr e130 name(dir) type=Class#10 ref=s36
+expr e131 memberCall recv=e130 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e132 memberCall recv=e131 callee=toList args=[] type=Class#0<out Class#10> call=s13 map=[] targs=[]
+expr e133 name(dir) type=Class#10 ref=s38
+expr e134 memberCall recv=e133 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e135 name(it) type=_
+expr e136 memberCall recv=e135 callee=name args=[] type=_
+expr e137 string(skip) type=_
+expr e138 binary(notEqual) lhs=e136 rhs=e137 type=_
+expr e139 name(it) type=Class#10 ref=s-0
+expr e140 memberCall recv=e139 callee=name args=[] type=String ref=s11
+expr e141 string(skip) type=String
+expr e142 binary(notEqual) lhs=e140 rhs=e141 type=Boolean
+expr e143 lambda params=[] body=e142 label=onEnter type=(Class#10) -> Boolean
+expr e144 memberCall recv=e134 callee=onEnter args=[_:e143] type=Class#12 call=s15 map=[0->0] targs=[]
+expr e145 name(dir) type=Class#10 ref=s40
+expr e146 memberCall recv=e145 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e147 name(println) type=_
+expr e148 name(it) type=_
+expr e149 memberCall recv=e148 callee=name args=[] type=_
+expr e150 call callee=e147 args=[_:e149] type=_
+expr e151 name(println) type=_
+expr e152 name(it) type=Class#10 ref=s-1
+expr e153 memberCall recv=e152 callee=name args=[] type=String ref=s11
+expr e154 call callee=e151 args=[_:e153] type=Unit call=s9 map=[0->0] targs=[]
+expr e155 lambda params=[] body=e154 label=onLeave type=(Class#10) -> Unit
+expr e156 memberCall recv=e146 callee=onLeave args=[_:e155] type=Class#12 call=s16 map=[0->0] targs=[]
+expr e157 name(dir) type=Class#10 ref=s42
+expr e158 memberCall recv=e157 callee=walkTopDown args=[] type=Class#12 call=s18 map=[] targs=[]
+expr e159 int(3) type=Int
+expr e160 memberCall recv=e158 callee=maxDepth args=[_:e159] type=Class#12 call=s14 map=[0->0] targs=[]
+expr e161 name(d) type=_
+expr e162 memberCall recv=e161 callee=name args=[] type=_
+expr e163 string(skip) type=_
+expr e164 binary(notEqual) lhs=e162 rhs=e163 type=_
+expr e165 name(d) type=Class#10 ref=s-2
+expr e166 memberCall recv=e165 callee=name args=[] type=String ref=s11
+expr e167 string(skip) type=String
+expr e168 binary(notEqual) lhs=e166 rhs=e167 type=Boolean
+expr e169 lambda params=[d] body=e168 label=onEnter type=(Class#10) -> Boolean
+expr e170 memberCall recv=e160 callee=onEnter args=[_:e169] type=Class#12 call=s15 map=[0->0] targs=[]
+expr e171 name(println) type=_
+expr e172 name(f) type=_
+expr e173 memberCall recv=e172 callee=name args=[] type=_
+expr e174 call callee=e171 args=[_:e173] type=_
+expr e175 name(println) type=_
+expr e176 name(f) type=Class#10 ref=s-3
+expr e177 memberCall recv=e176 callee=name args=[] type=String ref=s11
+expr e178 call callee=e175 args=[_:e177] type=Unit call=s9 map=[0->0] targs=[]
+expr e179 lambda params=[f] body=e178 label=forEach type=(Class#10) -> Unit
+expr e180 memberCall recv=e170 callee=forEach args=[_:e179] type=Unit call=s17 map=[0->0] targs=[]
