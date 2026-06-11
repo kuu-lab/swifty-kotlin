@@ -7,6 +7,7 @@
   "path": ["Sources/"],
   "ignore": [
     "Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift",
+    "Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticKSwiftKRuntimeNameStubs.swift",
     "Sources/CompilerCore/Lowering/DataEnumSealedSynthesisPass.swift",
     "Sources/CompilerCore/Lowering/DataEnumSealedSynthesisPass+EnumSynthesis.swift"
   ],
