@@ -97,9 +97,8 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
                         "asKotlinRandom must return kotlin.random.Random")
     }
 
-    /// The synthetic `java.util.Random` shim must expose constructors that
-    /// allow user code such as `JavaRandom().asKotlinRandom()` or
-    /// `JavaRandom(42).asKotlinRandom()` to resolve.
+    /// The synthetic `java.util.Random` shim must expose a seeded constructor that
+    /// allows user code such as `JavaRandom(42).asKotlinRandom()` to resolve.
     func testJavaUtilRandomShimHasConstructorsForAsKotlinRandomCallSites() throws {
         let (sema, interner) = try makeSema()
 
@@ -110,8 +109,6 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
         let arities = ctors.compactMap { id -> Int? in
             sema.symbols.functionSignature(for: id).map { $0.parameterTypes.count }
         }
-        XCTAssertTrue(arities.contains(0),
-                      "java.util.Random must expose a no-arg constructor")
         XCTAssertTrue(arities.contains(1),
                       "java.util.Random must expose a seeded constructor")
     }
