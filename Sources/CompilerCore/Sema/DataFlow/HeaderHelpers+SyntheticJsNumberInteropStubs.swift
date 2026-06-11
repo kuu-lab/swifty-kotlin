@@ -25,6 +25,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        registerIntToJsNumberFunction(
+            packageFQName: kotlinJsPkg,
+            returnType: jsNumberType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 
     private func ensureJsNumberType(
@@ -90,6 +97,49 @@ extension DataFlowSemaPhase {
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: types.doubleType,
+                parameterTypes: [],
+                returnType: returnType
+            ),
+            for: functionSymbol
+        )
+    }
+
+    private func registerIntToJsNumberFunction(
+        packageFQName: [InternedString],
+        returnType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let functionName = interner.intern("toJsNumber")
+        let functionFQName = packageFQName + [functionName]
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbol in
+            guard let signature = symbols.functionSignature(for: symbol) else {
+                return false
+            }
+            return signature.receiverType == types.intType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == returnType
+        }) {
+            symbols.setExternalLinkName("kk_int_toJsNumber", for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
+            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        }
+        symbols.setExternalLinkName("kk_int_toJsNumber", for: functionSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: types.intType,
                 parameterTypes: [],
                 returnType: returnType
             ),
