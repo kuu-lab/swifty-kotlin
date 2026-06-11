@@ -8,7 +8,7 @@ enum BundledKotlinStdlib {
 package kotlin.text
 
 fun String.repeat(count: Int): String {
-    require(count >= 0) { "Count 'n' must be non-negative, but was $count." }
+    if (count < 0) throw IllegalArgumentException("Count 'n' must be non-negative, but was $count.")
     val sb = StringBuilder()
     var i = 0
     while (i < count) { sb.append(this); i += 1 }

@@ -1216,16 +1216,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let appendableSymbol = try XCTUnwrap(sema.symbols.lookup(fqName: appendableFQName))
             XCTAssertEqual(sema.symbols.symbol(appendableSymbol)?.kind, .interface)
 
-            let appendCalls = allExprIDs(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "append"
-            }
-            XCTAssertEqual(appendCalls.count, 3)
             let appendableType = sema.types.make(.classType(ClassType(
                 classSymbol: appendableSymbol,
                 args: [],
                 nullability: .nonNull
             )))
+            // Filter to only user code's append calls on Appendable receiver
+            // (bundled stdlib also has StringBuilder.append calls)
+            let allAppendCalls = allExprIDs(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                return ctx.interner.resolve(callee) == "append"
+            }
+            let appendCalls = allAppendCalls.filter { callExpr in
+                guard let binding = sema.bindings.callBinding(for: callExpr),
+                      let signature = sema.symbols.functionSignature(for: binding.chosenCallee)
+                else { return false }
+                return signature.receiverType == appendableType
+            }
+            XCTAssertEqual(appendCalls.count, 3)
             for callExpr in appendCalls {
                 let chosenCallee = try XCTUnwrap(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
