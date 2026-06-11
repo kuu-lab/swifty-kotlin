@@ -413,7 +413,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/StringBuilder.kt`
 
-- [ ] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
+- [x] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
 
 ### Phase M3: kotlin.collections ファクトリ・HOF
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
