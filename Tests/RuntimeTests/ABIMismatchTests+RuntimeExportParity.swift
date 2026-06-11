@@ -139,8 +139,6 @@ extension ABIMismatchTests {
             "kk_path_setOwner",
             "kk_path_setAttribute",
             "kk_path_setPosixFilePermissions",
-            "kk_path_useDirectoryEntries",
-            "kk_path_useDirectoryEntries_default",
             "kk_path_walk",
             "kk_path_writeBytes",
             "kk_path_writeLines_iterable",

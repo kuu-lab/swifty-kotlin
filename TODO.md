@@ -103,7 +103,7 @@
 - [ ] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
+- [x] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
