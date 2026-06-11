@@ -139,17 +139,32 @@ public struct CompilerOptions: Equatable {
     }
 
     /// Default search paths for locating Kotlin stdlib sources.
+    ///
+    /// Checks candidates in order and returns only paths that exist on disk:
+    /// 1. `KSWIFTK_STDLIB_PATH` environment variable (if set).
+    /// 2. `<prefix>/lib/kswiftk/stdlib` relative to the compiler binary (macOS).
     public static func defaultStdlibSearchPaths() -> [String] {
-        // Discover stdlib source directories relative to the compiler binary.
+        let fileManager = FileManager.default
         var paths: [String] = []
+
+        if let envPath = ProcessInfo.processInfo.environment["KSWIFTK_STDLIB_PATH"],
+           !envPath.isEmpty,
+           fileManager.fileExists(atPath: envPath)
+        {
+            paths.append(envPath)
+        }
+
         #if os(macOS)
-            // Typical install layout: <prefix>/bin/kswiftc → <prefix>/lib/kswiftk/stdlib
-            let execURL = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-            let binDir = execURL.deletingLastPathComponent()
-            let prefixDir = binDir.deletingLastPathComponent()
-            let stdlibDir = prefixDir.appendingPathComponent("lib/kswiftk/stdlib").path
-            paths.append(stdlibDir)
+            if let execPath = CommandLine.arguments.first, !execPath.isEmpty {
+                let execURL = URL(fileURLWithPath: execPath).resolvingSymlinksInPath()
+                let prefixDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
+                let stdlibDir = prefixDir.appendingPathComponent("lib/kswiftk/stdlib").path
+                if fileManager.fileExists(atPath: stdlibDir) {
+                    paths.append(stdlibDir)
+                }
+            }
         #endif
+
         return paths
     }
 
