@@ -121,6 +121,7 @@ extension ABIMismatchTests {
             "kk_path_relativeToOrNull",
             "kk_path_relativeToOrSelf",
             "kk_path_setAttribute",
+            "kk_path_setOwner",
             "kk_path_setPosixFilePermissions",
             "kk_path_walk",
             "kk_path_writeBytes",
