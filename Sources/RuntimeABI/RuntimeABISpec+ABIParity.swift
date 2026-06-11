@@ -377,6 +377,9 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_cpointer_toKStringFromUtf32", parameters: [
             p("handle", .intptr),
         ]),
+        abiParitySpec("kk_byteArray_toCValues", parameters: [
+            p("arrayRaw", .intptr),
+        ]),
         abiParitySpec("kk_file_appender_new", parameters: [
             p("pathRaw", .intptr),
         ]),

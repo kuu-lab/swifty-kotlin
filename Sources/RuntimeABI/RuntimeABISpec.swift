@@ -759,23 +759,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_array_toArray",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_js_array_toList",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_array_toMutableList",
             parameters: [
                 RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
             ],
@@ -3346,14 +3330,6 @@ public enum RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_to_java_duration",
-            parameters: [
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_duration_to_kotlin_duration",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],

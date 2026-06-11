@@ -1,5 +1,9 @@
 
 /// Synthetic stubs for StringBuilder type (STDLIB-255/256/257).
+///
+/// NOTE: Kotlin source exists at Stdlib/kotlin/text/StringBuilder.kt (MIGRATION-SB-001).
+/// These stubs remain active and set external link names on the class members so that
+/// every call site dispatches directly to the kk_string_builder_* runtime functions.
 extension DataFlowSemaPhase {
     func registerSyntheticStringBuilderStubs(
         symbols: SymbolTable,

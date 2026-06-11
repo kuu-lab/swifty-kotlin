@@ -393,6 +393,16 @@ public func kk_set_to_set(_ setRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
 }
 
+// MARK: - JsReadonlySet.toSet() (STDLIB-JS-COLLECTIONS-FN-006)
+
+@_cdecl("kk_js_set_toSet")
+public func kk_js_set_toSet(_ jsSetRaw: Int) -> Int {
+    guard let set = runtimeSetBox(from: jsSetRaw) else {
+        return registerRuntimeObject(RuntimeSetBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: Array(set.elements)))
+}
+
 @_cdecl("kk_list_to_mutable_set")
 public func kk_list_to_mutable_set(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {

@@ -177,16 +177,6 @@ public func kk_duration_to_java_duration(_ durationRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_java_duration_to_kotlin_duration")
-public func kk_java_duration_to_kotlin_duration(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeJavaDurationBox(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_duration_to_kotlin_duration received invalid java.time.Duration handle")
-    }
-    let secondsAsNanos = saturatingMultiply(duration.seconds, 1_000_000_000)
-    let totalNanoseconds = runtimeSaturatingAdd(secondsAsNanos, Int64(duration.nanoAdjustment))
-    return registerRuntimeObject(RuntimeDurationBox(nanoseconds: totalNanoseconds))
-}
-
 @_cdecl("kk_instant_to_js_date")
 public func kk_instant_to_js_date(_ instantRaw: Int) -> Int {
     guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {

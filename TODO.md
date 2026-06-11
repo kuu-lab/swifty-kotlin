@@ -348,7 +348,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [x] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
 - [x] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
-- [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
+- [x] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
@@ -363,7 +363,7 @@
 - [ ] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
-- [ ] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
@@ -413,7 +413,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/StringBuilder.kt`
 
-- [ ] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
+- [x] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
 
 ### Phase M3: kotlin.collections ファクトリ・HOF
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
@@ -547,7 +547,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-009: `kk_js_set_toSet` stub削除
 - [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
-- [ ] CLEANUP-STUB-011: `kk_js_bigint_toLong` stub削除
+- [x] CLEANUP-STUB-011: `kk_js_bigint_toLong` stub削除
 - [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
@@ -559,14 +559,13 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Unsafe Annotation stub
 - [ ] CLEANUP-STUB-018: Wasm Unsafe Annotation stub削除（`HeaderHelpers+SyntheticWasmUnsafeAnnotationStubs.swift`）
 #### Wasm Unsafe Memory Allocator stub
-- [ ] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
+- [x] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
 #### Wasm Unsafe Pointer stub
 - [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
 - [ ] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
 - [ ] CLEANUP-STUB-022: `kk_java_instant_to_kotlin_instant` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
-- [ ] CLEANUP-STUB-023: `kk_java_duration_to_kotlin_duration` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
 #### JVM Atomic相互運用stub
 - [ ] CLEANUP-STUB-024: `kk_java_atomic_int_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
 - [ ] CLEANUP-STUB-025: `kk_java_atomic_long_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
