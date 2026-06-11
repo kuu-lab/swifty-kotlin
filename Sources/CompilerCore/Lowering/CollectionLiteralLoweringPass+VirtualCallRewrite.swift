@@ -26,6 +26,7 @@ extension CollectionLiteralLoweringPass {
         charRangeExprIDs: inout Set<Int32>,
         ulongRangeExprIDs: inout Set<Int32>,
         fileExprIDs: inout Set<Int32>,
+        pathExprIDs: inout Set<Int32>,
         indexingIterableExprIDs: inout Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {

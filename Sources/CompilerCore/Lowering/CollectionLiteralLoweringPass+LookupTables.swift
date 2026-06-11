@@ -755,6 +755,8 @@ struct CollectionLiteralLookupTables {
     let kkBufferedReaderUseLinesName: InternedString
     let kkPathUseLinesName: InternedString
     let kkPathUseLinesDefaultName: InternedString
+    let kkPathNewName: InternedString
+    let kkPathGetName: InternedString
     let bufferedReaderName: InternedString
     let kkFileBufferedReaderName: InternedString
     let bufferedWriterName: InternedString
@@ -1548,6 +1550,8 @@ struct CollectionLiteralLookupTables {
         kkBufferedReaderUseLinesName = interner.intern("kk_buffered_reader_useLines")
         kkPathUseLinesName = interner.intern("kk_path_useLines")
         kkPathUseLinesDefaultName = interner.intern("kk_path_useLines_default")
+        kkPathNewName = interner.intern("kk_path_new")
+        kkPathGetName = interner.intern("kk_path_get")
         bufferedReaderName = interner.intern("bufferedReader")
         kkFileBufferedReaderName = interner.intern("kk_file_bufferedReader")
         bufferedWriterName = interner.intern("bufferedWriter")

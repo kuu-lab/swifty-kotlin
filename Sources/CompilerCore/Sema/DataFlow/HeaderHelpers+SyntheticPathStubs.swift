@@ -1468,7 +1468,7 @@ extension DataFlowSemaPhase {
         )
 
         registerPathUseLinesFunction(
-            packageFQName: kotlinIOPathPkg,
+            ownerSymbol: pathSymbol,
             receiverType: pathType,
             sequenceOfStringType: sequenceOfStringType,
             charsetType: charsetType,
@@ -2943,7 +2943,7 @@ extension DataFlowSemaPhase {
     }
 
     private func registerPathUseLinesFunction(
-        packageFQName: [InternedString],
+        ownerSymbol: SymbolID,
         receiverType: TypeID,
         sequenceOfStringType: TypeID,
         charsetType: TypeID,
@@ -2952,7 +2952,7 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         registerPathUseLinesFunction(
-            packageFQName: packageFQName,
+            ownerSymbol: ownerSymbol,
             receiverType: receiverType,
             sequenceOfStringType: sequenceOfStringType,
             parameters: [("charset", charsetType)],
@@ -2963,7 +2963,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerPathUseLinesFunction(
-            packageFQName: packageFQName,
+            ownerSymbol: ownerSymbol,
             receiverType: receiverType,
             sequenceOfStringType: sequenceOfStringType,
             parameters: [],
@@ -2976,7 +2976,7 @@ extension DataFlowSemaPhase {
     }
 
     private func registerPathUseLinesFunction(
-        packageFQName: [InternedString],
+        ownerSymbol: SymbolID,
         receiverType: TypeID,
         sequenceOfStringType: TypeID,
         parameters: [(name: String, type: TypeID)],
@@ -2987,8 +2987,18 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let functionName = interner.intern("useLines")
-        let functionFQName = packageFQName + [functionName]
+        // Register as a non-generic class member of Path (mirroring File.useLines).
+        // Non-generic Any return lets Sema set chosenCallee directly, which makes
+        // recoverMemberCallBinding step 1 return early with the correct externalLinkName.
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let functionFQName = ownerInfo.fqName + [functionName]
         let parameterTypesPrefix = parameters.map(\.type)
+        let blockType = types.make(.functionType(FunctionType(
+            params: [sequenceOfStringType],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
 
         if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let signature = symbols.functionSignature(for: symbolID) else {
@@ -2996,7 +3006,7 @@ extension DataFlowSemaPhase {
             }
             return signature.receiverType == receiverType
                 && Array(signature.parameterTypes.dropLast()) == parameterTypesPrefix
-                && signature.typeParameterSymbols.count == 1
+                && signature.typeParameterSymbols.isEmpty
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
             return
@@ -3010,31 +3020,8 @@ extension DataFlowSemaPhase {
             visibility: .public,
             flags: [.synthetic]
         )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-
-        let typeParamName = interner.intern("T")
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: functionFQName + [interner.intern("$synthetic"), typeParamName, interner.intern(externalLinkName)],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(functionSymbol, for: typeParamSymbol)
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        let blockType = types.make(.functionType(FunctionType(
-            params: [sequenceOfStringType],
-            returnType: typeParamType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
 
         var valueParameterSymbols: [SymbolID] = []
         for parameterName in parameters.map(\.name) + ["block"] {
@@ -3055,12 +3042,12 @@ extension DataFlowSemaPhase {
             FunctionSignature(
                 receiverType: receiverType,
                 parameterTypes: parameterTypesPrefix + [blockType],
-                returnType: typeParamType,
+                returnType: types.anyType,
                 isSuspend: false,
                 valueParameterSymbols: valueParameterSymbols,
                 valueParameterHasDefaultValues: valueParameterHasDefaultValuesPrefix + [false],
                 valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count),
-                typeParameterSymbols: [typeParamSymbol]
+                typeParameterSymbols: []
             ),
             for: functionSymbol
         )

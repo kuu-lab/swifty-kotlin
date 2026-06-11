@@ -30,7 +30,8 @@ extension CollectionLiteralLoweringPass {
                 charRangeExprIDs: &state.charRangeExprIDs,
                 ulongRangeExprIDs: &state.ulongRangeExprIDs,
                 stringExprIDs: &state.stringExprIDs,
-                fileExprIDs: &state.fileExprIDs
+                fileExprIDs: &state.fileExprIDs,
+                pathExprIDs: &state.pathExprIDs
             )
 
             // Phase 2: Rewrite instructions
@@ -171,6 +172,7 @@ extension CollectionLiteralLoweringPass {
                         charRangeExprIDs: &state.charRangeExprIDs,
                         ulongRangeExprIDs: &state.ulongRangeExprIDs,
                         fileExprIDs: &state.fileExprIDs,
+                        pathExprIDs: &state.pathExprIDs,
                         indexingIterableExprIDs: &state.indexingIterableExprIDs,
                         loweredBody: &loweredBody
                     ) {

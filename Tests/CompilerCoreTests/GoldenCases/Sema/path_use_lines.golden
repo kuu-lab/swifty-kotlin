@@ -1,0 +1,28 @@
+symbol s0 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
+symbol s1 kind=typeParameter fq=kotlin.sequences.Sequence.T vis=private flags=_
+symbol s2 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
+symbol s3 kind=function fq=kotlin.sequences.Sequence.toList vis=public flags=synthetic|operatorFunction sig=recv=Class#0<out T#1> params=[] ret=Class#2<out T#1> suspend=0 defaults=[] vararg=[]
+symbol s4 kind=class fq=kotlin.io.path.Path vis=public flags=synthetic type=Class#4
+symbol s5 kind=function fq=collectLines vis=public flags=_ sig=recv=_ params=[Class#4] ret=Class#2<String> suspend=0 defaults=[0] vararg=[0]
+symbol s6 kind=valueParameter fq=collectLines.$0.path vis=private flags=_
+symbol s7 kind=function fq=countLines vis=public flags=_ sig=recv=_ params=[Class#4] ret=Int suspend=0 defaults=[0] vararg=[0]
+symbol s8 kind=valueParameter fq=countLines.$1.path vis=private flags=_
+file f0 package=_
+  decl d0 fun collectLines suspend=0 inline=0 sym=s5
+  decl d1 fun countLines suspend=0 inline=0 sym=s7
+expr e0 name(path) type=Class#4 ref=s6
+expr e1 name(lines) type=_
+expr e2 memberCall recv=e1 callee=toList args=[] type=_
+expr e3 name(lines) type=Class#0<out String> ref=s-0
+expr e4 memberCall recv=e3 callee=toList args=[] type=Class#2<String> call=s3 map=[] targs=[]
+expr e5 lambda params=[lines] body=e4 label=useLines type=(Class#0<out String>) -> Class#2<String>
+expr e6 memberCall recv=e0 callee=useLines args=[_:e5] type=Class#2<String>
+expr e7 return value=e6 type=Nothing
+expr e8 name(path) type=Class#4 ref=s8
+expr e9 name(lines) type=_
+expr e10 memberCall recv=e9 callee=count args=[] type=_
+expr e11 name(lines) type=Class#0<out String> ref=s-1
+expr e12 memberCall recv=e11 callee=count args=[] type=Int
+expr e13 lambda params=[lines] body=e12 label=useLines type=(Class#0<out String>) -> Int
+expr e14 memberCall recv=e8 callee=useLines args=[_:e13] type=Int
+expr e15 return value=e14 type=Nothing
