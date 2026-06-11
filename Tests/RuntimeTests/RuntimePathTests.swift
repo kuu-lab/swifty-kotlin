@@ -134,4 +134,50 @@ final class RuntimePathTests: XCTestCase {
         let pathRaw = makePathRaw(fileURL.path)
         XCTAssertEqual(kk_unbox_bool(kk_path_notExists(pathRaw, 0)), 0)
     }
+
+    // STDLIB-IO-PATH-FN-040: Path.writeLines(Iterable)
+    func testPathWriteLinesIterableCreatesFileWithLines() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let pathRaw = makePathRaw(fileURL.path)
+        let linesRaw = registerRuntimeObject(RuntimeListBox(elements: [
+            makeStringRaw("alpha"),
+            makeStringRaw("beta"),
+            makeStringRaw("gamma"),
+        ]))
+        var thrown = 0
+        let returned = kk_path_writeLines_iterable(pathRaw, linesRaw, 0, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(returned, pathRaw)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "alpha\nbeta\ngamma\n")
+    }
+
+    func testPathWriteLinesIterableOverwritesExistingContent() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try "old content".write(to: fileURL, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let pathRaw = makePathRaw(fileURL.path)
+        let linesRaw = registerRuntimeObject(RuntimeListBox(elements: [
+            makeStringRaw("new"),
+            makeStringRaw("lines"),
+        ]))
+        var thrown = 0
+        _ = kk_path_writeLines_iterable(pathRaw, linesRaw, 0, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "new\nlines\n")
+    }
+
+    func testPathWriteLinesIterableEmptyListCreatesEmptyFile() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let pathRaw = makePathRaw(fileURL.path)
+        let linesRaw = registerRuntimeObject(RuntimeListBox(elements: []))
+        var thrown = 0
+        _ = kk_path_writeLines_iterable(pathRaw, linesRaw, 0, 0, &thrown)
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(try String(contentsOf: fileURL, encoding: .utf8), "")
+    }
 }
