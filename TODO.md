@@ -448,7 +448,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
 > 移行先: `Stdlib/kotlin/collections/`
 
-- [ ] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
+- [x] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
 - [ ] MIGRATION-COL-002: List 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`）
 - [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
 - [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
