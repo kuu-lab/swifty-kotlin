@@ -26,9 +26,11 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        registerSyntheticWasmExportStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsConsoleStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticWasmUnsafePointerStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticWasmUnsafeScopedAllocatorStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsClassStubs(symbols: symbols, types: types, interner: interner)
