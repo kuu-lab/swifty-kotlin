@@ -27,10 +27,12 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         registerSyntheticJsNonModuleStubs(symbols: symbols, interner: interner)
+        registerSyntheticWasmExportStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsConsoleStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticWasmUnsafePointerStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsExternalInheritorsOnlyStubs(symbols: symbols, interner: interner)
+        registerSyntheticWasmUnsafeScopedAllocatorStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsClassStubs(symbols: symbols, types: types, interner: interner)
@@ -42,7 +44,5 @@ extension DataFlowSemaPhase {
         registerSyntheticJsCollectionsReadonlySetToMutableSetStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsStaticStubs(symbols: symbols, interner: interner)
-        registerSyntheticJsExternalArgumentStubs(symbols: symbols, interner: interner)
     }
 }

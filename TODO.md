@@ -613,9 +613,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
 - [ ] CLEANUP-STUB-042: JS Function stub削除（`HeaderHelpers+SyntheticJsFunctionStubs.swift`）
 - [ ] CLEANUP-STUB-043: JS Class stub削除（`HeaderHelpers+SyntheticJsClassStubs.swift`）
-- [ ] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
-- [ ] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
-- [ ] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
+- [x] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
+- [x] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
+- [x] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
 - [ ] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
 - [ ] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
 - [ ] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
@@ -627,6 +627,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
 - [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
 - [x] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
+- [x] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
+- [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
 - [ ] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
 - [ ] CLEANUP-STUB-059: JS NumberInterop stub削除（`HeaderHelpers+SyntheticJsNumberInteropStubs.swift`）
 - [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
