@@ -1424,6 +1424,79 @@ public func kk_path_appendLines_sequence_default(_ pathRaw: Int, _ linesRaw: Int
     kk_path_appendLines_sequence(pathRaw, linesRaw, 0, outThrown)
 }
 
+// MARK: - STDLIB-IO-PATH-FN-037: Path.useDirectoryEntries { block }
+
+/// Matches a file name against a simple glob pattern supporting `*` (any sequence)
+/// and `?` (any single character).  Mirrors the behaviour of `fnmatch` for the
+/// common patterns that Kotlin's `useDirectoryEntries` / `forEachDirectoryEntry`
+/// accept (no path-separator escaping needed because these only match bare names).
+private func pathMatchesGlob(_ name: String, _ pattern: String) -> Bool {
+    var ni = name.startIndex
+    var pi = pattern.startIndex
+    var starPos: String.Index? = nil
+    var matchPos: String.Index? = nil
+
+    while ni < name.endIndex {
+        if pi < pattern.endIndex && (pattern[pi] == "?" || pattern[pi] == name[ni]) {
+            ni = name.index(after: ni)
+            pi = pattern.index(after: pi)
+        } else if pi < pattern.endIndex && pattern[pi] == "*" {
+            starPos = pi
+            matchPos = ni
+            pi = pattern.index(after: pi)
+        } else if let star = starPos {
+            pi = pattern.index(after: star)
+            matchPos = name.index(after: matchPos!)
+            ni = matchPos!
+        } else {
+            return false
+        }
+    }
+    while pi < pattern.endIndex && pattern[pi] == "*" {
+        pi = pattern.index(after: pi)
+    }
+    return pi == pattern.endIndex
+}
+
+/// Path.useDirectoryEntries(glob: String = "*", block: (Sequence<Path>) -> T): T
+///
+/// Lists direct children of this directory, filters them by `glob`, and calls
+/// `block` once with a `Sequence<Path>` containing the matched entries.  The
+/// return value of `block` is returned to the caller.
+///
+/// `globRaw == 0` selects the default `"*"` pattern (all entries).
+@_cdecl("kk_path_useDirectoryEntries")
+public func kk_path_useDirectoryEntries(
+    _ pathRaw: Int,
+    _ globRaw: Int,
+    _ actionRaw: Int
+) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_useDirectoryEntries received invalid Path handle")
+    }
+    let glob = globRaw == 0 ? "*" : (pathStringValue(from: globRaw) ?? "*")
+    guard let rawEntries = try? FileManager.default.contentsOfDirectory(atPath: path.pathString) else {
+        return 0
+    }
+    let matched = glob == "*" ? rawEntries : rawEntries.filter { pathMatchesGlob($0, glob) }
+    let elements = matched.map { entry -> Int in
+        let childPath = (path.pathString as NSString).appendingPathComponent(entry)
+        return registerRuntimeObject(RuntimePathBox(childPath))
+    }
+    let listRaw = registerRuntimeObject(RuntimeListBox(elements: elements))
+    var thrown = 0
+    return kk_function_invoke(actionRaw, listRaw, &thrown)
+}
+
+/// Default-glob variant of `kk_path_useDirectoryEntries` (matches all entries).
+@_cdecl("kk_path_useDirectoryEntries_default")
+public func kk_path_useDirectoryEntries_default(
+    _ pathRaw: Int,
+    _ actionRaw: Int
+) -> Int {
+    kk_path_useDirectoryEntries(pathRaw, 0, actionRaw)
+}
+
 // MARK: - STDLIB-IO-PATH-FN-074: Path.visitFileTree(maxDepth, followLinks, builderAction)
 
 final class RuntimeFileVisitorBox {
