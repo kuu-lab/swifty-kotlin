@@ -2586,15 +2586,6 @@ public enum RuntimeABISpec {
             section: "Regex"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_string_chunked",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_string_chunked_sequence",
             parameters: [
                 RuntimeABIParameter(name: "str", type: .intptr),
@@ -2611,36 +2602,6 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_windowed_default",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_windowed",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-                RuntimeABIParameter(name: "step", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_windowed_partial",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "size", type: .intptr),
-                RuntimeABIParameter(name: "step", type: .intptr),
-                RuntimeABIParameter(name: "partialWindows", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
@@ -2666,46 +2627,6 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-318: commonPrefixWith / commonSuffixWith
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "other", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "other", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonPrefixWith_ignoreCase",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "other", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_commonSuffixWith_ignoreCase",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-                RuntimeABIParameter(name: "other", type: .intptr),
-                RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String"
