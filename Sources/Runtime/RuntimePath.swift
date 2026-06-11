@@ -1424,19 +1424,31 @@ public func kk_path_setAttribute(
     do {
         switch attrName {
         case "lastModifiedTime":
-            if let millis = Int(valueString) {
-                let date = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-                try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
+            guard let millis = Int(valueString) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid lastModifiedTime value: \(valueString)"]
+                )
             }
+            let modDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
+            try FileManager.default.setAttributes([.modificationDate: modDate], ofItemAtPath: path.pathString)
         case "creationTime":
-            if let millis = Int(valueString) {
-                let date = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-                try FileManager.default.setAttributes([.creationDate: date], ofItemAtPath: path.pathString)
+            guard let millis = Int(valueString) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid creationTime value: \(valueString)"]
+                )
             }
+            let createDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
+            try FileManager.default.setAttributes([.creationDate: createDate], ofItemAtPath: path.pathString)
         case "posixPermissions":
-            if let octal = Int(valueString, radix: 8) {
-                try FileManager.default.setAttributes([.posixPermissions: octal], ofItemAtPath: path.pathString)
+            guard let octal = Int(valueString, radix: 8) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid posixPermissions value: \(valueString)"]
+                )
             }
+            try FileManager.default.setAttributes([.posixPermissions: octal], ofItemAtPath: path.pathString)
         default:
             break
         }
