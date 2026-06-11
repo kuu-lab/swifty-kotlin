@@ -1,6 +1,19 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 // MARK: - kotlin.io.path.Path Runtime
+
+final class RuntimeUserPrincipalBox {
+    let name: String
+    init(name: String) { self.name = name }
+}
+
+private func runtimeUserPrincipalBox(from raw: Int) -> RuntimeUserPrincipalBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
+    return tryCast(ptr, to: RuntimeUserPrincipalBox.self)
+}
 
 final class RuntimePathBox {
     let pathString: String
@@ -1750,6 +1763,81 @@ public func kk_path_writeLines_sequence(
         try text.write(toFile: path.pathString, atomically: true, encoding: encoding)
     } catch {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+    }
+    return pathRaw
+}
+
+// MARK: - STDLIB-IO-PATH-FN-023: Path.getOwner / Path.setOwner
+
+/// Path.getOwner(vararg options: LinkOption): UserPrincipal
+///
+/// Returns the owner of the file at this path as a `UserPrincipal`. The
+/// `optionsRaw` parameter represents the vararg `LinkOption` array and is
+/// accepted for ABI symmetry; link options have no effect on the macOS
+/// Foundation-backed runtime today.
+/// Throws an IOException-wrapped throwable if the file attributes cannot be
+/// retrieved.
+@_cdecl("kk_path_getOwner")
+public func kk_path_getOwner(
+    _ pathRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_getOwner received invalid Path handle")
+    }
+    do {
+        let attrs = try FileManager.default.attributesOfItem(atPath: path.pathString)
+        guard let ownerName = attrs[.ownerAccountName] as? String else {
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "IOException: Cannot determine file owner for \(path.pathString)"
+            )
+            return 0
+        }
+        return registerRuntimeObject(RuntimeUserPrincipalBox(name: ownerName))
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+        return 0
+    }
+}
+
+/// Path.setOwner(value: UserPrincipal): Path
+///
+/// Sets the owner of the file at this path to the user represented by the
+/// given `UserPrincipal`. Uses POSIX `getpwnam_r` to resolve the principal's
+/// name to a UID, then calls `chown` to apply the change.
+/// Throws an IOException-wrapped throwable if the owner cannot be set.
+@_cdecl("kk_path_setOwner")
+public func kk_path_setOwner(
+    _ pathRaw: Int,
+    _ ownerRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setOwner received invalid Path handle")
+    }
+    guard let principal = runtimeUserPrincipalBox(from: ownerRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setOwner received invalid UserPrincipal handle")
+    }
+    var pwStorage = passwd()
+    var buffer = [CChar](repeating: 0, count: 1024)
+    var pwResult: UnsafeMutablePointer<passwd>? = nil
+    let errno = getpwnam_r(principal.name, &pwStorage, &buffer, buffer.count, &pwResult)
+    guard errno == 0, pwResult != nil else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IOException: Unknown user '\(principal.name)'"
+        )
+        return pathRaw
+    }
+    let uid = pwStorage.pw_uid
+    // Pass ~gid_t(0) (all-bits-set) to preserve the existing group, per POSIX chown(2).
+    if chown(path.pathString, uid, ~gid_t(0)) != 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IOException: Cannot set owner for \(path.pathString)"
+        )
     }
     return pathRaw
 }
