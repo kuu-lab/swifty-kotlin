@@ -1,124 +1,277 @@
-symbol s0 kind=class fq=kotlin.Throwable vis=public flags=synthetic type=Class#0
-symbol s1 kind=class fq=kotlin.RuntimeException vis=public flags=synthetic type=Class#1
-symbol s2 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#2
-symbol s3 kind=class fq=kotlin.IllegalStateException vis=public flags=synthetic type=Class#3
-symbol s4 kind=class fq=kotlin.IndexOutOfBoundsException vis=public flags=synthetic type=Class#4
-symbol s5 kind=class fq=kotlin.UnsupportedOperationException vis=public flags=synthetic type=Class#5
-symbol s6 kind=class fq=kotlin.NoSuchElementException vis=public flags=synthetic type=Class#6
-symbol s7 kind=class fq=kotlin.ArithmeticException vis=public flags=synthetic type=Class#7
-symbol s8 kind=class fq=kotlin.ClassCastException vis=public flags=synthetic type=Class#8
-symbol s9 kind=constructor fq=kotlin.RuntimeException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#1 suspend=0 defaults=[0] vararg=[0]
-symbol s10 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
-symbol s11 kind=constructor fq=kotlin.IllegalStateException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#3 suspend=0 defaults=[0] vararg=[0]
-symbol s12 kind=constructor fq=kotlin.IndexOutOfBoundsException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
-symbol s13 kind=constructor fq=kotlin.UnsupportedOperationException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
-symbol s14 kind=constructor fq=kotlin.NoSuchElementException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#6 suspend=0 defaults=[0] vararg=[0]
-symbol s15 kind=constructor fq=kotlin.ArithmeticException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#7 suspend=0 defaults=[0] vararg=[0]
-symbol s16 kind=constructor fq=kotlin.ClassCastException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#8 suspend=0 defaults=[0] vararg=[0]
-symbol s17 kind=property fq=kotlin.Throwable.message vis=public flags=synthetic type=String?
-symbol s18 kind=property fq=kotlin.Throwable.cause vis=public flags=synthetic type=Class#0?
-symbol s19 kind=function fq=kotlin.Throwable.stackTraceToString vis=public flags=synthetic sig=recv=Class#0 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s20 kind=function fq=golden.sema.catchIllegalArgument vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s21 kind=function fq=golden.sema.catchIllegalState vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s22 kind=function fq=golden.sema.catchIndexOutOfBounds vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s23 kind=function fq=golden.sema.catchUnsupportedOperation vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s24 kind=function fq=golden.sema.catchNoSuchElement vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s25 kind=function fq=golden.sema.catchArithmetic vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s26 kind=function fq=golden.sema.catchClassCast vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s27 kind=function fq=golden.sema.throwableProperties vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s28 kind=local fq=__try_7_catch_0.e vis=internal flags=_ type=Class#2
-symbol s29 kind=local fq=__try_15_catch_0.e vis=internal flags=_ type=Class#3
-symbol s30 kind=local fq=__try_23_catch_0.e vis=internal flags=_ type=Class#4
-symbol s31 kind=local fq=__try_31_catch_0.e vis=internal flags=_ type=Class#5
-symbol s32 kind=local fq=__try_39_catch_0.e vis=internal flags=_ type=Class#6
-symbol s33 kind=local fq=__try_47_catch_0.e vis=internal flags=_ type=Class#7
-symbol s34 kind=local fq=__try_55_catch_0.e vis=internal flags=_ type=Class#8
-symbol s35 kind=local fq=__try_74_catch_0.e vis=internal flags=_ type=Class#0
-symbol s36 kind=local fq=__local_0.msg vis=private flags=_ type=String?
-symbol s37 kind=local fq=__local_1.cause vis=private flags=_ type=Class#0?
-symbol s38 kind=local fq=__local_2.trace vis=private flags=_ type=String
-file f0 package=golden.sema
-  decl d0 fun catchIllegalArgument suspend=0 inline=0 sym=s20
-  decl d1 fun catchIllegalState suspend=0 inline=0 sym=s21
-  decl d2 fun catchIndexOutOfBounds suspend=0 inline=0 sym=s22
-  decl d3 fun catchUnsupportedOperation suspend=0 inline=0 sym=s23
-  decl d4 fun catchNoSuchElement suspend=0 inline=0 sym=s24
-  decl d5 fun catchArithmetic suspend=0 inline=0 sym=s25
-  decl d6 fun catchClassCast suspend=0 inline=0 sym=s26
-  decl d7 fun throwableProperties suspend=0 inline=0 sym=s27
-expr e0 name(IllegalArgumentException) type=_
-expr e1 string(bad) type=String
-expr e2 call callee=e0 args=[_:e1] type=Class#2 call=s10 map=[0->0] targs=[]
-expr e3 throw value=e2 type=Nothing
-expr e4 blockExpr stmts=[] trailing=e3 type=Nothing
-expr e5 string(caught) type=String
-expr e6 blockExpr stmts=[] trailing=e5 type=String ref=s28
-expr e7 try body=e4 catches=[e6] finally=_ type=String
-expr e8 name(IllegalStateException) type=_
-expr e9 string(bad state) type=String
-expr e10 call callee=e8 args=[_:e9] type=Class#3 call=s11 map=[0->0] targs=[]
-expr e11 throw value=e10 type=Nothing
-expr e12 blockExpr stmts=[] trailing=e11 type=Nothing
-expr e13 string(caught) type=String
-expr e14 blockExpr stmts=[] trailing=e13 type=String ref=s29
-expr e15 try body=e12 catches=[e14] finally=_ type=String
-expr e16 name(IndexOutOfBoundsException) type=_
-expr e17 string(index 5) type=String
-expr e18 call callee=e16 args=[_:e17] type=Class#4 call=s12 map=[0->0] targs=[]
-expr e19 throw value=e18 type=Nothing
-expr e20 blockExpr stmts=[] trailing=e19 type=Nothing
-expr e21 string(caught) type=String
-expr e22 blockExpr stmts=[] trailing=e21 type=String ref=s30
-expr e23 try body=e20 catches=[e22] finally=_ type=String
-expr e24 name(UnsupportedOperationException) type=_
-expr e25 string(not supported) type=String
-expr e26 call callee=e24 args=[_:e25] type=Class#5 call=s13 map=[0->0] targs=[]
-expr e27 throw value=e26 type=Nothing
-expr e28 blockExpr stmts=[] trailing=e27 type=Nothing
-expr e29 string(caught) type=String
-expr e30 blockExpr stmts=[] trailing=e29 type=String ref=s31
-expr e31 try body=e28 catches=[e30] finally=_ type=String
-expr e32 name(NoSuchElementException) type=_
-expr e33 string(empty) type=String
-expr e34 call callee=e32 args=[_:e33] type=Class#6 call=s14 map=[0->0] targs=[]
-expr e35 throw value=e34 type=Nothing
-expr e36 blockExpr stmts=[] trailing=e35 type=Nothing
-expr e37 string(caught) type=String
-expr e38 blockExpr stmts=[] trailing=e37 type=String ref=s32
-expr e39 try body=e36 catches=[e38] finally=_ type=String
-expr e40 name(ArithmeticException) type=_
-expr e41 string(div by zero) type=String
-expr e42 call callee=e40 args=[_:e41] type=Class#7 call=s15 map=[0->0] targs=[]
-expr e43 throw value=e42 type=Nothing
-expr e44 blockExpr stmts=[] trailing=e43 type=Nothing
-expr e45 string(caught) type=String
-expr e46 blockExpr stmts=[] trailing=e45 type=String ref=s33
-expr e47 try body=e44 catches=[e46] finally=_ type=String
-expr e48 name(ClassCastException) type=_
-expr e49 string(bad cast) type=String
-expr e50 call callee=e48 args=[_:e49] type=Class#8 call=s16 map=[0->0] targs=[]
-expr e51 throw value=e50 type=Nothing
-expr e52 blockExpr stmts=[] trailing=e51 type=Nothing
-expr e53 string(caught) type=String
-expr e54 blockExpr stmts=[] trailing=e53 type=String ref=s34
-expr e55 try body=e52 catches=[e54] finally=_ type=String
-expr e56 name(RuntimeException) type=_
-expr e57 string(test) type=String
-expr e58 call callee=e56 args=[_:e57] type=Class#1 call=s9 map=[0->0] targs=[]
-expr e59 throw value=e58 type=Nothing
-expr e60 blockExpr stmts=[] trailing=e59 type=Nothing
-expr e61 name(e) type=Class#0 ref=s35
-expr e62 memberCall recv=e61 callee=message args=[] type=String? ref=s17
-expr e63 localDecl msg mutable=0 type=t8 init=e62 type=Unit ref=s36
-expr e64 name(e) type=Class#0 ref=s35
-expr e65 memberCall recv=e64 callee=cause args=[] type=Class#0? ref=s18
-expr e66 localDecl cause mutable=0 type=t9 init=e65 type=Unit ref=s37
-expr e67 name(e) type=Class#0 ref=s35
-expr e68 memberCall recv=e67 callee=stackTraceToString args=[] type=String call=s19 map=[] targs=[]
-expr e69 localDecl trace mutable=0 type=t10 init=e68 type=Unit ref=s38
-expr e70 name(msg) type=String? ref=s36
-expr e71 string(null) type=String
-expr e72 binary(elvis) lhs=e70 rhs=e71 type=String
-expr e73 blockExpr stmts=[e63,e66,e69] trailing=e72 type=String ref=s35
-expr e74 try body=e60 catches=[e73] finally=_ type=String
-expr e75 return value=e74 type=Nothing
+symbol s0 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s1 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=class fq=kotlin.Throwable vis=public flags=synthetic type=Class#2
+symbol s3 kind=class fq=kotlin.RuntimeException vis=public flags=synthetic type=Class#3
+symbol s4 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#4
+symbol s5 kind=class fq=kotlin.IllegalStateException vis=public flags=synthetic type=Class#5
+symbol s6 kind=class fq=kotlin.IndexOutOfBoundsException vis=public flags=synthetic type=Class#6
+symbol s7 kind=class fq=kotlin.UnsupportedOperationException vis=public flags=synthetic type=Class#7
+symbol s8 kind=class fq=kotlin.NoSuchElementException vis=public flags=synthetic type=Class#8
+symbol s9 kind=class fq=kotlin.ArithmeticException vis=public flags=synthetic type=Class#9
+symbol s10 kind=class fq=kotlin.ClassCastException vis=public flags=synthetic type=Class#10
+symbol s11 kind=constructor fq=kotlin.RuntimeException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#3 suspend=0 defaults=[0] vararg=[0]
+symbol s12 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#4 suspend=0 defaults=[0] vararg=[0]
+symbol s13 kind=constructor fq=kotlin.IllegalStateException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#5 suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=constructor fq=kotlin.IndexOutOfBoundsException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#6 suspend=0 defaults=[0] vararg=[0]
+symbol s15 kind=constructor fq=kotlin.UnsupportedOperationException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#7 suspend=0 defaults=[0] vararg=[0]
+symbol s16 kind=constructor fq=kotlin.NoSuchElementException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#8 suspend=0 defaults=[0] vararg=[0]
+symbol s17 kind=constructor fq=kotlin.ArithmeticException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#9 suspend=0 defaults=[0] vararg=[0]
+symbol s18 kind=constructor fq=kotlin.ClassCastException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#10 suspend=0 defaults=[0] vararg=[0]
+symbol s19 kind=property fq=kotlin.Throwable.message vis=public flags=synthetic type=String?
+symbol s20 kind=property fq=kotlin.Throwable.cause vis=public flags=synthetic type=Class#2?
+symbol s21 kind=function fq=kotlin.Throwable.stackTraceToString vis=public flags=synthetic sig=recv=Class#2 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s22 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s23 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#22 params=[String?] ret=Class#22 suspend=0 defaults=[0] vararg=[0]
+symbol s24 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#22 params=[Char] ret=Class#22 suspend=0 defaults=[0] vararg=[0]
+symbol s25 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#22 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s26 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s27 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s28 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s29 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s30 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s31 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s32 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s33 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s34 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s35 kind=function fq=golden.sema.catchIllegalArgument vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s36 kind=function fq=golden.sema.catchIllegalState vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s37 kind=function fq=golden.sema.catchIndexOutOfBounds vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s38 kind=function fq=golden.sema.catchUnsupportedOperation vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s39 kind=function fq=golden.sema.catchNoSuchElement vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s40 kind=function fq=golden.sema.catchArithmetic vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s41 kind=function fq=golden.sema.catchClassCast vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s42 kind=function fq=golden.sema.throwableProperties vis=public flags=_ sig=recv=_ params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s43 kind=local fq=__local_0.sb vis=private flags=_ type=Class#22
+symbol s44 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s45 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s46 kind=local fq=__local_3.sb vis=private flags=_ type=Class#22
+symbol s47 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s48 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s49 kind=local fq=__local_6.sb vis=private flags=_ type=Class#22
+symbol s50 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s51 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s52 kind=local fq=__local_9.sb vis=private flags=_ type=Class#22
+symbol s53 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s54 kind=local fq=__try_129_catch_0.e vis=internal flags=_ type=Class#4
+symbol s55 kind=local fq=__try_137_catch_0.e vis=internal flags=_ type=Class#5
+symbol s56 kind=local fq=__try_145_catch_0.e vis=internal flags=_ type=Class#6
+symbol s57 kind=local fq=__try_153_catch_0.e vis=internal flags=_ type=Class#7
+symbol s58 kind=local fq=__try_161_catch_0.e vis=internal flags=_ type=Class#8
+symbol s59 kind=local fq=__try_169_catch_0.e vis=internal flags=_ type=Class#9
+symbol s60 kind=local fq=__try_177_catch_0.e vis=internal flags=_ type=Class#10
+symbol s61 kind=local fq=__try_196_catch_0.e vis=internal flags=_ type=Class#2
+symbol s62 kind=local fq=__local_11.msg vis=private flags=_ type=String?
+symbol s63 kind=local fq=__local_12.cause vis=private flags=_ type=Class#2?
+symbol s64 kind=local fq=__local_13.trace vis=private flags=_ type=String
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s26
+  decl d1 fun reversed suspend=0 inline=0 sym=s28
+  decl d2 fun padStart suspend=0 inline=0 sym=s29
+  decl d3 fun padEnd suspend=0 inline=0 sym=s32
+file f1 package=golden.sema
+  decl d4 fun catchIllegalArgument suspend=0 inline=0 sym=s35
+  decl d5 fun catchIllegalState suspend=0 inline=0 sym=s36
+  decl d6 fun catchIndexOutOfBounds suspend=0 inline=0 sym=s37
+  decl d7 fun catchUnsupportedOperation suspend=0 inline=0 sym=s38
+  decl d8 fun catchNoSuchElement suspend=0 inline=0 sym=s39
+  decl d9 fun catchArithmetic suspend=0 inline=0 sym=s40
+  decl d10 fun catchClassCast suspend=0 inline=0 sym=s41
+  decl d11 fun throwableProperties suspend=0 inline=0 sym=s42
+expr e0 name(count) type=Int ref=s27
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s27
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#4 call=s12 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s22
+expr e10 call callee=e9 args=[] type=Class#22
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s43
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s44
+expr e14 name(i) type=Int ref=s44
+expr e15 name(count) type=Int ref=s27
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#22 ref=s43
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#22 call=s23 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s44
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#22 ref=s43
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s25 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s45
+expr e31 name(StringBuilder) type=Any ref=s22
+expr e32 call callee=e31 args=[] type=Class#22
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s46
+expr e34 name(len) type=Int ref=s45
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s47
+expr e38 name(i) type=Int ref=s47
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#22 ref=s46
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s47
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s1 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#22 call=s24 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s47
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#22 ref=s46
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s25 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s30
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s48
+expr e60 name(padding) type=Int ref=s48
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s22
+expr e67 call callee=e66 args=[] type=Class#22
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s49
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s50
+expr e71 name(i) type=Int ref=s50
+expr e72 name(padding) type=Int ref=s48
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#22 ref=s49
+expr e75 name(padChar) type=Char ref=s31
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#22 call=s24 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s50
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#22 ref=s49
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#22 call=s23 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#22 ref=s49
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s25 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s33
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s51
+expr e94 name(padding) type=Int ref=s51
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s22
+expr e101 call callee=e100 args=[] type=Class#22
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s52
+expr e103 name(sb) type=Class#22 ref=s52
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#22 call=s23 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s53
+expr e108 name(i) type=Int ref=s53
+expr e109 name(padding) type=Int ref=s51
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#22 ref=s52
+expr e112 name(padChar) type=Char ref=s34
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#22 call=s24 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s53
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#22 ref=s52
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s25 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(IllegalArgumentException) type=_
+expr e123 string(bad) type=String
+expr e124 call callee=e122 args=[_:e123] type=Class#4 call=s12 map=[0->0] targs=[]
+expr e125 throw value=e124 type=Nothing
+expr e126 blockExpr stmts=[] trailing=e125 type=Nothing
+expr e127 string(caught) type=String
+expr e128 blockExpr stmts=[] trailing=e127 type=String ref=s54
+expr e129 try body=e126 catches=[e128] finally=_ type=String
+expr e130 name(IllegalStateException) type=_
+expr e131 string(bad state) type=String
+expr e132 call callee=e130 args=[_:e131] type=Class#5 call=s13 map=[0->0] targs=[]
+expr e133 throw value=e132 type=Nothing
+expr e134 blockExpr stmts=[] trailing=e133 type=Nothing
+expr e135 string(caught) type=String
+expr e136 blockExpr stmts=[] trailing=e135 type=String ref=s55
+expr e137 try body=e134 catches=[e136] finally=_ type=String
+expr e138 name(IndexOutOfBoundsException) type=_
+expr e139 string(index 5) type=String
+expr e140 call callee=e138 args=[_:e139] type=Class#6 call=s14 map=[0->0] targs=[]
+expr e141 throw value=e140 type=Nothing
+expr e142 blockExpr stmts=[] trailing=e141 type=Nothing
+expr e143 string(caught) type=String
+expr e144 blockExpr stmts=[] trailing=e143 type=String ref=s56
+expr e145 try body=e142 catches=[e144] finally=_ type=String
+expr e146 name(UnsupportedOperationException) type=_
+expr e147 string(not supported) type=String
+expr e148 call callee=e146 args=[_:e147] type=Class#7 call=s15 map=[0->0] targs=[]
+expr e149 throw value=e148 type=Nothing
+expr e150 blockExpr stmts=[] trailing=e149 type=Nothing
+expr e151 string(caught) type=String
+expr e152 blockExpr stmts=[] trailing=e151 type=String ref=s57
+expr e153 try body=e150 catches=[e152] finally=_ type=String
+expr e154 name(NoSuchElementException) type=_
+expr e155 string(empty) type=String
+expr e156 call callee=e154 args=[_:e155] type=Class#8 call=s16 map=[0->0] targs=[]
+expr e157 throw value=e156 type=Nothing
+expr e158 blockExpr stmts=[] trailing=e157 type=Nothing
+expr e159 string(caught) type=String
+expr e160 blockExpr stmts=[] trailing=e159 type=String ref=s58
+expr e161 try body=e158 catches=[e160] finally=_ type=String
+expr e162 name(ArithmeticException) type=_
+expr e163 string(div by zero) type=String
+expr e164 call callee=e162 args=[_:e163] type=Class#9 call=s17 map=[0->0] targs=[]
+expr e165 throw value=e164 type=Nothing
+expr e166 blockExpr stmts=[] trailing=e165 type=Nothing
+expr e167 string(caught) type=String
+expr e168 blockExpr stmts=[] trailing=e167 type=String ref=s59
+expr e169 try body=e166 catches=[e168] finally=_ type=String
+expr e170 name(ClassCastException) type=_
+expr e171 string(bad cast) type=String
+expr e172 call callee=e170 args=[_:e171] type=Class#10 call=s18 map=[0->0] targs=[]
+expr e173 throw value=e172 type=Nothing
+expr e174 blockExpr stmts=[] trailing=e173 type=Nothing
+expr e175 string(caught) type=String
+expr e176 blockExpr stmts=[] trailing=e175 type=String ref=s60
+expr e177 try body=e174 catches=[e176] finally=_ type=String
+expr e178 name(RuntimeException) type=_
+expr e179 string(test) type=String
+expr e180 call callee=e178 args=[_:e179] type=Class#3 call=s11 map=[0->0] targs=[]
+expr e181 throw value=e180 type=Nothing
+expr e182 blockExpr stmts=[] trailing=e181 type=Nothing
+expr e183 name(e) type=Class#2 ref=s61
+expr e184 memberCall recv=e183 callee=message args=[] type=String? ref=s19
+expr e185 localDecl msg mutable=0 type=t24 init=e184 type=Unit ref=s62
+expr e186 name(e) type=Class#2 ref=s61
+expr e187 memberCall recv=e186 callee=cause args=[] type=Class#2? ref=s20
+expr e188 localDecl cause mutable=0 type=t25 init=e187 type=Unit ref=s63
+expr e189 name(e) type=Class#2 ref=s61
+expr e190 memberCall recv=e189 callee=stackTraceToString args=[] type=String call=s21 map=[] targs=[]
+expr e191 localDecl trace mutable=0 type=t26 init=e190 type=Unit ref=s64
+expr e192 name(msg) type=String? ref=s62
+expr e193 string(null) type=String
+expr e194 binary(elvis) lhs=e192 rhs=e193 type=String
+expr e195 blockExpr stmts=[e185,e188,e191] trailing=e194 type=String ref=s61
+expr e196 try body=e182 catches=[e195] finally=_ type=String
+expr e197 return value=e196 type=Nothing

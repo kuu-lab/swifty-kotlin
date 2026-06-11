@@ -192,7 +192,8 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            let file = try XCTUnwrap(ast.files.first)
+            // Skip bundled stdlib file — user file is last
+            let file = try XCTUnwrap(ast.files.last)
             let aliasDeclID = try XCTUnwrap(
                 file.topLevelDecls.first(where: {
                     if case .typeAliasDecl = ast.arena.decl($0) {
@@ -418,7 +419,8 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            let file = try XCTUnwrap(ast.sortedFiles.first)
+            // Skip bundled stdlib file — user file is last
+            let file = try XCTUnwrap(ast.sortedFiles.last)
             let function = try XCTUnwrap(file.topLevelDecls.compactMap { declID -> FunDecl? in
                 guard let decl = ast.arena.decl(declID),
                       case let .funDecl(funDecl) = decl,
@@ -452,7 +454,8 @@ final class BuildASTBodyParsingRegressionTests: XCTestCase {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            let file = try XCTUnwrap(ast.sortedFiles.first)
+            // Skip bundled stdlib file — user file is last
+            let file = try XCTUnwrap(ast.sortedFiles.last)
             let hostClass = try XCTUnwrap(file.topLevelDecls.compactMap { declID -> ClassDecl? in
                 guard let decl = ast.arena.decl(declID),
                       case let .classDecl(classDecl) = decl,

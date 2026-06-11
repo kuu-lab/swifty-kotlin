@@ -768,6 +768,8 @@ struct CollectionLiteralLookupTables {
     let kkFileListFilesName: InternedString
     let walkName: InternedString
     let kkFileWalkName: InternedString
+    // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
+    let kkFileWalkWithDirectionName: InternedString
     // STDLIB-IO-TYPE-004: FileTreeWalk
     let walkTopDownName: InternedString
     let kkFileWalkTopDownName: InternedString
@@ -1563,6 +1565,8 @@ struct CollectionLiteralLookupTables {
         kkFileListFilesName = interner.intern("kk_file_listFiles")
         walkName = interner.intern("walk")
         kkFileWalkName = interner.intern("kk_file_walk")
+        // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
+        kkFileWalkWithDirectionName = interner.intern("kk_file_walk_with_direction")
         // STDLIB-IO-TYPE-004: FileTreeWalk
         walkTopDownName = interner.intern("walkTopDown")
         kkFileWalkTopDownName = interner.intern("kk_file_walkTopDown")
@@ -1646,12 +1650,6 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceBeforeLast"),
             interner.intern("kk_string_replaceBeforeLast_char"),
             interner.intern("kk_string_substring"),
-            interner.intern("kk_string_padStart_default"),
-            interner.intern("kk_string_padEnd_default"),
-            interner.intern("kk_string_padStart"),
-            interner.intern("kk_string_padEnd"),
-            interner.intern("kk_string_repeat"),
-            interner.intern("kk_string_reversed"),
             interner.intern("kk_string_take"),
             interner.intern("kk_string_drop"),
             interner.intern("kk_string_takeLast"),

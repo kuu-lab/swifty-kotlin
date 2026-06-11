@@ -89,6 +89,11 @@ public struct CompilerOptions: Equatable {
     public var runtimeFlags: [String]
     public var diagnosticsFormat: DiagnosticsFormat
 
+    /// Additional search paths for Kotlin stdlib sources.
+    public var stdlibSearchPaths: [String]
+    /// Whether to include stdlib search paths during compilation.
+    public var includeStdlib: Bool
+
     /// Path to the incremental compilation cache directory, if any.
     /// Incremental compilation is enabled when either this is non-nil or the
     /// `incremental` frontend flag is set; when enabled and a cache is
@@ -109,6 +114,8 @@ public struct CompilerOptions: Equatable {
         frontendFlags: [String] = [],
         irFlags: [String] = [],
         runtimeFlags: [String] = [],
+        stdlibSearchPaths: [String] = [],
+        includeStdlib: Bool = true,
         incrementalCachePath: String? = nil,
         diagnosticsFormat: DiagnosticsFormat = .text
     ) {
@@ -125,8 +132,40 @@ public struct CompilerOptions: Equatable {
         self.frontendFlags = frontendFlags
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
+        self.stdlibSearchPaths = stdlibSearchPaths
+        self.includeStdlib = includeStdlib
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
+    }
+
+    /// Default search paths for locating Kotlin stdlib sources.
+    ///
+    /// Checks candidates in order and returns only paths that exist on disk:
+    /// 1. `KSWIFTK_STDLIB_PATH` environment variable (if set).
+    /// 2. `<prefix>/lib/kswiftk/stdlib` relative to the compiler binary (macOS).
+    public static func defaultStdlibSearchPaths() -> [String] {
+        let fileManager = FileManager.default
+        var paths: [String] = []
+
+        if let envPath = ProcessInfo.processInfo.environment["KSWIFTK_STDLIB_PATH"],
+           !envPath.isEmpty,
+           fileManager.fileExists(atPath: envPath)
+        {
+            paths.append(envPath)
+        }
+
+        #if os(macOS)
+            if let execPath = CommandLine.arguments.first, !execPath.isEmpty {
+                let execURL = URL(fileURLWithPath: execPath).resolvingSymlinksInPath()
+                let prefixDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
+                let stdlibDir = prefixDir.appendingPathComponent("lib/kswiftk/stdlib").path
+                if fileManager.fileExists(atPath: stdlibDir) {
+                    paths.append(stdlibDir)
+                }
+            }
+        #endif
+
+        return paths
     }
 
     /// Marker annotations accepted by compiler-wide `-opt-in=<fqName>` flags.

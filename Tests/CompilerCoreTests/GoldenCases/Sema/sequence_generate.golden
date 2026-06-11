@@ -1,101 +1,256 @@
-symbol s0 kind=package fq=kotlin vis=public flags=synthetic
-symbol s1 kind=class fq=kotlin.Any vis=public flags=synthetic
-symbol s2 kind=interface fq=kotlin.Annotation vis=public flags=synthetic
-symbol s3 kind=function fq=kotlin.Any.toString vis=public flags=synthetic|openType sig=recv=Class#1 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s0 kind=package fq=_root_ vis=public flags=_
+symbol s1 kind=package fq=kotlin vis=public flags=synthetic
+symbol s2 kind=class fq=kotlin.Any vis=public flags=synthetic
+symbol s3 kind=interface fq=kotlin.Annotation vis=public flags=synthetic
 symbol s4 kind=interface fq=kotlin.sequences.Sequence vis=public flags=synthetic
 symbol s5 kind=typeParameter fq=kotlin.sequences.Sequence.T vis=private flags=_
 symbol s6 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
-symbol s7 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s8 kind=function fq=kotlin.sequences.Sequence.take vis=public flags=synthetic|operatorFunction sig=recv=Class#4<out T#5> params=[Int] ret=Class#4<out T#5> suspend=0 defaults=[0] vararg=[0]
-symbol s9 kind=function fq=kotlin.sequences.Sequence.toList vis=public flags=synthetic|operatorFunction sig=recv=Class#4<out T#5> params=[] ret=Class#6<out T#5> suspend=0 defaults=[] vararg=[]
-symbol s10 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s11 kind=local fq=__local_0.s0 vis=private flags=_ type=Class#6<Int>
-symbol s12 kind=local fq=__local_1.s1 vis=private flags=_ type=Class#6<Int>
-symbol s13 kind=local fq=__local_2.s2 vis=private flags=_ type=Class#6<Int>
-symbol s14 kind=local fq=__local_3.fn vis=private flags=_ type=() -> Int?
-symbol s15 kind=local fq=__local_4.s3 vis=private flags=_ type=Class#6<Int>
-file f0 package=_
-  decl d0 fun main suspend=0 inline=0 sym=s10
-expr e0 name(generateSequence) type=_
-expr e1 int(1) type=Int
-expr e2 name(it) type=_
-expr e3 int(5) type=_
-expr e4 binary(lessThan) lhs=e2 rhs=e3 type=_
-expr e5 name(it) type=_
-expr e6 int(1) type=_
-expr e7 binary(add) lhs=e5 rhs=e6 type=_
-expr e8 name(null) type=_
-expr e9 if cond=e4 then=e7 else=e8 type=_
-expr e10 name(it) type=Int ref=s-0
-expr e11 int(5) type=Int
-expr e12 binary(lessThan) lhs=e10 rhs=e11 type=Boolean
-expr e13 name(it) type=Int ref=s-0
-expr e14 int(1) type=Int
-expr e15 binary(add) lhs=e13 rhs=e14 type=Int
-expr e16 name(null) type=Nothing?
-expr e17 if cond=e12 then=e15 else=e16 type=Int?
-expr e18 lambda params=[] body=e17 label=generateSequence type=(Int) -> Int?
-expr e19 call callee=e0 args=[_:e1,_:e18] type=Class#4<out Int>
-expr e20 memberCall recv=e19 callee=toList args=[] type=Class#6<Int> call=s9 map=[] targs=[]
-expr e21 localDecl s0 mutable=0 type=_ init=e20 type=Unit ref=s11
-expr e22 name(println) type=_
-expr e23 name(s0) type=Class#6<Int> ref=s11
-expr e24 call callee=e22 args=[_:e23] type=Unit call=s7 map=[0->0] targs=[]
-expr e25 name(generateSequence) type=_
-expr e26 int(1) type=Int
-expr e27 name(it) type=_
-expr e28 int(1) type=_
-expr e29 binary(add) lhs=e27 rhs=e28 type=_
-expr e30 name(it) type=Int ref=s-1
-expr e31 int(1) type=Int
-expr e32 binary(add) lhs=e30 rhs=e31 type=Int
-expr e33 lambda params=[] body=e32 label=generateSequence type=(Int) -> Int?
-expr e34 call callee=e25 args=[_:e26,_:e33] type=Class#4<out Int>
-expr e35 int(5) type=Int
-expr e36 memberCall recv=e34 callee=take args=[_:e35] type=Class#4<out Int> call=s8 map=[0->0] targs=[]
-expr e37 memberCall recv=e36 callee=toList args=[] type=Class#6<Int> call=s9 map=[] targs=[]
-expr e38 localDecl s1 mutable=0 type=_ init=e37 type=Unit ref=s12
-expr e39 name(println) type=_
-expr e40 name(s1) type=Class#6<Int> ref=s12
-expr e41 call callee=e39 args=[_:e40] type=Unit call=s7 map=[0->0] targs=[]
-expr e42 name(generateSequence) type=_
-expr e43 int(10) type=_
-expr e44 int(10) type=Int
-expr e45 lambda params=[] body=e44 label=generateSequence type=() -> Int
-expr e46 name(it) type=_
-expr e47 int(1) type=_
-expr e48 binary(greaterThan) lhs=e46 rhs=e47 type=_
-expr e49 name(it) type=_
-expr e50 int(2) type=_
-expr e51 binary(divide) lhs=e49 rhs=e50 type=_
-expr e52 name(null) type=_
-expr e53 if cond=e48 then=e51 else=e52 type=_
-expr e54 name(it) type=Int ref=s-2
-expr e55 int(1) type=Int
-expr e56 binary(greaterThan) lhs=e54 rhs=e55 type=Boolean
-expr e57 name(it) type=Int ref=s-2
-expr e58 int(2) type=Int
-expr e59 binary(divide) lhs=e57 rhs=e58 type=Int
-expr e60 name(null) type=Nothing?
-expr e61 if cond=e56 then=e59 else=e60 type=Int?
-expr e62 lambda params=[] body=e61 label=generateSequence type=(Int) -> Int?
-expr e63 call callee=e42 args=[_:e45,_:e62] type=Class#4<out Int>
-expr e64 memberCall recv=e63 callee=toList args=[] type=Class#6<Int> call=s9 map=[] targs=[]
-expr e65 localDecl s2 mutable=0 type=_ init=e64 type=Unit ref=s13
-expr e66 name(println) type=_
-expr e67 name(s2) type=Class#6<Int> ref=s13
-expr e68 call callee=e66 args=[_:e67] type=Unit call=s7 map=[0->0] targs=[]
-expr e69 int(42) type=_
-expr e70 int(42) type=Int
-expr e71 lambda params=[] body=e70 type=() -> Int?
-expr e72 localDecl fn mutable=0 type=t1 init=e71 type=Unit ref=s14
-expr e73 name(generateSequence) type=_
-expr e74 name(fn) type=() -> Int? ref=s14
-expr e75 call callee=e73 args=[_:e74] type=Class#4<out Int>
-expr e76 int(3) type=Int
-expr e77 memberCall recv=e75 callee=take args=[_:e76] type=Class#4<out Int> call=s8 map=[0->0] targs=[]
-expr e78 memberCall recv=e77 callee=toList args=[] type=Class#6<Int> call=s9 map=[] targs=[]
-expr e79 localDecl s3 mutable=0 type=_ init=e78 type=Unit ref=s15
-expr e80 name(println) type=_
-expr e81 name(s3) type=Class#6<Int> ref=s15
-expr e82 call callee=e80 args=[_:e81] type=Unit call=s7 map=[0->0] targs=[]
+symbol s7 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s8 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s9 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#9
+symbol s10 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#9 suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s12 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#11 params=[String?] ret=Class#11 suspend=0 defaults=[0] vararg=[0]
+symbol s13 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#11 params=[Char] ret=Class#11 suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#11 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s15 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s16 kind=function fq=kotlin.sequences.Sequence.take vis=public flags=synthetic|operatorFunction sig=recv=Class#4<out T#5> params=[Int] ret=Class#4<out T#5> suspend=0 defaults=[0] vararg=[0]
+symbol s17 kind=function fq=kotlin.sequences.Sequence.toList vis=public flags=synthetic|operatorFunction sig=recv=Class#4<out T#5> params=[] ret=Class#6<out T#5> suspend=0 defaults=[] vararg=[]
+symbol s18 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s19 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s20 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s21 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s22 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s23 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s24 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s25 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s26 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s27 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s28 kind=local fq=__local_0.sb vis=private flags=_ type=Class#11
+symbol s29 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s30 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s31 kind=local fq=__local_3.sb vis=private flags=_ type=Class#11
+symbol s32 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s33 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s34 kind=local fq=__local_6.sb vis=private flags=_ type=Class#11
+symbol s35 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s36 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s37 kind=local fq=__local_9.sb vis=private flags=_ type=Class#11
+symbol s38 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s39 kind=local fq=__local_11.s0 vis=private flags=_ type=Class#6<Int>
+symbol s40 kind=local fq=__local_12.s1 vis=private flags=_ type=Class#6<Int>
+symbol s41 kind=local fq=__local_13.s2 vis=private flags=_ type=Class#6<Int>
+symbol s42 kind=local fq=__local_14.fn vis=private flags=_ type=() -> Int?
+symbol s43 kind=local fq=__local_15.s3 vis=private flags=_ type=Class#6<Int>
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s18
+  decl d1 fun reversed suspend=0 inline=0 sym=s20
+  decl d2 fun padStart suspend=0 inline=0 sym=s21
+  decl d3 fun padEnd suspend=0 inline=0 sym=s24
+file f1 package=_
+  decl d4 fun main suspend=0 inline=0 sym=s27
+expr e0 name(count) type=Int ref=s19
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s19
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#9 call=s10 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s11
+expr e10 call callee=e9 args=[] type=Class#11
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s28
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s29
+expr e14 name(i) type=Int ref=s29
+expr e15 name(count) type=Int ref=s19
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#11 ref=s28
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#11 call=s12 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s29
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#11 ref=s28
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s14 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s7 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s30
+expr e31 name(StringBuilder) type=Any ref=s11
+expr e32 call callee=e31 args=[] type=Class#11
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s31
+expr e34 name(len) type=Int ref=s30
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s32
+expr e38 name(i) type=Int ref=s32
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#11 ref=s31
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s32
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s8 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#11 call=s13 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s32
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#11 ref=s31
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s14 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s22
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s7 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s33
+expr e60 name(padding) type=Int ref=s33
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s11
+expr e67 call callee=e66 args=[] type=Class#11
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s34
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s35
+expr e71 name(i) type=Int ref=s35
+expr e72 name(padding) type=Int ref=s33
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#11 ref=s34
+expr e75 name(padChar) type=Char ref=s23
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#11 call=s13 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s35
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#11 ref=s34
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#11 call=s12 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#11 ref=s34
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s14 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s25
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s7 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s36
+expr e94 name(padding) type=Int ref=s36
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
+expr e98 return value=e97 type=Nothing
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s11
+expr e101 call callee=e100 args=[] type=Class#11
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s37
+expr e103 name(sb) type=Class#11 ref=s37
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#11 call=s12 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s38
+expr e108 name(i) type=Int ref=s38
+expr e109 name(padding) type=Int ref=s36
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#11 ref=s37
+expr e112 name(padChar) type=Char ref=s26
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#11 call=s13 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s38
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#11 ref=s37
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s14 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(generateSequence) type=_
+expr e123 int(1) type=Int
+expr e124 name(it) type=_
+expr e125 int(5) type=_
+expr e126 binary(lessThan) lhs=e124 rhs=e125 type=_
+expr e127 name(it) type=_
+expr e128 int(1) type=_
+expr e129 binary(add) lhs=e127 rhs=e128 type=_
+expr e130 name(null) type=_
+expr e131 if cond=e126 then=e129 else=e130 type=_
+expr e132 name(it) type=Int ref=s-0
+expr e133 int(5) type=Int
+expr e134 binary(lessThan) lhs=e132 rhs=e133 type=Boolean
+expr e135 name(it) type=Int ref=s-0
+expr e136 int(1) type=Int
+expr e137 binary(add) lhs=e135 rhs=e136 type=Int
+expr e138 name(null) type=Nothing?
+expr e139 if cond=e134 then=e137 else=e138 type=Int?
+expr e140 lambda params=[] body=e139 label=generateSequence type=(Int) -> Int?
+expr e141 call callee=e122 args=[_:e123,_:e140] type=Class#4<out Int>
+expr e142 memberCall recv=e141 callee=toList args=[] type=Class#6<Int> call=s17 map=[] targs=[]
+expr e143 localDecl s0 mutable=0 type=_ init=e142 type=Unit ref=s39
+expr e144 name(println) type=_
+expr e145 name(s0) type=Class#6<Int> ref=s39
+expr e146 call callee=e144 args=[_:e145] type=Unit call=s15 map=[0->0] targs=[]
+expr e147 name(generateSequence) type=_
+expr e148 int(1) type=Int
+expr e149 name(it) type=_
+expr e150 int(1) type=_
+expr e151 binary(add) lhs=e149 rhs=e150 type=_
+expr e152 name(it) type=Int ref=s-1
+expr e153 int(1) type=Int
+expr e154 binary(add) lhs=e152 rhs=e153 type=Int
+expr e155 lambda params=[] body=e154 label=generateSequence type=(Int) -> Int?
+expr e156 call callee=e147 args=[_:e148,_:e155] type=Class#4<out Int>
+expr e157 int(5) type=Int
+expr e158 memberCall recv=e156 callee=take args=[_:e157] type=Class#4<out Int> call=s16 map=[0->0] targs=[]
+expr e159 memberCall recv=e158 callee=toList args=[] type=Class#6<Int> call=s17 map=[] targs=[]
+expr e160 localDecl s1 mutable=0 type=_ init=e159 type=Unit ref=s40
+expr e161 name(println) type=_
+expr e162 name(s1) type=Class#6<Int> ref=s40
+expr e163 call callee=e161 args=[_:e162] type=Unit call=s15 map=[0->0] targs=[]
+expr e164 name(generateSequence) type=_
+expr e165 int(10) type=_
+expr e166 int(10) type=Int
+expr e167 lambda params=[] body=e166 label=generateSequence type=() -> Int
+expr e168 name(it) type=_
+expr e169 int(1) type=_
+expr e170 binary(greaterThan) lhs=e168 rhs=e169 type=_
+expr e171 name(it) type=_
+expr e172 int(2) type=_
+expr e173 binary(divide) lhs=e171 rhs=e172 type=_
+expr e174 name(null) type=_
+expr e175 if cond=e170 then=e173 else=e174 type=_
+expr e176 name(it) type=Int ref=s-2
+expr e177 int(1) type=Int
+expr e178 binary(greaterThan) lhs=e176 rhs=e177 type=Boolean
+expr e179 name(it) type=Int ref=s-2
+expr e180 int(2) type=Int
+expr e181 binary(divide) lhs=e179 rhs=e180 type=Int
+expr e182 name(null) type=Nothing?
+expr e183 if cond=e178 then=e181 else=e182 type=Int?
+expr e184 lambda params=[] body=e183 label=generateSequence type=(Int) -> Int?
+expr e185 call callee=e164 args=[_:e167,_:e184] type=Class#4<out Int>
+expr e186 memberCall recv=e185 callee=toList args=[] type=Class#6<Int> call=s17 map=[] targs=[]
+expr e187 localDecl s2 mutable=0 type=_ init=e186 type=Unit ref=s41
+expr e188 name(println) type=_
+expr e189 name(s2) type=Class#6<Int> ref=s41
+expr e190 call callee=e188 args=[_:e189] type=Unit call=s15 map=[0->0] targs=[]
+expr e191 int(42) type=_
+expr e192 int(42) type=Int
+expr e193 lambda params=[] body=e192 type=() -> Int?
+expr e194 localDecl fn mutable=0 type=t17 init=e193 type=Unit ref=s42
+expr e195 name(generateSequence) type=_
+expr e196 name(fn) type=() -> Int? ref=s42
+expr e197 call callee=e195 args=[_:e196] type=Class#4<out Int>
+expr e198 int(3) type=Int
+expr e199 memberCall recv=e197 callee=take args=[_:e198] type=Class#4<out Int> call=s16 map=[0->0] targs=[]
+expr e200 memberCall recv=e199 callee=toList args=[] type=Class#6<Int> call=s17 map=[] targs=[]
+expr e201 localDecl s3 mutable=0 type=_ init=e200 type=Unit ref=s43
+expr e202 name(println) type=_
+expr e203 name(s3) type=Class#6<Int> ref=s43
+expr e204 call callee=e202 args=[_:e203] type=Unit call=s15 map=[0->0] targs=[]

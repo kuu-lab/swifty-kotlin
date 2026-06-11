@@ -222,6 +222,7 @@ public func kk_string_split_limit(_ strRaw: Int, _ delimRaw: Int, _ ignoreCaseRa
     )
 }
 
+
 @_cdecl("kk_string_replace")
 public func kk_string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -294,71 +295,6 @@ public func kk_string_subSequence(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
-}
-
-/// Unicode code point for space (U+0020), the default pad character in Kotlin.
-private let kDefaultPadCharRaw: Int = 0x20
-
-@_cdecl("kk_string_padStart_default")
-public func kk_string_padStart_default(_ strRaw: Int, _ lengthRaw: Int) -> Int {
-    return kk_string_padStart(strRaw, lengthRaw, kDefaultPadCharRaw)
-}
-
-@_cdecl("kk_string_padEnd_default")
-public func kk_string_padEnd_default(_ strRaw: Int, _ lengthRaw: Int) -> Int {
-    return kk_string_padEnd(strRaw, lengthRaw, kDefaultPadCharRaw)
-}
-
-@_cdecl("kk_string_padStart")
-public func kk_string_padStart(_ strRaw: Int, _ lengthRaw: Int, _ padCharRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let sourceLength = source.unicodeScalars.count
-    guard lengthRaw > sourceLength else {
-        return runtimeMakeStringRaw(source)
-    }
-    let padCharacter = runtimeCharacterFromRaw(padCharRaw)
-    let padCount = lengthRaw - sourceLength
-    if padCount <= 0 {
-        return runtimeMakeStringRaw(source)
-    }
-    let padding = String(repeating: padCharacter, count: padCount)
-    return runtimeMakeStringRaw(padding + source)
-}
-
-@_cdecl("kk_string_padEnd")
-public func kk_string_padEnd(_ strRaw: Int, _ lengthRaw: Int, _ padCharRaw: Int) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    let sourceLength = source.unicodeScalars.count
-    guard lengthRaw > sourceLength else {
-        return runtimeMakeStringRaw(source)
-    }
-    let padCharacter = runtimeCharacterFromRaw(padCharRaw)
-    let padCount = lengthRaw - sourceLength
-    if padCount <= 0 {
-        return runtimeMakeStringRaw(source)
-    }
-    let padding = String(repeating: padCharacter, count: padCount)
-    return runtimeMakeStringRaw(source + padding)
-}
-
-@_cdecl("kk_string_repeat")
-public func kk_string_repeat(_ strRaw: Int, _ countRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    outThrown?.pointee = 0
-    if countRaw < 0 {
-        runtimeSetThrown(outThrown, message: "IllegalArgumentException: Count 'n' must be non-negative, but was \(countRaw).")
-        return 0
-    }
-    guard countRaw > 0 else {
-        return runtimeMakeStringRaw("")
-    }
-    return runtimeMakeStringRaw(String(repeating: source, count: countRaw))
-}
-
-@_cdecl("kk_string_reversed")
-public func kk_string_reversed(_ strRaw: Int) -> Int {
-    let reversed = runtimeStringFromScalars(runtimeStringScalars(strRaw).reversed())
-    return runtimeMakeStringRaw(reversed)
 }
 
 @_cdecl("kk_string_toList")
@@ -4570,4 +4506,66 @@ public func kk_string_partition(
     let first = runtimeMakeStringRaw(runtimeStringFromScalars(matched))
     let second = runtimeMakeStringRaw(runtimeStringFromScalars(unmatched))
     return kk_pair_new(first, second)
+}
+
+// MARK: - Internal bridge functions for Kotlin stdlib migration (MIGRATION-TEXT-002)
+
+@_cdecl("__string_replace")
+public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+    return kk_string_replace(strRaw, oldRaw, newRaw)
+}
+
+@_cdecl("__string_replace_ignoreCase")
+public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    return kk_string_replace_ignoreCase(strRaw, oldRaw, newRaw, ignoreCaseRaw)
+}
+
+@_cdecl("__string_replace_char")
+public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
+    return kk_string_replace_char(strRaw, oldCharRaw, newCharRaw)
+}
+
+@_cdecl("__string_replace_char_ignoreCase")
+public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    return kk_string_replace_char_ignoreCase(strRaw, oldCharRaw, newCharRaw, ignoreCaseRaw)
+}
+
+@_cdecl("__string_replaceFirst")
+public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
+}
+
+@_cdecl("__string_replaceRange")
+public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange")
+public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange_range")
+public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
+}
+
+@_cdecl("__string_removePrefix")
+public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
+    return kk_string_removePrefix(strRaw, prefixRaw)
+}
+
+@_cdecl("__string_removeSuffix")
+public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
+    return kk_string_removeSuffix(strRaw, suffixRaw)
+}
+
+@_cdecl("__string_removeSurrounding")
+public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
+    return kk_string_removeSurrounding(strRaw, delimiterRaw)
+}
+
+@_cdecl("__string_removeSurrounding_pair")
+public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
+    return kk_string_removeSurrounding_pair(strRaw, prefixRaw, suffixRaw)
 }

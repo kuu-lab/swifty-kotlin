@@ -117,7 +117,8 @@ extension BuildKIRRegressionTests {
                 }
                 return function
             }
-            let generatedFunction = try XCTUnwrap(generatedLambdaFunctions.first)
+            // Find the user's HOF lambda (2 params: closure + elem), not the bundled stdlib's require lambda
+            let generatedFunction = try XCTUnwrap(generatedLambdaFunctions.last)
             XCTAssertEqual(generatedFunction.params.count, 2, "closure + elem")
             XCTAssertEqual(generatedFunction.params.first?.type, ctx.sema?.types.intType)
         }

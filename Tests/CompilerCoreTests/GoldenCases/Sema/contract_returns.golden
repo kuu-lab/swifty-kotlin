@@ -1,165 +1,319 @@
-symbol s0 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#0
-symbol s1 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[] ret=Class#0 suspend=0 defaults=[] vararg=[]
-symbol s2 kind=class fq=kotlin.contracts.ContractBuilder vis=public flags=synthetic
-symbol s3 kind=interface fq=kotlin.contracts.Returns vis=public flags=synthetic type=Class#3
-symbol s4 kind=function fq=kotlin.contracts.ContractBuilder.returns vis=public flags=synthetic sig=recv=Class#2 params=[] ret=Class#3 suspend=0 defaults=[] vararg=[]
-symbol s5 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s6 kind=function fq=requireNonNull vis=public flags=_ sig=recv=_ params=[Any?] ret=Any suspend=0 defaults=[0] vararg=[0]
-symbol s7 kind=valueParameter fq=requireNonNull.$0.value vis=private flags=_
-symbol s8 kind=function fq=bareReturns vis=public flags=_ sig=recv=_ params=[Int] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s9 kind=valueParameter fq=bareReturns.$1.x vis=private flags=_
-symbol s10 kind=function fq=returnsTrue vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s11 kind=valueParameter fq=returnsTrue.$2.condition vis=private flags=_
-symbol s12 kind=function fq=returnsFalse vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s13 kind=valueParameter fq=returnsFalse.$3.condition vis=private flags=_
-symbol s14 kind=function fq=multiEffect vis=public flags=_ sig=recv=_ params=[Any?,Boolean] ret=Boolean suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s15 kind=valueParameter fq=multiEffect.$4.value vis=private flags=_
-symbol s16 kind=valueParameter fq=multiEffect.$4.condition vis=private flags=_
-symbol s17 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s18 kind=local fq=__local_0.x vis=private flags=_ type=String?
-symbol s19 kind=local fq=__local_1.flag vis=private flags=_ type=Boolean
-symbol s20 kind=local fq=__local_2.flag2 vis=private flags=_ type=Boolean
-symbol s21 kind=local fq=__local_3.y vis=private flags=_ type=String?
-symbol s22 kind=local fq=__local_4.result vis=private flags=_ type=Boolean
-file f0 package=_
-  decl d0 fun requireNonNull suspend=0 inline=0 sym=s6
-  decl d1 fun bareReturns suspend=0 inline=0 sym=s8
-  decl d2 fun returnsTrue suspend=0 inline=0 sym=s10
-  decl d3 fun returnsFalse suspend=0 inline=0 sym=s12
-  decl d4 fun multiEffect suspend=0 inline=0 sym=s14
-  decl d5 fun main suspend=0 inline=0 sym=s17
-expr e0 name(contract) type=_
-expr e1 name(returns) type=_
-expr e2 call callee=e1 args=[] type=_
-expr e3 name(value) type=_
-expr e4 name(null) type=_
-expr e5 binary(notEqual) lhs=e3 rhs=e4 type=_
-expr e6 memberCall recv=e2 callee=implies args=[_:e5] type=_
-expr e7 name(returns) type=_
-expr e8 call callee=e7 args=[] type=Class#3 call=s4 map=[] targs=[]
-expr e9 name(value) type=Any? ref=s7
-expr e10 name(null) type=Nothing?
-expr e11 binary(notEqual) lhs=e9 rhs=e10 type=Boolean
-expr e12 memberCall recv=e8 callee=implies args=[_:e11] type=<error>
-expr e13 lambda params=[] body=e12 label=contract type=Class#2.() -> Unit
-expr e14 call callee=e0 args=[_:e13] type=Unit
-expr e15 name(value) type=Any? ref=s7
-expr e16 name(null) type=Nothing?
-expr e17 binary(equal) lhs=e15 rhs=e16 type=Boolean
-expr e18 name(IllegalArgumentException) type=_
-expr e19 call callee=e18 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e20 throw value=e19 type=Nothing
-expr e21 if cond=e17 then=e20 else=_ type=Unit
-expr e22 name(value) type=Any? ref=s7
-expr e23 return value=e22 type=Nothing
-expr e24 name(contract) type=_
-expr e25 name(returns) type=_
-expr e26 call callee=e25 args=[] type=_
-expr e27 name(returns) type=_
-expr e28 call callee=e27 args=[] type=Class#3 call=s4 map=[] targs=[]
-expr e29 lambda params=[] body=e28 label=contract type=Class#2.() -> Unit
-expr e30 call callee=e24 args=[_:e29] type=Unit
-expr e31 name(x) type=Int ref=s9
-expr e32 int(0) type=Int
-expr e33 binary(lessThan) lhs=e31 rhs=e32 type=Boolean
-expr e34 name(IllegalArgumentException) type=_
-expr e35 call callee=e34 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e36 throw value=e35 type=Nothing
-expr e37 if cond=e33 then=e36 else=_ type=Unit
-expr e38 name(contract) type=_
-expr e39 name(returns) type=_
-expr e40 bool(true) type=_
-expr e41 call callee=e39 args=[_:e40] type=_
-expr e42 name(returns) type=_
-expr e43 bool(true) type=Boolean
-expr e44 call callee=e42 args=[_:e43] type=Class#3 call=s4 map=[0->0] targs=[]
-expr e45 lambda params=[] body=e44 label=contract type=Class#2.() -> Unit
-expr e46 call callee=e38 args=[_:e45] type=Unit
-expr e47 name(condition) type=Boolean ref=s11
-expr e48 unary(not) operand=e47 type=Boolean
-expr e49 name(IllegalArgumentException) type=_
-expr e50 call callee=e49 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e51 throw value=e50 type=Nothing
-expr e52 if cond=e48 then=e51 else=_ type=Unit
-expr e53 bool(true) type=Boolean
-expr e54 return value=e53 type=Nothing
-expr e55 name(contract) type=_
-expr e56 name(returns) type=_
-expr e57 bool(false) type=_
-expr e58 call callee=e56 args=[_:e57] type=_
-expr e59 name(returns) type=_
-expr e60 bool(false) type=Boolean
-expr e61 call callee=e59 args=[_:e60] type=Class#3 call=s4 map=[0->0] targs=[]
-expr e62 lambda params=[] body=e61 label=contract type=Class#2.() -> Unit
-expr e63 call callee=e55 args=[_:e62] type=Unit
-expr e64 name(condition) type=Boolean ref=s13
-expr e65 name(IllegalArgumentException) type=_
-expr e66 call callee=e65 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e67 throw value=e66 type=Nothing
-expr e68 if cond=e64 then=e67 else=_ type=Unit
-expr e69 bool(false) type=Boolean
-expr e70 return value=e69 type=Nothing
-expr e71 name(contract) type=_
-expr e72 name(returns) type=_
-expr e73 call callee=e72 args=[] type=Class#3 call=s4 map=[] targs=[]
-expr e74 name(value) type=Any? ref=s15
-expr e75 name(null) type=Nothing?
-expr e76 binary(notEqual) lhs=e74 rhs=e75 type=Boolean
-expr e77 memberCall recv=e73 callee=implies args=[_:e76] type=<error>
-expr e78 name(returns) type=_
-expr e79 bool(true) type=Boolean
-expr e80 call callee=e78 args=[_:e79] type=Class#3 call=s4 map=[0->0] targs=[]
-expr e81 blockExpr stmts=[e77] trailing=e80 type=Class#3
-expr e82 lambda params=[] body=e81 label=contract type=Class#2.() -> Unit
-expr e83 call callee=e71 args=[_:e82] type=Unit
-expr e84 name(value) type=Any? ref=s15
-expr e85 name(null) type=Nothing?
-expr e86 binary(equal) lhs=e84 rhs=e85 type=Boolean
-expr e87 name(IllegalArgumentException) type=_
-expr e88 call callee=e87 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e89 throw value=e88 type=Nothing
-expr e90 if cond=e86 then=e89 else=_ type=Unit
-expr e91 name(condition) type=Boolean ref=s16
-expr e92 unary(not) operand=e91 type=Boolean
-expr e93 name(IllegalArgumentException) type=_
-expr e94 call callee=e93 args=[] type=Class#0 call=s1 map=[] targs=[]
-expr e95 throw value=e94 type=Nothing
-expr e96 if cond=e92 then=e95 else=_ type=Unit
-expr e97 bool(true) type=Boolean
+symbol s0 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s1 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
+symbol s2 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#2
+symbol s3 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[] ret=Class#2 suspend=0 defaults=[] vararg=[]
+symbol s4 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#2 suspend=0 defaults=[0] vararg=[0]
+symbol s5 kind=class fq=kotlin.contracts.ContractBuilder vis=public flags=synthetic
+symbol s6 kind=interface fq=kotlin.contracts.Returns vis=public flags=synthetic type=Class#6
+symbol s7 kind=function fq=kotlin.contracts.ContractBuilder.returns vis=public flags=synthetic sig=recv=Class#5 params=[] ret=Class#6 suspend=0 defaults=[] vararg=[]
+symbol s8 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s9 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#8 params=[String?] ret=Class#8 suspend=0 defaults=[0] vararg=[0]
+symbol s10 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#8 params=[Char] ret=Class#8 suspend=0 defaults=[0] vararg=[0]
+symbol s11 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#8 params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s12 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s13 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
+symbol s14 kind=valueParameter fq=kotlin.text.repeat.$0.count vis=private flags=_
+symbol s15 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
+symbol s16 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s17 kind=valueParameter fq=kotlin.text.padStart.$1.length vis=private flags=_
+symbol s18 kind=valueParameter fq=kotlin.text.padStart.$1.padChar vis=private flags=_
+symbol s19 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
+symbol s20 kind=valueParameter fq=kotlin.text.padEnd.$2.length vis=private flags=_
+symbol s21 kind=valueParameter fq=kotlin.text.padEnd.$2.padChar vis=private flags=_
+symbol s22 kind=function fq=requireNonNull vis=public flags=_ sig=recv=_ params=[Any?] ret=Any suspend=0 defaults=[0] vararg=[0]
+symbol s23 kind=valueParameter fq=requireNonNull.$3.value vis=private flags=_
+symbol s24 kind=function fq=bareReturns vis=public flags=_ sig=recv=_ params=[Int] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s25 kind=valueParameter fq=bareReturns.$4.x vis=private flags=_
+symbol s26 kind=function fq=returnsTrue vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s27 kind=valueParameter fq=returnsTrue.$5.condition vis=private flags=_
+symbol s28 kind=function fq=returnsFalse vis=public flags=_ sig=recv=_ params=[Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
+symbol s29 kind=valueParameter fq=returnsFalse.$6.condition vis=private flags=_
+symbol s30 kind=function fq=multiEffect vis=public flags=_ sig=recv=_ params=[Any?,Boolean] ret=Boolean suspend=0 defaults=[0,0] vararg=[0,0]
+symbol s31 kind=valueParameter fq=multiEffect.$7.value vis=private flags=_
+symbol s32 kind=valueParameter fq=multiEffect.$7.condition vis=private flags=_
+symbol s33 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s34 kind=local fq=__local_0.sb vis=private flags=_ type=Class#8
+symbol s35 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s36 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s37 kind=local fq=__local_3.sb vis=private flags=_ type=Class#8
+symbol s38 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s39 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s40 kind=local fq=__local_6.sb vis=private flags=_ type=Class#8
+symbol s41 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s42 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s43 kind=local fq=__local_9.sb vis=private flags=_ type=Class#8
+symbol s44 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s45 kind=local fq=__local_11.x vis=private flags=_ type=String?
+symbol s46 kind=local fq=__local_12.flag vis=private flags=_ type=Boolean
+symbol s47 kind=local fq=__local_13.flag2 vis=private flags=_ type=Boolean
+symbol s48 kind=local fq=__local_14.y vis=private flags=_ type=String?
+symbol s49 kind=local fq=__local_15.result vis=private flags=_ type=Boolean
+file f0 package=kotlin.text
+  decl d0 fun repeat suspend=0 inline=0 sym=s13
+  decl d1 fun reversed suspend=0 inline=0 sym=s15
+  decl d2 fun padStart suspend=0 inline=0 sym=s16
+  decl d3 fun padEnd suspend=0 inline=0 sym=s19
+file f1 package=_
+  decl d4 fun requireNonNull suspend=0 inline=0 sym=s22
+  decl d5 fun bareReturns suspend=0 inline=0 sym=s24
+  decl d6 fun returnsTrue suspend=0 inline=0 sym=s26
+  decl d7 fun returnsFalse suspend=0 inline=0 sym=s28
+  decl d8 fun multiEffect suspend=0 inline=0 sym=s30
+  decl d9 fun main suspend=0 inline=0 sym=s33
+expr e0 name(count) type=Int ref=s14
+expr e1 int(0) type=Int
+expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
+expr e3 name(IllegalArgumentException) type=_
+expr e4 name(count) type=Int ref=s14
+expr e5 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e4),lit(.)] type=String
+expr e6 call callee=e3 args=[_:e5] type=Class#2 call=s4 map=[0->0] targs=[]
+expr e7 throw value=e6 type=Nothing
+expr e8 if cond=e2 then=e7 else=_ type=Unit
+expr e9 name(StringBuilder) type=Any ref=s8
+expr e10 call callee=e9 args=[] type=Class#8
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s34
+expr e12 int(0) type=Int
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s35
+expr e14 name(i) type=Int ref=s35
+expr e15 name(count) type=Int ref=s14
+expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
+expr e17 name(sb) type=Class#8 ref=s34
+expr e18 this type=String
+expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#8 call=s9 map=[0->0] targs=[]
+expr e20 name(i) type=_
+expr e21 int(1) type=Int
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s35
+expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
+expr e24 while cond=e16 body=e23 type=Unit
+expr e25 name(sb) type=Class#8 ref=s34
+expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s11 map=[] targs=[]
+expr e27 return value=e26 type=Nothing
+expr e28 this type=String
+expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s36
+expr e31 name(StringBuilder) type=Any ref=s8
+expr e32 call callee=e31 args=[] type=Class#8
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s37
+expr e34 name(len) type=Int ref=s36
+expr e35 int(1) type=Int
+expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s38
+expr e38 name(i) type=Int ref=s38
+expr e39 int(0) type=Int
+expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
+expr e41 name(sb) type=Class#8 ref=s37
+expr e42 this type=String
+expr e43 name(i) type=Int ref=s38
+expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s1 map=[0->0] targs=[]
+expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#8 call=s10 map=[0->0] targs=[]
+expr e46 name(i) type=_
+expr e47 int(1) type=Int
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s38
+expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
+expr e50 while cond=e40 body=e49 type=Unit
+expr e51 name(sb) type=Class#8 ref=s37
+expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s11 map=[] targs=[]
+expr e53 return value=e52 type=Nothing
+expr e54 char(32) type=_
+expr e55 name(length) type=Int ref=s17
+expr e56 this type=String
+expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s39
+expr e60 name(padding) type=Int ref=s39
+expr e61 int(0) type=Int
+expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
+expr e63 this type=String
+expr e64 return value=e63 type=Nothing
+expr e65 if cond=e62 then=e64 else=_ type=Unit
+expr e66 name(StringBuilder) type=Any ref=s8
+expr e67 call callee=e66 args=[] type=Class#8
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s40
+expr e69 int(0) type=Int
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s41
+expr e71 name(i) type=Int ref=s41
+expr e72 name(padding) type=Int ref=s39
+expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
+expr e74 name(sb) type=Class#8 ref=s40
+expr e75 name(padChar) type=Char ref=s18
+expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#8 call=s10 map=[0->0] targs=[]
+expr e77 name(i) type=_
+expr e78 int(1) type=Int
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s41
+expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
+expr e81 while cond=e73 body=e80 type=Unit
+expr e82 name(sb) type=Class#8 ref=s40
+expr e83 this type=String
+expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#8 call=s9 map=[0->0] targs=[]
+expr e85 name(sb) type=Class#8 ref=s40
+expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s11 map=[] targs=[]
+expr e87 return value=e86 type=Nothing
+expr e88 char(32) type=_
+expr e89 name(length) type=Int ref=s20
+expr e90 this type=String
+expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s0 map=[] targs=[]
+expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s42
+expr e94 name(padding) type=Int ref=s42
+expr e95 int(0) type=Int
+expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
+expr e97 this type=String
 expr e98 return value=e97 type=Nothing
-expr e99 string(hello) type=String
-expr e100 localDecl x mutable=0 type=t10 init=e99 type=Unit ref=s18
-expr e101 name(requireNonNull) type=_
-expr e102 name(x) type=String? ref=s18
-expr e103 call callee=e101 args=[_:e102] type=Any call=s6 map=[0->0] targs=[]
-expr e104 name(println) type=_
-expr e105 name(x) type=String? ref=s18
-expr e106 memberCall recv=e105 callee=length args=[] type=<error>
-expr e107 call callee=e104 args=[_:e106] type=Unit call=s5 map=[0->0] targs=[]
-expr e108 name(bareReturns) type=_
-expr e109 int(42) type=Int
-expr e110 call callee=e108 args=[_:e109] type=Unit call=s8 map=[0->0] targs=[]
-expr e111 name(returnsTrue) type=_
-expr e112 bool(true) type=Boolean
-expr e113 call callee=e111 args=[_:e112] type=Boolean call=s10 map=[0->0] targs=[]
-expr e114 localDecl flag mutable=0 type=_ init=e113 type=Unit ref=s19
-expr e115 name(println) type=_
-expr e116 name(flag) type=Boolean ref=s19
-expr e117 call callee=e115 args=[_:e116] type=Unit call=s5 map=[0->0] targs=[]
-expr e118 name(returnsFalse) type=_
-expr e119 bool(false) type=Boolean
-expr e120 call callee=e118 args=[_:e119] type=Boolean call=s12 map=[0->0] targs=[]
-expr e121 localDecl flag2 mutable=0 type=_ init=e120 type=Unit ref=s20
-expr e122 name(println) type=_
-expr e123 name(flag2) type=Boolean ref=s20
-expr e124 call callee=e122 args=[_:e123] type=Unit call=s5 map=[0->0] targs=[]
-expr e125 string(world) type=String
-expr e126 localDecl y mutable=0 type=t11 init=e125 type=Unit ref=s21
-expr e127 name(multiEffect) type=_
-expr e128 name(y) type=String? ref=s21
-expr e129 bool(true) type=Boolean
-expr e130 call callee=e127 args=[_:e128,_:e129] type=Boolean call=s14 map=[0->0,1->1] targs=[]
-expr e131 localDecl result mutable=0 type=_ init=e130 type=Unit ref=s22
-expr e132 name(println) type=_
-expr e133 name(result) type=Boolean ref=s22
-expr e134 call callee=e132 args=[_:e133] type=Unit call=s5 map=[0->0] targs=[]
+expr e99 if cond=e96 then=e98 else=_ type=Unit
+expr e100 name(StringBuilder) type=Any ref=s8
+expr e101 call callee=e100 args=[] type=Class#8
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s43
+expr e103 name(sb) type=Class#8 ref=s43
+expr e104 this type=String
+expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#8 call=s9 map=[0->0] targs=[]
+expr e106 int(0) type=Int
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s44
+expr e108 name(i) type=Int ref=s44
+expr e109 name(padding) type=Int ref=s42
+expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
+expr e111 name(sb) type=Class#8 ref=s43
+expr e112 name(padChar) type=Char ref=s21
+expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#8 call=s10 map=[0->0] targs=[]
+expr e114 name(i) type=_
+expr e115 int(1) type=Int
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s44
+expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
+expr e118 while cond=e110 body=e117 type=Unit
+expr e119 name(sb) type=Class#8 ref=s43
+expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s11 map=[] targs=[]
+expr e121 return value=e120 type=Nothing
+expr e122 name(contract) type=_
+expr e123 name(returns) type=_
+expr e124 call callee=e123 args=[] type=_
+expr e125 name(value) type=_
+expr e126 name(null) type=_
+expr e127 binary(notEqual) lhs=e125 rhs=e126 type=_
+expr e128 memberCall recv=e124 callee=implies args=[_:e127] type=_
+expr e129 name(returns) type=_
+expr e130 call callee=e129 args=[] type=Class#6 call=s7 map=[] targs=[]
+expr e131 name(value) type=Any? ref=s23
+expr e132 name(null) type=Nothing?
+expr e133 binary(notEqual) lhs=e131 rhs=e132 type=Boolean
+expr e134 memberCall recv=e130 callee=implies args=[_:e133] type=<error>
+expr e135 lambda params=[] body=e134 label=contract type=Class#5.() -> Unit
+expr e136 call callee=e122 args=[_:e135] type=Unit
+expr e137 name(value) type=Any? ref=s23
+expr e138 name(null) type=Nothing?
+expr e139 binary(equal) lhs=e137 rhs=e138 type=Boolean
+expr e140 name(IllegalArgumentException) type=_
+expr e141 call callee=e140 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e142 throw value=e141 type=Nothing
+expr e143 if cond=e139 then=e142 else=_ type=Unit
+expr e144 name(value) type=Any? ref=s23
+expr e145 return value=e144 type=Nothing
+expr e146 name(contract) type=_
+expr e147 name(returns) type=_
+expr e148 call callee=e147 args=[] type=_
+expr e149 name(returns) type=_
+expr e150 call callee=e149 args=[] type=Class#6 call=s7 map=[] targs=[]
+expr e151 lambda params=[] body=e150 label=contract type=Class#5.() -> Unit
+expr e152 call callee=e146 args=[_:e151] type=Unit
+expr e153 name(x) type=Int ref=s25
+expr e154 int(0) type=Int
+expr e155 binary(lessThan) lhs=e153 rhs=e154 type=Boolean
+expr e156 name(IllegalArgumentException) type=_
+expr e157 call callee=e156 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e158 throw value=e157 type=Nothing
+expr e159 if cond=e155 then=e158 else=_ type=Unit
+expr e160 name(contract) type=_
+expr e161 name(returns) type=_
+expr e162 bool(true) type=_
+expr e163 call callee=e161 args=[_:e162] type=_
+expr e164 name(returns) type=_
+expr e165 bool(true) type=Boolean
+expr e166 call callee=e164 args=[_:e165] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e167 lambda params=[] body=e166 label=contract type=Class#5.() -> Unit
+expr e168 call callee=e160 args=[_:e167] type=Unit
+expr e169 name(condition) type=Boolean ref=s27
+expr e170 unary(not) operand=e169 type=Boolean
+expr e171 name(IllegalArgumentException) type=_
+expr e172 call callee=e171 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e173 throw value=e172 type=Nothing
+expr e174 if cond=e170 then=e173 else=_ type=Unit
+expr e175 bool(true) type=Boolean
+expr e176 return value=e175 type=Nothing
+expr e177 name(contract) type=_
+expr e178 name(returns) type=_
+expr e179 bool(false) type=_
+expr e180 call callee=e178 args=[_:e179] type=_
+expr e181 name(returns) type=_
+expr e182 bool(false) type=Boolean
+expr e183 call callee=e181 args=[_:e182] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e184 lambda params=[] body=e183 label=contract type=Class#5.() -> Unit
+expr e185 call callee=e177 args=[_:e184] type=Unit
+expr e186 name(condition) type=Boolean ref=s29
+expr e187 name(IllegalArgumentException) type=_
+expr e188 call callee=e187 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e189 throw value=e188 type=Nothing
+expr e190 if cond=e186 then=e189 else=_ type=Unit
+expr e191 bool(false) type=Boolean
+expr e192 return value=e191 type=Nothing
+expr e193 name(contract) type=_
+expr e194 name(returns) type=_
+expr e195 call callee=e194 args=[] type=Class#6 call=s7 map=[] targs=[]
+expr e196 name(value) type=Any? ref=s31
+expr e197 name(null) type=Nothing?
+expr e198 binary(notEqual) lhs=e196 rhs=e197 type=Boolean
+expr e199 memberCall recv=e195 callee=implies args=[_:e198] type=<error>
+expr e200 name(returns) type=_
+expr e201 bool(true) type=Boolean
+expr e202 call callee=e200 args=[_:e201] type=Class#6 call=s7 map=[0->0] targs=[]
+expr e203 blockExpr stmts=[e199] trailing=e202 type=Class#6
+expr e204 lambda params=[] body=e203 label=contract type=Class#5.() -> Unit
+expr e205 call callee=e193 args=[_:e204] type=Unit
+expr e206 name(value) type=Any? ref=s31
+expr e207 name(null) type=Nothing?
+expr e208 binary(equal) lhs=e206 rhs=e207 type=Boolean
+expr e209 name(IllegalArgumentException) type=_
+expr e210 call callee=e209 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e211 throw value=e210 type=Nothing
+expr e212 if cond=e208 then=e211 else=_ type=Unit
+expr e213 name(condition) type=Boolean ref=s32
+expr e214 unary(not) operand=e213 type=Boolean
+expr e215 name(IllegalArgumentException) type=_
+expr e216 call callee=e215 args=[] type=Class#2 call=s3 map=[] targs=[]
+expr e217 throw value=e216 type=Nothing
+expr e218 if cond=e214 then=e217 else=_ type=Unit
+expr e219 bool(true) type=Boolean
+expr e220 return value=e219 type=Nothing
+expr e221 string(hello) type=String
+expr e222 localDecl x mutable=0 type=t26 init=e221 type=Unit ref=s45
+expr e223 name(requireNonNull) type=_
+expr e224 name(x) type=String? ref=s45
+expr e225 call callee=e223 args=[_:e224] type=Any call=s22 map=[0->0] targs=[]
+expr e226 name(println) type=_
+expr e227 name(x) type=String? ref=s45
+expr e228 memberCall recv=e227 callee=length args=[] type=<error>
+expr e229 call callee=e226 args=[_:e228] type=Unit call=s12 map=[0->0] targs=[]
+expr e230 name(bareReturns) type=_
+expr e231 int(42) type=Int
+expr e232 call callee=e230 args=[_:e231] type=Unit call=s24 map=[0->0] targs=[]
+expr e233 name(returnsTrue) type=_
+expr e234 bool(true) type=Boolean
+expr e235 call callee=e233 args=[_:e234] type=Boolean call=s26 map=[0->0] targs=[]
+expr e236 localDecl flag mutable=0 type=_ init=e235 type=Unit ref=s46
+expr e237 name(println) type=_
+expr e238 name(flag) type=Boolean ref=s46
+expr e239 call callee=e237 args=[_:e238] type=Unit call=s12 map=[0->0] targs=[]
+expr e240 name(returnsFalse) type=_
+expr e241 bool(false) type=Boolean
+expr e242 call callee=e240 args=[_:e241] type=Boolean call=s28 map=[0->0] targs=[]
+expr e243 localDecl flag2 mutable=0 type=_ init=e242 type=Unit ref=s47
+expr e244 name(println) type=_
+expr e245 name(flag2) type=Boolean ref=s47
+expr e246 call callee=e244 args=[_:e245] type=Unit call=s12 map=[0->0] targs=[]
+expr e247 string(world) type=String
+expr e248 localDecl y mutable=0 type=t27 init=e247 type=Unit ref=s48
+expr e249 name(multiEffect) type=_
+expr e250 name(y) type=String? ref=s48
+expr e251 bool(true) type=Boolean
+expr e252 call callee=e249 args=[_:e250,_:e251] type=Boolean call=s30 map=[0->0,1->1] targs=[]
+expr e253 localDecl result mutable=0 type=_ init=e252 type=Unit ref=s49
+expr e254 name(println) type=_
+expr e255 name(result) type=Boolean ref=s49
+expr e256 call callee=e254 args=[_:e255] type=Unit call=s12 map=[0->0] targs=[]

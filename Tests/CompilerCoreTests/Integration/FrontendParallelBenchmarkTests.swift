@@ -74,10 +74,11 @@ final class FrontendParallelBenchmarkTests: XCTestCase {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 1)
 
-        XCTAssertEqual(ctx.tokensByFile.count, 5, "Expected tokens for 5 files")
-        XCTAssertEqual(ctx.syntaxTrees.count, 5, "Expected syntax trees for 5 files")
+        // 5 user files + 1 bundled stdlib file
+        XCTAssertEqual(ctx.tokensByFile.count, 6, "Expected tokens for 6 files (5 user + 1 bundled stdlib)")
+        XCTAssertEqual(ctx.syntaxTrees.count, 6, "Expected syntax trees for 6 files")
         let ast = try XCTUnwrap(ctx.ast)
-        XCTAssertEqual(ast.sortedFiles.count, 5, "Expected AST files for 5 files")
+        XCTAssertEqual(ast.sortedFiles.count, 6, "Expected AST files for 6 files")
 
         for (fileID, tokens) in ctx.tokensByFile {
             XCTAssertFalse(tokens.isEmpty, "Tokens should be populated for file \(fileID.rawValue)")
@@ -88,10 +89,11 @@ final class FrontendParallelBenchmarkTests: XCTestCase {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        XCTAssertEqual(ctx.tokensByFile.count, 5, "Expected tokens for 5 files in parallel mode")
-        XCTAssertEqual(ctx.syntaxTrees.count, 5, "Expected syntax trees for 5 files in parallel mode")
+        // 5 user files + 1 bundled stdlib file
+        XCTAssertEqual(ctx.tokensByFile.count, 6, "Expected tokens for 6 files in parallel mode (5 user + 1 bundled stdlib)")
+        XCTAssertEqual(ctx.syntaxTrees.count, 6, "Expected syntax trees for 6 files in parallel mode")
         let ast = try XCTUnwrap(ctx.ast)
-        XCTAssertEqual(ast.sortedFiles.count, 5, "Expected AST files for 5 files in parallel mode")
+        XCTAssertEqual(ast.sortedFiles.count, 6, "Expected AST files for 6 files in parallel mode")
 
         for (fileID, tokens) in ctx.tokensByFile {
             XCTAssertFalse(tokens.isEmpty, "Tokens should be populated for file \(fileID.rawValue)")

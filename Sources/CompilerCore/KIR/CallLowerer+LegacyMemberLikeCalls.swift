@@ -1277,17 +1277,6 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "trim" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_trim"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "lowercase" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1358,17 +1347,6 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_toFloatOrNull"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "reversed" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_reversed"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1571,6 +1549,39 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "trim" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trim"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "trimStart" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trimStart"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "trimEnd" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_trimEnd"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
             }
         }
 
@@ -1754,8 +1765,6 @@ extension CallLowerer {
                     ("kk_string_compareTo_member", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
-                case "repeat":
-                    ("kk_string_repeat", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
                     ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
@@ -1776,12 +1785,6 @@ extension CallLowerer {
                     ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
                     ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
-                case "trim":
-                    ("kk_string_trim_predicate", [loweredReceiverID] + normalizedArgIDs)
-                case "trimStart":
-                    ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
-                case "trimEnd":
-                    ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
@@ -1794,14 +1797,6 @@ extension CallLowerer {
                     ("kk_string_ifBlank", [loweredReceiverID] + normalizedArgIDs)
                 case "ifEmpty":
                     ("kk_string_ifEmpty", [loweredReceiverID] + normalizedArgIDs)
-                case "take":
-                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
-                case "drop":
-                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
-                case "takeLast":
-                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
-                case "dropLast":
-                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunked":
                     ("kk_string_chunked", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
@@ -1832,30 +1827,31 @@ extension CallLowerer {
                     } else {
                         ("kk_string_commonSuffixWith", [loweredReceiverID, loweredArgIDs[0]])
                     }
-                case "padStart":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_padStart", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_padStart_default", [loweredReceiverID, loweredArgIDs[0]])
-                    }
-                case "padEnd":
-                    if loweredArgIDs.count >= 2 {
-                        ("kk_string_padEnd", [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]])
-                    } else {
-                        ("kk_string_padEnd_default", [loweredReceiverID, loweredArgIDs[0]])
-                    }
                 case "removePrefix":
                     ("kk_string_removePrefix", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSuffix":
                     ("kk_string_removeSuffix", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
                     ("kk_string_removeSurrounding", [loweredReceiverID, loweredArgIDs[0]])
+                case "trim":
+                    ("kk_string_trim_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimStart":
+                    ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "trimEnd":
+                    ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
+                case "take":
+                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
+                case "drop":
+                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
+                case "takeLast":
+                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
+                case "dropLast":
+                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "repeat"
-                        || calleeStr == "replaceFirstChar"
+                    let stringHOFCanThrow = calleeStr == "replaceFirstChar"
                         || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
@@ -2016,6 +2012,19 @@ extension CallLowerer {
                 return result
             }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+               calleeStr == "subSequence"
+            {
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_string_subSequence"),
+                    arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
+                    result: result,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+                return result
+            }
+            if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
                calleeStr == "indexOf",
                sema.types.isSubtype(firstArgType, sema.types.stringType)
             {
@@ -2157,30 +2166,8 @@ extension CallLowerer {
                 return result
             }
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
-               calleeStr == "substring" || calleeStr == "padStart" || calleeStr == "padEnd"
+               calleeStr == "substring"
             {
-                if calleeStr == "padStart" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_padStart"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "padEnd" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_padEnd"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 let hasEndExpr = arena.appendExpr(.intLiteral(1), type: sema.types.intType)
                 instructions.append(.constValue(result: hasEndExpr, value: .intLiteral(1)))
                 instructions.append(.call(

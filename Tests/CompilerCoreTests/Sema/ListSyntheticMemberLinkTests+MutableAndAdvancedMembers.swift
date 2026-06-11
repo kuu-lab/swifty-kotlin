@@ -1773,7 +1773,8 @@ extension ListSyntheticMemberLinkTests {
             }
             XCTAssertEqual(elementType, sema.types.intType)
 
-            let explicitThis = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            // Use lastExprID to skip bundled stdlib's thisRef expressions
+            let explicitThis = try XCTUnwrap(lastExprID(in: ast) { _, expr in
                 if case .thisRef = expr { return true }
                 return false
             })
@@ -1825,7 +1826,8 @@ extension ListSyntheticMemberLinkTests {
             XCTAssertEqual(keyType, sema.types.stringType)
             XCTAssertEqual(valueType, sema.types.intType)
 
-            let explicitThis = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            // Use lastExprID to skip bundled stdlib's thisRef expressions
+            let explicitThis = try XCTUnwrap(lastExprID(in: ast) { _, expr in
                 if case .thisRef = expr { return true }
                 return false
             })

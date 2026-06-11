@@ -172,6 +172,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+
         registerSyntheticStringExtensionFunction(
             named: "trim",
             externalLinkName: "kk_string_trim",
@@ -697,6 +698,26 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        registerSyntheticStringExtensionFunction(
+            named: "subSequence",
+            externalLinkName: "kk_string_subSequence",
+            receiverType: stringType,
+            parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
+            returnType: stringType,
+            annotations: [
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Use substring(startIndex, endIndex) instead.\"",
+                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
+                    ]
+                ),
+            ],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
             named: "toLong",
@@ -755,28 +776,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "subSequence",
-            externalLinkName: "kk_string_subSequence",
-            receiverType: stringType,
-            parameters: [
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use substring(startIndex, endIndex) instead.\"",
-                        "replaceWith = ReplaceWith(\"substring(startIndex, endIndex)\")",
-                    ]
-                ),
-            ],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
@@ -1089,30 +1088,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "repeat",
-            externalLinkName: "kk_string_repeat",
-            receiverType: stringType,
-            parameters: [
-                ("count", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "reversed",
-            externalLinkName: "kk_string_reversed",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "toList",
             externalLinkName: "kk_string_toList",
             receiverType: stringType,
@@ -1279,60 +1254,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2198,16 +2119,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        registerSyntheticStringExtensionFunction(
-            named: "trim",
-            externalLinkName: "kk_string_trim_predicate",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
 
         let charToCharType = types.make(.functionType(FunctionType(
             params: [charType],
@@ -2632,6 +2543,60 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
+        registerSyntheticStringExtensionFunction(
+            named: "trimStart",
+            externalLinkName: "kk_string_trimStart",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimStart",
+            externalLinkName: "kk_string_trimStart_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimEnd",
+            externalLinkName: "kk_string_trimEnd",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "trimEnd",
+            externalLinkName: "kk_string_trimEnd_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        // --- STDLIB-144: String.trim (predicate overload) ---
+        registerSyntheticStringExtensionFunction(
+            named: "trim",
+            externalLinkName: "kk_string_trim_predicate",
+            receiverType: stringType,
+            parameters: [("predicate", charToBoolType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticStringExtensionFunction(
             named: "find",
             externalLinkName: "kk_string_find",
@@ -2838,52 +2803,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-144: String.trimStart / trimEnd ---
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3532,6 +3451,8 @@ extension DataFlowSemaPhase {
         }
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",

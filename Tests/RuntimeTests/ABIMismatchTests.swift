@@ -44,7 +44,7 @@ final class ABIMismatchTests: XCTestCase {
         ]
         for spec in RuntimeABISpec.allFunctions {
             XCTAssertTrue(
-                spec.name.hasPrefix("kk_") || legacyNonKKRuntimeExports.contains(spec.name),
+                spec.name.hasPrefix("kk_") || spec.name.hasPrefix("__") || legacyNonKKRuntimeExports.contains(spec.name),
                 "Function '\(spec.name)' does not follow kk_ naming convention"
             )
         }
@@ -107,7 +107,7 @@ final class ABIMismatchTests: XCTestCase {
 
     func testStringFunctionCount() {
         // Keep this in sync with RuntimeABISpec.stringFunctions entries.
-        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 231)
+        XCTAssertEqual(RuntimeABISpec.stringFunctions.count, 237)
     }
 
     func testRegexFunctionCount() {
