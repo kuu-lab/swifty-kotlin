@@ -226,13 +226,14 @@ extension CollectionLiteralLoweringPass {
             }
         }
 
-        // --- FileTreeWalk kk_* callee tracking (STDLIB-IO-TYPE-004) ---
+        // --- FileTreeWalk kk_* callee tracking (STDLIB-IO-TYPE-004 / STDLIB-IO-PATH-FN-039) ---
         // When externalLinkName is set in Sema, the KIR callee is already kk_*.
         // We only need to tag results in fileTreeWalkExprIDs so builder chains
         // that follow can identify the receiver.
         if callee == lookup.kkFileWalkName
             || callee == lookup.kkFileWalkTopDownName
             || callee == lookup.kkFileWalkBottomUpName
+            || callee == lookup.kkFileWalkWithDirectionName
         {
             if let result { state.fileTreeWalkExprIDs.insert(result.rawValue) }
             // The call instruction is already correct; let the default handler append it.

@@ -766,6 +766,8 @@ struct CollectionLiteralLookupTables {
     let kkFileListFilesName: InternedString
     let walkName: InternedString
     let kkFileWalkName: InternedString
+    // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
+    let kkFileWalkWithDirectionName: InternedString
     // STDLIB-IO-TYPE-004: FileTreeWalk
     let walkTopDownName: InternedString
     let kkFileWalkTopDownName: InternedString
@@ -1559,6 +1561,8 @@ struct CollectionLiteralLookupTables {
         kkFileListFilesName = interner.intern("kk_file_listFiles")
         walkName = interner.intern("walk")
         kkFileWalkName = interner.intern("kk_file_walk")
+        // STDLIB-IO-PATH-FN-039: File.walk(direction:) → kk_file_walk_with_direction
+        kkFileWalkWithDirectionName = interner.intern("kk_file_walk_with_direction")
         // STDLIB-IO-TYPE-004: FileTreeWalk
         walkTopDownName = interner.intern("walkTopDown")
         kkFileWalkTopDownName = interner.intern("kk_file_walkTopDown")
