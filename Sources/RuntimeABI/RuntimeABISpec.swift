@@ -483,10 +483,10 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "System"
         ),
-RuntimeABIFunctionSpec(
-            name: "kk_js_set_toMutableSet",
+        RuntimeABIFunctionSpec(
+            name: "kk_js_map_toMap",
             parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
+                RuntimeABIParameter(name: "jsMapRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "System"
