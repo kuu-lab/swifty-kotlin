@@ -3594,6 +3594,47 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        // fun <T : CPointed> List<CPointer<T>?>.toCValues(): CValues<CPointerVarOf<T>>
+        let listCPointerTParamFQName = arrayCPointerToCValuesFunctionFQName + [interner.intern("T")]
+        let listCPointerTParamSymbol: SymbolID = symbols.lookup(fqName: listCPointerTParamFQName) ?? arrayCPointerToCValuesTParamSymbol
+        symbols.insertFlags([.synthetic], for: listCPointerTParamSymbol)
+        symbols.setTypeParameterUpperBounds([cPointedType], for: listCPointerTParamSymbol)
+        let listCPointerTParamType = types.make(.typeParam(TypeParamType(
+            symbol: listCPointerTParamSymbol,
+            nullability: .nonNull
+        )))
+        let nullableCPointerTType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(listCPointerTParamType)],
+            nullability: .nullable
+        )))
+        let listCPointerReceiverType = syntheticListType(
+            elementType: nullableCPointerTType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+        let cPointerVarOfTType = types.make(.classType(ClassType(
+            classSymbol: cPointerVarOfSymbol,
+            args: [.invariant(listCPointerTParamType)],
+            nullability: .nonNull
+        )))
+        let listCPointerToCValuesReturnType = types.make(.classType(ClassType(
+            classSymbol: cValuesSymbol,
+            args: [.invariant(cPointerVarOfTType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "toCValues",
+            packageFQName: cinteropPkg,
+            receiverType: listCPointerReceiverType,
+            parameters: [],
+            returnType: listCPointerToCValuesReturnType,
+            typeParameterSymbols: [listCPointerTParamSymbol],
+            typeParameterUpperBoundsList: [[cPointedType]],
+            symbols: symbols,
+            interner: interner
+        )
         // STDLIB-CINTEROP-FN-039: typeOf<T>(): KType — inline reified function in kotlinx.cinterop.
         // Mirrors kotlin.typeOf<T>() for call sites that already import from this package.
         let cinteropTypeOfKTypeName = interner.intern("KType")
