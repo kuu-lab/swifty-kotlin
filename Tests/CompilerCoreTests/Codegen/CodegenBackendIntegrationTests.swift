@@ -1640,6 +1640,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-011: maxOf(Double, Double)
+    func testCodegenCompilesMaxOfDoubleTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Double = 1.5
+            val b: Double = 7.25
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfDoubleTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "7.25\n")
+        }
+    }
+
     // STDLIB-COMP-FN-035: minOf(Double, Double)
     func testCodegenCompilesMinOfDoubleTwoArgTopLevelCall() throws {
         let source = """
