@@ -16,7 +16,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let readonlySet = ensureJsReadonlySetCollectionsType(
+        let readonlySet = ensureJsReadonlySetForConversions(
             packageFQName: pkg,
             symbols: symbols,
             types: types,
@@ -77,7 +77,7 @@ extension DataFlowSemaPhase {
                 && signature.classTypeParameterCount == 1
         }) {
             symbols.setExternalLinkName(externalLinkName, for: existing)
-            appendJsCollectionsSetAnnotation(to: existing, symbols: symbols)
+            appendJsCollectionsReadonlySetAnnotation(to: existing, symbols: symbols)
             return
         }
 
@@ -91,7 +91,7 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
         symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        appendJsCollectionsSetAnnotation(to: functionSymbol, symbols: symbols)
+        appendJsCollectionsReadonlySetAnnotation(to: functionSymbol, symbols: symbols)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: ownerType,
