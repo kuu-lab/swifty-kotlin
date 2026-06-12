@@ -30,7 +30,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsConsoleStubs(symbols: symbols, types: types, interner: interner)
 registerSyntheticJsExportStubs(symbols: symbols, interner: interner)
         registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticWasmUnsafeAnnotationStubs(symbols: symbols, interner: interner)
         registerSyntheticWasmUnsafePointerStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsExternalInheritorsOnlyStubs(symbols: symbols, interner: interner)
         registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)

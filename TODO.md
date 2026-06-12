@@ -561,7 +561,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Import stub
 - [x] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
 #### Wasm Unsafe Annotation stub
-- [ ] CLEANUP-STUB-018: Wasm Unsafe Annotation stub削除（`HeaderHelpers+SyntheticWasmUnsafeAnnotationStubs.swift`）
+- [x] CLEANUP-STUB-018: Wasm Unsafe Annotation stub削除（`HeaderHelpers+SyntheticWasmUnsafeAnnotationStubs.swift`）
 #### Wasm Unsafe Memory Allocator stub
 - [x] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
 #### Wasm Unsafe Pointer stub
