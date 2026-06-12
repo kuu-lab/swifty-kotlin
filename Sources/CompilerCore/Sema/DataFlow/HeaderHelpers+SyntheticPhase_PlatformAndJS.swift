@@ -40,7 +40,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsReadonlySetStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsReadonlySetToMutableSetStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlySetToSetStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNumberInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsIntNumberInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticKPropertyIsInitializedStub(symbols: symbols, types: types, interner: interner)
