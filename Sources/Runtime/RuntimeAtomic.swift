@@ -672,11 +672,6 @@ public func kk_atomic_ref_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
-@_cdecl("kk_java_atomic_ref_asKotlinAtomic")
-public func kk_java_atomic_ref_asKotlinAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_ref_getAndUpdate")
 public func kk_atomic_ref_getAndUpdate(
     _ receiver: Int,

@@ -821,14 +821,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Atomic"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_ref_asKotlinAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
         // AtomicArray<T>
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_array_compareAndSetAt",
