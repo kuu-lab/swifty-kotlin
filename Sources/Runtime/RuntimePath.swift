@@ -1426,25 +1426,52 @@ public func kk_path_setAttribute(
 
     // Resolve valueRaw as milliseconds since epoch:
     // prefer RuntimeFileTimeBox (for FileTime values), fall back to string-encoded integer.
-    let millis: Int = {
+    // Returns nil if the value cannot be decoded (neither a FileTimeBox nor a parseable integer).
+    func resolveMillis() -> Int? {
         if let ptr = UnsafeMutableRawPointer(bitPattern: valueRaw),
            let fileTime = tryCast(ptr, to: RuntimeFileTimeBox.self)
         {
             return fileTime.milliseconds
         }
-        return pathStringValue(from: valueRaw).flatMap { Int($0) } ?? 0
-    }()
+        guard let str = pathStringValue(from: valueRaw), let parsed = Int(str) else { return nil }
+        return parsed
+    }
 
     do {
         switch name {
         case "lastModifiedTime":
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
+                )
+                return pathRaw
+            }
             let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
             try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
         case "lastAccessTime":
-            break
+            // macOS Foundation has no direct setter for access time; verify the path exists
+            // so that callers do not silently succeed on missing files.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
+            }
         case "creationTime":
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
+                )
+                return pathRaw
+            }
             let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+            #if canImport(Darwin)
             try FileManager.default.setAttributes([.creationDate: date], ofItemAtPath: path.pathString)
+            #else
+            // Linux filesystems do not expose a settable creation time; verify path exists.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
+            }
+            #endif
         default:
             outThrown?.pointee = runtimeAllocateThrowable(
                 message: "UnsupportedOperationException: setAttribute does not support attribute '\(attribute)'"
