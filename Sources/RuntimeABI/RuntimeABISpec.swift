@@ -808,22 +808,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_list_toJsArray",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_toJsArray",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_js_map_toMap",
             parameters: [
                 RuntimeABIParameter(name: "jsMapRaw", type: .intptr),
