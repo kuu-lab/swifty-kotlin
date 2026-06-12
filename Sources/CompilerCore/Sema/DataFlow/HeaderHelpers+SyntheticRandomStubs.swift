@@ -729,14 +729,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJavaRandomConstructor(
             ownerSymbol: javaRandomSymbol,
             ownerType: javaRandomType,
-            externalLinkName: "kk_java_random_new",
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticJavaRandomConstructor(
-            ownerSymbol: javaRandomSymbol,
-            ownerType: javaRandomType,
             externalLinkName: "kk_java_random_new_seed",
             parameters: [(name: "seed", type: types.intType)],
             symbols: symbols,
