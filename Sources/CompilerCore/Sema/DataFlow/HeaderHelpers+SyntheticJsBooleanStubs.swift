@@ -30,6 +30,15 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(jsBooleanType, for: jsBooleanSymbol)
 
+        let jsAnySymbol = ensureInterfaceSymbol(
+            named: "JsAny",
+            in: kotlinJsPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.setDirectSupertypes([jsAnySymbol], for: jsBooleanSymbol)
+        types.setNominalDirectSupertypes([jsAnySymbol], for: jsBooleanSymbol)
+
         registerJsBooleanToBoolean(
             ownerSymbol: jsBooleanSymbol,
             ownerType: jsBooleanType,
