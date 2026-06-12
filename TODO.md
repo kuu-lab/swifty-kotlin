@@ -360,7 +360,7 @@
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
 - [ ] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [ ] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
-- [ ] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
