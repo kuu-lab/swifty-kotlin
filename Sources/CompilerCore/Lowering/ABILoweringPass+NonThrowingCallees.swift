@@ -524,7 +524,6 @@ extension ABILoweringPass {
             interner.intern("kk_atomic_ref_array_asJavaAtomicArray"),
             interner.intern("kk_atomic_long_array_asJavaAtomicArray"),
             interner.intern("kk_java_atomic_int_array_asKotlinAtomicArray"),
-            interner.intern("kk_java_atomic_long_array_asKotlinAtomicArray"),
             interner.intern("kk_java_atomic_ref_array_asKotlinAtomicArray"),
             interner.intern("kk_array_new"),
             interner.intern("kk_object_new"),
