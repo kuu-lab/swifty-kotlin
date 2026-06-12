@@ -1396,6 +1396,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-017: maxOf(Int, Int)
+    func testCodegenCompilesMaxOfIntTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a = 8
+            val b = 4
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfIntTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "8\n")
+        }
+    }
+
     // STDLIB-COMP-FN-041: minOf(Int, Int)
     func testCodegenCompilesMinOfIntTwoArgTopLevelCall() throws {
         let source = """
