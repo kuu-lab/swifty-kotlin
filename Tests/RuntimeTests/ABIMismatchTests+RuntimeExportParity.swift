@@ -104,7 +104,6 @@ extension ABIMismatchTests {
             "kk_path_fileAttributesView",
 
             "kk_path_getAttribute",
-            "kk_path_getOwner",
             "kk_path_getPosixFilePermissions",
             "kk_path_get_base_subpaths",
             "kk_path_isExecutable",
@@ -125,7 +124,6 @@ extension ABIMismatchTests {
             "kk_path_relativeTo",
             "kk_path_relativeToOrNull",
             "kk_path_relativeToOrSelf",
-            "kk_path_setOwner",
             "kk_path_setAttribute",
             "kk_path_setPosixFilePermissions",
             "kk_path_walk",
