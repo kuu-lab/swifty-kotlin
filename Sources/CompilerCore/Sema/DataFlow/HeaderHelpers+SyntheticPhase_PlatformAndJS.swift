@@ -28,8 +28,7 @@ extension DataFlowSemaPhase {
     ) {
         registerSyntheticJsNonModuleStubs(symbols: symbols, interner: interner)
         registerSyntheticJsConsoleStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticWasmImportStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsExportStubs(symbols: symbols, interner: interner)
+registerSyntheticJsExportStubs(symbols: symbols, interner: interner)
         registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticWasmUnsafeAnnotationStubs(symbols: symbols, interner: interner)
         registerSyntheticWasmUnsafePointerStubs(symbols: symbols, types: types, interner: interner)
