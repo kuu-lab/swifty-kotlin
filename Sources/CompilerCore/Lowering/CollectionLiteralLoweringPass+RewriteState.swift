@@ -11,6 +11,7 @@ extension CollectionLiteralLoweringPass {
         var ulongRangeExprIDs: Set<Int32> = []
         var stringExprIDs: Set<Int32> = []
         var fileExprIDs: Set<Int32> = []
+        var pathExprIDs: Set<Int32> = []
 
         var listIteratorExprIDs: Set<Int32> = []
         var mapIteratorExprIDs: Set<Int32> = []
@@ -75,6 +76,9 @@ extension CollectionLiteralLoweringPass {
             }
             if fileExprIDs.contains(from.rawValue) {
                 fileExprIDs.insert(to.rawValue)
+            }
+            if pathExprIDs.contains(from.rawValue) {
+                pathExprIDs.insert(to.rawValue)
             }
             if fileTreeWalkExprIDs.contains(from.rawValue) {
                 fileTreeWalkExprIDs.insert(to.rawValue)

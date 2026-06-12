@@ -69,7 +69,8 @@ extension CollectionLiteralLoweringPass {
         charRangeExprIDs: inout Set<Int32>,
         ulongRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>
+        fileExprIDs: inout Set<Int32>,
+        pathExprIDs: inout Set<Int32>
     ) {
         // Seed tracking sets from static type information (LOWERING-001).
         // This covers function parameters, return values, and any expression
@@ -138,7 +139,8 @@ extension CollectionLiteralLoweringPass {
                     ulongRangeExprIDs: &ulongRangeExprIDs,
                     ulongValuedExprIDs: ulongValuedExprIDs,
                     stringExprIDs: &stringExprIDs,
-                    fileExprIDs: &fileExprIDs
+                    fileExprIDs: &fileExprIDs,
+                    pathExprIDs: &pathExprIDs
                 )
             case let .virtualCall(_, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
@@ -161,7 +163,8 @@ extension CollectionLiteralLoweringPass {
                     charRangeExprIDs: &charRangeExprIDs,
                     ulongRangeExprIDs: &ulongRangeExprIDs,
                     stringExprIDs: &stringExprIDs,
-                    fileExprIDs: &fileExprIDs
+                    fileExprIDs: &fileExprIDs,
+                    pathExprIDs: &pathExprIDs
                 )
             case let .constValue(result, .stringLiteral):
                 stringExprIDs.insert(result.rawValue)
@@ -187,7 +190,8 @@ extension CollectionLiteralLoweringPass {
         ulongRangeExprIDs: inout Set<Int32>,
         ulongValuedExprIDs: Set<Int32>,
         stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>
+        fileExprIDs: inout Set<Int32>,
+        pathExprIDs: inout Set<Int32>
     ) {
         classifyFactoryCall(
             callee: callee, result: result, lookup: lookup,
@@ -497,7 +501,8 @@ extension CollectionLiteralLoweringPass {
         charRangeExprIDs: inout Set<Int32>,
         ulongRangeExprIDs: inout Set<Int32>,
         stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>
+        fileExprIDs: inout Set<Int32>,
+        pathExprIDs: inout Set<Int32>
     ) {
         if listExprIDs.contains(from.rawValue) {
             listExprIDs.insert(to.rawValue)
@@ -528,6 +533,9 @@ extension CollectionLiteralLoweringPass {
         }
         if fileExprIDs.contains(from.rawValue) {
             fileExprIDs.insert(to.rawValue)
+        }
+        if pathExprIDs.contains(from.rawValue) {
+            pathExprIDs.insert(to.rawValue)
         }
     }
 
