@@ -1800,6 +1800,52 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+        let nativePlacementPlaceName = interner.intern("place")
+        let nativePlacementPlaceFQName = cinteropPkg + [nativePlacementPlaceName]
+        let nativePlacementPlaceTypeParameterName = interner.intern("T")
+        let nativePlacementPlaceTypeParameterFQName = nativePlacementPlaceFQName + [nativePlacementPlaceTypeParameterName]
+        let nativePlacementPlaceTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: nativePlacementPlaceTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: nativePlacementPlaceTypeParameterName,
+                fqName: nativePlacementPlaceTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.insertFlags([.synthetic], for: nativePlacementPlaceTypeParameterSymbol)
+        symbols.setTypeParameterUpperBounds([cVariableType], for: nativePlacementPlaceTypeParameterSymbol)
+        let nativePlacementPlaceTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: nativePlacementPlaceTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        let cValuesOfPlaceTypeParameterType = types.make(.classType(ClassType(
+            classSymbol: cValuesSymbol,
+            args: [.invariant(nativePlacementPlaceTypeParameterType)],
+            nullability: .nonNull
+        )))
+        let cPointerOfPlaceTypeParameterType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(nativePlacementPlaceTypeParameterType)],
+            nullability: .nonNull
+        )))
+        registerSyntheticNativeTopLevelFunction(
+            named: "place",
+            packageFQName: cinteropPkg,
+            receiverType: nativePlacementType,
+            parameters: [(name: "value", type: cValuesOfPlaceTypeParameterType)],
+            returnType: cPointerOfPlaceTypeParameterType,
+            typeParameterSymbols: [nativePlacementPlaceTypeParameterSymbol],
+            typeParameterUpperBoundsList: [[cVariableType]],
+            flags: [.synthetic, .inlineFunction],
+            symbols: symbols,
+            interner: interner
+        )
 
         let nativeFreeablePlacementType = types.make(.classType(ClassType(
             classSymbol: nativeFreeablePlacementSymbol,
