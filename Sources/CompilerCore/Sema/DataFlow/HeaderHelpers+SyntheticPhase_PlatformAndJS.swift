@@ -26,7 +26,6 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerSyntheticWasmExportStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsNonModuleStubs(symbols: symbols, interner: interner)
         registerSyntheticJsConsoleStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticWasmImportStubs(symbols: symbols, types: types, interner: interner)
@@ -34,7 +33,6 @@ extension DataFlowSemaPhase {
         registerSyntheticCoroutinesABIStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticWasmUnsafeAnnotationStubs(symbols: symbols, interner: interner)
         registerSyntheticWasmUnsafePointerStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticWasmUnsafeScopedAllocatorStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsExternalInheritorsOnlyStubs(symbols: symbols, interner: interner)
         registerSyntheticJsArrayStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDynamicStubs(symbols: symbols, types: types, interner: interner)
@@ -43,7 +41,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsBooleanStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsSymbolStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsMapStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsSetStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsReadonlyArrayToListStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsReadonlyArrayStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsCollectionsReadonlyMapStubs(symbols: symbols, types: types, interner: interner)

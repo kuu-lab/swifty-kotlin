@@ -360,18 +360,15 @@
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
 - [ ] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [ ] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
-- [ ] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
 - [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
-- [ ] STDLIB-CINTEROP-FN-038: `CPointer<T>?.toLong()` を追加する
-- [x] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
-- [ ] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
 - [x] STDLIB-CINTEROP-FN-038: `CPointer<T>?.toLong()` を追加する
-- [ ] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
+- [x] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
 - [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
@@ -404,7 +401,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
 - [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
 - [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
-- [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
+- [x] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
 - [ ] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
 - [x] MIGRATION-TEXT-009: String commonPrefix/Suffix・比較関数を Kotlin source に移行する（`commonPrefixWith`, `commonSuffixWith`, ignoreCase 版含む）
@@ -419,7 +416,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
 > 移行先: `Stdlib/kotlin/collections/`
 
-- [ ] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
+- [x] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
 - [ ] MIGRATION-COL-002: List 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`）
 - [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
 - [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
@@ -536,7 +533,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-001: `kk_js_array_toArray` stub削除
 - [ ] CLEANUP-STUB-002: `kk_js_array_get` stub削除
-- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
 - [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [ ] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
@@ -553,7 +550,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
-- [ ] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
+- [x] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
 #### Wasm Import stub
 - [ ] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
 #### Wasm Unsafe Annotation stub
@@ -612,7 +609,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
 - [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
 - [ ] CLEANUP-STUB-065: JS CollectionsMap stub削除（`HeaderHelpers+SyntheticJsCollectionsMapStubs.swift`）
-- [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
+- [x] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
 - [ ] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
 - [ ] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
 - [ ] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
@@ -622,6 +619,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
 - [ ] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
 - [x] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
+- [x] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
+- [ ] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
 - [ ] CLEANUP-STUB-076: JS BigInt stub削除（`HeaderHelpers+SyntheticJsBigIntStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
 - [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
@@ -629,7 +628,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
 - [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
 - [ ] CLEANUP-STUB-082: JVM AnnotationProperty stub削除（`HeaderHelpers+SyntheticJvmAnnotationPropertyStubs.swift`）
-- [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
+- [x] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換

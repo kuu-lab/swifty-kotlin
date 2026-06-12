@@ -48,6 +48,23 @@ extension CallTypeChecker {
                 return false
             }
         }
+        // Recursively checks whether a type, or any of its nested type arguments, is a type parameter.
+        // Required for declared receivers like Array<CPointer<T>?> where the type param is one level deep.
+        func containsTypeParam(_ t: TypeID) -> Bool {
+            let nonNull = sema.types.makeNonNullable(t)
+            if case .typeParam = sema.types.kind(of: nonNull) { return true }
+            if case let .classType(ct) = sema.types.kind(of: nonNull) {
+                return ct.args.contains(where: { arg in
+                    switch arg {
+                    case let .invariant(inner), let .out(inner), let .in(inner):
+                        return containsTypeParam(inner)
+                    case .star:
+                        return false
+                    }
+                })
+            }
+            return false
+        }
         if case let .functionType(declaredFn) = sema.types.kind(of: declared),
            case let .functionType(actualFn) = sema.types.kind(of: actual),
            declaredFn.isSuspend == actualFn.isSuspend,
@@ -83,10 +100,7 @@ extension CallTypeChecker {
            declaredCt.args.contains(where: { arg in
                switch arg {
                case let .invariant(t), let .out(t), let .in(t):
-                   if case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(t)) {
-                       return true
-                   }
-                   return false
+                   return containsTypeParam(t)
                case .star:
                    return false
                }
@@ -100,10 +114,7 @@ extension CallTypeChecker {
            declaredCt.args.contains(where: { arg in
                switch arg {
                case let .invariant(t), let .out(t), let .in(t):
-                   if case .typeParam = sema.types.kind(of: sema.types.makeNonNullable(t)) {
-                       return true
-                   }
-                   return false
+                   return containsTypeParam(t)
                case .star:
                    return false
                }

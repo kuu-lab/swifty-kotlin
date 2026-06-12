@@ -916,6 +916,9 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-410: emptyList/emptySet/emptyMap ---
+        // Kotlin source exists at Stdlib/kotlin/collections/CollectionFactories.kt (MIGRATION-COL-001)
+        // but is not yet wired into the compiler pipeline. Keep these stubs until RF-STDLIB-004+
+        // wires the Kotlin source and removes this block.
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         //
         // These synthetic registrations return List<Nothing>/Set<Nothing>/Map<Nothing, Nothing>
