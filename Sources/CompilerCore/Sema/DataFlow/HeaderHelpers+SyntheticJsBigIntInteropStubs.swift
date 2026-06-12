@@ -25,6 +25,13 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
+
+        registerJsBigIntToLongMember(
+            ownerType: jsBigIntType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 
     private func ensureJsBigIntType(
@@ -95,6 +102,58 @@ extension DataFlowSemaPhase {
                 receiverType: types.longType,
                 parameterTypes: [],
                 returnType: returnType
+            ),
+            for: functionSymbol
+        )
+    }
+
+    private func registerJsBigIntToLongMember(
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard case let .classType(ownerClassType) = types.kind(of: ownerType),
+              let ownerInfo = symbols.symbol(ownerClassType.classSymbol)
+        else {
+            return
+        }
+        let functionName = interner.intern("toLong")
+        let functionFQName = ownerInfo.fqName + [functionName]
+        let externalLinkName = "kk_js_bigint_toLong"
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .function,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.receiverType == ownerType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == types.longType
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            appendJsBigIntInteropAnnotation(to: existing, symbols: symbols)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerClassType.classSymbol, for: functionSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        appendJsBigIntInteropAnnotation(to: functionSymbol, symbols: symbols)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: types.longType
             ),
             for: functionSymbol
         )

@@ -142,15 +142,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerPlatformTimeExtensionFunction(
-            named: "toKotlinDuration",
-            externalLinkName: "kk_java_duration_to_kotlin_duration",
-            receiverType: javaDurationType,
-            returnType: kotlinDurationType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerPlatformTimeExtensionFunction(
             named: "toJSDate",
             externalLinkName: "kk_instant_to_js_date",
             receiverType: kotlinInstantType,
