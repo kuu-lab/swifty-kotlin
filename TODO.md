@@ -533,7 +533,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-001: `kk_js_array_toArray` stub削除
 - [ ] CLEANUP-STUB-002: `kk_js_array_get` stub削除
-- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
 - [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [ ] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
