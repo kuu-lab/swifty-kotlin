@@ -76,8 +76,63 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.invariant], for: jsReferenceSymbol)
         symbols.setPropertyType(jsReferenceType, for: jsReferenceSymbol)
         appendJsReferenceInteropAnnotation(to: jsReferenceSymbol, symbols: symbols)
+        registerJsReferenceGetMethod(
+            ownerSymbol: jsReferenceSymbol,
+            ownerType: jsReferenceType,
+            returnType: typeParamType,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
 
         return jsReferenceSymbol
+    }
+
+    private func registerJsReferenceGetMethod(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        returnType: TypeID,
+        typeParamSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let functionName = interner.intern("get")
+        let functionFQName = ownerInfo.fqName + [functionName]
+        let externalLinkName = "kk_js_reference_get"
+
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID) else { return false }
+            return signature.receiverType == ownerType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == returnType
+                && signature.typeParameterSymbols == [typeParamSymbol]
+                && signature.classTypeParameterCount == 1
+        }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
+            return
+        }
+
+        let functionSymbol = symbols.define(
+            kind: .function,
+            name: functionName,
+            fqName: functionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: returnType,
+                typeParameterSymbols: [typeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: functionSymbol
+        )
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
     }
 
     private func registerToJsReferenceFunction(
