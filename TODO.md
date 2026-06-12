@@ -98,13 +98,13 @@
 - [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-023: `getOwner` 関数の実装
+- [x] STDLIB-IO-PATH-FN-023: `getOwner` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-026: `moveTo` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
+- [x] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
 - [x] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
+- [x] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 - [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-040: `writeLines` 関数の実装（Iterable版）
 - [x] STDLIB-IO-PATH-FN-042: `writer` 関数の実装
@@ -131,11 +131,13 @@
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-001: `exitProcess` 関数の実装
-- [ ] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
+- [x] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
 - [x] STDLIB-SYSTEM-FN-005: `measureNanoTime` 関数の実装
 - [x] STDLIB-SYSTEM-FN-006: `measureTimeMicros` 関数の実装
 - [ ] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
+- [ ] STDLIB-SYSTEM-FN-006: `measureTimeMicros` 関数の実装
+- [x] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
 
 #### kotlin.text 型の実装
 - [x] STDLIB-TEXT-TYPE-008: `MatchGroupCollection` インターフェースの実装
@@ -144,11 +146,11 @@
 #### kotlin.text プロパティの実装
 - [x] STDLIB-TEXT-PROP-003: `directionality` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-008: `isIdentifierIgnorable` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-009: `isJavaIdentifierPart` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-009: `isJavaIdentifierPart` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-010: `isJavaIdentifierStart` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-015: `isSurrogate` 拡張プロパティの実装
 - [x] STDLIB-TEXT-PROP-016: `isTitleCase` 拡張プロパティの実装
-- [ ] STDLIB-TEXT-PROP-017: `isUnicodeIdentifierPart` 拡張プロパティの実装
+- [x] STDLIB-TEXT-PROP-017: `isUnicodeIdentifierPart` 拡張プロパティの実装
 
 #### kotlin.text 関数の実装
 - [ ] STDLIB-TEXT-FN-003: `append` 関数の実装
@@ -267,13 +269,13 @@
 - [x] STDLIB-COMP-FN-007: `maxOf` 関数の実装（Comparable版、vararg）
 - [x] STDLIB-COMP-FN-009: `maxOf` 関数の実装（Byte版、3引数）
 - [x] STDLIB-COMP-FN-010: `maxOf` 関数の実装（Byte版、vararg）
-- [ ] STDLIB-COMP-FN-011: `maxOf` 関数の実装（Double版、2引数）
+- [x] STDLIB-COMP-FN-011: `maxOf` 関数の実装（Double版、2引数）
 - [x] STDLIB-COMP-FN-012: `maxOf` 関数の実装（Double版、3引数）
-- [ ] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
+- [x] STDLIB-COMP-FN-014: `maxOf` 関数の実装（Float版、2引数）
 - [ ] STDLIB-COMP-FN-015: `maxOf` 関数の実装（Float版、3引数）
-- [ ] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
+- [x] STDLIB-COMP-FN-017: `maxOf` 関数の実装（Int版、2引数）
 - [ ] STDLIB-COMP-FN-020: `maxOf` 関数の実装（Long版、2引数）
-- [ ] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
+- [x] STDLIB-COMP-FN-022: `maxOf` 関数の実装（Long版、vararg）
 - [x] STDLIB-COMP-FN-024: `maxOf` 関数の実装（Short版、3引数）
 - [x] STDLIB-COMP-FN-028: `maxWithOrNull` 関数の実装
 - [ ] STDLIB-COMP-FN-029: `minOf` 関数の実装（Comparable版、2引数）
@@ -348,7 +350,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [x] STDLIB-IO-PATH-FN-074: `Path.visitFileTree(maxDepth, followLinks, builderAction)` を追加する
 - [x] STDLIB-JS-COLLECTIONS-TYPE-003: `kotlin.js.collections.JsReadonlyArray<E>` external interface を追加する
-- [ ] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
+- [x] STDLIB-JS-COLLECTIONS-TYPE-004: `kotlin.js.collections.JsReadonlyMap<K, V>` external interface を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
 - [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
@@ -360,18 +362,15 @@
 - [ ] STDLIB-CINTEROP-FN-029: `ByteArray.toKString()` を追加する
 - [ ] STDLIB-CINTEROP-FN-035: `CPointer<UShortVar>.toKStringFromUtf16()` を追加する
 - [ ] STDLIB-CINTEROP-FN-034: `CPointer<ShortVar>.toKStringFromUtf16()` を追加する
-- [ ] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-017: `Array<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-018: `ByteArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-024: `UByteArray.toCValues()` を追加する
-- [ ] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
+- [x] STDLIB-CINTEROP-FN-025: `UIntArray.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-028: `List<CPointer<T>?>.toCValues()` を追加する
 - [ ] STDLIB-CINTEROP-FN-032: `CPointer<UShortVar>.toKString()` を追加する
 - [x] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
-- [ ] STDLIB-CINTEROP-FN-038: `CPointer<T>?.toLong()` を追加する
-- [x] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
-- [ ] STDLIB-CINTEROP-FN-036: `CPointer<IntVar>.toKStringFromUtf32()` を追加する
 - [x] STDLIB-CINTEROP-FN-038: `CPointer<T>?.toLong()` を追加する
-- [ ] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
+- [x] STDLIB-CINTEROP-FN-039: `typeOf<T>()` を追加する
 - [ ] STDLIB-CINTEROP-FN-041: `CValue<T>.useContents(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-042: `T.usePinned(block)` を追加する
 - [ ] STDLIB-CINTEROP-FN-045: `CValue<T>.write(location)` を追加する
@@ -404,7 +403,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
 - [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
 - [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
-- [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
+- [x] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
 - [ ] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
 - [x] MIGRATION-TEXT-009: String commonPrefix/Suffix・比較関数を Kotlin source に移行する（`commonPrefixWith`, `commonSuffixWith`, ignoreCase 版含む）
@@ -413,13 +412,13 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/StringBuilder.kt`
 
-- [ ] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
+- [x] MIGRATION-SB-001: `StringBuilder` クラス API を Kotlin source に移行する（`append`, `appendLine`, `insert`, `delete`, `replace`, `toString`, `clear`, `length`, `capacity`）
 
 ### Phase M3: kotlin.collections ファクトリ・HOF
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
 > 移行先: `Stdlib/kotlin/collections/`
 
-- [ ] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
+- [x] MIGRATION-COL-001: Collection ファクトリ関数を Kotlin source に移行する（`listOf`, `mutableListOf`, `setOf`, `mutableSetOf`, `mapOf`, `mutableMapOf`, `emptyList`, `emptySet`, `emptyMap`）
 - [ ] MIGRATION-COL-002: List 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`）
 - [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
 - [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
@@ -536,7 +535,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-001: `kk_js_array_toArray` stub削除
 - [ ] CLEANUP-STUB-002: `kk_js_array_get` stub削除
-- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
 - [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [ ] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
@@ -547,26 +546,25 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-009: `kk_js_set_toSet` stub削除
 - [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
-- [ ] CLEANUP-STUB-011: `kk_js_bigint_toLong` stub削除
+- [x] CLEANUP-STUB-011: `kk_js_bigint_toLong` stub削除
 - [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
-- [ ] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
+- [x] CLEANUP-STUB-016: Wasm Export stub削除（`HeaderHelpers+SyntheticWasmExportStubs.swift`）
 #### Wasm Import stub
-- [ ] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
+- [x] CLEANUP-STUB-017: Wasm Import stub削除（`HeaderHelpers+SyntheticWasmImportStubs.swift`）
 #### Wasm Unsafe Annotation stub
 - [ ] CLEANUP-STUB-018: Wasm Unsafe Annotation stub削除（`HeaderHelpers+SyntheticWasmUnsafeAnnotationStubs.swift`）
 #### Wasm Unsafe Memory Allocator stub
-- [ ] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
+- [x] CLEANUP-STUB-019: Wasm Unsafe Memory Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeMemoryAllocatorStubs.swift`）
 #### Wasm Unsafe Pointer stub
 - [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
 - [ ] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
 - [ ] CLEANUP-STUB-022: `kk_java_instant_to_kotlin_instant` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
-- [ ] CLEANUP-STUB-023: `kk_java_duration_to_kotlin_duration` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
 #### JVM Atomic相互運用stub
 - [ ] CLEANUP-STUB-024: `kk_java_atomic_int_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
 - [ ] CLEANUP-STUB-025: `kk_java_atomic_long_asKotlinAtomic` stub削除（`HeaderHelpers+SyntheticAtomicStubs.swift`, `RuntimeAtomic.swift`実装も削除）
@@ -609,28 +607,28 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-059: JS NumberInterop stub削除（`HeaderHelpers+SyntheticJsNumberInteropStubs.swift`）
 - [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
 - [ ] CLEANUP-STUB-061: JS IntNumberInterop stub削除（`HeaderHelpers+SyntheticJsIntNumberInteropStubs.swift`）
-- [ ] CLEANUP-STUB-062: JS ArrayInterop stub削除（`HeaderHelpers+SyntheticJsArrayInteropStubs.swift`）
+- [x] CLEANUP-STUB-062: JS ArrayInterop stub削除（`HeaderHelpers+SyntheticJsArrayInteropStubs.swift`）
 - [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
-- [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
+- [x] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
 - [ ] CLEANUP-STUB-065: JS CollectionsMap stub削除（`HeaderHelpers+SyntheticJsCollectionsMapStubs.swift`）
-- [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
+- [x] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
 - [ ] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
 - [ ] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
 - [ ] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
 - [ ] CLEANUP-STUB-070: JS Dynamic stub削除（`HeaderHelpers+SyntheticJsDynamicStubs.swift`）
-- [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
+- [x] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
 - [ ] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
 - [ ] CLEANUP-STUB-073: JS Export stub削除（`HeaderHelpers+SyntheticJsExportStubs.swift`）
-- [ ] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
+- [x] CLEANUP-STUB-074: JS FileName stub削除（`HeaderHelpers+SyntheticJsFileNameStubs.swift`）
 - [ ] CLEANUP-STUB-075: JS BigIntToLong stub削除（`HeaderHelpers+SyntheticJsBigIntToLongStubs.swift`）
 - [ ] CLEANUP-STUB-076: JS BigInt stub削除（`HeaderHelpers+SyntheticJsBigIntStubs.swift`）
 - [ ] CLEANUP-STUB-077: JS Boolean stub削除（`HeaderHelpers+SyntheticJsBooleanStubs.swift`）
-- [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
+- [x] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
 - [ ] CLEANUP-STUB-079: JS Reference stub削除（`HeaderHelpers+SyntheticJsReferenceStubs.swift`）
 - [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
-- [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
+- [x] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
 - [ ] CLEANUP-STUB-082: JVM AnnotationProperty stub削除（`HeaderHelpers+SyntheticJvmAnnotationPropertyStubs.swift`）
-- [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
+- [x] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換

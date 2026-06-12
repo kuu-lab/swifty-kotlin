@@ -582,6 +582,24 @@ extension CallTypeChecker {
             }
             let finalType = safeCall ? sema.types.makeNullable(finalReturnType) : finalReturnType
             sema.bindings.bindExprType(id, type: finalType)
+            // Bind the call to the correct Path.useLines stub so the KIR builder
+            // picks up externalLinkName and prepends the receiver as first argument.
+            let pathUseLinesFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("io"),
+                interner.intern("path"),
+                interner.intern("useLines")
+            ]
+            if let useLinesSymbol = sema.symbols.lookupAll(fqName: pathUseLinesFQName).first(where: { symbolID in
+                guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return sig.parameterTypes.count == args.count && sig.typeParameterSymbols.count == 1
+            }) {
+                sema.bindings.bindCall(id, binding: CallBinding(
+                    chosenCallee: useLinesSymbol,
+                    substitutedTypeArguments: [finalReturnType],
+                    parameterMapping: Dictionary(uniqueKeysWithValues: (0..<args.count).map { ($0, $0) })
+                ))
+            }
             return finalType
         }
 

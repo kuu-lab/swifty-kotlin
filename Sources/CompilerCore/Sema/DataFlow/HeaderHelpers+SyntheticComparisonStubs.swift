@@ -110,6 +110,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // vararg overload: fun maxOf(a: Long, vararg other: Long): Long (STDLIB-COMP-FN-022).
+        registerSyntheticComparisonFunction(
+            named: "maxOf",
+            parameterTypes: [types.longType, types.longType],
+            returnType: types.longType,
+            parameterNames: ["a", "other"],
+            valueParameterIsVararg: [false, true],
+            packageFQName: comparisonsPkg,
+            packageSymbol: comparisonsPackageSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
         registerSyntheticMaxOfComparableStubs(
             symbols: symbols,
             types: types,

@@ -1396,6 +1396,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
+    // STDLIB-COMP-FN-017: maxOf(Int, Int)
+    func testCodegenCompilesMaxOfIntTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a = 8
+            val b = 4
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfIntTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "8\n")
+        }
+    }
+
     // STDLIB-COMP-FN-041: minOf(Int, Int)
     func testCodegenCompilesMinOfIntTwoArgTopLevelCall() throws {
         let source = """
@@ -1448,6 +1474,35 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "1\n-9\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-022: maxOf(a: Long, vararg other: Long)
+    func testCodegenCompilesMaxOfLongVarargTopLevelCall() throws {
+        let source = """
+        fun main() {
+            println(maxOf(5L, 2L, 8L, 1L))
+            val a = 100L
+            val b = 400L
+            val c = 200L
+            val d = 300L
+            println(maxOf(a, b, c, d, 50L))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfLongVararg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "8\n400\n")
         }
     }
 
@@ -1637,6 +1692,32 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
             XCTAssertEqual(normalizedStdout, "apple\n")
+        }
+    }
+
+    // STDLIB-COMP-FN-011: maxOf(Double, Double)
+    func testCodegenCompilesMaxOfDoubleTwoArgTopLevelCall() throws {
+        let source = """
+        fun main() {
+            val a: Double = 1.5
+            val b: Double = 7.25
+            println(maxOf(a, b))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "MaxOfDoubleTwoArg",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "7.25\n")
         }
     }
 

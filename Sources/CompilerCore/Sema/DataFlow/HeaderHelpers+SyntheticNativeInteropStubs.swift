@@ -2783,6 +2783,7 @@ extension DataFlowSemaPhase {
             receiverType: byteArrayReceiverType,
             parameters: [],
             returnType: byteArrayToCValuesReturnType,
+            externalLinkName: "kk_byteArray_toCValues",
             symbols: symbols,
             interner: interner
         )
@@ -3458,6 +3459,69 @@ extension DataFlowSemaPhase {
                 receiverType: uShortArrayReceiverType,
                 parameters: [],
                 returnType: uShortArrayToCValuesReturnType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        // fun <T : CPointed> Array<CPointer<T>?>.toCValues(): CValues<CPointerVarOf<CPointer<T>>>
+        let arrayCPointerToCValuesTParamName = interner.intern("T")
+        let arrayCPointerToCValuesFunctionFQName = cinteropPkg + [interner.intern("toCValues")]
+        let arrayCPointerToCValuesTParamFQName = arrayCPointerToCValuesFunctionFQName + [arrayCPointerToCValuesTParamName]
+        let arrayCPointerToCValuesTParamSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: arrayCPointerToCValuesTParamFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: arrayCPointerToCValuesTParamName,
+                fqName: arrayCPointerToCValuesTParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+        }
+        symbols.insertFlags([.synthetic], for: arrayCPointerToCValuesTParamSymbol)
+        symbols.setTypeParameterUpperBounds([cPointedType], for: arrayCPointerToCValuesTParamSymbol)
+        let arrayCPointerToCValuesTParamType = types.make(.typeParam(TypeParamType(
+            symbol: arrayCPointerToCValuesTParamSymbol,
+            nullability: .nonNull
+        )))
+        let arrayCPointerNullableElementType = types.make(.classType(ClassType(
+            classSymbol: cPointerSymbol,
+            args: [.invariant(arrayCPointerToCValuesTParamType)],
+            nullability: .nullable
+        )))
+        let kotlinArrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        if let kotlinArraySymbol = symbols.lookup(fqName: kotlinArrayFQName) {
+            let arrayCPointerTReceiverType = types.make(.classType(ClassType(
+                classSymbol: kotlinArraySymbol,
+                args: [.invariant(arrayCPointerNullableElementType)],
+                nullability: .nonNull
+            )))
+            let cPointerTNonNullType = types.make(.classType(ClassType(
+                classSymbol: cPointerSymbol,
+                args: [.invariant(arrayCPointerToCValuesTParamType)],
+                nullability: .nonNull
+            )))
+            let cPointerVarOfCPointerTType = types.make(.classType(ClassType(
+                classSymbol: cPointerVarOfSymbol,
+                args: [.invariant(cPointerTNonNullType)],
+                nullability: .nonNull
+            )))
+            let arrayCPointerToCValuesReturnType = types.make(.classType(ClassType(
+                classSymbol: cValuesSymbol,
+                args: [.invariant(cPointerVarOfCPointerTType)],
+                nullability: .nonNull
+            )))
+            registerSyntheticNativeTopLevelFunction(
+                named: "toCValues",
+                packageFQName: cinteropPkg,
+                receiverType: arrayCPointerTReceiverType,
+                parameters: [],
+                returnType: arrayCPointerToCValuesReturnType,
+                typeParameterSymbols: [arrayCPointerToCValuesTParamSymbol],
+                typeParameterUpperBoundsList: [[cPointedType]],
                 symbols: symbols,
                 interner: interner
             )

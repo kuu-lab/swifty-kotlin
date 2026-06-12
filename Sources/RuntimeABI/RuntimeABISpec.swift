@@ -759,23 +759,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_array_toArray",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_js_array_toList",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_array_toMutableList",
             parameters: [
                 RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
             ],
@@ -819,22 +803,6 @@ public enum RuntimeABISpec {
             name: "kk_double_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .double),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_toJsArray",
-            parameters: [
-                RuntimeABIParameter(name: "listRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_toJsArray",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "System"
@@ -921,14 +889,6 @@ public enum RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_array_set",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
@@ -3346,14 +3306,6 @@ public enum RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_duration_to_java_duration",
-            parameters: [
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_duration_to_kotlin_duration",
             parameters: [
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],

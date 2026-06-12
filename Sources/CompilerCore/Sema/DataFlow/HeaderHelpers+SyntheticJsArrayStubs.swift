@@ -73,39 +73,10 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([jsAnySymbol], for: jsArraySymbol)
         types.setNominalDirectSupertypes([jsAnySymbol], for: jsArraySymbol)
 
-        let arraySymbol = ensureClassSymbol(
-            named: "Array",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let arrayReturnType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        registerJsArrayToArray(
-            ownerSymbol: jsArraySymbol,
-            ownerType: jsArrayType,
-            returnType: arrayReturnType,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         registerJsArrayGet(
             ownerSymbol: jsArraySymbol,
             ownerType: jsArrayType,
             returnType: typeParamType,
-            typeParamSymbol: typeParamSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerJsArraySet(
-            ownerSymbol: jsArraySymbol,
-            ownerType: jsArrayType,
-            elementType: typeParamType,
             typeParamSymbol: typeParamSymbol,
             symbols: symbols,
             types: types,
@@ -118,63 +89,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-    }
-
-    private func registerJsArrayToArray(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        returnType: TypeID,
-        typeParamSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let functionName = interner.intern("toArray")
-        let functionFQName = ownerInfo.fqName + [functionName]
-        let externalLinkName = "kk_js_array_toArray"
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == ownerType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == returnType
-                && signature.typeParameterSymbols == [typeParamSymbol]
-                && signature.classTypeParameterCount == 1
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [],
-                returnType: returnType,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: [],
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: functionSymbol
-        )
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
     }
 
     private func registerJsArrayGet(
@@ -241,85 +155,6 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [indexParameter],
                 valueParameterHasDefaultValues: [false],
                 valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: functionSymbol
-        )
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-    }
-
-    private func registerJsArraySet(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        elementType: TypeID,
-        typeParamSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let functionName = interner.intern("set")
-        let functionFQName = ownerInfo.fqName + [functionName]
-        let parameterTypes = [types.intType, elementType]
-        let externalLinkName = "kk_js_array_set"
-
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == ownerType
-                && signature.parameterTypes == parameterTypes
-                && signature.returnType == types.unitType
-                && signature.typeParameterSymbols == [typeParamSymbol]
-                && signature.classTypeParameterCount == 1
-        }) {
-            symbols.insertFlags([.synthetic, .operatorFunction], for: existing)
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-
-        let valueParameterSymbols = [
-            ("index", types.intType),
-            ("value", elementType),
-        ].map { parameter -> SymbolID in
-            let parameterName = interner.intern(parameter.0)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameter.1, for: parameterSymbol)
-            return parameterSymbol
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: types.unitType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: [false, false],
-                valueParameterIsVararg: [false, false],
                 typeParameterSymbols: [typeParamSymbol],
                 classTypeParameterCount: 1
             ),

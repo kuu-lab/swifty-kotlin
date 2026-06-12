@@ -204,11 +204,6 @@ public func kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
 
-@_cdecl("kk_java_random_new")
-public func kk_java_random_new() -> Int {
-    runtimeCreateSeededRandom(seed: Int.random(in: Int.min ... Int.max))
-}
-
 @_cdecl("kk_java_random_new_seed")
 public func kk_java_random_new_seed(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
