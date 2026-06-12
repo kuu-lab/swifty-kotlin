@@ -57,7 +57,6 @@ extension DataFlowSemaPhase {
         registerSyntheticJsStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsPrimitiveWrapperStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsFunStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsArrayToListStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsStringInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsReferenceInteropStubs(symbols: symbols, types: types, interner: interner)
