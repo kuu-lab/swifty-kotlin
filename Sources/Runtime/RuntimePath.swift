@@ -1384,6 +1384,80 @@ public func kk_path_getLastModifiedTime(_ pathRaw: Int, _ optionsRaw: Int, _ out
     }
 }
 
+// MARK: - STDLIB-IO-PATH-FN-032: Path.setAttribute
+
+/// Path.setAttribute(attribute: String, value: String, vararg options: LinkOption): Path
+///
+/// Sets a named file attribute using the `"view:name"` format (e.g.
+/// `"basic:lastModifiedTime"`). The view prefix is optional — bare names are
+/// accepted too. Supported attributes via Foundation:
+///   - `lastModifiedTime`: epoch-milliseconds string → `.modificationDate`
+///   - `creationTime`:     epoch-milliseconds string → `.creationDate`
+///   - `posixPermissions`: octal integer string      → `.posixPermissions`
+/// Unknown attribute names are silently ignored to match JVM lenience.
+/// The `optionsRaw` vararg is accepted for ABI symmetry; link-option handling
+/// has no effect on the macOS Foundation-backed runtime.
+/// Throws an IOException-wrapped throwable when the attribute cannot be applied.
+@_cdecl("kk_path_setAttribute")
+public func kk_path_setAttribute(
+    _ pathRaw: Int,
+    _ attributeRaw: Int,
+    _ valueRaw: Int,
+    _ optionsRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    _ = optionsRaw
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid Path handle")
+    }
+    guard let attributeFull = pathStringValue(from: attributeRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid attribute handle")
+    }
+    let valueString = pathStringValue(from: valueRaw) ?? ""
+    let attrName: String
+    if let colonIndex = attributeFull.firstIndex(of: ":") {
+        attrName = String(attributeFull[attributeFull.index(after: colonIndex)...])
+    } else {
+        attrName = attributeFull
+    }
+    do {
+        switch attrName {
+        case "lastModifiedTime":
+            guard let millis = Int(valueString) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid lastModifiedTime value: \(valueString)"]
+                )
+            }
+            let modDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
+            try FileManager.default.setAttributes([.modificationDate: modDate], ofItemAtPath: path.pathString)
+        case "creationTime":
+            guard let millis = Int(valueString) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid creationTime value: \(valueString)"]
+                )
+            }
+            let createDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
+            try FileManager.default.setAttributes([.creationDate: createDate], ofItemAtPath: path.pathString)
+        case "posixPermissions":
+            guard let octal = Int(valueString, radix: 8) else {
+                throw NSError(
+                    domain: "KSwiftKRuntimePath", code: 3,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid posixPermissions value: \(valueString)"]
+                )
+            }
+            try FileManager.default.setAttributes([.posixPermissions: octal], ofItemAtPath: path.pathString)
+        default:
+            break
+        }
+    } catch {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+    }
+    return pathRaw
+}
+
 // MARK: - STDLIB-IO-PATH-FN-020: Path.forEachLine
 
 /// Path.forEachLine(action: (String) -> Unit)
