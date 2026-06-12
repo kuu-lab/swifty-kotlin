@@ -1,5 +1,4 @@
 import kotlin.system.measureTimeMillis
-import kotlin.system.measureTimeMicros
 import kotlin.system.measureNanoTime
 
 fun main() {
@@ -9,12 +8,6 @@ fun main() {
         println(sum)
     }
     println(millis is Long)
-    val micros = measureTimeMicros {
-        var sum = 0
-        for (i in 1..1000) sum += i
-        println(sum)
-    }
-    println(micros is Long)
     val nanos = measureNanoTime {
         var sum = 0
         for (i in 1..1000) sum += i
