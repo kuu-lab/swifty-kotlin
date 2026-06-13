@@ -17,14 +17,6 @@ public extension RuntimeABISpec {
             section: "Random"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_java_random_new_seed",
-            parameters: [
-                RuntimeABIParameter(name: "seed", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Random"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_random_asKotlinRandom",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
