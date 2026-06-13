@@ -2726,6 +2726,23 @@ public func kk_string_replaceIndentByMargin(
 
 // MARK: - STDLIB-316: String.chunked / String.windowed
 
+@_cdecl("kk_string_chunked")
+public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard size > 0 else {
+        return runtimeMakeStringListRaw([])
+    }
+    let scalars = Array(source.unicodeScalars)
+    var chunks: [String] = []
+    var i = 0
+    while i < scalars.count {
+        let end = Swift.min(i + size, scalars.count)
+        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        i = end
+    }
+    return runtimeMakeStringListRaw(chunks)
+}
+
 @_cdecl("kk_string_chunked_sequence")
 public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
@@ -2775,6 +2792,45 @@ public func kk_string_chunked_sequence_transform(
         index = end
     }
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+}
+
+@_cdecl("kk_string_windowed_default")
+public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
+    return kk_string_windowed(strRaw, size, 1)
+}
+
+@_cdecl("kk_string_windowed")
+public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard size > 0, step > 0 else {
+        return runtimeMakeStringListRaw([])
+    }
+    let scalars = Array(source.unicodeScalars)
+    var windows: [String] = []
+    var i = 0
+    while i + size <= scalars.count {
+        windows.append(runtimeStringFromScalars(scalars[i ..< i + size]))
+        i += step
+    }
+    return runtimeMakeStringListRaw(windows)
+}
+
+@_cdecl("kk_string_windowed_partial")
+public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    let clampedSize = Swift.max(1, size)
+    let clampedStep = Swift.max(1, step)
+    let scalars = Array(source.unicodeScalars)
+    let partial = partialWindows != 0
+    var windows: [String] = []
+    var i = 0
+    while i < scalars.count {
+        let end = Swift.min(i + clampedSize, scalars.count)
+        if !partial && end - i < clampedSize { break }
+        windows.append(runtimeStringFromScalars(scalars[i ..< end]))
+        i += clampedStep
+    }
+    return runtimeMakeStringListRaw(windows)
 }
 
 @_cdecl("kk_string_windowedSequence_partial")
@@ -2832,6 +2888,70 @@ public func kk_string_windowedSequence_transform(
         i += clampedStep
     }
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: results)]))
+}
+
+// MARK: - STDLIB-318: String.commonPrefixWith / commonSuffixWith
+
+@_cdecl("kk_string_commonPrefixWith")
+public func kk_string_commonPrefixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    let s = runtimeStringFromRaw(strRaw) ?? ""
+    let other = runtimeStringFromRaw(otherRaw) ?? ""
+    var prefix = ""
+    for (a, b) in zip(s, other) {
+        if a == b { prefix.append(a) } else { break }
+    }
+    return runtimeMakeStringRaw(prefix)
+}
+
+@_cdecl("kk_string_commonSuffixWith")
+public func kk_string_commonSuffixWith(_ strRaw: Int, _ otherRaw: Int) -> Int {
+    let s = runtimeStringFromRaw(strRaw) ?? ""
+    let other = runtimeStringFromRaw(otherRaw) ?? ""
+    var suffix = ""
+    for (a, b) in zip(s.reversed(), other.reversed()) {
+        if a == b { suffix.insert(a, at: suffix.startIndex) } else { break }
+    }
+    return runtimeMakeStringRaw(suffix)
+}
+
+// MARK: - STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
+
+@_cdecl("kk_string_commonPrefixWith_ignoreCase")
+public func kk_string_commonPrefixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let s = runtimeStringFromRaw(strRaw) ?? ""
+    let other = runtimeStringFromRaw(otherRaw) ?? ""
+    let ignoreCase = ignoreCaseRaw != 0
+    var prefix = ""
+    for (a, b) in zip(s, other) {
+        if ignoreCase
+            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
+            : a == b
+        {
+            prefix.append(a)
+        } else {
+            break
+        }
+    }
+    return runtimeMakeStringRaw(prefix)
+}
+
+@_cdecl("kk_string_commonSuffixWith_ignoreCase")
+public func kk_string_commonSuffixWith_ignoreCase(_ strRaw: Int, _ otherRaw: Int, _ ignoreCaseRaw: Int) -> Int {
+    let s = runtimeStringFromRaw(strRaw) ?? ""
+    let other = runtimeStringFromRaw(otherRaw) ?? ""
+    let ignoreCase = ignoreCaseRaw != 0
+    var reversed: [Character] = []
+    for (a, b) in zip(s.reversed(), other.reversed()) {
+        if ignoreCase
+            ? String(a).caseInsensitiveCompare(String(b)) == .orderedSame
+            : a == b
+        {
+            reversed.append(a)
+        } else {
+            break
+        }
+    }
+    return runtimeMakeStringRaw(String(reversed.reversed()))
 }
 
 // MARK: - STDLIB-316: String.zipWithNext()

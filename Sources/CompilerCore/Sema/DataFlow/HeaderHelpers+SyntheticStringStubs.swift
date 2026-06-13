@@ -3215,7 +3215,19 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-316: String.chunked / String.windowed ---
-        // chunked(size): List<String> migrated to Stdlib/kotlin/text/StringSplitJoin.kt (RF-STDLIB-005)
+
+        registerSyntheticStringExtensionFunction(
+            named: "chunked",
+            externalLinkName: "kk_string_chunked",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         for receiverType in [charSequenceType, stringType] {
             registerSyntheticStringExtensionFunction(
@@ -3321,7 +3333,47 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // windowed(size, step, partialWindows): List<String> migrated to Stdlib/kotlin/text/StringSplitJoin.kt (RF-STDLIB-005)
+        registerSyntheticStringExtensionFunction(
+            named: "windowed",
+            externalLinkName: "kk_string_windowed_default",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "windowed",
+            externalLinkName: "kk_string_windowed",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+                ("step", intType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "windowed",
+            externalLinkName: "kk_string_windowed_partial",
+            receiverType: stringType,
+            parameters: [
+                ("size", intType, false, false),
+                ("step", intType, false, false),
+                ("partialWindows", boolType, false, false),
+            ],
+            returnType: listStringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-SEQ-003: CharSequence.windowedSequence(size, step, partialWindows) ---
 
@@ -3457,7 +3509,63 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-318: commonPrefixWith / commonSuffixWith migrated to StringComparison.kt (RF-STDLIB-004) ---
+        // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonPrefixWith",
+            externalLinkName: "kk_string_commonPrefixWith",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonSuffixWith",
+            externalLinkName: "kk_string_commonSuffixWith",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // --- STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads) ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonPrefixWith",
+            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "commonSuffixWith",
+            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
+            receiverType: stringType,
+            parameters: [
+                ("other", stringType, false, false),
+                ("ignoreCase", boolType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-316: String/CharSequence.zipWithNext ---
 
