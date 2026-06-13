@@ -475,14 +475,6 @@ RuntimeABIFunctionSpec(
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_number_toDouble",
-            parameters: [
-                RuntimeABIParameter(name: "jsNumberRaw", type: .intptr),
-            ],
-            returnType: .double,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_int_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .int32),
