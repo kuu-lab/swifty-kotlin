@@ -4,7 +4,6 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesEnumEdgeCoverage() throws {
-        throw XCTSkip("Enum entries/enumValues not yet implemented")
         let source = """
         enum class Direction {
             NORTH,

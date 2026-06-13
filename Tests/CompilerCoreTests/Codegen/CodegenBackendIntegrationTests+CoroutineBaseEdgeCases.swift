@@ -4,7 +4,7 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesCoroutineBaseEdgeCases() throws {
-        throw XCTSkip("Coroutine base edge cases not yet implemented")
+        throw XCTSkip("user-defined suspend delay/exception paths not yet correct (STDLIB-CORO-001, DEBT-CORO-004)")
         let source = """
         import kotlinx.coroutines.*
 
