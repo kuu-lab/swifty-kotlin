@@ -68,8 +68,6 @@ public enum GoldenHarness {
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
         let stderrAccumulator = DataAccumulator()
-        let stdoutGroup = DispatchGroup()
-        let stderrGroup = DispatchGroup()
         let stdoutHandle = stdout.fileHandleForReading
         let stderrHandle = stderr.fileHandleForReading
 
@@ -79,8 +77,8 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        drain(pipe: stdout, into: stdoutAccumulator, group: stdoutGroup)
-        drain(pipe: stderr, into: stderrAccumulator, group: stderrGroup)
+        drain(pipe: stdout, into: stdoutAccumulator)
+        drain(pipe: stderr, into: stderrAccumulator)
         defer {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
@@ -274,16 +272,13 @@ public enum GoldenHarness {
 
     private static func drain(
         pipe: Pipe,
-        into accumulator: DataAccumulator,
-        group: DispatchGroup
+        into accumulator: DataAccumulator
     ) {
         let handle = pipe.fileHandleForReading
-        group.enter()
         handle.readabilityHandler = { readableHandle in
             let data = readableHandle.availableData
             if data.isEmpty {
                 readableHandle.readabilityHandler = nil
-                group.leave()
                 return
             }
             accumulator.append(data)
