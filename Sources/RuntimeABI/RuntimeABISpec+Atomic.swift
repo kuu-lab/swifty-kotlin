@@ -220,15 +220,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_long_asKotlinAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_atomic_long_asJavaAtomic",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),

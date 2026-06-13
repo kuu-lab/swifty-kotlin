@@ -74,6 +74,7 @@ extension ABIMismatchTests {
         "kk_iterable_toMutableList",
         "kk_iterable_toMutableSet",
         "kk_js_set_toMutableSet",
+        "kk_js_set_toSet",
         "kk_list_binarySearch",
         "kk_list_binarySearch_compare",
         "kk_list_binarySearch_comparator",
@@ -345,7 +346,7 @@ extension ABIMismatchTests {
         "kk_atomic_ref_updateAndGet",
         "kk_java_atomic_int_array_asKotlinAtomicArray",
         "kk_java_atomic_int_asKotlinAtomic",
-        "kk_java_atomic_long_asKotlinAtomic",
+        "kk_java_atomic_long_array_asKotlinAtomicArray",
         "kk_java_atomic_ref_array_asKotlinAtomicArray",
     ]
 
