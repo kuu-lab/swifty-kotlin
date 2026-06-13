@@ -68,16 +68,15 @@
 #### kotlin.io.path プロパティの実装
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
+- [x] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
+- [x] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
+- [x] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
+- [x] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
+- [x] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
+- [x] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 
 #### kotlin.reflect 型の実装
 
