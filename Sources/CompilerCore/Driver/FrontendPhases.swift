@@ -97,6 +97,17 @@ final class LoadSourcesPhase: CompilerPhase {
             }
         }
     }
+
+    private func injectBundledStdlib(into sourceManager: SourceManager) {
+        let sources: [(path: String, source: String)] = [
+            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
+            ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
+        ]
+        for (path, source) in sources {
+            guard !sourceManager.containsFile(path: path) else { continue }
+            _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
+        }
+    }
 }
 
 final class LexPhase: CompilerPhase {

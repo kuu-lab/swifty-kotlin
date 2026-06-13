@@ -276,8 +276,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-COL-005: List 検索 HOF を Kotlin source に移行する（`first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `singleOrNull`, `find`, `findLast`, `indexOf`, `indexOfFirst`, `indexOfLast`）
 - [ ] MIGRATION-COL-006: List ソート・比較 HOF を Kotlin source に移行する（`sorted`, `sortedBy`, `sortedByDescending`, `sortedWith`, `reversed`, `shuffled`）
 - [ ] MIGRATION-COL-007: List グルーピング・関連付け HOF を Kotlin source に移行する（`groupBy`, `groupByTo`, `associate`, `associateBy`, `associateWith`, `partition`）
-- [ ] MIGRATION-COL-008: List 集計 HOF を Kotlin source に移行する（`count`, `any`, `all`, `none`, `maxByOrNull`, `minByOrNull`, `maxWith`, `minWith`, `sumOf`）
-- [ ] MIGRATION-COL-009: List ウィンドウ・チャンク HOF を Kotlin source に移行する（`chunked`, `windowed`, `zipWithNext`, `zip`, `withIndex`）
+- [x] MIGRATION-COL-008: List 集計 HOF を Kotlin source に移行する（`count`, `any`, `all`, `none`, `maxByOrNull`, `minByOrNull`, `maxWith`, `minWith`, `sumOf`）
+- [x] MIGRATION-COL-009: List ウィンドウ・チャンク HOF を Kotlin source に移行する（`chunked`, `windowed`, `zipWithNext`, `zip`, `withIndex`）
 - [ ] MIGRATION-COL-010: List 部分取得 HOF を Kotlin source に移行する（`take`, `takeLast`, `takeWhile`, `takeLastWhile`, `drop`, `dropLast`, `dropWhile`, `dropLastWhile`, `distinct`, `distinctBy`）
 - [ ] MIGRATION-COL-011: List ビルダー関数を Kotlin source に移行する（`buildList`, `buildSet`, `buildMap`）
 - [ ] MIGRATION-COL-012: Map HOF を Kotlin source に移行する（`map.filter`, `filterKeys`, `filterValues`, `mapKeys`, `mapValues`, `mapNotNull`, `flatMap`, `forEach`, `getOrElse`, `getOrDefault`）
