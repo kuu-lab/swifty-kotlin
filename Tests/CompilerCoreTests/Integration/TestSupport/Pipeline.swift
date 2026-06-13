@@ -26,7 +26,9 @@ func makeCompilationContext(
     outputPath: String? = nil,
     searchPaths: [String] = [],
     irFlags: [String] = [],
-    frontendFlags: [String] = []
+    frontendFlags: [String] = [],
+    interner: StringInterner? = nil,
+    diagnostics: DiagnosticEngine? = nil
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -44,8 +46,8 @@ func makeCompilationContext(
     return CompilationContext(
         options: options,
         sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
+        diagnostics: diagnostics ?? DiagnosticEngine(),
+        interner: interner ?? StringInterner()
     )
 }
 
