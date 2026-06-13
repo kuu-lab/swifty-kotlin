@@ -655,7 +655,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-CI-001: `LSPServerTests` が Package.swift にターゲット定義されているのに `.github/workflows/ci.yml` の full-swift-tests マトリクスへ含まれておらず CI 未実行。マトリクスへ追加する
 - [ ] DEBT-CI-002: `jscpd-check` / `smoke-tests` ジョブに `timeout-minutes` が未設定（npm install のネットワーク障害等でハングしうる。full-swift-tests は 45 分、diff-regression-shards は 60 分設定済み）。それぞれ適切な値を設定する
 - [ ] DEBT-SCRIPT-001: `detect_workers()` が `Scripts/swift_test.sh:9` と `Scripts/diff_kotlinc.sh:344` に同一実装でコピーされている。`Scripts/lib/common.sh` へ抽出し両者から source で共有する
-- [ ] DEBT-SCRIPT-002: `Scripts/baselines/README.md` が存在しない `bench_compile.sh` / `save_baseline.sh` を参照している（壊れたドキュメント）。ベンチスクリプトを実装するか、ディレクトリごと削除するかを決定する
+- [x] DEBT-SCRIPT-002: `Scripts/baselines/` を削除（`bench_compile.sh` / `save_baseline.sh` は 2026-03 意図削除済みで README のみ孤立。計測は `-Xfrontend time-phases` + `PhaseTimer` / `FrontendParallelBenchmarkTests` で継続）
 - [ ] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する
 
 ### テスト衛生
