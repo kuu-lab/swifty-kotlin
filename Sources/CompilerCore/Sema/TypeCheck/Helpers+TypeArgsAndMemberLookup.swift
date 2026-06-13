@@ -254,7 +254,7 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nothing, .any, .primitive:
+        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }

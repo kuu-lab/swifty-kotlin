@@ -554,6 +554,12 @@ private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int) -> In
     return registerRuntimeObject(createRegexBox(pattern: pattern, isLiteral: isLiteral, options: options, optionOrdinals: storedOrdinals))
 }
 
+/// Creates a Regex from a raw pattern pointer and a `Set<RegexOption>`.
+@_cdecl("kk_regex_create_with_options")
+public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int) -> Int {
+    runtimeRegexCreateWithOptions(pattern: regexStringFromRaw(patternRaw) ?? "", optionsSetRaw: optionsSetRaw)
+}
+
 /// Creates a Regex from a pattern and a `Set<RegexOption>`.
 /// Iterates the set elements, unboxes each as an ordinal, and combines the
 /// corresponding `NSRegularExpression.Options`.

@@ -3066,7 +3066,7 @@ extension DataFlowSemaPhase {
                 ("startIndex", intType, false, false),
                 ("endIndex", intType, false, false),
             ],
-            returnType: byteArrayTypeForEncode,
+            returnType: byteArrayType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3089,7 +3089,7 @@ extension DataFlowSemaPhase {
             externalLinkName: "kk_string_encodeToByteArray",
             receiverType: stringType,
             parameters: [],
-            returnType: byteArrayTypeForEncode,
+            returnType: byteArrayType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3103,7 +3103,7 @@ extension DataFlowSemaPhase {
                 ("startIndex", intType, false, false),
                 ("endIndex", intType, false, false),
             ],
-            returnType: byteArrayTypeForEncode,
+            returnType: byteArrayType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3116,7 +3116,7 @@ extension DataFlowSemaPhase {
             parameters: [
                 ("charset", charsetType, false, false),
             ],
-            returnType: byteArrayTypeForEncode,
+            returnType: byteArrayType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3227,11 +3227,7 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-574: ByteArray / List<Int> internal representation
-        let byteArrayType = makeNominalType(
-            symbols: symbols,
-            types: types,
-            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
-        )
+        // Note: byteArrayType already declared above in STDLIB-145 block
 
         // Register decodeToString on List<Int> only — ByteArray variant is now in BundledKotlinStdlib (MIGRATION-TEXT-007)
         registerSyntheticStringExtensionFunction(
