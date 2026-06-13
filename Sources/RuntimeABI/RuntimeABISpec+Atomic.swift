@@ -66,14 +66,6 @@ public extension RuntimeABISpec {
             section: "Atomic"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_int_asKotlinAtomic",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndAdd",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
