@@ -414,7 +414,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-032: `kk_java_random_new_seed` stub削除（`HeaderHelpers+SyntheticRandomStubs.swift`, `RuntimeRandom.swift`実装も削除）
 #### JS/Wasm/JVM stub登録呼び出し削除
 - [ ] CLEANUP-STUB-033: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift`の全呼び出し削除
-- [ ] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
+- [x] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
 #### その他JS固有stub（ファイル単位）
 - [ ] CLEANUP-STUB-035: JS Console stub削除（`HeaderHelpers+SyntheticJsConsoleStubs.swift`）
 - [ ] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
