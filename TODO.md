@@ -545,7 +545,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > (4) M1–M17・CLEANUP-STUB-001〜084 とは重複させず、本計画はその「前提基盤」と「それ以外の負債」を扱う。
 
 ### Phase RF0: 計測・ガードレール（他フェーズの前提・即着手可）
-- [ ] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する
+- [ ] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数 / Sources 全体 TODO+FIXME 件数 を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する（RF-LOWER-001 計測: KIR 2 件・Lowering 2 件・Sources 合計 21 件・Sources+Tests 28 件、2026-06-14 時点）
 - [ ] RF-GUARD-002: `.jscpd.json` の `path` に `Tests/` を追加し重複率を再計測する（まず report-only ジョブで観測、閾値は実測後に設定。現状 Tests/ は完全に未監視）
 - [ ] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）
 - [ ] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は RF-KIR-005）
@@ -595,7 +595,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-KIR-005: RF-GUARD-004 の検証を enforcing に昇格する（`RuntimeABISpec` 未宣言の `kk_*` 名 emit を CI fail にする）
 
 ### Phase RF5: Lowering パス再編（RF3/RF4 の削減確定後、残存コードのみ）
-- [ ] RF-LOWER-001: KIR + Lowering の TODO/FIXME 約 620 件を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）
+- [x] RF-LOWER-001: KIR + Lowering の TODO/FIXME を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）— 実際は 4 件（KIR 2・Lowering 2、推定 620 は大幅過大）。DEBT-KIR-001・RF-LOWER-002・RF-LOWER-003 にすべて追跡済み。タグなし TODO 2 件に (RF-LOWER-003) を付与
 - [ ] RF-LOWER-002: `CollectionLiteralLoweringPass`（31 ファイル・~12k 行）を責務分割する（リテラル構築 / VirtualCallRewrite / LookupTables を独立パス・レジストリへ。`+PreScan.swift:671` の単純名マッチによる stdlib 誤分類も解消）
 - [ ] RF-LOWER-003: `CallLowerer+Operators` / `CallRewrite` / `VirtualCallRewrite` に跨る sequence plus/minus 重複ロジックを共通ヘルパーへ抽出する（`+Operators.swift:211` の既知 TODO）
 - [ ] RF-LOWER-004: `InlineLoweringPass`（1,280 行）と `LambdaClosureConversionPass` の共有ヘルパーを抽出する（`InlineLoweringPass.swift:428` の既知 TODO）
