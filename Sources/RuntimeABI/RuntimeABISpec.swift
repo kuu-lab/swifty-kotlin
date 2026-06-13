@@ -791,7 +791,7 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_map_toMap",
+            name: "kk_js_map_toMutableMap",
             parameters: [
                 RuntimeABIParameter(name: "jsMapRaw", type: .intptr),
             ],
