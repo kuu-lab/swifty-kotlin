@@ -9,11 +9,104 @@ extension CallLowerer {
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        let ast = shared.ast
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
         let boundType = sema.bindings.exprTypes[exprID]
+
+        if let lateinitStatus = tryLowerLateinitIsInitialized(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return lateinitStatus
+        }
+
+        // takeIf / takeUnless with safe call (STDLIB-160)
+        if sema.bindings.takeIfTakeUnlessKind(for: exprID) != nil {
+            let takeBoundType = boundType ?? sema.types.anyType
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: takeBoundType
+            )
+            let loweredReceiver = driver.lowerExpr(
+                receiverExpr,
+                shared: shared,
+                emit: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
+            let nullVal = arena.appendExpr(.unit, type: takeBoundType)
+            instructions.append(.constValue(result: nullVal, value: .null))
+            instructions.append(.copy(from: nullVal, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            if let takeResult = tryTakeIfTakeUnlessLowering(
+                exprID,
+                receiverExpr: receiverExpr,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions,
+                precomputedReceiver: loweredReceiver
+            ) {
+                instructions.append(.copy(from: takeResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
+        }
+
+        // Scope functions with safe call: ?.let, ?.run, etc. (STDLIB-004)
+        if sema.bindings.scopeFunctionKind(for: exprID) != nil {
+            let scopeBoundType = boundType ?? sema.types.anyType
+            let nullableResultType = sema.types.makeNullable(scopeBoundType)
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: nullableResultType
+            )
+            let loweredReceiver = driver.lowerExpr(
+                receiverExpr,
+                shared: shared,
+                emit: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
+            let nullVal = arena.appendExpr(.unit, type: nullableResultType)
+            instructions.append(.constValue(result: nullVal, value: .null))
+            instructions.append(.copy(from: nullVal, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            if let scopeResult = tryScopeFunctionLowering(
+                exprID,
+                receiverExpr: receiverExpr,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions,
+                precomputedReceiver: loweredReceiver
+            ) {
+                instructions.append(.copy(from: scopeResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
+        }
 
         // const val member property folding (P5-109): check before lowering
         // receiver so no dead instructions are emitted.

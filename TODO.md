@@ -654,7 +654,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### KIR / Lowering
 - [ ] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift:1085-1094` で vtable dispatch が無効化され常に static dispatch へフォールバックしている（「TODO: Re-enable once kk_alloc-based object allocation is in place」）。ブロッカーとされた `kk_alloc` は `Sources/Runtime/RuntimeGC.swift:151` に実装済みのため、前提充足を監査して再有効化を検討する。再有効化時は `VirtualDispatchTests` へ該当経路のケースを追加する
-- [ ] DEBT-KIR-002: `Sources/CompilerCore/KIR/CallLowerer+LegacySafeMemberCalls.swift`（325 行、compatibility entry point コメントあり）と `CallLowerer+SafeMemberCalls.swift` の二重管理を統合し、Legacy 側を削除する（RF-KIR-001〜003 は `+LegacyMemberLikeCalls` のみ対象で本ファイルは未カバー）
+- [x] DEBT-KIR-002: `Sources/CompilerCore/KIR/CallLowerer+LegacySafeMemberCalls.swift`（325 行、compatibility entry point コメントあり）と `CallLowerer+SafeMemberCalls.swift` の二重管理を統合し、Legacy 側を削除する（RF-KIR-001〜003 は `+LegacyMemberLikeCalls` のみ対象で本ファイルは未カバー）
 - [ ] DEBT-KIR-003: `Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift` の手書き約 1,300 行 Set リテラルを `RuntimeABISpec` 由来の導出へ置換する。`RuntimeABIFunctionSpec` に throwing 属性が無いため throwing 情報が二重管理になっている — spec へ `isThrowing` フィールドを追加し、既存手書きリストとの全件突き合わせ検証を経て自動導出へ移行する（RF-LOWER-005 の具体化、RF-KIR-005 / RF-RT-005 とも整合）
 
 ### 命名規約違反の解消（恒久ファイルのみ・削除予定コードは対象外）
