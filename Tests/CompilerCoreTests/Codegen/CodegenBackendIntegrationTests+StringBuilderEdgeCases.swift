@@ -299,4 +299,33 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
+    func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {
+        let source = """
+        fun main() {
+            try {
+                StringBuilder("hello").insert(99, "x")
+                println("no exception")
+            } catch (e: IndexOutOfBoundsException) {
+                println("caught")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringBuilderInsertOOB",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "caught\n")
+        }
+    }
 }
