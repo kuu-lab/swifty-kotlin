@@ -674,11 +674,22 @@ extension DataFlowSemaPhase {
         // Enhanced covariance check for generic types
         if typeContainsAnyTypeParam(parentReturnType, types: ctx.types) ||
            typeContainsAnyTypeParam(childReturnType, types: ctx.types) {
-            // For generic types, perform basic covariance checking where possible
+            let parentOwnerClass = ctx.symbols.parentSymbol(for: parentSymbol.id)
+            let childSignature = getFunctionMemberMatching(
+                parentSignature,
+                named: memberName,
+                in: ownerSymbol,
+                ctx: ctx
+            ).flatMap { ctx.symbols.functionSignature(for: $0) }
             if !validateGenericReturnTypeCovariance(
                 childReturnType: childReturnType,
                 parentReturnType: parentReturnType,
-                types: ctx.types
+                parentSignature: parentSignature,
+                childSignature: childSignature,
+                parentOwnerClass: parentOwnerClass,
+                childOwnerClass: ownerSymbol,
+                types: ctx.types,
+                symbols: ctx.symbols
             ) {
                 let name = ctx.interner.resolve(memberName)
                 let parentReturnTypeStr = ctx.types.renderType(parentReturnType)
@@ -763,11 +774,146 @@ extension DataFlowSemaPhase {
     private func validateGenericReturnTypeCovariance(
         childReturnType: TypeID,
         parentReturnType: TypeID,
+        parentSignature: FunctionSignature,
+        childSignature: FunctionSignature?,
+        parentOwnerClass: SymbolID?,
+        childOwnerClass: SymbolID,
+        types: TypeSystem,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let parentOwnerClass else {
+            return validateBasicGenericReturnTypeCovariance(
+                childReturnType: childReturnType,
+                parentReturnType: parentReturnType,
+                types: types
+            )
+        }
+
+        guard let liftedParentArgs = liftedSupertypeArgs(
+            from: childOwnerClass,
+            to: parentOwnerClass,
+            types: types,
+            symbols: symbols
+        ) else {
+            return validateBasicGenericReturnTypeCovariance(
+                childReturnType: childReturnType,
+                parentReturnType: parentReturnType,
+                types: types
+            )
+        }
+
+        let childClassArgs = classTypeParamArgs(for: childOwnerClass, types: types)
+        var substitutedParentReturn = types.substituteNominalTypeParameters(
+            in: parentReturnType,
+            owner: parentOwnerClass,
+            ownerArgs: liftedParentArgs
+        )
+
+        if let childSignature,
+           let (methodSubstitution, parentTypeVarBySymbol) = alignMethodTypeParameterSubstitution(
+               parentSignature: parentSignature,
+               childSignature: childSignature,
+               types: types
+           ),
+           !methodSubstitution.isEmpty
+        {
+            substitutedParentReturn = types.substituteTypeParameters(
+                in: substitutedParentReturn,
+                substitution: methodSubstitution,
+                typeVarBySymbol: parentTypeVarBySymbol
+            )
+        }
+
+        let substitutedChildReturn = types.substituteNominalTypeParameters(
+            in: childReturnType,
+            owner: childOwnerClass,
+            ownerArgs: childClassArgs
+        )
+
+        return types.isSubtype(substitutedChildReturn, substitutedParentReturn)
+    }
+
+    private func liftedSupertypeArgs(
+        from childOwner: SymbolID,
+        to parentOwner: SymbolID,
+        types: TypeSystem,
+        symbols: SymbolTable
+    ) -> [TypeArg]? {
+        if childOwner == parentOwner {
+            return classTypeParamArgs(for: childOwner, types: types)
+        }
+
+        let childClassArgs = classTypeParamArgs(for: childOwner, types: types)
+        if let lifted = types.liftedNominalSupertypeArgs(
+            from: childOwner,
+            childArgs: childClassArgs,
+            to: parentOwner
+        ) {
+            return lifted
+        }
+
+        let directArgs = symbols.supertypeTypeArgs(for: childOwner, supertype: parentOwner)
+        guard !directArgs.isEmpty else { return nil }
+        guard !childClassArgs.isEmpty else { return directArgs }
+
+        return directArgs.map { arg in
+            substituteTypeArgForOwner(arg, owner: childOwner, ownerArgs: childClassArgs, types: types)
+        }
+    }
+
+    private func classTypeParamArgs(for owner: SymbolID, types: TypeSystem) -> [TypeArg] {
+        types.nominalTypeParameterSymbols(for: owner).map { symbol in
+            .invariant(types.make(.typeParam(TypeParamType(symbol: symbol, nullability: .nonNull))))
+        }
+    }
+
+    private func substituteTypeArgForOwner(
+        _ arg: TypeArg,
+        owner: SymbolID,
+        ownerArgs: [TypeArg],
+        types: TypeSystem
+    ) -> TypeArg {
+        switch arg {
+        case let .invariant(type):
+            .invariant(types.substituteNominalTypeParameters(in: type, owner: owner, ownerArgs: ownerArgs))
+        case let .out(type):
+            .out(types.substituteNominalTypeParameters(in: type, owner: owner, ownerArgs: ownerArgs))
+        case let .in(type):
+            .in(types.substituteNominalTypeParameters(in: type, owner: owner, ownerArgs: ownerArgs))
+        case .star:
+            .star
+        }
+    }
+
+    private func alignMethodTypeParameterSubstitution(
+        parentSignature: FunctionSignature,
+        childSignature: FunctionSignature,
+        types: TypeSystem
+    ) -> ([TypeVarID: TypeID], [SymbolID: TypeVarID])? {
+        let parentMethodCount = parentSignature.typeParameterSymbols.count - parentSignature.classTypeParameterCount
+        let childMethodCount = childSignature.typeParameterSymbols.count - childSignature.classTypeParameterCount
+        guard parentMethodCount == childMethodCount else { return nil }
+
+        let parentMethodTypeParams = Array(parentSignature.typeParameterSymbols.suffix(parentMethodCount))
+        let childMethodTypeParams = Array(childSignature.typeParameterSymbols.suffix(childMethodCount))
+        let parentTypeVarBySymbol = types.makeTypeVarBySymbol(parentSignature.typeParameterSymbols)
+        var substitution: [TypeVarID: TypeID] = [:]
+        for (parentTypeParam, childTypeParam) in zip(parentMethodTypeParams, childMethodTypeParams) {
+            guard let typeVar = parentTypeVarBySymbol[parentTypeParam] else { continue }
+            substitution[typeVar] = types.make(.typeParam(TypeParamType(
+                symbol: childTypeParam,
+                nullability: .nonNull
+            )))
+        }
+        return (substitution, parentTypeVarBySymbol)
+    }
+
+    /// Fallback for cases where inheritance type arguments cannot be resolved.
+    private func validateBasicGenericReturnTypeCovariance(
+        childReturnType: TypeID,
+        parentReturnType: TypeID,
         types: TypeSystem
     ) -> Bool {
-        // For now, implement basic checks for common generic patterns
-        // Full generic substitution would require more sophisticated type system integration
-
         let parentKind = types.kind(of: parentReturnType)
         let childKind = types.kind(of: childReturnType)
 
