@@ -78,6 +78,25 @@ final class DataFlowAndSemaRegressionTests: XCTestCase {
         }
     }
 
+    // MARK: - BodyAnalysis: star projection (DEBT-SEMA-004)
+
+    func testStarProjectionInTypeAnnotationDoesNotCrashCompiler() throws {
+        let source = """
+        class Container<T>(val item: T)
+        typealias OutContainer<T> = Container<out T>
+
+        fun readStar(c: Container<*>): Any? = c.item
+        fun eraseType(list: List<*>): Int = 0
+        fun expandAlias(c: OutContainer<*>): Container<*> = c
+        fun main(): Int = 0
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            assertNoDiagnostic("KSWIFTK-SEMA-0063", in: ctx)
+        }
+    }
+
     // MARK: - BodyAnalysis: function type parameter
 
     func testFunctionTypeParameterResolvesCorrectly() throws {
