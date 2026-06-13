@@ -117,6 +117,8 @@ extension DataFlowSemaPhase {
         registerMember(name: "dropLast", parameterTypes: [types.intType], externalLinkName: "kk_list_dropLast")
         registerMember(name: "sum", parameterTypes: [], externalLinkName: "kk_list_sum", returnTypeOverride: types.intType)
         registerMember(name: "average", parameterTypes: [], externalLinkName: "kk_list_average", returnTypeOverride: types.doubleType)
+        // Kotlin source exists at Stdlib/kotlin/collections/ListSortOrdering.kt (MIGRATION-COL-006)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-004+). Keep these stubs until then.
         registerMember(name: "reversed", parameterTypes: [], externalLinkName: "kk_list_reversed")
         registerMember(name: "asReversed", parameterTypes: [], externalLinkName: "kk_list_as_reversed")
         registerMember(
@@ -630,6 +632,7 @@ extension DataFlowSemaPhase {
                 )
             }
         }
+        // Kotlin source for sortedDescending exists at Stdlib/kotlin/collections/ListSortOrdering.kt (MIGRATION-COL-006)
         registerMember(
             name: "sortedDescending",
             parameterTypes: [],
