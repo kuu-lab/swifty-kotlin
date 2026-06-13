@@ -1080,16 +1080,16 @@ extension CallLowerer {
         // In Kotlin, classes are final by default; virtual dispatch is only
         // needed when the class is open/abstract (has known subtypes).
         //
-        // GEN-VTABLE-DISABLE: Vtable dispatch is disabled until runtime
-        // heap-allocated objects carry type-info headers (kk_alloc).
-        // Without that, kk_vtable_lookup always fails because the
-        // receiver is not registered as a heap object.  Fall back to
-        // direct (static) dispatch for now – this is correct for
-        // single-compilation-unit programs where all concrete types
-        // are visible.
+        // GEN-VTABLE-DISABLE (DEBT-KIR-001): Vtable dispatch stays off until the
+        // full kk_alloc pipeline is wired:
+        //   1. Codegen emits per-class KTypeInfo globals with populated vtables.
+        //   2. Class construction calls kk_alloc(size, &typeInfo) instead of
+        //      kk_object_new (RuntimeObjectBox lacks KKObjHeader.typeInfo).
+        // kk_vtable_lookup reads typeInfo only from heapObjects (kk_alloc);
+        // enabling dispatch before (1)+(2) would panic at runtime.
         let subtypes = sema.symbols.directSubtypes(of: parentID)
         guard !subtypes.isEmpty else { return nil }
-        // TODO: Re-enable once kk_alloc-based object allocation is in place.
+        // TODO(DEBT-KIR-001): return .vtable(slot:) once prerequisites above land.
         return nil
     }
 }
