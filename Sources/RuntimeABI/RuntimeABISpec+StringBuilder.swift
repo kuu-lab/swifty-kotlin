@@ -5,7 +5,8 @@ public extension RuntimeABISpec {
             name: "kk_string_builder_new",
             parameters: [],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_new_from_string",
@@ -13,7 +14,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_append_obj",
@@ -22,7 +24,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_toString",
@@ -30,7 +33,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_length_prop",
@@ -38,7 +42,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_append_line_obj",
@@ -47,7 +52,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_append_line_noarg_obj",
@@ -55,7 +61,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_insert_obj",
@@ -66,7 +73,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_delete_obj",
@@ -77,7 +85,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_deleteRange",
@@ -88,7 +97,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_clear",
@@ -96,7 +106,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_reverse",
@@ -104,7 +115,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_deleteCharAt",
@@ -114,7 +126,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_deleteAt",
@@ -124,7 +137,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_get",
@@ -134,7 +148,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_appendRange_obj",
@@ -145,7 +160,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_insertRange_obj",
@@ -158,7 +174,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_setRange",
@@ -170,7 +187,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         // STDLIB-STR-123
         RuntimeABIFunctionSpec(
@@ -194,7 +212,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "StringBuilder"
+            section: "StringBuilder",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_capacity",

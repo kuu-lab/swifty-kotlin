@@ -19,7 +19,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Intermediate operations (lazy)
         RuntimeABIFunctionSpec(
@@ -30,7 +31,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("filter", arity: 1, fallback: "kk_sequence_filter"),
@@ -40,7 +42,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_take",
@@ -49,7 +52,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_takeLast",
@@ -88,14 +92,16 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Sequence builder
         RuntimeABIFunctionSpec(
             name: "kk_sequence_builder_create",
             parameters: [],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_builder_yield",
@@ -104,7 +110,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-553: yieldAll(iterable)
         RuntimeABIFunctionSpec(
@@ -133,7 +140,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Iterator builder (STDLIB-331/564)
         RuntimeABIFunctionSpec(
@@ -142,7 +150,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_iterator_builder_yield",
@@ -176,7 +185,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_of_single",
@@ -184,7 +194,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_generate",
@@ -194,7 +205,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         RuntimeABIFunctionSpec(
@@ -204,7 +216,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Terminal operations (STDLIB-095)
         RuntimeABIFunctionSpec(
@@ -215,7 +228,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("forEachIndexed", arity: 1, fallback: "kk_sequence_forEachIndexed"),
@@ -225,7 +239,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("flatMap", arity: 1, fallback: "kk_sequence_flatMap"),
@@ -235,7 +250,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("flatMapIndexed", arity: 1, fallback: "kk_sequence_flatMapIndexed"),
@@ -245,7 +261,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Intermediate operations (STDLIB-096)
         RuntimeABIFunctionSpec(
@@ -255,7 +272,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_distinct",
@@ -263,7 +281,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_distinctBy",
@@ -283,7 +302,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Sorting operations (STDLIB-272)
         RuntimeABIFunctionSpec(
@@ -292,7 +312,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_sortedBy",
@@ -333,7 +354,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-019: shuffled / shuffled(random)
         RuntimeABIFunctionSpec(
@@ -342,7 +364,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_shuffled_random",
@@ -351,7 +374,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "randomRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // Higher-order operations (STDLIB-271)
         RuntimeABIFunctionSpec(
@@ -408,7 +432,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("filterIsInstance", arity: 0, fallback: "kk_sequence_filterIsInstance"),
@@ -417,7 +442,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "typeToken", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_requireNoNulls",
@@ -425,7 +451,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_reversed",
@@ -433,7 +460,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("mapIndexed", arity: 1, fallback: "kk_sequence_mapIndexed"),
@@ -474,7 +502,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-275: joinTo/joinToString, sumOf, associate, associateBy
         RuntimeABIFunctionSpec(
@@ -487,7 +516,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "postfixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_joinToString",
@@ -498,7 +528,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "postfixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("sumOf", arity: 1, fallback: "kk_sequence_sumOf"),
@@ -753,7 +784,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "size", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_chunked_transform",
@@ -772,7 +804,8 @@ public extension RuntimeABISpec {
             name: "kk_empty_sequence",
             parameters: [],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_orEmpty",
@@ -780,7 +813,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_windowed",
@@ -791,7 +825,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "partialWindows", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_windowed_transform",
@@ -998,7 +1033,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "typeToken", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_ifEmpty",
@@ -1120,7 +1156,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_indexOfFirst",
@@ -1140,7 +1177,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_indexOfLast",
@@ -1160,7 +1198,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_elementAtOrNull",
@@ -1231,7 +1270,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_toCollection",
@@ -1240,7 +1280,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "destRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_unzip",
@@ -1305,7 +1346,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_toSortedSet",
@@ -1313,7 +1355,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_toMap",
@@ -1321,7 +1364,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("groupBy", arity: 1, fallback: "kk_sequence_groupBy"),
@@ -1361,7 +1405,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_minOrNull",
@@ -1369,7 +1414,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_min",
@@ -1386,7 +1432,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-557: foldIndexed
         RuntimeABIFunctionSpec(
@@ -1530,7 +1577,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-013: Sequence.plus(element) / plusElement(element)
         RuntimeABIFunctionSpec(
@@ -1540,7 +1588,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-562: Sequence.minus(element)
         RuntimeABIFunctionSpec(
@@ -1550,7 +1599,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "element", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-FN-130: Sequence.union(other)
         RuntimeABIFunctionSpec(
@@ -1560,7 +1610,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-FN-115: Sequence.subtract(other)
         RuntimeABIFunctionSpec(
@@ -1570,7 +1621,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Sequence"
+            section: "Sequence",
+            isThrowing: false
         ),
         // STDLIB-SEQ-007: any/all/none/find with short-circuit semantics
         RuntimeABIFunctionSpec(

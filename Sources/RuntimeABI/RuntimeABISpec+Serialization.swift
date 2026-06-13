@@ -6,7 +6,8 @@ public extension RuntimeABISpec {
             name: "kk_json_default",
             parameters: [],
             returnType: .intptr,
-            section: "Serialization"
+            section: "Serialization",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_json_encodeToString",
@@ -15,7 +16,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Serialization"
+            section: "Serialization",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_json_encodeWithSerializer",
@@ -56,7 +58,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Serialization"
+            section: "Serialization",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_json_register_data_class_field_name",

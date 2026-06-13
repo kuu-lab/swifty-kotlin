@@ -8,7 +8,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_to_byte",
@@ -16,7 +17,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_to_short",
@@ -24,7 +26,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_to_int",
@@ -32,7 +35,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_to_int",
@@ -40,7 +44,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_to_long",
@@ -48,7 +53,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_to_long",
@@ -56,7 +62,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_int",
@@ -64,7 +71,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_float",
@@ -72,7 +80,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_double",
@@ -80,7 +89,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_to_float",
@@ -88,7 +98,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_byte",
@@ -96,7 +107,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_short",
@@ -104,7 +116,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // UByte and UShort conversions (STDLIB-PRIM-002)
         RuntimeABIFunctionSpec(
@@ -113,7 +126,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_to_ushort",
@@ -121,7 +135,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_ubyte",
@@ -129,7 +144,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_ushort",
@@ -137,7 +153,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_ubyte",
@@ -145,7 +162,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_ushort",
@@ -153,7 +171,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_ubyte",
@@ -161,7 +180,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_ushort",
@@ -169,7 +189,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_int",
@@ -177,7 +198,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_int",
@@ -185,7 +207,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_long",
@@ -193,7 +216,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_long",
@@ -201,7 +225,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_uint",
@@ -209,7 +234,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_uint",
@@ -217,7 +243,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_ulong",
@@ -225,7 +252,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_ulong",
@@ -233,7 +261,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // SPEC-NUM-0007: unsigned toByte / toShort conversions
         RuntimeABIFunctionSpec(
@@ -242,7 +271,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_short",
@@ -250,7 +280,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_byte",
@@ -258,7 +289,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_short",
@@ -266,7 +298,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_byte",
@@ -274,7 +307,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_short",
@@ -282,7 +316,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_byte",
@@ -290,7 +325,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_short",
@@ -298,7 +334,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // Char conversions (STDLIB-PRIM-002)
         RuntimeABIFunctionSpec(
@@ -307,7 +344,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_to_char",
@@ -315,7 +353,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_uint_to_char",
@@ -323,7 +362,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_to_char",
@@ -331,7 +371,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ubyte_to_char",
@@ -339,7 +380,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ushort_to_char",
@@ -347,7 +389,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_to_int",
@@ -355,7 +398,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_to_long",
@@ -363,7 +407,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_to_uint",
@@ -371,7 +416,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_to_ulong",
@@ -379,7 +425,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_coerceIn",
@@ -389,7 +436,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_coerceAtLeast",
@@ -398,7 +446,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minimum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_coerceAtMost",
@@ -407,7 +456,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // Long coercion (STDLIB-500)
         RuntimeABIFunctionSpec(
@@ -418,7 +468,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_coerceAtLeast",
@@ -427,7 +478,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minimum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_coerceAtMost",
@@ -436,7 +488,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // Double coercion (STDLIB-500)
         RuntimeABIFunctionSpec(
@@ -447,7 +500,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_coerceAtLeast",
@@ -456,7 +510,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minimum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_coerceAtMost",
@@ -465,7 +520,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // Float coercion (STDLIB-500)
         RuntimeABIFunctionSpec(
@@ -476,7 +532,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_coerceAtLeast",
@@ -485,7 +542,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minimum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_coerceAtMost",
@@ -494,7 +552,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "maximum", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NumericConversion"
+            section: "NumericConversion",
+            isThrowing: false
         ),
         // Unsigned coercion (STDLIB-500)
         RuntimeABIFunctionSpec(

@@ -107,13 +107,15 @@ public extension RuntimeABISpec {
             name: "kk_http_response_statusCode",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,
-            section: "Network"
+            section: "Network",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_http_response_body",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,
-            section: "Network"
+            section: "Network",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_http_response_url",
