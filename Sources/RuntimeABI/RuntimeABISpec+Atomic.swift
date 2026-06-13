@@ -561,6 +561,14 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_java_atomic_long_array_asKotlinAtomicArray",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_atomic_long_array_fetchAndUpdateAt",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
