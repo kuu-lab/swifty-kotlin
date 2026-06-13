@@ -553,7 +553,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     private(set) var isCancelled = false
     private var result: Int = 0
     /// Stores a thrown exception (as a raw pointer Int) when the async body fails.
-    /// Zero means no exception was thrown. Used by kk_kxmini_async_await_throwing.
+    /// Zero means no exception was thrown.
     private(set) var thrownException: Int = 0
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
@@ -1190,8 +1190,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         self.isSupervisor = isSupervisor
     }
 
-    /// Sets the parent scope link. Used by kk_coroutine_scope_cancel_propagate to
-    /// wire child scopes into the parent's cancellation hierarchy at runtime.
+    /// Sets the parent scope link.
     func setParent(_ newParent: RuntimeCoroutineScope) {
         lock.lock()
         parent = newParent
@@ -2198,68 +2197,6 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
     return consumed.awaitResult()
 }
 
-/// CORO-071: Exception-aware await for async tasks.
-/// Waits for the task to complete. If the task threw an exception, writes the
-/// exception pointer to `outThrown` and returns 0. Otherwise returns the result.
-/// Also propagates CancellationException when the task was cancelled.
-@_cdecl("kk_kxmini_async_await_throwing")
-public func kk_kxmini_async_await_throwing(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
-    task.markConsumedByUserCode()
-    let consumed = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
-
-    // If the task was cancelled, synthesize a CancellationException
-    if consumed.isCancelled && consumed.thrownException == 0 {
-        let cancellation = runtimeAllocateCancellationException()
-        outThrown?.pointee = cancellation
-        return 0
-    }
-
-    return consumed.awaitResultThrowing(outThrown: outThrown)
-}
-
-/// CORO-071: Cancel an async task (Deferred.cancel()).
-/// Safe to call even after the task has completed (no-op in that case).
-@_cdecl("kk_async_task_cancel")
-public func kk_async_task_cancel(_ handle: Int) -> Int {
-    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
-    task.cancel()
-    return 0
-}
-
-/// CORO-071: Async builder with dispatcher specification — async(dispatcher) { body }.
-/// Launches the coroutine on the given dispatcher's queue rather than the default queue.
-@_cdecl("kk_kxmini_async_with_dispatcher")
-public func kk_kxmini_async_with_dispatcher(_ dispatcherTag: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
-    let task = RuntimeAsyncTask()
-    let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
-
-    let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: taskPtr))
-    }
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = callerScope
-    }
-
-    let queue = dispatchQueue(for: dispatcherTag)
-
-    queue.async {
-        task.markStarted()
-        RuntimeCoroutineScope.current = callerScope
-        let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
-        RuntimeCoroutineScope.current = nil
-        task.complete(with: result)
-    }
-    return Int(bitPattern: taskPtr)
-}
-
 @_cdecl("kk_kxmini_delay")
 public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -2354,41 +2291,6 @@ public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     }
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).takeUnretainedValue()
     return scope.isCancelled ? 1 : 0
-}
-
-/// Returns the parent scope handle, or 0 if there is no parent.
-/// Supports scope hierarchy traversal: child scope → parent scope.
-@_cdecl("kk_coroutine_scope_get_parent")
-public func kk_coroutine_scope_get_parent(_ scopeHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
-        return 0
-    }
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).takeUnretainedValue()
-    guard let parent = scope.parent else {
-        return 0
-    }
-    // Return an unretained pointer — the parent is kept alive by the scope hierarchy
-    // (the child holds a strong reference to its parent via the `parent` property).
-    return Int(bitPattern: Unmanaged.passUnretained(parent).toOpaque())
-}
-
-/// Propagates cancellation from a parent scope handle to a child scope handle.
-/// Call this to link a newly created child scope into the parent's cancellation chain.
-/// Returns 0 on success, -1 if either handle is invalid.
-@_cdecl("kk_coroutine_scope_cancel_propagate")
-public func kk_coroutine_scope_cancel_propagate(_ parentHandle: Int, _ childHandle: Int) -> Int {
-    guard let parentPtr = UnsafeMutableRawPointer(bitPattern: parentHandle),
-          let childPtr = UnsafeMutableRawPointer(bitPattern: childHandle) else {
-        return -1
-    }
-    let parent = Unmanaged<RuntimeCoroutineScope>.fromOpaque(parentPtr).takeUnretainedValue()
-    let child = Unmanaged<RuntimeCoroutineScope>.fromOpaque(childPtr).takeUnretainedValue()
-    // Set the parent link so cancel() on the parent propagates to the child via registerChild.
-    child.setParent(parent)
-    if parent.isCancelled {
-        child.cancel()
-    }
-    return 0
 }
 
 /// Registers a child job/deferred handle with the given scope.

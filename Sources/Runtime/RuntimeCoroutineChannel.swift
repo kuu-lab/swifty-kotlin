@@ -839,30 +839,6 @@ public func kk_channel_pipeline_drain(_ sourceHandle: Int, _ destHandle: Int) ->
     return count
 }
 
-// MARK: - Deferred / awaitAll Runtime Stub (P5-135)
-
-@_cdecl("kk_await_all")
-public func kk_await_all(_ handlesArray: Int, _ count: Int) -> Int {
-    // Await each handle sequentially and return the result of the last one.
-    // handlesArray points to a KKArray of async task handles.
-    guard count > 0 else {
-        return 0
-    }
-    var lastResult = 0
-    for i in 0 ..< count {
-        // Read handle from array using kk_array_get pattern
-        let handleValue = runtimeReadArrayElement(arrayRaw: handlesArray, index: i)
-        if handleValue != 0 {
-            guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handleValue) else {
-                continue
-            }
-            let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
-            lastResult = task.awaitResult()
-        }
-    }
-    return lastResult
-}
-
 /// Read an element from a runtime array by index (mirrors kk_array_get without throw).
 func runtimeReadArrayElement(arrayRaw: Int, index: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: arrayRaw) else {
