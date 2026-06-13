@@ -101,6 +101,10 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        suspend points and injects the caller continuation.  The blocking
 //        awaitResult()/join() paths remain only as the continuation==0 fallback
 //        used by non-suspend contexts (e.g. structured-concurrency child joins).
+//        RuntimeAsyncTask no longer uses a task-level `ready` semaphore;
+//        completion is delivered exclusively through completionResumers, and
+//        sync awaitResult() blocks on a per-waiter gate registered via
+//        addCompletionResumer.
 //
 // [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): the suspend
 //        collector path still blocks via waitForResumeSignal().  Full
@@ -535,9 +539,16 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 }
 
+/// Heap box for synchronous `awaitResult()` waiters (CORO-004).
+/// Each blocking waiter owns its own gate so concurrent callers do not contend.
+private final class RuntimeAsyncTaskAwaitBox: @unchecked Sendable {
+    var result: Int = 0
+    var thrown: Int = 0
+    let gate = DispatchSemaphore(value: 0)
+}
+
 final class RuntimeAsyncTask: @unchecked Sendable {
     private let lock = NSLock()
-    private let ready = DispatchSemaphore(value: 0)
     private var isCompleted = false
     private(set) var isCancelled = false
     private var result: Int = 0
@@ -552,9 +563,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// Keeps `kk_job_is_active` aligned with `RuntimeJobHandle` (inactive until `markStarted`).
     private var isBodyStarted = false
     /// CORO-004: Resumers invoked with (result, thrownException) when the task completes
-    /// (normally, exceptionally, or via cancel). Lets a suspend-aware awaiter
-    /// (`Deferred.await`) resume via its continuation instead of blocking a GCD thread
-    /// on `ready`.
+    /// (normally, exceptionally, or via cancel). Suspend-aware awaiters
+    /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
+    /// register here so completion never blocks on a task-level semaphore.
     private var completionResumers: [@Sendable (Int, Int) -> Void] = []
 
     /// CORO-004: Register a resumer invoked when this task completes. If the task is
@@ -629,7 +640,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
-        ready.signal()
         for resumer in resumers {
             resumer(result, 0)
         }
@@ -647,7 +657,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
-        ready.signal()
         for resumer in resumers {
             resumer(0, exception)
         }
@@ -668,16 +677,18 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let snapshotThrown = thrownException
         lock.unlock()
         if !wasCompleted {
-            ready.signal()
             for resumer in resumers {
                 resumer(snapshotResult, snapshotThrown)
             }
         }
     }
 
-    // CORO-004 [TODO]: blocks on a semaphore; convert to a suspend point so the
-    // caller installs a continuation that complete() dispatches. See the
-    // migration plan at the top of this file.
+    /// CORO-004: synchronous fallback for non-suspend contexts (`continuation == 0`).
+    /// Suspend-aware callers use `kk_kxmini_async_await`, which registers a
+    /// completion resumer and returns the coroutine-suspended sentinel instead of
+    /// calling this method. Each blocking waiter installs its own one-shot gate via
+    /// `addCompletionResumer`, so concurrent `awaitResult()` callers do not contend
+    /// on a shared task semaphore.
     func awaitResult() -> Int {
         lock.lock()
         if isCompleted {
@@ -686,13 +697,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return value
         }
         lock.unlock()
-        ready.wait()
-        // Re-signal so other concurrent awaitResult() callers also wake up
-        ready.signal()
-        lock.lock()
-        let value = result
-        lock.unlock()
-        return value
+        return waitForCompletionSynchronously()
     }
 
     /// Await the result and propagate any exception (CORO-071: exception-aware await).
@@ -711,17 +716,23 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return value
         }
         lock.unlock()
-        ready.wait()
-        ready.signal()
-        lock.lock()
-        let exc = thrownException
-        let value = result
-        lock.unlock()
-        if exc != 0 {
-            outThrown?.pointee = exc
+        return waitForCompletionSynchronously(outThrown: outThrown)
+    }
+
+    /// Block until completion via a per-waiter resumer (CORO-004 sync fallback).
+    private func waitForCompletionSynchronously(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        let awaitBox = RuntimeAsyncTaskAwaitBox()
+        addCompletionResumer { result, thrown in
+            awaitBox.result = result
+            awaitBox.thrown = thrown
+            awaitBox.gate.signal()
+        }
+        awaitBox.gate.wait()
+        if let outThrown, awaitBox.thrown != 0 {
+            outThrown.pointee = awaitBox.thrown
             return 0
         }
-        return value
+        return awaitBox.result
     }
 
 }
