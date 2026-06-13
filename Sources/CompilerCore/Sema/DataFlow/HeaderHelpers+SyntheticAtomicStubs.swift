@@ -1848,77 +1848,11 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerAtomicArrayAsKotlinAtomicArrayFunction(
-            packageFQName: packageFQName,
-            javaPackageFQName: javaPackageFQName,
-            javaClassName: "AtomicIntegerArray",
-            kotlinClassName: "AtomicIntArray",
-            constructorLinkName: "kk_atomic_int_array_create",
-            externalLinkName: "kk_java_atomic_int_array_asKotlinAtomicArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerAtomicReferenceArrayAsKotlinAtomicArrayFunction(
             packageFQName: packageFQName,
             javaPackageFQName: javaPackageFQName,
             symbols: symbols,
             types: types,
-            interner: interner
-        )
-    }
-
-    private func registerAtomicArrayAsKotlinAtomicArrayFunction(
-        packageFQName: [InternedString],
-        javaPackageFQName: [InternedString],
-        javaClassName: String,
-        kotlinClassName: String,
-        constructorLinkName: String,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        guard let kotlinAtomicArraySymbol = symbols.lookup(
-            fqName: packageFQName + [interner.intern(kotlinClassName)]
-        ) else {
-            return
-        }
-        let kotlinAtomicArrayType = types.make(.classType(ClassType(
-            classSymbol: kotlinAtomicArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let javaAtomicArraySymbol = ensureClassSymbol(
-            named: javaClassName,
-            in: javaPackageFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if let packageSymbol = symbols.lookup(fqName: javaPackageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: javaAtomicArraySymbol)
-        }
-        let javaAtomicArrayType = types.make(.classType(ClassType(
-            classSymbol: javaAtomicArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(javaAtomicArrayType, for: javaAtomicArraySymbol)
-        registerAtomicConstructor(
-            ownerSymbol: javaAtomicArraySymbol,
-            ownerType: javaAtomicArrayType,
-            externalLinkName: constructorLinkName,
-            paramType: types.intType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAtomicExtensionFunction(
-            packageFQName: packageFQName,
-            name: "asKotlinAtomicArray",
-            externalLinkName: externalLinkName,
-            receiverType: javaAtomicArrayType,
-            returnType: kotlinAtomicArrayType,
-            symbols: symbols,
             interner: interner
         )
     }
