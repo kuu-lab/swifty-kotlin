@@ -7810,22 +7810,29 @@ public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ s
 
 @_cdecl("__string_trimIndent")
 public func __string_trimIndent(_ strRaw: Int) -> Int {
-    return kk_string_trimIndent(strRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    return runtimeMakeStringRaw(runtimeTrimIndent(source))
 }
 
 @_cdecl("__string_trimMargin")
 public func __string_trimMargin(_ strRaw: Int, _ marginPrefixRaw: Int) -> Int {
-    return kk_string_trimMargin(strRaw, marginPrefixRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    return runtimeMakeStringRaw(runtimeTrimMargin(source, marginPrefix: marginPrefix))
 }
 
 @_cdecl("__string_prependIndent")
 public func __string_prependIndent(_ strRaw: Int, _ indentRaw: Int) -> Int {
-    return kk_string_prependIndent(strRaw, indentRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let indent = runtimeStringFromRaw(indentRaw) ?? " "
+    return runtimeMakeStringRaw(runtimePrependIndent(source, indent: indent))
 }
 
 @_cdecl("__string_replaceIndent")
 public func __string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
-    return kk_string_replaceIndent(strRaw, newIndentRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let newIndent = runtimeStringFromRaw(newIndentRaw) ?? ""
+    return runtimeMakeStringRaw(runtimeReplaceIndent(source, newIndent: newIndent))
 }
 
 @_cdecl("__string_replaceIndentByMargin")
@@ -7840,7 +7847,9 @@ public func __string_replaceIndentByMargin(
 
 @_cdecl("__string_format")
 public func __string_format(_ formatRaw: Int, _ argsArrayRaw: Int) -> Int {
-    return kk_string_format(formatRaw, argsArrayRaw)
+    let template = runtimeStringFromRaw(formatRaw) ?? ""
+    let arguments = runtimeCollectionOrArrayValues(from: argsArrayRaw) ?? []
+    return runtimeMakeStringRaw(runtimeFormatString(template, arguments: arguments))
 }
 
 // MARK: - String struct representation / String length compatibility export
