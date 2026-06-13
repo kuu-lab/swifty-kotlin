@@ -473,37 +473,33 @@ final class RuntimeSequenceBuilderBox {
 // STDLIB-563: Continuation-based lazy sequence coroutine.
 //
 // Runs the builder lambda on a background thread. Each call to `yield(value)`
-// suspends the producer (via `producerSemaphore`) until the consumer calls
-// `materializeAll()`, which signals the producer to continue.
+// is a producer suspend point: the value is published, the consumer is woken,
+// and the producer waits until the consumer requests the next element.
 //
 // The coroutine is started lazily on the first call to `materializeAll()`.
 //
 // Thread protocol:
 //   Producer thread (background):
 //     1. Runs builder lambda
-//     2. On yield(value): store value, signal consumer, wait on producer semaphore
+//     2. On yield(value): store value, signal consumer, suspend on producer gate
 //     3. On completion: set finished flag, signal consumer
 //
 //   Consumer thread (caller):
-//     1. materializeAll(): signal producer, wait on consumer semaphore, read value
+//     1. materializeAll(): signal producer, suspend on consumer gate, read value
 //     2. Returns when producer has finished
-// TODO(CORO-004): The producer/consumer semaphore ping-pong blocks two GCD
-// threads (one producer, one consumer) for the entire iteration.  To migrate:
-// model yield() as a suspend point in the producer's coroutine entry loop and
-// next()/hasNext() as suspend points in the consumer, using the continuation
-// model so neither side blocks a thread while waiting for the other.
+//
+// CORO-004: Gates use `RuntimeCoroutineSyncGate` so suspend continuations can
+// replace the semaphore fallback once builder lambdas are CPS-transformed.
 final class RuntimeSequenceCoroutine: @unchecked Sendable {
     /// The builder lambda function pointer: (closureRaw, builderRaw, outThrown) -> Int.
     let fnPtr: Int
     let closureRaw: Int
 
-    /// Semaphore the producer waits on after yielding a value.
-    /// Signaled by the consumer when it wants the next element.
-    private let producerSemaphore = DispatchSemaphore(value: 0)
+    /// Producer suspend gate — signalled by the consumer when it wants the next element.
+    private let producerGate = RuntimeCoroutineSyncGate()
 
-    /// Semaphore the consumer waits on when requesting a value.
-    /// Signaled by the producer after yielding or finishing.
-    private let consumerSemaphore = DispatchSemaphore(value: 0)
+    /// Consumer suspend gate — signalled by the producer after yielding or finishing.
+    private let consumerGate = RuntimeCoroutineSyncGate()
 
     /// Guard for mutable state access.
     private let stateLock = NSLock()
@@ -529,16 +525,14 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
     }
 
     /// Called by the producer (background thread) to yield a value.
-    /// Suspends the producer until the consumer requests the next element.
+    /// CORO-004 producer suspend point.
     func yieldValue(_ value: Int) {
         stateLock.lock()
         yieldedValue = value
         stateLock.unlock()
 
-        // Signal the consumer that a value is available
-        consumerSemaphore.signal()
-        // Wait for the consumer to request the next element
-        producerSemaphore.wait()
+        consumerGate.signal()
+        _ = suspendProducerUntilConsumerRequest()
     }
 
     /// Called by the producer when it finishes (normally or via exception).
@@ -546,7 +540,25 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         stateLock.lock()
         finished = true
         stateLock.unlock()
-        consumerSemaphore.signal()
+        consumerGate.signal()
+    }
+
+    /// CORO-004 producer suspend point. Returns `true` when a resume continuation
+    /// was installed instead of blocking the current thread.
+    @discardableResult
+    private func suspendProducerUntilConsumerRequest(
+        resumeContinuation: (@Sendable () -> Void)? = nil
+    ) -> Bool {
+        producerGate.wait(resumeContinuation: resumeContinuation)
+    }
+
+    /// CORO-004 consumer suspend point while waiting for the producer to yield.
+    @discardableResult
+    private func awaitProducerYield(
+        resumeContinuation: (@Sendable () -> Void)? = nil
+    ) -> Bool {
+        producerGate.signal()
+        return consumerGate.wait(resumeContinuation: resumeContinuation)
     }
 
     /// Result type for `nextElement()`: either a value or end-of-sequence.
@@ -583,9 +595,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
         ensureStarted()
 
-        // Request next element from producer
-        producerSemaphore.signal()
-        consumerSemaphore.wait()
+        _ = awaitProducerYield()
 
         stateLock.lock()
         if finished {
@@ -624,9 +634,7 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
         ensureStarted()
 
         while true {
-            // Request next element from producer
-            producerSemaphore.signal()
-            consumerSemaphore.wait()
+            _ = awaitProducerYield()
 
             stateLock.lock()
             if finished {
@@ -652,8 +660,8 @@ final class RuntimeSequenceCoroutine: @unchecked Sendable {
 
         let coroutine = self
         DispatchQueue.global(qos: .userInitiated).async {
-            // Wait for the first consumer request before starting
-            coroutine.producerSemaphore.wait()
+            // Producer suspend point: wait for the first consumer request.
+            _ = coroutine.suspendProducerUntilConsumerRequest()
 
             let builderHandle = registerRuntimeObject(
                 RuntimeSequenceCoroutineBuilderProxy(coroutine: coroutine)
@@ -694,9 +702,9 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 //
 // Protocol:
 //   1. `kk_iterator_builder_build(fnPtr)` creates the box and spawns the
-//      producer thread. The producer immediately blocks on `producerGate`
+//      producer thread. The producer immediately suspends on `producerGate`
 //      until the first `hasNext` / `next` call.
-//   2. `hasNext` signals `producerGate` (let producer run), then waits on
+//   2. `hasNext` signals `producerGate` (let producer run), then suspends on
 //      `consumerGate`. When the producer yields a value or finishes, it
 //      signals `consumerGate`.
 //   3. `next` returns the most recently yielded value (already fetched by
@@ -705,18 +713,24 @@ final class RuntimeSequenceCoroutineBuilderProxy {
 // Memory: The box is registered in the runtime object table; the background
 // thread retains the box via its closure capture. The thread exits naturally
 // when the builder lambda returns.
-// TODO(CORO-004): Same semaphore ping-pong pattern as RuntimeSequenceCoroutine.
-// Migrate to continuation model so neither producer nor consumer blocks a GCD thread.
+//
+// CORO-004: Gates use `RuntimeCoroutineSyncGate` so suspend continuations can
+// replace the semaphore fallback once builder lambdas are CPS-transformed.
 final class RuntimeIteratorBuilderBox: @unchecked Sendable {
-    /// Semaphore the producer blocks on; signalled by the consumer (`hasNext`).
-    let producerGate = DispatchSemaphore(value: 0)
-    /// Semaphore the consumer blocks on; signalled by the producer (`yield` or end).
-    let consumerGate = DispatchSemaphore(value: 0)
+    private let fnPtr: Int
+    private var builderHandle: Int = 0
+
+    /// Producer suspend gate — signalled by the consumer (`hasNext` / `next`).
+    private let producerGate = RuntimeCoroutineSyncGate()
+    /// Consumer suspend gate — signalled by the producer (`yield` or completion).
+    private let consumerGate = RuntimeCoroutineSyncGate()
+    private let stateLock = NSLock()
+    private var started = false
 
     /// The most recently yielded value, valid when `state == .hasValue`.
-    var yieldedValue: Int = 0
+    private(set) var yieldedValue: Int = 0
     /// Current state of the iterator.
-    var state: IteratorState = .initial
+    private(set) var state: IteratorState = .initial
 
     enum IteratorState {
         /// Producer has not yet been advanced.
@@ -725,6 +739,112 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
         case hasValue
         /// Producer finished (lambda returned).
         case done
+    }
+
+    init(fnPtr: Int) {
+        self.fnPtr = fnPtr
+    }
+
+    func bindRegisteredHandle(_ handle: Int) {
+        builderHandle = handle
+    }
+
+    /// CORO-004 producer suspend point.
+    func yieldValue(_ value: Int) {
+        stateLock.lock()
+        yieldedValue = value
+        state = .hasValue
+        stateLock.unlock()
+
+        consumerGate.signal()
+        _ = suspendProducerUntilConsumerRequest()
+    }
+
+    func probeHasNext() -> Bool {
+        stateLock.lock()
+        let current = state
+        stateLock.unlock()
+
+        switch current {
+        case .hasValue:
+            return true
+        case .done:
+            return false
+        case .initial:
+            ensureStarted()
+            _ = awaitProducerYield()
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return state == .hasValue
+        }
+    }
+
+    func consumeNext() -> Int {
+        stateLock.lock()
+        let current = state
+        stateLock.unlock()
+
+        if current == .initial {
+            ensureStarted()
+            _ = awaitProducerYield()
+        }
+
+        stateLock.lock()
+        guard state == .hasValue else {
+            stateLock.unlock()
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
+        }
+        let value = yieldedValue
+        state = .initial
+        stateLock.unlock()
+        return value
+    }
+
+    /// CORO-004 producer suspend point.
+    @discardableResult
+    private func suspendProducerUntilConsumerRequest(
+        resumeContinuation: (@Sendable () -> Void)? = nil
+    ) -> Bool {
+        producerGate.wait(resumeContinuation: resumeContinuation)
+    }
+
+    /// CORO-004 consumer suspend point while waiting for the producer to yield.
+    @discardableResult
+    private func awaitProducerYield(
+        resumeContinuation: (@Sendable () -> Void)? = nil
+    ) -> Bool {
+        producerGate.signal()
+        return consumerGate.wait(resumeContinuation: resumeContinuation)
+    }
+
+    private func ensureStarted() {
+        stateLock.lock()
+        guard !started else {
+            stateLock.unlock()
+            return
+        }
+        started = true
+        stateLock.unlock()
+
+        let box = self
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = box.suspendProducerUntilConsumerRequest()
+
+            var thrown = 0
+            _ = runtimeInvokeClosureThunk(
+                fnPtr: box.fnPtr,
+                closureRaw: box.builderHandle,
+                outThrown: &thrown
+            )
+            if thrown != 0 {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
+            }
+
+            box.stateLock.lock()
+            box.state = .done
+            box.stateLock.unlock()
+            box.consumerGate.signal()
+        }
     }
 }
 

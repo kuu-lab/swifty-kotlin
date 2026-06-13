@@ -126,16 +126,77 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        which may be a coroutine or a raw thread, plus post-wakeup state
 //        inspection (delivered / result / cancelledWakeup).
 //
-// [TODO] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
+// [IN PROGRESS] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
 //        sequence/iterator builder coroutines:
-//        producerSemaphore/consumerSemaphore and producerGate/consumerGate
-//        implement a cooperative ping-pong protocol.  Migration: model
-//        yield() as a suspend point in the producer coroutine and
-//        next()/hasNext() as suspend points in the consumer, using the
-//        continuation model to avoid blocking either side.
+//        `RuntimeCoroutineSyncGate` replaces raw DispatchSemaphore ping-pong
+//        and supports continuation-based wakeups.  Remaining work: CPS-transform
+//        builder lambdas so `yield()` / `hasNext()` / `next()` can install
+//        resume continuations instead of using the semaphore fallback.
 //
 // Priority order (remaining): Channel > withContext > sequence builders > flow
 // (await/join were completed in Phase 2.)
+
+// MARK: - CORO-004: Cooperative Sync Gate
+
+/// One-shot gate for cooperative producer/consumer synchronization.
+///
+/// Used by lazy sequence/iterator builders during the CORO-004 migration.
+/// Supports non-blocking resume via a continuation closure (for suspend-point
+/// wiring) with a `DispatchSemaphore` fallback for legacy synchronous callers.
+final class RuntimeCoroutineSyncGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumeContinuation: RuntimeResumeContinuationBox?
+    private var fallbackSemaphore: DispatchSemaphore?
+    private var signalPending = false
+
+    /// Wake a waiter. Prefer an installed continuation (async dispatch) over a
+    /// fallback semaphore signal.
+    func signal() {
+        lock.lock()
+        if let cont = resumeContinuation {
+            resumeContinuation = nil
+            lock.unlock()
+            DispatchQueue.global(qos: .userInitiated).async {
+                cont.invoke()
+            }
+            return
+        }
+        if let sem = fallbackSemaphore {
+            lock.unlock()
+            sem.signal()
+            return
+        }
+        signalPending = true
+        lock.unlock()
+    }
+
+    /// Wait until `signal()`.
+    ///
+    /// When `resumeContinuation` is provided, installs it instead of blocking
+    /// the current thread and returns `true`. Returns `false` when the wait was
+    /// satisfied synchronously (pending signal or semaphore wakeup).
+    @discardableResult
+    func wait(resumeContinuation continuation: (@Sendable () -> Void)? = nil) -> Bool {
+        lock.lock()
+        if signalPending {
+            signalPending = false
+            lock.unlock()
+            return false
+        }
+        if let continuation {
+            resumeContinuation = RuntimeResumeContinuationBox(continuation)
+            lock.unlock()
+            return true
+        }
+        if fallbackSemaphore == nil {
+            fallbackSemaphore = DispatchSemaphore(value: 0)
+        }
+        let sem = fallbackSemaphore!
+        lock.unlock()
+        sem.wait()
+        return false
+    }
+}
 
 final class RuntimeContinuationState: @unchecked Sendable {
     var functionID: Int64

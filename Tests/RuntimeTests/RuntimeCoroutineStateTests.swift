@@ -780,4 +780,38 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         XCTAssertTrue(probe.fired, "join resumer should fire when the job completes")
         XCTAssertEqual(probe.result, 11)
     }
+
+    // MARK: - CORO-004: RuntimeCoroutineSyncGate (sequence/iterator builder migration)
+
+    func testCoroutineSyncGateContinuationResumeDoesNotBlockWaiterThread() {
+        let gate = RuntimeCoroutineSyncGate()
+        let resumed = XCTestExpectation(description: "continuation resumed")
+        let waiterFinished = XCTestExpectation(description: "waiter returned after resume")
+
+        DispatchQueue.global().async {
+            let suspended = gate.wait(resumeContinuation: {
+                resumed.fulfill()
+            })
+            XCTAssertTrue(suspended, "continuation install should suspend without blocking")
+            waiterFinished.fulfill()
+        }
+
+        Thread.sleep(forTimeInterval: 0.05)
+        gate.signal()
+        wait(for: [resumed, waiterFinished], timeout: 2.0)
+    }
+
+    func testCoroutineSyncGateSemaphoreFallbackWakesBlockedWaiter() {
+        let gate = RuntimeCoroutineSyncGate()
+        let done = XCTestExpectation(description: "semaphore wait completes")
+
+        DispatchQueue.global().async {
+            gate.wait()
+            done.fulfill()
+        }
+
+        Thread.sleep(forTimeInterval: 0.05)
+        gate.signal()
+        wait(for: [done], timeout: 2.0)
+    }
 }
