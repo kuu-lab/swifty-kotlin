@@ -2,32 +2,6 @@
 import XCTest
 
 final class SemaCacheContextTests: XCTestCase {
-    // MARK: - Helpers
-
-    /// Creates a ``CompilationContext`` from source with the `sema-cache` frontend flag enabled.
-    func makeContextFromSourceWithCache(_ source: String) throws -> CompilationContext {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let options = CompilerOptions(
-            moduleName: "TestModule",
-            inputs: [fakePath],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            searchPaths: [],
-            target: defaultTargetTriple(),
-            frontendFlags: ["sema-cache"]
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        return ctx
-    }
-
     // MARK: - Scope Lookup Cache
 
     func testScopeLookupCacheReturnsSameResultAsUncached() {
@@ -254,7 +228,7 @@ final class SemaCacheContextTests: XCTestCase {
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
         // With cache
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
