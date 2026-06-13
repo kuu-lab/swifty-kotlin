@@ -962,8 +962,18 @@ extension CallLowerer {
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
-        let callBinding = sema.bindings.callBindings[exprID]
-        let chosen = callBinding?.chosenCallee
+        let callBinding = recoverMemberCallBinding(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            argumentExprs: args.map(\.expr),
+            sema: sema
+        ) ?? sema.bindings.callBindings[exprID]
+        let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
+            chosenCallee
+        } else {
+            nil
+        }
 
         // Emit null-check BEFORE lowering arguments so that
         // receiver?.f(sideEffect()) does not evaluate sideEffect()
@@ -976,6 +986,27 @@ extension CallLowerer {
         instructions.append(.copy(from: nullExpr, to: result))
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
+
+        // External member property read (e.g. MatchResult?.value → kk_match_result_value).
+        // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
+        // to a property with an externalLinkName, emit the runtime call directly.
+        // This mirrors tryLowerExternalMemberPropertyRead used by lowerMemberLikeCallExpr.
+        if args.isEmpty,
+           let propSym = sema.bindings.identifierSymbol(for: exprID),
+           let extLink = sema.symbols.externalLinkName(for: propSym),
+           !extLink.isEmpty
+        {
+            instructions.append(.call(
+                symbol: propSym,
+                callee: interner.intern(extLink),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.label(endLabel))
+            return result
+        }
 
         // Lower arguments only on the non-null path.
         let loweredArgIDs = args.map { argument in
@@ -1074,8 +1105,10 @@ extension CallLowerer {
                 effectiveCalleeName
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+            let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
             if !isSuperCall,
                let chosen,
+               !hasExternalLink,
                let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema)
             {
                 var vcArguments = finalArguments
