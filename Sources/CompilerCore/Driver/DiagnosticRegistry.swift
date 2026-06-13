@@ -371,6 +371,12 @@ enum DiagnosticRegistry {
             summary: "Type parameter constraint violation."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0063",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Cannot extract inner type from star projection."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0071",
             pass: "SEMA",
             defaultSeverity: .error,
