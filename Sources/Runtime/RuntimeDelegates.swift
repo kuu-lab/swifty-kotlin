@@ -3,7 +3,7 @@ import Foundation
 typealias KKCustomDelegateGetterEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKCustomDelegateSetterEntryPoint = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
-private let runtimeNotNullUninitializedMessage =
+private let runtimeNotNullUninitializedPayload =
     "IllegalStateException: Property delegate must be assigned before being accessed."
 
 /// Throws an `IllegalStateException` for uninitialized `notNull` delegate access.
@@ -25,8 +25,9 @@ private func runtimeThrowNotNullUninitialized(
         outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
         return 0
     } else {
-        FileHandle.standardError.write(Data((runtimeNotNullUninitializedMessage + "\n").utf8))
-        fatalError(runtimeNotNullUninitializedMessage)
+        let message = runtimeStructuredPanicMessage(runtimeNotNullUninitializedPayload)
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
 }
 
@@ -634,16 +635,16 @@ public func kk_notNull_create() -> Int {
 @_cdecl("kk_notNull_get_value")
 public func kk_notNull_get_value(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     let isObj = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isObj, let box = tryCast(ptr, to: RuntimeNotNullBox.self) else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     guard let value = box.currentValue else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     return value
 }

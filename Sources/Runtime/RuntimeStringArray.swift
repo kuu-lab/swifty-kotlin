@@ -46,7 +46,7 @@ public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutab
     let text = extractString(from: message) ?? "Throwable"
     let throwableInt = runtimeAllocateThrowable(message: text)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        fatalError("kk_throwable_new: allocation returned null")
+        runtimeStructuredPanic("kk_throwable_new: allocation returned null")
     }
     return ptr
 }
@@ -57,7 +57,7 @@ public func kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ c
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let throwableInt = runtimeAllocateThrowable(message: text, cause: cause)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        fatalError("kk_throwable_new_with_cause: allocation returned null")
+        runtimeStructuredPanic("kk_throwable_new_with_cause: allocation returned null")
     }
     return ptr
 }
@@ -68,7 +68,7 @@ public func kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
     let message = runtimeThrowableStackTraceText(from: cause)
     let throwableInt = runtimeAllocateThrowable(message: message.isEmpty ? "Throwable" : message, cause: cause)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
-        fatalError("kk_throwable_new_cause: allocation returned null")
+        runtimeStructuredPanic("kk_throwable_new_cause: allocation returned null")
     }
     return ptr
 }
@@ -200,16 +200,25 @@ public func kk_throwable_suppressedExceptions(_ throwableRaw: Int) -> Int {
 
 @_cdecl("kk_panic")
 public func kk_panic(_ cstr: UnsafePointer<CChar>) -> Never {
-    fatalError(runtimePanicMessage(fromCString: cstr))
+    runtimeStructuredPanic(String(cString: cstr))
 }
 
 @_cdecl("kk_abort_unreachable")
 public func kk_abort_unreachable(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = outThrown
-    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: reached unreachable code")
+    runtimeStructuredPanic("reached unreachable code")
 }
 
 let runtimePanicDiagnosticCode = "KSWIFTK-RUNTIME-0001"
+
+func runtimeStructuredPanicMessage(_ message: String) -> String {
+    "KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(message)"
+}
+
+@inline(__always)
+func runtimeStructuredPanic(_ message: @autoclosure () -> String) -> Never {
+    fatalError(runtimeStructuredPanicMessage(message()))
+}
 
 private enum RuntimeTypeTokenEncoding {
     static let baseMask: Int64 = 0xFF
@@ -236,8 +245,7 @@ private enum RuntimeTypeTokenEncoding {
 }
 
 func runtimePanicMessage(fromCString cstr: UnsafePointer<CChar>) -> String {
-    let message = String(cString: cstr)
-    return "KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(message)"
+    runtimeStructuredPanicMessage(String(cString: cstr))
 }
 
 @_cdecl("kk_string_from_utf8")
@@ -1353,7 +1361,7 @@ public func kk_array_get_inbounds(_ arrayRaw: Int, _ index: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw),
           array.elements.indices.contains(index)
     else {
-        fatalError("kk_array_get_inbounds precondition failed")
+        runtimeStructuredPanic("kk_array_get_inbounds precondition failed")
     }
     return array.elements[index]
 }

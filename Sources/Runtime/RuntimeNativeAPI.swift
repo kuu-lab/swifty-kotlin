@@ -169,7 +169,7 @@ public func kk_native_processUnhandledException(
 @_cdecl("kk_native_terminateWithUnhandledException")
 public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
-    fatalError("Unhandled Kotlin exception: \(throwableRaw)")
+    runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
 
 // MARK: - Native ByteArray accessors

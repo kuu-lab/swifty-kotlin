@@ -2617,7 +2617,7 @@ public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ contin
         workItem.cancel()
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
-        fatalError("KSwiftK panic: withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+        runtimeStructuredPanic("withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
     }
     _ = kk_coroutine_scope_wait(scopeHandle)
     return result
