@@ -1260,60 +1260,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
             named: "drop",
             externalLinkName: "kk_string_drop",
             receiverType: stringType,
