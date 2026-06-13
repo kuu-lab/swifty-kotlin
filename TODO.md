@@ -68,7 +68,7 @@
 #### kotlin.io.path プロパティの実装
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
+- [x] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
 - [x] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
