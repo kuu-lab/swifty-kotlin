@@ -1,36 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
 parallel_mode="${SWIFT_TEST_PARALLEL:-}"
 workers_override="${SWIFT_TEST_WORKERS:-}"
 build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
 junit_xml_path="${SWIFT_TEST_JUNIT_XML:-}"
-
-detect_workers() {
-    local detected
-
-    # Linux: use nproc if available.
-    if detected="$(nproc 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-        return
-    fi
-
-    # macOS: use logical cores by default to maximize XCTest worker concurrency.
-    if detected="$(sysctl -n hw.logicalcpu 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-        return
-    fi
-
-    if detected="$(sysctl -n hw.physicalcpu 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-    fi
-}
 
 has_parallel_flag=false
 has_workers_flag=false

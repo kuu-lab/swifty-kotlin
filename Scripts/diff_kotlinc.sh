@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
 KOTLINC_CLASSPATH="${KOTLINC_CLASSPATH:-${KOTLINC_CP:-}}"
@@ -339,33 +342,6 @@ warm_kotlinc() {
   local warm_timeout
   warm_timeout=$(( COMPILE_TIMEOUT > 10 ? COMPILE_TIMEOUT : 10 ))
   "$TIMEOUT_CMD" "$warm_timeout" "$KOTLINC" -version >/dev/null 2>&1 || true
-}
-
-detect_workers() {
-  local detected
-
-  if detected="$(nproc 2>/dev/null)" \
-    && [[ "$detected" =~ ^[0-9]+$ ]] \
-    && (( detected > 0 )); then
-    printf "%s" "$detected"
-    return
-  fi
-
-  if detected="$(sysctl -n hw.logicalcpu 2>/dev/null)" \
-    && [[ "$detected" =~ ^[0-9]+$ ]] \
-    && (( detected > 0 )); then
-    printf "%s" "$detected"
-    return
-  fi
-
-  if detected="$(sysctl -n hw.physicalcpu 2>/dev/null)" \
-    && [[ "$detected" =~ ^[0-9]+$ ]] \
-    && (( detected > 0 )); then
-    printf "%s" "$detected"
-    return
-  fi
-
-  printf "" 
 }
 
 jar_main_class() {
