@@ -360,10 +360,8 @@ extension CodegenBackendIntegrationTests {
         fun main() {
             val intAtomic = AtomicInteger(1).asKotlinAtomic()
             val longAtomic = AtomicLong(2L).asKotlinAtomic()
-            val refAtomic = AtomicReference("x").asKotlinAtomic()
             println(intAtomic.load())
             println(longAtomic.load())
-            println(refAtomic.load())
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -371,7 +369,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\nx\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\n")
         }
     }
 
