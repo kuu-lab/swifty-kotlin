@@ -180,31 +180,33 @@ public enum GoldenHarness {
     /// Normalizes suite output before comparison so the checked-in golden can stay
     /// stable even when a platform injects extra synthetic symbols into the dump.
     public static func normalizedForComparison(suiteName: String, output: String) -> String {
-        switch suiteName {
-        case "Sema":
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
+            return output
+        }
+        return normalizedForComparison(suite: suite, output: output)
+    }
+
+    static func normalizedForComparison(suite: GoldenHarnessGoldenSuite, output: String) -> String {
+        switch suite {
+        case .sema:
             GoldenHarnessSemaComparisonNormalizer.normalize(output)
-        default:
+        case .lexer, .parser, .diagnostics:
             output
         }
     }
 
     static func stableOutputForPersistence(suiteName: String, output: String) -> String {
-        normalizedForComparison(suiteName: suiteName, output: output)
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
+            return output
+        }
+        return normalizedForComparison(suite: suite, output: output)
     }
 
     private static func suite(named suiteName: String) throws -> GoldenHarnessGoldenSuite {
-        switch suiteName {
-        case "Lexer":
-            .lexer
-        case "Parser":
-            .parser
-        case "Sema":
-            .sema
-        case "Diagnostics":
-            .diagnostics
-        default:
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
             throw GoldenHarnessAPIError.unknownSuite(suiteName)
         }
+        return suite
     }
 
     private static func caseFile(sourcePath: String) -> GoldenHarnessCaseFile {
