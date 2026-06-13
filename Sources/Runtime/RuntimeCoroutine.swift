@@ -539,12 +539,12 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 }
 
-/// Heap box for synchronous `awaitResult()` waiters (CORO-004).
-/// Each blocking waiter owns its own gate so concurrent callers do not contend.
-private final class RuntimeAsyncTaskAwaitBox: @unchecked Sendable {
-    var result: Int = 0
-    var thrown: Int = 0
-    let gate = DispatchSemaphore(value: 0)
+/// CORO-004: Outcome of a suspend-aware task await.
+enum RuntimeTaskAwaitOutcome: Equatable {
+    /// Task finished (already complete, or blocking wait returned).
+    case completed(result: Int, thrownException: Int)
+    /// Registered a completion resumer; the caller must return `kk_coroutine_suspended()`.
+    case suspended
 }
 
 final class RuntimeAsyncTask: @unchecked Sendable {
@@ -683,56 +683,73 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         }
     }
 
-    /// CORO-004: synchronous fallback for non-suspend contexts (`continuation == 0`).
-    /// Suspend-aware callers use `kk_kxmini_async_await`, which registers a
-    /// completion resumer and returns the coroutine-suspended sentinel instead of
-    /// calling this method. Each blocking waiter installs its own one-shot gate via
-    /// `addCompletionResumer`, so concurrent `awaitResult()` callers do not contend
-    /// on a shared task semaphore.
-    func awaitResult() -> Int {
+    /// CORO-004: Await the task result, optionally suspending via `callerState`.
+    ///
+    /// When `callerState` is non-nil and the task has not completed yet, registers a
+    /// completion resumer and returns `.suspended` instead of blocking a GCD thread.
+    /// `afterResume` runs after the caller continuation is resumed (e.g. to release a
+    /// passRetained handle). Pass `callerState: nil` for the blocking fallback used by
+    /// non-suspend contexts (structured-concurrency child joins, `kk_await_all`, etc.).
+    func awaitResult(
+        callerState: RuntimeContinuationState?,
+        afterResume: (@Sendable () -> Void)? = nil
+    ) -> RuntimeTaskAwaitOutcome {
         lock.lock()
         if isCompleted {
             let value = result
+            let thrown = thrownException
             lock.unlock()
-            return value
+            return .completed(result: value, thrownException: thrown)
         }
         lock.unlock()
-        return waitForCompletionSynchronously()
+
+        if let callerState {
+            addCompletionResumer { result, thrown in
+                if thrown != 0 {
+                    callerState.resume(withException: thrown)
+                } else {
+                    callerState.resume(with: result)
+                }
+                afterResume?()
+            }
+            return .suspended
+        }
+
+        ready.wait()
+        // Re-signal so other concurrent blocking awaiters also wake up.
+        ready.signal()
+        lock.lock()
+        let value = result
+        let thrown = thrownException
+        lock.unlock()
+        return .completed(result: value, thrownException: thrown)
+    }
+
+    /// Blocking await for non-suspend contexts. Suspend-aware awaiting is handled by
+    /// `awaitResult(callerState:afterResume:)` (CORO-004); see `kk_kxmini_async_await`.
+    func awaitResult() -> Int {
+        switch awaitResult(callerState: nil) {
+        case .completed(let result, _):
+            return result
+        case .suspended:
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: blocking awaitResult cannot suspend")
+        }
     }
 
     /// Await the result and propagate any exception (CORO-071: exception-aware await).
     /// Writes the thrown exception (if any) to `outThrown` and returns 0 if an
     /// exception occurred, otherwise returns the normal result.
     func awaitResultThrowing(outThrown: UnsafeMutablePointer<Int>?) -> Int {
-        lock.lock()
-        if isCompleted {
-            let exc = thrownException
-            let value = result
-            lock.unlock()
-            if exc != 0 {
-                outThrown?.pointee = exc
+        switch awaitResult(callerState: nil) {
+        case .completed(let result, let thrown):
+            if thrown != 0 {
+                outThrown?.pointee = thrown
                 return 0
             }
-            return value
+            return result
+        case .suspended:
+            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: blocking awaitResultThrowing cannot suspend")
         }
-        lock.unlock()
-        return waitForCompletionSynchronously(outThrown: outThrown)
-    }
-
-    /// Block until completion via a per-waiter resumer (CORO-004 sync fallback).
-    private func waitForCompletionSynchronously(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
-        let awaitBox = RuntimeAsyncTaskAwaitBox()
-        addCompletionResumer { result, thrown in
-            awaitBox.result = result
-            awaitBox.thrown = thrown
-            awaitBox.gate.signal()
-        }
-        awaitBox.gate.wait()
-        if let outThrown, awaitBox.thrown != 0 {
-            outThrown.pointee = awaitBox.thrown
-            return 0
-        }
-        return awaitBox.result
     }
 
 }
@@ -2173,27 +2190,23 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
     let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
     task.markConsumedByUserCode()
 
-    // CORO-004: suspend-aware await. When invoked from a coroutine state machine
-    // (continuation != 0) and the task has not completed yet, register a resumer and
-    // suspend instead of blocking a GCD thread. The passRetained handle is released
-    // when the resumer fires (the task stays alive via the closure capture until then).
-    if continuation != 0, !task.isCompletedSnapshot(),
-       let callerState = runtimeContinuationState(from: continuation) {
-        task.addCompletionResumer { result, thrown in
-            if thrown != 0 {
-                callerState.resume(withException: thrown)
-            } else {
-                callerState.resume(with: result)
-            }
-            // Recreate the pointer from the Int handle (Sendable) inside the closure.
+    // CORO-004: suspend-aware await via `awaitResult(callerState:)`.
+    if continuation != 0, let callerState = runtimeContinuationState(from: continuation) {
+        switch task.awaitResult(callerState: callerState, afterResume: {
             if let releasePtr = UnsafeMutableRawPointer(bitPattern: handle) {
                 Unmanaged<RuntimeAsyncTask>.fromOpaque(releasePtr).release()
             }
+        }) {
+        case .suspended:
+            return Int(bitPattern: kk_coroutine_suspended())
+        case .completed(let result, _):
+            // Already complete: return synchronously (do not resume callerState).
+            Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).release()
+            return result
         }
-        return Int(bitPattern: kk_coroutine_suspended())
     }
 
-    // Completed or non-suspend context: consume the passRetained and return synchronously.
+    // Non-suspend context: consume the passRetained and block until complete.
     let consumed = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
     return consumed.awaitResult()
 }
@@ -2435,16 +2448,15 @@ public func kk_job_join(_ jobHandle: Int, _ continuation: Int) -> Int {
                 releaseHandle()
             }
             return Int(bitPattern: kk_coroutine_suspended())
-        } else if let task = obj as? RuntimeAsyncTask, !task.isCompletedSnapshot() {
-            task.addCompletionResumer { result, thrown in
-                if thrown != 0 {
-                    callerState.resume(withException: thrown)
-                } else {
-                    callerState.resume(with: result)
-                }
+        } else if let task = obj as? RuntimeAsyncTask {
+            switch task.awaitResult(callerState: callerState, afterResume: releaseHandle) {
+            case .suspended:
+                return Int(bitPattern: kk_coroutine_suspended())
+            case .completed(let result, _):
+                // Already complete: return synchronously (do not resume callerState).
                 releaseHandle()
+                return result
             }
-            return Int(bitPattern: kk_coroutine_suspended())
         }
     }
 
