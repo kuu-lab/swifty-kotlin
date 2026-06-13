@@ -2943,7 +2943,6 @@ public enum RuntimeABISpec {
         bitwiseFunctions,
         booleanFunctions,
         boxingFunctions,
-        broadcastChannelFunctions,
         callableRefFunctions,
         charFunctions,
         collectionBridgeFunctions,
