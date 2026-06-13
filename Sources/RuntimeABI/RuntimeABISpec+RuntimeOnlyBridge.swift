@@ -1,16 +1,9 @@
 private let arrayHOFBridgeNames = [
     "kk_array_all",
     "kk_array_count",
-    "kk_array_filterIndexed",
-    "kk_array_filterNot",
     "kk_array_find",
     "kk_array_findLast",
-    "kk_array_first",
-    "kk_array_firstOrNull",
     "kk_array_flatMap",
-    "kk_array_last",
-    "kk_array_lastOrNull",
-    "kk_array_mapIndexed",
     "kk_array_mapNotNull",
     "kk_array_reduce",
     "kk_array_reduceIndexed",
@@ -48,7 +41,6 @@ private let arrayFoldBridgeFunctions = [
 }
 
 private let arraySpecialBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_array_filterNotNull", section: "Collection", params: ["arrayRaw"]),
     RuntimeABIFunctionSpec(
         name: "kk_bits_to_double",
         parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
