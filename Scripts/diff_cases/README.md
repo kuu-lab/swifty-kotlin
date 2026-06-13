@@ -37,6 +37,7 @@ Cases:
 - `type_constraints.kt`: type parameter upper bounds and `where` clause parity
 - `invoke_operator.kt`: `operator fun invoke` による `obj(args)` 呼び出し（top-level property / object / 式結果）
 - `char_escape.kt`: Char escape / Unicode escape の runtime parity（`'\n'`, `'\t'`, `'\\'`, `'\u0041'`）
+- `char_get_error.kt`: `Char.get(Int)` 呼び出しの compile-error parity（kotlinc では未解決参照）
 - `nothing_return_throw.kt`: `Nothing` 分岐の parity（`if` 内 `throw` / `return` による分岐合流）
 - `intersection_definitely_non_null.kt`: `T & Any`（definitely non-null）での通常呼び出しと safe-call の parity
 - `star_projection.kt`: use-site star projection（`Box<*>`）の型解決 parity

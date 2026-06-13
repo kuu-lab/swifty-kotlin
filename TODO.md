@@ -826,7 +826,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-RT-002: `Sources/Runtime/RuntimeStringStdlib.swift:3369` 付近の `trimMargin` が marginPrefix 空白時に `fatalError("IllegalArgumentException: ...")` する。catch 可能な例外送出へ置換する
 - [ ] DEBT-RT-003: `Sources/Runtime/RuntimeRegex.swift` の正規表現フォールバック失敗時 `fatalError` 4 箇所（238 / 439 / 471 / 755 付近）を整理する。pattern はユーザー入力直通。静的フォールバック `(?!)` が失敗し得ないことの検証コメント化、または例外送出化
 - [ ] DEBT-RT-004: Runtime の非構造化 `fatalError`（構造化パニック `runtimePanicDiagnosticCode` / `KSwiftK panic [診断コード]` を経由しない約 25 箇所）を棚卸しし、診断コード付き構造化パニックへ寄せる
-- [ ] DEBT-RT-005: `Sources/Runtime/RuntimeNumericCompat.swift:1690` 付近の `kk_char_get` が index != 0 で replacement char（U+FFFD）を返す暫定実装（「For now」コメントあり)を kotlinc 実挙動と突き合わせ、乖離していれば修正する（diff ケース追加）
+- [x] DEBT-RT-005: `Sources/Runtime/RuntimeNumericCompat.swift:1690` 付近の `kk_char_get` が index != 0 で replacement char（U+FFFD）を返す暫定実装（「For now」コメントあり)を kotlinc 実挙動と突き合わせ、乖離していれば修正する（diff ケース追加）
 - [ ] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）

@@ -2297,15 +2297,6 @@ public enum RuntimeABISpec {
             section: "Char"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_get",
-            parameters: [
-                RuntimeABIParameter(name: "charValue", type: .intptr),
-                RuntimeABIParameter(name: "index", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Char"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_char_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "startValue", type: .intptr),
