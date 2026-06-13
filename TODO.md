@@ -868,11 +868,11 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-NAME-004: `Sources/CompilerCore/Sema/TypeCheck/CallTypeChecker+MemberCallUtilities.swift`（194 行、variance 許容チェック等）を内容を表す名前へリネームする
 
 ### RuntimeABISpec 本体の分割完遂
-> 既に 33 ファイルへ +分割済みだが、本体 `RuntimeABISpec.swift`（3,629 行）に 19 個の `static let *Functions` が残存する。
-- [ ] DEBT-ABI-001: `operatorFunctions`（約 508 行）を `RuntimeABISpec+Operator.swift` へ移動する
-- [ ] DEBT-ABI-002: `bitwiseFunctions`（約 322 行）を `RuntimeABISpec+Bitwise.swift` へ移動する
-- [ ] DEBT-ABI-003: `exceptionFunctions`（約 329 行）を `RuntimeABISpec+Exception.swift` へ移動する
-- [ ] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
+> 既に 50 ファイルへ +分割済み。本体 `RuntimeABISpec.swift` はコア型定義 + `allFunctions` + `generateCHeader()` のみ（約 163 行）。
+- [x] DEBT-ABI-001: `operatorFunctions`（約 508 行）を `RuntimeABISpec+Operator.swift` へ移動する
+- [x] DEBT-ABI-002: `bitwiseFunctions`（約 322 行）を `RuntimeABISpec+Bitwise.swift` へ移動する
+- [x] DEBT-ABI-003: `exceptionFunctions`（約 329 行）を `RuntimeABISpec+Exception.swift` へ移動する
+- [x] DEBT-ABI-004: `delegateFunctions`（約 259 行）/ `boxingFunctions`（約 117 行）ほか残存 static let を + ファイルへ移動し、本体を spec コア型定義 + 集約プロパティのみへ縮小する
 
 ### CI / Scripts
 - [ ] DEBT-CI-001: `LSPServerTests` が Package.swift にターゲット定義されているのに `.github/workflows/ci.yml` の full-swift-tests マトリクスへ含まれておらず CI 未実行。マトリクスへ追加する
