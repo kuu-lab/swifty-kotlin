@@ -53,22 +53,30 @@ symbol s51 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=re
 symbol s52 kind=valueParameter fq=kotlin.text.decodeToString.$7.startIndex vis=private flags=_
 symbol s53 kind=valueParameter fq=kotlin.text.decodeToString.$7.endIndex vis=private flags=_
 symbol s54 kind=valueParameter fq=kotlin.text.decodeToString.$7.throwOnInvalidSequence vis=private flags=_
-symbol s55 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s56 kind=local fq=__local_0.sb vis=private flags=_ type=Class#25
-symbol s57 kind=local fq=__local_1.i vis=private flags=mutable type=Int
-symbol s58 kind=local fq=__local_2.len vis=private flags=_ type=Int
-symbol s59 kind=local fq=__local_3.sb vis=private flags=_ type=Class#25
-symbol s60 kind=local fq=__local_4.i vis=private flags=mutable type=Int
-symbol s61 kind=local fq=__local_5.padding vis=private flags=_ type=Int
-symbol s62 kind=local fq=__local_6.sb vis=private flags=_ type=Class#25
-symbol s63 kind=local fq=__local_7.i vis=private flags=mutable type=Int
-symbol s64 kind=local fq=__local_8.padding vis=private flags=_ type=Int
-symbol s65 kind=local fq=__local_9.sb vis=private flags=_ type=Class#25
-symbol s66 kind=local fq=__local_10.i vis=private flags=mutable type=Int
-symbol s67 kind=local fq=__local_11.hm vis=private flags=_ type=Class#6<String, Int>
-symbol s68 kind=local fq=__local_12.mm vis=private flags=_ type=Class#6<String, Int>
-symbol s69 kind=local fq=__local_13.copy vis=private flags=_ type=Class#6<Any, Any>
-symbol s70 kind=local fq=__local_14.empty vis=private flags=_ type=Class#6<Int, Int>
+symbol s55 kind=function fq=processMap vis=public flags=_ sig=recv=_ params=[Class#6<String, Int>] ret=Unit suspend=0 defaults=[0] vararg=[0]
+symbol s56 kind=valueParameter fq=processMap.$8.map vis=private flags=_
+symbol s57 kind=function fq=createMap vis=public flags=_ sig=recv=_ params=[] ret=Class#6<Int, String> suspend=0 defaults=[] vararg=[]
+symbol s58 kind=class fq=MapHolder vis=public flags=_
+symbol s59 kind=constructor fq=MapHolder.<init> vis=public flags=_ sig=recv=Class#58 params=[] ret=Class#58 suspend=0 defaults=[] vararg=[]
+symbol s60 kind=property fq=MapHolder.scores vis=public flags=_ type=Class#6<String, Int>
+symbol s61 kind=function fq=main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
+symbol s62 kind=local fq=__local_0.sb vis=private flags=_ type=Class#25
+symbol s63 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s64 kind=local fq=__local_2.len vis=private flags=_ type=Int
+symbol s65 kind=local fq=__local_3.sb vis=private flags=_ type=Class#25
+symbol s66 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s67 kind=local fq=__local_5.padding vis=private flags=_ type=Int
+symbol s68 kind=local fq=__local_6.sb vis=private flags=_ type=Class#25
+symbol s69 kind=local fq=__local_7.i vis=private flags=mutable type=Int
+symbol s70 kind=local fq=__local_8.padding vis=private flags=_ type=Int
+symbol s71 kind=local fq=__local_9.sb vis=private flags=_ type=Class#25
+symbol s72 kind=local fq=__local_10.i vis=private flags=mutable type=Int
+symbol s73 kind=local fq=__local_11.hm vis=private flags=_ type=Class#6<String, Int>
+symbol s74 kind=local fq=__local_12.mm vis=private flags=_ type=Class#6<String, Int>
+symbol s75 kind=local fq=__local_13.copy vis=private flags=_ type=Class#6<Any, Any>
+symbol s76 kind=local fq=__local_14.empty vis=private flags=_ type=Class#6<Int, Int>
+symbol s77 kind=local fq=__local_15.created vis=private flags=_ type=Class#6<Int, String>
+symbol s78 kind=local fq=__local_16.holder vis=private flags=_ type=Class#58
 file f0 package=kotlin.text
   decl d0 fun repeat suspend=0 inline=0 sym=s30
   decl d1 fun reversed suspend=0 inline=0 sym=s32
@@ -82,7 +90,10 @@ file f0 package=kotlin.text
   decl d9 fun decodeToString suspend=0 inline=0 sym=s48
   decl d10 fun decodeToString suspend=0 inline=0 sym=s51
 file f1 package=_
-  decl d11 fun main suspend=0 inline=0 sym=s55
+  decl d11 fun processMap suspend=0 inline=0 sym=s55
+  decl d12 fun createMap suspend=0 inline=0 sym=s57
+  decl d15 class MapHolder sym=s58
+  decl d16 fun main suspend=0 inline=0 sym=s61
 expr e0 name(count) type=Int ref=s31
 expr e1 int(0) type=Int
 expr e2 binary(lessThan) lhs=e0 rhs=e1 type=Boolean
@@ -94,47 +105,47 @@ expr e7 throw value=e6 type=Nothing
 expr e8 if cond=e2 then=e7 else=_ type=Unit
 expr e9 name(StringBuilder) type=Any ref=s25
 expr e10 call callee=e9 args=[] type=Class#25
-expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s56
+expr e11 localDecl sb mutable=0 type=_ init=e10 type=Unit ref=s62
 expr e12 int(0) type=Int
-expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s57
-expr e14 name(i) type=Int ref=s57
+expr e13 localDecl i mutable=1 type=_ init=e12 type=Unit ref=s63
+expr e14 name(i) type=Int ref=s63
 expr e15 name(count) type=Int ref=s31
 expr e16 binary(lessThan) lhs=e14 rhs=e15 type=Boolean
-expr e17 name(sb) type=Class#25 ref=s56
+expr e17 name(sb) type=Class#25 ref=s62
 expr e18 this type=String
 expr e19 memberCall recv=e17 callee=append args=[_:e18] type=Class#25 call=s26 map=[0->0] targs=[]
 expr e20 name(i) type=_
 expr e21 int(1) type=Int
-expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s57
+expr e22 compoundAssign(plusAssign) name=i value=e21 type=Unit ref=s63
 expr e23 blockExpr stmts=[e19,e22] trailing=_ type=Unit
 expr e24 while cond=e16 body=e23 type=Unit
-expr e25 name(sb) type=Class#25 ref=s56
+expr e25 name(sb) type=Class#25 ref=s62
 expr e26 memberCall recv=e25 callee=toString args=[] type=String call=s28 map=[] targs=[]
 expr e27 return value=e26 type=Nothing
 expr e28 this type=String
 expr e29 memberCall recv=e28 callee=length args=[] type=Int call=s13 map=[] targs=[]
-expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s58
+expr e30 localDecl len mutable=0 type=_ init=e29 type=Unit ref=s64
 expr e31 name(StringBuilder) type=Any ref=s25
 expr e32 call callee=e31 args=[] type=Class#25
-expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s59
-expr e34 name(len) type=Int ref=s58
+expr e33 localDecl sb mutable=0 type=_ init=e32 type=Unit ref=s65
+expr e34 name(len) type=Int ref=s64
 expr e35 int(1) type=Int
 expr e36 binary(subtract) lhs=e34 rhs=e35 type=Int
-expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s60
-expr e38 name(i) type=Int ref=s60
+expr e37 localDecl i mutable=1 type=_ init=e36 type=Unit ref=s66
+expr e38 name(i) type=Int ref=s66
 expr e39 int(0) type=Int
 expr e40 binary(greaterOrEqual) lhs=e38 rhs=e39 type=Boolean
-expr e41 name(sb) type=Class#25 ref=s59
+expr e41 name(sb) type=Class#25 ref=s65
 expr e42 this type=String
-expr e43 name(i) type=Int ref=s60
+expr e43 name(i) type=Int ref=s66
 expr e44 indexedAccess receiver=e42 indices=[e43] type=Char call=s14 map=[0->0] targs=[]
 expr e45 memberCall recv=e41 callee=append args=[_:e44] type=Class#25 call=s27 map=[0->0] targs=[]
 expr e46 name(i) type=_
 expr e47 int(1) type=Int
-expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s60
+expr e48 compoundAssign(minusAssign) name=i value=e47 type=Unit ref=s66
 expr e49 blockExpr stmts=[e45,e48] trailing=_ type=Unit
 expr e50 while cond=e40 body=e49 type=Unit
-expr e51 name(sb) type=Class#25 ref=s59
+expr e51 name(sb) type=Class#25 ref=s65
 expr e52 memberCall recv=e51 callee=toString args=[] type=String call=s28 map=[] targs=[]
 expr e53 return value=e52 type=Nothing
 expr e54 char(32) type=_
@@ -142,8 +153,8 @@ expr e55 name(length) type=Int ref=s34
 expr e56 this type=String
 expr e57 memberCall recv=e56 callee=length args=[] type=Int call=s13 map=[] targs=[]
 expr e58 binary(subtract) lhs=e55 rhs=e57 type=Int
-expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s61
-expr e60 name(padding) type=Int ref=s61
+expr e59 localDecl padding mutable=0 type=_ init=e58 type=Unit ref=s67
+expr e60 name(padding) type=Int ref=s67
 expr e61 int(0) type=Int
 expr e62 binary(lessOrEqual) lhs=e60 rhs=e61 type=Boolean
 expr e63 this type=String
@@ -151,24 +162,24 @@ expr e64 return value=e63 type=Nothing
 expr e65 if cond=e62 then=e64 else=_ type=Unit
 expr e66 name(StringBuilder) type=Any ref=s25
 expr e67 call callee=e66 args=[] type=Class#25
-expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s62
+expr e68 localDecl sb mutable=0 type=_ init=e67 type=Unit ref=s68
 expr e69 int(0) type=Int
-expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s63
-expr e71 name(i) type=Int ref=s63
-expr e72 name(padding) type=Int ref=s61
+expr e70 localDecl i mutable=1 type=_ init=e69 type=Unit ref=s69
+expr e71 name(i) type=Int ref=s69
+expr e72 name(padding) type=Int ref=s67
 expr e73 binary(lessThan) lhs=e71 rhs=e72 type=Boolean
-expr e74 name(sb) type=Class#25 ref=s62
+expr e74 name(sb) type=Class#25 ref=s68
 expr e75 name(padChar) type=Char ref=s35
 expr e76 memberCall recv=e74 callee=append args=[_:e75] type=Class#25 call=s27 map=[0->0] targs=[]
 expr e77 name(i) type=_
 expr e78 int(1) type=Int
-expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s63
+expr e79 compoundAssign(plusAssign) name=i value=e78 type=Unit ref=s69
 expr e80 blockExpr stmts=[e76,e79] trailing=_ type=Unit
 expr e81 while cond=e73 body=e80 type=Unit
-expr e82 name(sb) type=Class#25 ref=s62
+expr e82 name(sb) type=Class#25 ref=s68
 expr e83 this type=String
 expr e84 memberCall recv=e82 callee=append args=[_:e83] type=Class#25 call=s26 map=[0->0] targs=[]
-expr e85 name(sb) type=Class#25 ref=s62
+expr e85 name(sb) type=Class#25 ref=s68
 expr e86 memberCall recv=e85 callee=toString args=[] type=String call=s28 map=[] targs=[]
 expr e87 return value=e86 type=Nothing
 expr e88 char(32) type=_
@@ -176,8 +187,8 @@ expr e89 name(length) type=Int ref=s37
 expr e90 this type=String
 expr e91 memberCall recv=e90 callee=length args=[] type=Int call=s13 map=[] targs=[]
 expr e92 binary(subtract) lhs=e89 rhs=e91 type=Int
-expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s64
-expr e94 name(padding) type=Int ref=s64
+expr e93 localDecl padding mutable=0 type=_ init=e92 type=Unit ref=s70
+expr e94 name(padding) type=Int ref=s70
 expr e95 int(0) type=Int
 expr e96 binary(lessOrEqual) lhs=e94 rhs=e95 type=Boolean
 expr e97 this type=String
@@ -185,24 +196,24 @@ expr e98 return value=e97 type=Nothing
 expr e99 if cond=e96 then=e98 else=_ type=Unit
 expr e100 name(StringBuilder) type=Any ref=s25
 expr e101 call callee=e100 args=[] type=Class#25
-expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s65
-expr e103 name(sb) type=Class#25 ref=s65
+expr e102 localDecl sb mutable=0 type=_ init=e101 type=Unit ref=s71
+expr e103 name(sb) type=Class#25 ref=s71
 expr e104 this type=String
 expr e105 memberCall recv=e103 callee=append args=[_:e104] type=Class#25 call=s26 map=[0->0] targs=[]
 expr e106 int(0) type=Int
-expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s66
-expr e108 name(i) type=Int ref=s66
-expr e109 name(padding) type=Int ref=s64
+expr e107 localDecl i mutable=1 type=_ init=e106 type=Unit ref=s72
+expr e108 name(i) type=Int ref=s72
+expr e109 name(padding) type=Int ref=s70
 expr e110 binary(lessThan) lhs=e108 rhs=e109 type=Boolean
-expr e111 name(sb) type=Class#25 ref=s65
+expr e111 name(sb) type=Class#25 ref=s71
 expr e112 name(padChar) type=Char ref=s38
 expr e113 memberCall recv=e111 callee=append args=[_:e112] type=Class#25 call=s27 map=[0->0] targs=[]
 expr e114 name(i) type=_
 expr e115 int(1) type=Int
-expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s66
+expr e116 compoundAssign(plusAssign) name=i value=e115 type=Unit ref=s72
 expr e117 blockExpr stmts=[e113,e116] trailing=_ type=Unit
 expr e118 while cond=e110 body=e117 type=Unit
-expr e119 name(sb) type=Class#25 ref=s65
+expr e119 name(sb) type=Class#25 ref=s71
 expr e120 memberCall recv=e119 callee=toString args=[] type=String call=s28 map=[] targs=[]
 expr e121 return value=e120 type=Nothing
 expr e122 this type=String
@@ -228,66 +239,106 @@ expr e141 name(startIndex) type=Int ref=s52
 expr e142 name(endIndex) type=Int ref=s53
 expr e143 name(throwOnInvalidSequence) type=Boolean ref=s54
 expr e144 memberCall recv=e140 callee=__kk_decodeToString_range_throw args=[_:e141,_:e142,_:e143] type=String call=s22 map=[0->0,1->1,2->2] targs=[]
-expr e145 name(HashMap) type=Any ref=s12
-expr e146 call callee=e145 args=[] type=Class#6<String, Int>
-expr e147 localDecl hm mutable=0 type=t41 init=e146 type=Unit ref=s67
-expr e148 name(hm) type=Class#6<String, Int> ref=s67
-expr e149 string(x) type=String
-expr e150 indexedAccess receiver=e148 indices=[e149] type=_
-expr e151 int(10) type=Int
-expr e152 indexedAssign receiver=e148 indices=[e149] value=e151 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
-expr e153 name(hm) type=Class#6<String, Int> ref=s67
-expr e154 string(y) type=String
-expr e155 indexedAccess receiver=e153 indices=[e154] type=_
-expr e156 int(20) type=Int
-expr e157 indexedAssign receiver=e153 indices=[e154] value=e156 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
-expr e158 name(hm) type=Class#6<String, Int> ref=s67
-expr e159 localDecl mm mutable=0 type=t44 init=e158 type=Unit ref=s68
-expr e160 name(mm) type=Class#6<String, Int> ref=s68
-expr e161 string(w) type=String
-expr e162 indexedAccess receiver=e160 indices=[e161] type=_
-expr e163 int(40) type=Int
-expr e164 indexedAssign receiver=e160 indices=[e161] value=e163 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
-expr e165 name(println) type=_
-expr e166 name(mm) type=Class#6<String, Int> ref=s68
-expr e167 memberCall recv=e166 callee=size args=[] type=Int
-expr e168 call callee=e165 args=[_:e167] type=Unit call=s29 map=[0->0] targs=[]
-expr e169 name(HashMap) type=Any ref=s12
-expr e170 name(hm) type=Class#6<String, Int> ref=s67
-expr e171 call callee=e169 args=[_:e170] type=Class#6<Any, Any>
-expr e172 localDecl copy mutable=0 type=_ init=e171 type=Unit ref=s69
-expr e173 name(println) type=_
-expr e174 name(copy) type=Class#6<Any, Any> ref=s69
-expr e175 memberCall recv=e174 callee=size args=[] type=Int
-expr e176 call callee=e173 args=[_:e175] type=Unit call=s29 map=[0->0] targs=[]
-expr e177 name(println) type=_
-expr e178 name(hm) type=Class#6<String, Int> ref=s67
-expr e179 string(x) type=String
-expr e180 memberCall recv=e178 callee=containsKey args=[_:e179] type=Boolean call=s3 map=[0->0] targs=[]
-expr e181 call callee=e177 args=[_:e180] type=Unit call=s29 map=[0->0] targs=[]
-expr e182 name(println) type=_
-expr e183 name(hm) type=Class#6<String, Int> ref=s67
-expr e184 int(99) type=Int
-expr e185 memberCall recv=e183 callee=containsValue args=[_:e184] type=Any call=s4 map=[0->0] targs=[]
-expr e186 call callee=e182 args=[_:e185] type=Unit call=s29 map=[0->0] targs=[]
-expr e187 name(hm) type=Class#6<String, Int> ref=s67
-expr e188 string(y) type=String
-expr e189 memberCall recv=e187 callee=remove args=[_:e188] type=Int? call=s10 map=[0->0] targs=[String,Int]
-expr e190 name(println) type=_
-expr e191 name(hm) type=Class#6<String, Int> ref=s67
-expr e192 memberCall recv=e191 callee=size args=[] type=Int
-expr e193 call callee=e190 args=[_:e192] type=Unit call=s29 map=[0->0] targs=[]
-expr e194 name(println) type=_
-expr e195 name(hm) type=Class#6<String, Int> ref=s67
-expr e196 string(missing) type=String
-expr e197 int(1) type=Int
-expr e198 unary(unaryMinus) operand=e197 type=Int
-expr e199 memberCall recv=e195 callee=getOrDefault args=[_:e196,_:e198] type=Int call=s11 map=[0->0,1->1] targs=[]
-expr e200 call callee=e194 args=[_:e199] type=Unit call=s29 map=[0->0] targs=[]
-expr e201 name(HashMap) type=Any ref=s12
-expr e202 call callee=e201 args=[] type=Class#6<Int, Int>
-expr e203 localDecl empty mutable=0 type=t47 init=e202 type=Unit ref=s70
-expr e204 name(println) type=_
-expr e205 name(empty) type=Class#6<Int, Int> ref=s70
-expr e206 memberCall recv=e205 callee=isEmpty args=[] type=Boolean
-expr e207 call callee=e204 args=[_:e206] type=Unit call=s29 map=[0->0] targs=[]
+expr e145 name(println) type=_
+expr e146 name(map) type=Class#6<String, Int> ref=s56
+expr e147 memberCall recv=e146 callee=size args=[] type=Int
+expr e148 call callee=e145 args=[_:e147] type=Unit call=s29 map=[0->0] targs=[]
+expr e149 name(HashMap) type=Any ref=s12
+expr e150 call callee=e149 args=[] type=Class#6<Int, String>
+expr e151 return value=e150 type=Nothing
+expr e152 name(HashMap) type=Any ref=s12
+expr e153 call callee=e152 args=[] type=Class#6<String, Int>
+expr e154 name(HashMap) type=Any ref=s12
+expr e155 call callee=e154 args=[] type=Class#6<Int, String>
+expr e156 name(HashMap) type=Any ref=s12
+expr e157 call callee=e156 args=[] type=Class#6<String, Int>
+expr e158 localDecl hm mutable=0 type=t57 init=e157 type=Unit ref=s73
+expr e159 name(hm) type=Class#6<String, Int> ref=s73
+expr e160 string(x) type=String
+expr e161 indexedAccess receiver=e159 indices=[e160] type=_
+expr e162 int(10) type=Int
+expr e163 indexedAssign receiver=e159 indices=[e160] value=e162 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
+expr e164 name(hm) type=Class#6<String, Int> ref=s73
+expr e165 string(y) type=String
+expr e166 indexedAccess receiver=e164 indices=[e165] type=_
+expr e167 int(20) type=Int
+expr e168 indexedAssign receiver=e164 indices=[e165] value=e167 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
+expr e169 name(hm) type=Class#6<String, Int> ref=s73
+expr e170 localDecl mm mutable=0 type=t60 init=e169 type=Unit ref=s74
+expr e171 name(mm) type=Class#6<String, Int> ref=s74
+expr e172 string(w) type=String
+expr e173 indexedAccess receiver=e171 indices=[e172] type=_
+expr e174 int(40) type=Int
+expr e175 indexedAssign receiver=e171 indices=[e172] value=e174 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
+expr e176 name(println) type=_
+expr e177 name(mm) type=Class#6<String, Int> ref=s74
+expr e178 memberCall recv=e177 callee=size args=[] type=Int
+expr e179 call callee=e176 args=[_:e178] type=Unit call=s29 map=[0->0] targs=[]
+expr e180 name(HashMap) type=Any ref=s12
+expr e181 name(hm) type=Class#6<String, Int> ref=s73
+expr e182 call callee=e180 args=[_:e181] type=Class#6<Any, Any>
+expr e183 localDecl copy mutable=0 type=_ init=e182 type=Unit ref=s75
+expr e184 name(println) type=_
+expr e185 name(copy) type=Class#6<Any, Any> ref=s75
+expr e186 memberCall recv=e185 callee=size args=[] type=Int
+expr e187 call callee=e184 args=[_:e186] type=Unit call=s29 map=[0->0] targs=[]
+expr e188 name(println) type=_
+expr e189 name(hm) type=Class#6<String, Int> ref=s73
+expr e190 string(x) type=String
+expr e191 memberCall recv=e189 callee=containsKey args=[_:e190] type=Boolean call=s3 map=[0->0] targs=[]
+expr e192 call callee=e188 args=[_:e191] type=Unit call=s29 map=[0->0] targs=[]
+expr e193 name(println) type=_
+expr e194 name(hm) type=Class#6<String, Int> ref=s73
+expr e195 int(99) type=Int
+expr e196 memberCall recv=e194 callee=containsValue args=[_:e195] type=Any call=s4 map=[0->0] targs=[]
+expr e197 call callee=e193 args=[_:e196] type=Unit call=s29 map=[0->0] targs=[]
+expr e198 name(hm) type=Class#6<String, Int> ref=s73
+expr e199 string(y) type=String
+expr e200 memberCall recv=e198 callee=remove args=[_:e199] type=Int? call=s10 map=[0->0] targs=[String,Int]
+expr e201 name(println) type=_
+expr e202 name(hm) type=Class#6<String, Int> ref=s73
+expr e203 memberCall recv=e202 callee=size args=[] type=Int
+expr e204 call callee=e201 args=[_:e203] type=Unit call=s29 map=[0->0] targs=[]
+expr e205 name(println) type=_
+expr e206 name(hm) type=Class#6<String, Int> ref=s73
+expr e207 string(missing) type=String
+expr e208 int(1) type=Int
+expr e209 unary(unaryMinus) operand=e208 type=Int
+expr e210 memberCall recv=e206 callee=getOrDefault args=[_:e207,_:e209] type=Int call=s11 map=[0->0,1->1] targs=[]
+expr e211 call callee=e205 args=[_:e210] type=Unit call=s29 map=[0->0] targs=[]
+expr e212 name(HashMap) type=Any ref=s12
+expr e213 call callee=e212 args=[] type=Class#6<Int, Int>
+expr e214 localDecl empty mutable=0 type=t63 init=e213 type=Unit ref=s76
+expr e215 name(println) type=_
+expr e216 name(empty) type=Class#6<Int, Int> ref=s76
+expr e217 memberCall recv=e216 callee=isEmpty args=[] type=Boolean
+expr e218 call callee=e215 args=[_:e217] type=Unit call=s29 map=[0->0] targs=[]
+expr e219 name(processMap) type=_
+expr e220 name(hm) type=Class#6<String, Int> ref=s73
+expr e221 call callee=e219 args=[_:e220] type=Unit call=s55 map=[0->0] targs=[]
+expr e222 name(createMap) type=_
+expr e223 call callee=e222 args=[] type=Class#6<Int, String> call=s57 map=[] targs=[]
+expr e224 localDecl created mutable=0 type=_ init=e223 type=Unit ref=s77
+expr e225 name(created) type=Class#6<Int, String> ref=s77
+expr e226 int(1) type=Int
+expr e227 indexedAccess receiver=e225 indices=[e226] type=_
+expr e228 string(one) type=String
+expr e229 indexedAssign receiver=e225 indices=[e226] value=e228 type=Unit call=s9 map=[0->0,1->1] targs=[Int,String]
+expr e230 name(println) type=_
+expr e231 name(created) type=Class#6<Int, String> ref=s77
+expr e232 memberCall recv=e231 callee=size args=[] type=Int
+expr e233 call callee=e230 args=[_:e232] type=Unit call=s29 map=[0->0] targs=[]
+expr e234 name(MapHolder) type=_
+expr e235 call callee=e234 args=[] type=Class#58 call=s59 map=[] targs=[]
+expr e236 localDecl holder mutable=0 type=_ init=e235 type=Unit ref=s78
+expr e237 name(holder) type=Class#58 ref=s78
+expr e238 memberCall recv=e237 callee=scores args=[] type=Class#6<String, Int> ref=s60
+expr e239 string(alice) type=String
+expr e240 indexedAccess receiver=e238 indices=[e239] type=_
+expr e241 int(100) type=Int
+expr e242 indexedAssign receiver=e238 indices=[e239] value=e241 type=Unit call=s9 map=[0->0,1->1] targs=[String,Int]
+expr e243 name(println) type=_
+expr e244 name(holder) type=Class#58 ref=s78
+expr e245 memberCall recv=e244 callee=scores args=[] type=Class#6<String, Int> ref=s60
+expr e246 memberCall recv=e245 callee=size args=[] type=Int
+expr e247 call callee=e243 args=[_:e246] type=Unit call=s29 map=[0->0] targs=[]

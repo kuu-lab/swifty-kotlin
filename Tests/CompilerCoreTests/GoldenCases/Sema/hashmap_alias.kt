@@ -1,3 +1,19 @@
+// Function parameter type
+fun processMap(map: HashMap<String, Int>) {
+    println(map.size)
+}
+
+// Return type
+fun createMap(): HashMap<Int, String> {
+    return HashMap<Int, String>()
+}
+
+// Property type
+class MapHolder {
+    val scores: HashMap<String, Int> = HashMap()
+    val labels: HashMap<Int, String> = HashMap<Int, String>()
+}
+
 fun main() {
     val hm: HashMap<String, Int> = HashMap()
     hm["x"] = 10
@@ -14,4 +30,14 @@ fun main() {
     println(hm.getOrDefault("missing", -1))
     val empty: HashMap<Int, Int> = HashMap()
     println(empty.isEmpty())
+
+    processMap(hm)
+
+    val created = createMap()
+    created[1] = "one"
+    println(created.size)
+
+    val holder = MapHolder()
+    holder.scores["alice"] = 100
+    println(holder.scores.size)
 }
