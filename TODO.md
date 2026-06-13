@@ -399,7 +399,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Unsafe Pointer stub
 - [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
-- [ ] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
+- [x] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
 - [ ] CLEANUP-STUB-022: `kk_java_instant_to_kotlin_instant` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
 - [ ] CLEANUP-STUB-023: `kk_java_duration_to_kotlin_duration` stub削除（`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`, `RuntimeTime.swift`実装も削除）
