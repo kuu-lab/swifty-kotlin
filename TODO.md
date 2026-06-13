@@ -245,6 +245,12 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/text/`
 
 - [ ] MIGRATION-TEXT-001: String 変換・切り出し関数を Kotlin source に移行する（`trim`, `trimStart`, `trimEnd`, `substring`, `subSequence`, `take`, `takeLast`, `drop`, `dropLast`）
+- [x] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
+- [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
+- [x] MIGRATION-TEXT-001: String 変換・切り出し関数を Kotlin source に移行する（`trim`, `trimStart`, `trimEnd`, `substring`, `subSequence`, `take`, `takeLast`, `drop`, `dropLast`）
+- [ ] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
+- [ ] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
+- [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
 - [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
 - [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
 - [ ] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
@@ -420,9 +426,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
 - [ ] CLEANUP-STUB-042: JS Function stub削除（`HeaderHelpers+SyntheticJsFunctionStubs.swift`）
 - [ ] CLEANUP-STUB-043: JS Class stub削除（`HeaderHelpers+SyntheticJsClassStubs.swift`）
-- [ ] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
-- [ ] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
-- [ ] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
+- [x] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
+- [x] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
+- [x] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
 - [ ] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
 - [ ] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
 - [ ] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
@@ -433,6 +439,18 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
 - [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
 - [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
+- [x] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
+- [x] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
+- [x] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
+- [x] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
+- [x] CLEANUP-STUB-050: JS RegExpMatch stub削除（`HeaderHelpers+SyntheticJsRegExpMatchStubs.swift`）
+- [x] CLEANUP-STUB-051: JS Static stub削除（`HeaderHelpers+SyntheticJsStaticStubs.swift`）
+- [x] CLEANUP-STUB-052: JS ExternalArgument stub削除（`HeaderHelpers+SyntheticJsExternalArgumentStubs.swift`）
+- [x] CLEANUP-STUB-053: JS ExternalInheritorsOnly stub削除（`HeaderHelpers+SyntheticJsExternalInheritorsOnlyStubs.swift`）
+- [x] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
+- [x] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
+- [x] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
+- [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
 - [ ] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
 - [x] CLEANUP-STUB-059: JS NumberInterop stub削除（`HeaderHelpers+SyntheticJsNumberInteropStubs.swift`）
 - [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
