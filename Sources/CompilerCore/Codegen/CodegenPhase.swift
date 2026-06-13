@@ -361,13 +361,17 @@ final class CodegenPhase: CompilerPhase {
                 )
             }
         }()
+        let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .map(\.rawValue))
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
             types: sema.types,
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
-            functionLinkNames: functionLinkNamesBySymbol
+            functionLinkNames: functionLinkNamesBySymbol,
+            excludedFileIDs: bundledFileIDs
         )
         return encoder.serialize(records)
     }
