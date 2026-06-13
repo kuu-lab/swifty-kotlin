@@ -423,9 +423,6 @@ extension DataFlowSemaPhase {
         )
 
         // Register type aliases: ArrayList, HashMap, HashSet, LinkedHashMap, LinkedHashSet (STDLIB-560)
-        // TODO: Add golden test cases that exercise these aliases in type positions
-        //       (e.g. property types, parameter types, return types) to verify
-        //       resolveTypeRef expansion works end-to-end.
         registerSyntheticCollectionTypeAliases(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
