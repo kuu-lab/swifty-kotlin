@@ -31,22 +31,13 @@ extension VirtualDispatchTests {
                 if case .virtualCall = instruction { return true }
                 return false
             }
-            // If sema correctly resolves the class hierarchy, the call should be virtual
-            if hasVirtualCall {
-                let vcInstruction = body.first { instruction in
-                    if case .virtualCall = instruction { return true }
-                    return false
-                }
-                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
-                    XCTFail("Expected virtualCall")
-                    return
-                }
-                if case let .vtable(slot) = dispatch {
-                    XCTAssertGreaterThanOrEqual(slot, 0, "vtable slot should be non-negative")
-                } else {
-                    XCTFail("Expected vtable dispatch for class method")
-                }
-            }
+            // GEN-VTABLE-DISABLE (DEBT-KIR-001): open-class calls fall back to static
+            // dispatch until kk_alloc + KTypeInfo emission land.  When the gate is
+            // lifted, replace this assertion with vtable virtualCall expectations.
+            XCTAssertFalse(
+                hasVirtualCall,
+                "Open class with subtypes should use static .call while GEN-VTABLE-DISABLE is active"
+            )
         }
     }
 
