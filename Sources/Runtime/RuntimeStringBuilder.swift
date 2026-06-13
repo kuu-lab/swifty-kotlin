@@ -25,6 +25,19 @@ private func sbMakeStringRaw(_ value: String) -> Int {
     })
 }
 
+private func runtimeThrowStringIndexOutOfBounds(
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    message: String
+) {
+    guard let outThrown else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: StringIndexOutOfBoundsException: \(message)")
+    }
+    runtimeSetThrown(
+        outThrown,
+        runtimeAllocateThrowable(message: "StringIndexOutOfBoundsException: \(message)")
+    )
+}
+
 // MARK: - @_cdecl functions
 
 @_cdecl("kk_string_builder_new")
@@ -85,11 +98,18 @@ public func kk_string_builder_append_line_noarg_obj(_ sbRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_builder_insert_obj")
-public func kk_string_builder_insert_obj(_ sbRaw: Int, _ index: Int, _ valueRaw: Int) -> Int {
+public func kk_string_builder_insert_obj(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index <= utf8Count else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     let str = runtimeElementToString(valueRaw)
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
@@ -99,11 +119,18 @@ public func kk_string_builder_insert_obj(_ sbRaw: Int, _ index: Int, _ valueRaw:
 }
 
 @_cdecl("kk_string_builder_delete_obj")
-public func kk_string_builder_delete_obj(_ sbRaw: Int, _ start: Int, _ end: Int) -> Int {
+public func kk_string_builder_delete_obj(
+    _ sbRaw: Int,
+    _ start: Int,
+    _ end: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     guard start >= 0, start <= len, end >= start, end <= len else {
-        fatalError("StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(len)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
+        return sbRaw
     }
     let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: start)
     let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: end)
@@ -114,8 +141,13 @@ public func kk_string_builder_delete_obj(_ sbRaw: Int, _ start: Int, _ end: Int)
 }
 
 @_cdecl("kk_string_builder_deleteRange")
-public func kk_string_builder_deleteRange(_ sbRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
-    kk_string_builder_delete_obj(sbRaw, startIndex, endIndex)
+public func kk_string_builder_deleteRange(
+    _ sbRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_builder_delete_obj(sbRaw, startIndex, endIndex, outThrown)
 }
 
 @_cdecl("kk_string_builder_clear")
@@ -133,23 +165,34 @@ public func kk_string_builder_reverse(_ sbRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_builder_deleteCharAt")
-public func kk_string_builder_deleteCharAt(_ sbRaw: Int, _ index: Int) -> Int {
+public func kk_string_builder_deleteCharAt(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index < utf8Count else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
     guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     sb.value.remove(at: charIdx)
     return sbRaw
 }
 
 @_cdecl("kk_string_builder_deleteAt")
-public func kk_string_builder_deleteAt(_ sbRaw: Int, _ index: Int) -> Int {
-    kk_string_builder_deleteCharAt(sbRaw, index)
+public func kk_string_builder_deleteAt(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_string_builder_deleteCharAt(sbRaw, index, outThrown)
 }
 
 @_cdecl("kk_string_builder_appendRange_obj")
@@ -162,11 +205,20 @@ public func kk_string_builder_appendRange_obj(_ sbRaw: Int, _ csqRaw: Int, _ sta
 }
 
 @_cdecl("kk_string_builder_insertRange_obj")
-public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
+public func kk_string_builder_insertRange_obj(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ csqRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index <= utf8Count else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     let csq = runtimeElementToString(csqRaw)
     let slice = runtimeUTF16Substring(csq, startIndex: startIndex, endIndex: endIndex)
@@ -177,11 +229,22 @@ public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqR
 }
 
 @_cdecl("kk_string_builder_setRange")
-public func kk_string_builder_setRange(_ sbRaw: Int, _ startIndex: Int, _ endIndex: Int, _ valueRaw: Int) -> Int {
+public func kk_string_builder_setRange(
+    _ sbRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     guard startIndex >= 0, startIndex <= len, endIndex >= startIndex, endIndex <= len else {
-        fatalError("StringIndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(len)")
+        runtimeThrowStringIndexOutOfBounds(
+            outThrown,
+            message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(len)"
+        )
+        return sbRaw
     }
     let startIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: startIndex)
     let endIdx = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: endIndex)
@@ -194,12 +257,20 @@ public func kk_string_builder_setRange(_ sbRaw: Int, _ startIndex: Int, _ endInd
 // MARK: - STDLIB-STR-123: Additional StringBuilder methods
 
 @_cdecl("kk_string_builder_replace_obj")
-public func kk_string_builder_replace_obj(_ sbRaw: Int, _ start: Int, _ end: Int, _ strRaw: Int) -> Int {
+public func kk_string_builder_replace_obj(
+    _ sbRaw: Int,
+    _ start: Int,
+    _ end: Int,
+    _ strRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let len = sb.value.utf8.count
     let clampedEnd = min(end, len)
     guard start >= 0, start <= len, clampedEnd >= start else {
-        fatalError("StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(len)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "start=\(start), end=\(end), length=\(len)")
+        return sbRaw
     }
     let replacement: String
     if let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
@@ -217,15 +288,23 @@ public func kk_string_builder_replace_obj(_ sbRaw: Int, _ start: Int, _ end: Int
 }
 
 @_cdecl("kk_string_builder_setCharAt")
-public func kk_string_builder_setCharAt(_ sbRaw: Int, _ index: Int, _ charValue: Int) -> Int {
+public func kk_string_builder_setCharAt(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ charValue: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index < utf8Count else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
     guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return sbRaw
     }
     // charValue is a boxed Char (unicode scalar value)
     let unboxed = kk_unbox_char(charValue)
@@ -255,15 +334,22 @@ public func kk_string_builder_trimToSize(_ sbRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_builder_get")
-public func kk_string_builder_get(_ sbRaw: Int, _ index: Int) -> Int {
+public func kk_string_builder_get(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
     let utf8Count = sb.value.utf8.count
     guard index >= 0, index < utf8Count else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return 0
     }
     let utf8Index = sb.value.utf8.index(sb.value.utf8.startIndex, offsetBy: index)
     guard let charIdx = String.Index(utf8Index, within: sb.value) else {
-        fatalError("StringIndexOutOfBoundsException: index=\(index), length=\(utf8Count)")
+        runtimeThrowStringIndexOutOfBounds(outThrown, message: "index=\(index), length=\(utf8Count)")
+        return 0
     }
     let charValue = Int(sb.value[charIdx].unicodeScalars.first?.value ?? 0)
     return kk_box_char(charValue)

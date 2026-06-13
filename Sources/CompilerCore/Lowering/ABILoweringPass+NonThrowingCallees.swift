@@ -1073,6 +1073,7 @@ extension ABILoweringPass {
             interner.intern("kk_string_builder_append"),
             interner.intern("kk_string_builder_append_line"),
             interner.intern("kk_string_builder_append_line_noarg"),
+            // buildString DSL insert/delete clamp out-of-range indices instead of throwing.
             interner.intern("kk_string_builder_insert"),
             interner.intern("kk_string_builder_delete"),
             interner.intern("kk_string_builder_length"),
@@ -1182,18 +1183,10 @@ extension ABILoweringPass {
             interner.intern("kk_string_builder_length_prop"),
             interner.intern("kk_string_builder_append_line_obj"),
             interner.intern("kk_string_builder_append_line_noarg_obj"),
-            interner.intern("kk_string_builder_insert_obj"),
-            interner.intern("kk_string_builder_delete_obj"),
-            interner.intern("kk_string_builder_deleteRange"),
+            // Bounds-checking StringBuilder members throw via outThrown (DEBT-RT-001).
             interner.intern("kk_string_builder_clear"),
             interner.intern("kk_string_builder_reverse"),
-            interner.intern("kk_string_builder_deleteCharAt"),
-            interner.intern("kk_string_builder_deleteAt"),
-            interner.intern("kk_string_builder_get"),
-            interner.intern("kk_string_builder_setCharAt"), // STDLIB-TEXT-FN-064: operator fun set(index, value)
             interner.intern("kk_string_builder_appendRange_obj"),
-            interner.intern("kk_string_builder_insertRange_obj"),
-            interner.intern("kk_string_builder_setRange"),
             // REFL-003: Callable reference type identity tagging — pure metadata
             // annotation that cannot throw.
             interner.intern("kk_callable_ref_tag_kfunction"),
