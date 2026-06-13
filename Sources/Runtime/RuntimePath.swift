@@ -1639,6 +1639,52 @@ public func kk_path_useDirectoryEntries_default(
     kk_path_useDirectoryEntries(pathRaw, 0, actionRaw)
 }
 
+// MARK: - STDLIB-IO-PATH-FN-019: Path.forEachDirectoryEntry { action }
+
+/// Path.forEachDirectoryEntry(glob: String = "*", action: (Path) -> Unit): Unit
+///
+/// Lists direct children of this directory, filters them by `glob`, and calls
+/// `action` once for each matched entry.
+///
+/// `globRaw == 0` selects the default `"*"` pattern (all entries).
+@_cdecl("kk_path_forEachDirectoryEntry")
+public func kk_path_forEachDirectoryEntry(
+    _ pathRaw: Int,
+    _ globRaw: Int,
+    _ actionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\\(runtimePanicDiagnosticCode)]: kk_path_forEachDirectoryEntry received invalid Path handle")
+    }
+    let glob = globRaw == 0 ? "*" : (pathStringValue(from: globRaw) ?? "*")
+    guard let rawEntries = try? FileManager.default.contentsOfDirectory(atPath: path.pathString) else {
+        return 0
+    }
+    let matched = glob == "*" ? rawEntries : rawEntries.filter { pathMatchesGlob($0, glob) }
+    for entry in matched {
+        let childPath = (path.pathString as NSString).appendingPathComponent(entry)
+        let entryRaw = registerRuntimeObject(RuntimePathBox(childPath))
+        var thrown = 0
+        _ = kk_function_invoke(actionRaw, entryRaw, &thrown)
+        if thrown != 0 {
+            outThrown?.pointee = thrown
+            return 0
+        }
+    }
+    return 0
+}
+
+/// Default-glob variant of `kk_path_forEachDirectoryEntry` (matches all entries).
+@_cdecl("kk_path_forEachDirectoryEntry_default")
+public func kk_path_forEachDirectoryEntry_default(
+    _ pathRaw: Int,
+    _ actionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    kk_path_forEachDirectoryEntry(pathRaw, 0, actionRaw, outThrown)
+}
+
 // MARK: - STDLIB-IO-PATH-FN-074: Path.visitFileTree(maxDepth, followLinks, builderAction)
 
 final class RuntimeFileVisitorBox {
