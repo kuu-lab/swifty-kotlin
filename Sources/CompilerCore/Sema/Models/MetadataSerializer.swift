@@ -139,6 +139,13 @@ final class MetadataEncoder {
                 if !includeNonPublic && symbol.visibility != .public {
                     return false
                 }
+                // Synthetic symbols are always re-registered by HeaderHelpers in every
+                // compilation context. Exporting them to kklib would cause downstream
+                // contexts to skip re-registration (due to the guard-exists checks),
+                // resulting in type-incompatible stale symbols and SEMA-0002 errors.
+                if !includeNonPublic && symbol.flags.contains(.synthetic) {
+                    return false
+                }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
