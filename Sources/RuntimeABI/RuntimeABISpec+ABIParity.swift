@@ -427,14 +427,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_future_result", parameters: [
             p("futureHandle", .intptr),
         ]),
-        abiParitySpec("kk_hexformat_prefix", parameters: [
-            p("formatRaw", .intptr),
-            p("prefixRaw", .intptr),
-        ]),
-        abiParitySpec("kk_hexformat_suffix", parameters: [
-            p("formatRaw", .intptr),
-            p("suffixRaw", .intptr),
-        ]),
         abiParitySpec("kk_http_body_handlers_ofString", parameters: [
             p("bodyHandlersRaw", .intptr),
         ]),
@@ -675,17 +667,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_match_result_destructured_component9", parameters: [
             p("destructuredRaw", .intptr),
         ]),
-        abiParitySpec("kk_math_e"),
-        abiParitySpec("kk_math_pi"),
-
-        abiParitySpec("kk_mem_scope_alloc", parameters: [
-            p("scopeHandle", .intptr),
-            p("byteCount", .intptr),
-        ]),
-        abiParitySpec("kk_mem_scope_enter"),
-        abiParitySpec("kk_mem_scope_exit", parameters: [
-            p("handle", .intptr),
-        ]),
         abiParitySpec("kk_mutable_shared_flow_create", parameters: [
             p("replay", .intptr),
         ]),
@@ -707,9 +688,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_mutable_state_flow_try_emit", parameters: [
             p("handle", .intptr),
             p("value", .intptr),
-        ]),
-        abiParitySpec("kk_native_alloc_bytes", parameters: [
-            p("byteCount", .intptr),
         ]),
         abiParitySpec("kk_native_heap_alloc", parameters: [
             p("byteCount", .intptr),

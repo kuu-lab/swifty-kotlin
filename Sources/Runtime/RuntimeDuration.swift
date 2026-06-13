@@ -1055,19 +1055,3 @@ public func kk_timedvalue_duration(_ timedValueRaw: Int) -> Int {
     }
     return box.duration
 }
-
-@_cdecl("kk_timedvalue_toString")
-public func kk_timedvalue_toString(_ timedValueRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: timedValueRaw),
-          let box = tryCast(ptr, to: RuntimeTimedValueBox.self) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_timedvalue_toString received invalid TimedValue handle")
-    }
-    let valueStr = runtimeElementToString(box.value)
-    let durationStrHandle = kk_duration_toString(box.duration)
-    let durationStr = runtimeElementToString(durationStrHandle)
-    let result = "TimedValue(value=\(valueStr), duration=\(durationStr))"
-    let utf8 = Array(result.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
