@@ -107,6 +107,8 @@ extension CallLowerer {
             switch memberName {
             case "flatMapIndexed":
                 return interner.intern("kk_list_flatMapIndexed")
+            // MIGRATION-COL-006: Kotlin source at Stdlib/kotlin/collections/ListSortOrdering.kt.
+            // These fallback routes remain until RF-STDLIB-004+ wires the Kotlin source in.
             case "sorted":
                 if collectionElementPrimitiveCompareKind(of: nonNullReceiverType, sema: sema) != nil {
                     return interner.intern("kk_list_sorted_primitive")
