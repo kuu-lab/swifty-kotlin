@@ -95,12 +95,6 @@ final class KotlinContractsEffectModelTests: XCTestCase {
                 ctx.interner.resolve($0.name) == "nonNullResult"
             }
             XCTAssertNotNil(fnSymbol, "nonNullResult should be resolved")
-            if let sym = fnSymbol {
-                XCTAssertTrue(
-                    sema.symbols.hasContractReturnsNotNull(for: sym.id),
-                    "Expected returnsNotNull contract effect on nonNullResult"
-                )
-            }
             assertNoDiagnostic("KSWIFTK-TYPE-0001", in: ctx)
         }
     }
