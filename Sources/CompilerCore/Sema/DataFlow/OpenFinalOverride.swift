@@ -14,6 +14,7 @@ struct OpenFinalOverrideContext {
     let types: TypeSystem
     let diagnostics: DiagnosticEngine
     let interner: StringInterner
+    let compilationModuleFQN: InternedString
 }
 
 extension DataFlowSemaPhase {
@@ -23,7 +24,8 @@ extension DataFlowSemaPhase {
         bindings: BindingTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        compilationModuleName: String
     ) {
         let ctx = OpenFinalOverrideContext(
             ast: ast,
@@ -31,7 +33,8 @@ extension DataFlowSemaPhase {
             bindings: bindings,
             types: types,
             diagnostics: diagnostics,
-            interner: interner
+            interner: interner,
+            compilationModuleFQN: interner.intern(compilationModuleName)
         )
         for file in ast.sortedFiles {
             for declID in file.topLevelDecls {
@@ -272,7 +275,6 @@ extension DataFlowSemaPhase {
                     memberRange: memberMeta.range,
                     ownerSymbol: symbol,
                     returnType: memberMeta.returnType,
-                    visibility: memberMeta.visibility,
                     ctx: ctx
                 )
                 validateAbstractOverrideConstraints(
@@ -374,13 +376,8 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ctx: OpenFinalOverrideContext
     ) {
-        // STDLIB-INHERIT-018: Validate visibility constraints in inheritance hierarchy
+        guard memberMeta.hasOverride else { return }
 
-        guard memberMeta.hasOverride else { return } // Only check overrides
-
-        let memberName = ctx.interner.resolve(memberMeta.name)
-
-        // Find the parent member being overridden
         let parent = findInheritedMember(
             named: memberMeta.name,
             for: ownerSymbol,
@@ -389,42 +386,14 @@ extension DataFlowSemaPhase {
         guard let parent else { return }
         guard let parentSym = ctx.symbols.symbol(parent.memberID) else { return }
 
-        // Rule 1: Cannot override with less visibility
-        if !isVisibilityAllowed(childVisibility: memberMeta.visibility, parentVisibility: parentSym.visibility) {
-            let parentVisibility = visibilityToString(parentSym.visibility)
-            let childVisibility = visibilityToString(memberMeta.visibility)
-            let parentName = ctx.interner.resolve(parent.ownerName)
-
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-VISIBILITY",
-                "'\(memberName)' cannot override '\(parentName).\(memberName)' because it has \(childVisibility) visibility, but parent has \(parentVisibility) visibility.",
-                range: memberMeta.range
-            )
-        }
-
-        // Rule 2: private members cannot be overridden (shouldn't reach here due to lookup)
-        if parentSym.visibility == .private {
-            let parentName = ctx.interner.resolve(parent.ownerName)
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-VISIBILITY",
-                "'\(memberName)' cannot override private member '\(parentName).\(memberName)'. Private members are not accessible for overriding.",
-                range: memberMeta.range
-            )
-        }
-    }
-
-    private func isVisibilityAllowed(childVisibility: Visibility, parentVisibility: Visibility) -> Bool {
-        // In Kotlin, child visibility must be the same or more permissive than parent
-        switch parentVisibility {
-        case .private:
-            return childVisibility == .private
-        case .protected:
-            return childVisibility == .protected || childVisibility == .public || childVisibility == .internal
-        case .internal:
-            return childVisibility == .internal || childVisibility == .public
-        case .public:
-            return childVisibility == .public
-        }
+        validateVisibilityExpansion(
+            childVisibility: memberMeta.visibility,
+            childOwnerSymbol: ownerSymbol,
+            parentSymbol: parentSym,
+            memberName: memberMeta.name,
+            memberRange: memberMeta.range,
+            ctx: ctx
+        )
     }
 
     private func visibilityToString(_ visibility: Visibility) -> String {
@@ -625,7 +594,6 @@ extension DataFlowSemaPhase {
         memberRange: SourceRange,
         ownerSymbol: SymbolID,
         returnType: TypeID?,
-        visibility: Visibility,
         ctx: OpenFinalOverrideContext
     ) {
         let parent = findInheritedMember(
@@ -657,15 +625,6 @@ extension DataFlowSemaPhase {
                 memberRange: memberRange,
                 ownerSymbol: ownerSymbol,
                 parentSymbol: parentSym,
-                ctx: ctx
-            )
-
-            // Check visibility expansion
-            validateVisibilityExpansion(
-                childVisibility: visibility,
-                parentSymbol: parentSym,
-                memberName: memberName,
-                memberRange: memberRange,
                 ctx: ctx
             )
 
@@ -896,6 +855,7 @@ extension DataFlowSemaPhase {
 
     private func validateVisibilityExpansion(
         childVisibility: Visibility,
+        childOwnerSymbol: SymbolID,
         parentSymbol: SemanticSymbol,
         memberName: InternedString,
         memberRange: SourceRange,
@@ -907,17 +867,41 @@ extension DataFlowSemaPhase {
 
         // Rule 1: Basic visibility hierarchy check
         if !isVisibilityExpansionAllowed(child: childVisibility, parent: parentVisibility) {
-            let name = ctx.interner.resolve(memberName)
-            let ownerName = ctx.interner.resolve(parentSymbol.name)
-            let childVisStr = visibilityToString(childVisibility)
-            let parentVisStr = visibilityToString(parentVisibility)
-
-            ctx.diagnostics.error(
-                "KSWIFTK-SEMA-VISIBILITY",
-                "'\(name)' cannot override '\(ownerName).\(name)' because it has \(childVisStr) visibility, which is more restrictive than the \(parentVisStr) visibility of the overridden member.",
-                range: memberRange
+            // Kotlin permits narrowing to `internal` within the same module.
+            let sameModule = areSymbolsInSameModule(
+                childOwnerSymbol,
+                parentSymbol.id,
+                ctx: ctx
             )
-            return
+            let isSameModuleInternalNarrowing = sameModule
+                && childVisibility == .internal
+                && (parentVisibility == .public || parentVisibility == .protected)
+
+            if !isSameModuleInternalNarrowing {
+                let name = ctx.interner.resolve(memberName)
+                let ownerName = ctx.interner.resolve(parentSymbol.name)
+
+                if !sameModule,
+                   childVisibility == .internal,
+                   parentVisibility == .public || parentVisibility == .protected {
+                    ctx.diagnostics.error(
+                        "KSWIFTK-SEMA-VISIBILITY-MODULE",
+                        "'\(name)' cannot override '\(ownerName).\(name)' with internal visibility because the overridden member is declared in another module.",
+                        range: memberRange
+                    )
+                    return
+                }
+
+                let childVisStr = visibilityToString(childVisibility)
+                let parentVisStr = visibilityToString(parentVisibility)
+
+                ctx.diagnostics.error(
+                    "KSWIFTK-SEMA-VISIBILITY",
+                    "'\(name)' cannot override '\(ownerName).\(name)' because it has \(childVisStr) visibility, which is more restrictive than the \(parentVisStr) visibility of the overridden member.",
+                    range: memberRange
+                )
+                return
+            }
         }
 
         // Rule 2: Special handling for interface members
@@ -935,11 +919,11 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Rule 3: Module boundary considerations (simplified)
-        // In a full implementation, this would check if parent and child are in different modules
+        // Rule 3: Module boundary visibility rules
         validateModuleBoundaryCompatibility(
             childVisibility: childVisibility,
-            parentVisibility: parentVisibility,
+            childOwnerSymbol: childOwnerSymbol,
+            parentSymbol: parentSymbol,
             memberName: memberName,
             memberRange: memberRange,
             ctx: ctx
@@ -948,29 +932,69 @@ extension DataFlowSemaPhase {
 
     private func validateModuleBoundaryCompatibility(
         childVisibility: Visibility,
-        parentVisibility: Visibility,
+        childOwnerSymbol: SymbolID,
+        parentSymbol: SemanticSymbol,
         memberName: InternedString,
         memberRange: SourceRange,
         ctx: OpenFinalOverrideContext
     ) {
-        // Simplified module boundary check
-        // In a full implementation, this would compare package/module FQNames
+        guard let childModule = resolveModuleFQN(for: childOwnerSymbol, ctx: ctx),
+              let parentModule = resolveModuleFQN(for: parentSymbol.id, ctx: ctx)
+        else {
+            return
+        }
 
-        // For now, implement conservative rules:
-        // - internal members can only be overridden within the same module
-        // - protected members have special cross-module rules
+        guard childModule != parentModule else {
+            return
+        }
 
         let name = ctx.interner.resolve(memberName)
+        let parentVisibility = parentSymbol.visibility
 
-        if parentVisibility == .internal && childVisibility != .internal && childVisibility != .public {
-            // This would need actual module comparison in a full implementation
-            // For now, allow it with a warning
-            ctx.diagnostics.warning(
+        if parentVisibility == .internal {
+            ctx.diagnostics.error(
                 "KSWIFTK-SEMA-VISIBILITY-MODULE",
-                "Overriding internal member '\(name)' with different visibility may cause issues across module boundaries.",
+                "'\(name)' cannot override internal member from another module.",
+                range: memberRange
+            )
+            return
+        }
+
+        if childVisibility == .internal,
+           parentVisibility == .public || parentVisibility == .protected {
+            ctx.diagnostics.error(
+                "KSWIFTK-SEMA-VISIBILITY-MODULE",
+                "'\(name)' cannot override '\(ctx.interner.resolve(parentSymbol.name)).\(name)' with internal visibility because the overridden member is declared in another module.",
                 range: memberRange
             )
         }
+    }
+
+    private func resolveModuleFQN(
+        for symbolID: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> InternedString? {
+        var current: SymbolID? = symbolID
+        while let id = current {
+            if let module = ctx.symbols.moduleFQN(for: id) {
+                return module
+            }
+            current = ctx.symbols.parentSymbol(for: id)
+        }
+        return nil
+    }
+
+    private func areSymbolsInSameModule(
+        _ lhs: SymbolID,
+        _ rhs: SymbolID,
+        ctx: OpenFinalOverrideContext
+    ) -> Bool {
+        guard let lhsModule = resolveModuleFQN(for: lhs, ctx: ctx),
+              let rhsModule = resolveModuleFQN(for: rhs, ctx: ctx)
+        else {
+            return false
+        }
+        return lhsModule == rhsModule
     }
 
     private func isVisibilityExpansionAllowed(child: Visibility, parent: Visibility) -> Bool {

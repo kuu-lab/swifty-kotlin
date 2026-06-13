@@ -15,7 +15,7 @@ extension LibraryMetadataCacheBehaviorTests {
         try "symbols=0".write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
 
         let cache = LibraryMetadataCache()
-        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: libDir.appendingPathComponent("metadata.bin").path, inlineKIRDir: nil, isValid: true)
+        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: libDir.appendingPathComponent("metadata.bin").path, inlineKIRDir: nil, moduleName: "TestMod", isValid: true)
         let target = TargetTriple.hostDefault()
         cache.cacheManifestInfo(info, libraryDir: libDir.path, target: target)
 
@@ -39,7 +39,7 @@ extension LibraryMetadataCacheBehaviorTests {
         try "{}".write(to: libDir2.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
 
         let cache = LibraryMetadataCache()
-        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: "/some/path", inlineKIRDir: nil, isValid: true)
+        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: "/some/path", inlineKIRDir: nil, moduleName: "TestMod", isValid: true)
         let target = TargetTriple.hostDefault()
         cache.cacheManifestInfo(info, libraryDir: libDir1.path, target: target)
 
@@ -57,7 +57,7 @@ extension LibraryMetadataCacheBehaviorTests {
         try "{}".write(to: manifestPath, atomically: true, encoding: .utf8)
 
         let cache = LibraryMetadataCache()
-        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: "/some/path", inlineKIRDir: nil, isValid: true)
+        let info = DataFlowSemaPhase.LibraryManifestInfo(metadataPath: "/some/path", inlineKIRDir: nil, moduleName: "TestMod", isValid: true)
         let target = TargetTriple.hostDefault()
         cache.cacheManifestInfo(info, libraryDir: libDir.path, target: target)
 

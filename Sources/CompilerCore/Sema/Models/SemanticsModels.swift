@@ -398,6 +398,7 @@ public final class SymbolTable {
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
@@ -889,6 +890,14 @@ public final class SymbolTable {
 
     public func sourceFileID(for symbol: SymbolID) -> FileID? {
         sourceFileIDs[symbol]
+    }
+
+    public func setModuleFQN(_ moduleFQN: InternedString, for symbol: SymbolID) {
+        moduleFQNames[symbol] = moduleFQN
+    }
+
+    public func moduleFQN(for symbol: SymbolID) -> InternedString? {
+        moduleFQNames[symbol]
     }
 
     public func setAnnotations(_ annotations: [MetadataAnnotationRecord], for symbol: SymbolID) {

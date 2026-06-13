@@ -211,6 +211,21 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Assigns the compilation module FQN to every source symbol that has a source file but no
+    /// explicit module (library imports set their own module FQN during `loadImportedLibrarySymbols`).
+    func assignCompilationModuleFQNames(
+        symbols: SymbolTable,
+        moduleName: String,
+        interner: StringInterner
+    ) {
+        let moduleFQN = interner.intern(moduleName)
+        for symbol in symbols.allSymbols() where symbols.moduleFQN(for: symbol.id) == nil {
+            if symbols.sourceFileID(for: symbol.id) != nil {
+                symbols.setModuleFQN(moduleFQN, for: symbol.id)
+            }
+        }
+    }
+
     func classSymbolKind(for classDecl: ClassDecl) -> SymbolKind {
         if classDecl.modifiers.contains(.annotationClass) {
             return .annotationClass
