@@ -99,6 +99,10 @@ jobs:
             test-filter: '^KSwiftKCLITests\\.'
             workers: "4"
             build-jobs: "4"
+          - test-target: LSPServerTests
+            test-filter: '^LSPServerTests\\.'
+            workers: "4"
+            build-jobs: "4"
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
