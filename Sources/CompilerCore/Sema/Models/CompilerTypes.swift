@@ -91,11 +91,6 @@ public struct CompilerOptions: Equatable {
     public var runtimeFlags: [String]
     public var diagnosticsFormat: DiagnosticsFormat
 
-    /// Additional search paths for Kotlin stdlib sources.
-    public var stdlibSearchPaths: [String]
-    /// Whether to include stdlib search paths during compilation.
-    public var includeStdlib: Bool
-
     /// Path to the incremental compilation cache directory, if any.
     /// Incremental compilation is enabled when either this is non-nil or the
     /// `incremental` frontend flag is set; when enabled and a cache is
@@ -118,8 +113,6 @@ public struct CompilerOptions: Equatable {
         frontendFlags: [String] = [],
         irFlags: [String] = [],
         runtimeFlags: [String] = [],
-        stdlibSearchPaths: [String] = [],
-        includeStdlib: Bool = true,
         incrementalCachePath: String? = nil,
         diagnosticsFormat: DiagnosticsFormat = .text
     ) {
@@ -138,8 +131,6 @@ public struct CompilerOptions: Equatable {
         self.frontendFlags = frontendFlags
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
-        self.stdlibSearchPaths = stdlibSearchPaths
-        self.includeStdlib = includeStdlib
         self.incrementalCachePath = incrementalCachePath
         self.diagnosticsFormat = diagnosticsFormat
     }

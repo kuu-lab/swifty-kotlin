@@ -7684,62 +7684,126 @@ private func runtimeStringPartition(
 
 @_cdecl("__string_replace")
 public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replace(strRaw, oldRaw, newRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let old = runtimeStringFromRaw(oldRaw),
+          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new))
 }
 
 @_cdecl("__string_replace_ignoreCase")
 public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_ignoreCase(strRaw, oldRaw, newRaw, ignoreCaseRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let old = runtimeStringFromRaw(oldRaw),
+          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new, options: options))
 }
 
 @_cdecl("__string_replace_char")
 public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    return kk_string_replace_char(strRaw, oldCharRaw, newCharRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let old = runtimeCharacterFromRaw(oldCharRaw)
+    let new = runtimeCharacterFromRaw(newCharRaw)
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new))
 }
 
 @_cdecl("__string_replace_char_ignoreCase")
 public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_char_ignoreCase(strRaw, oldCharRaw, newCharRaw, ignoreCaseRaw)
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let old = runtimeCharacterFromRaw(oldCharRaw)
+    let new = runtimeCharacterFromRaw(newCharRaw)
+    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
+    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new, options: options))
 }
 
 @_cdecl("__string_replaceFirst")
 public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let old = runtimeStringFromRaw(oldRaw),
+          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
+    guard !old.isEmpty, let range = source.range(of: old) else {
+        return runtimeMakeStringRaw(source)
+    }
+    return runtimeMakeStringRaw(source.replacingCharacters(in: range, with: new))
 }
 
 @_cdecl("__string_replaceRange")
 public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
+    outThrown?.pointee = 0
+    guard let source = runtimeStringFromRaw(strRaw),
+          let replacement = runtimeStringFromRaw(replacementRaw) else { return strRaw }
+    let scalars = Array(source.unicodeScalars)
+    let scalarCount = scalars.count
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        runtimeSetThrown(outThrown, message: "Invalid range for replaceRange")
+        return runtimeMakeStringRaw(source)
+    }
+    let first = range.first
+    let last = range.last
+    if first < 0 || first > scalarCount || last < -1 || last >= scalarCount || first > last + 1 {
+        runtimeSetThrown(outThrown, message: "StringIndexOutOfBoundsException: start=\(first), end=\(last + 1), length=\(scalarCount)")
+        return runtimeMakeStringRaw(source)
+    }
+    let endIndex = last + 1
+    let before = runtimeStringFromScalars(scalars[0 ..< first])
+    let after = runtimeStringFromScalars(scalars[endIndex...])
+    return runtimeMakeStringRaw(before + replacement + after)
 }
 
 @_cdecl("__string_removeRange")
 public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
+    outThrown?.pointee = 0
+    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
+    let scalars = Array(source.unicodeScalars)
+    let scalarCount = scalars.count
+    let start = startRaw
+    let end = endRaw
+    if start < 0 || start > scalarCount || end < 0 || end > scalarCount || start > end {
+        runtimeSetThrown(outThrown, message: "StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(scalarCount)")
+        return runtimeMakeStringRaw(source)
+    }
+    let before = runtimeStringFromScalars(scalars[0 ..< start])
+    let after = runtimeStringFromScalars(scalars[end...])
+    return runtimeMakeStringRaw(before + after)
 }
 
 @_cdecl("__string_removeRange_range")
 public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
+    outThrown?.pointee = 0
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        runtimeSetThrown(outThrown, message: "Invalid range for removeRange")
+        return runtimeMakeStringRaw(runtimeStringFromRaw(strRaw) ?? "")
+    }
+    return __string_removeRange(strRaw, range.first, range.last + 1, outThrown)
 }
 
 @_cdecl("__string_removePrefix")
 public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    return kk_string_removePrefix(strRaw, prefixRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let prefix = runtimeStringFromRaw(prefixRaw) else { return strRaw }
+    return runtimeMakeStringRaw(runtimeStringRemovingPrefix(source, prefix: prefix))
 }
 
 @_cdecl("__string_removeSuffix")
 public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSuffix(strRaw, suffixRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let suffix = runtimeStringFromRaw(suffixRaw) else { return strRaw }
+    return runtimeMakeStringRaw(runtimeStringRemovingSuffix(source, suffix: suffix))
 }
 
 @_cdecl("__string_removeSurrounding")
 public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
-    return kk_string_removeSurrounding(strRaw, delimiterRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let delimiter = runtimeStringFromRaw(delimiterRaw) else { return strRaw }
+    return runtimeMakeStringRaw(runtimeStringRemovingSurrounding(source, delimiter: delimiter))
 }
 
 @_cdecl("__string_removeSurrounding_pair")
 public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSurrounding_pair(strRaw, prefixRaw, suffixRaw)
+    guard let source = runtimeStringFromRaw(strRaw),
+          let prefix = runtimeStringFromRaw(prefixRaw),
+          let suffix = runtimeStringFromRaw(suffixRaw) else { return strRaw }
+    return runtimeMakeStringRaw(runtimeStringRemovingSurrounding(source, prefix: prefix, suffix: suffix))
 }
 
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
