@@ -442,8 +442,6 @@ extension CallTypeChecker {
     private static let inputOnlyExternalLinkNames: Set<String> = [
         "kk_string_zipTransform",
         "kk_string_zipWithNextTransform",
-        "kk_string_chunked_sequence_transform",
-        "kk_string_windowedSequence_transform",
     ]
 
     private func lambdaLiteralExpectedType(

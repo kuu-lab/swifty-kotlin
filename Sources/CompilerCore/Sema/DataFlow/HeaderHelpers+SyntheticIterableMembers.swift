@@ -525,112 +525,12 @@ extension DataFlowSemaPhase {
         let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName ?? kotlinCollectionsPkg + [interner.intern("List")]
         let listTypeParamFQName = listFQName + [interner.intern("E")]
         guard let listTypeParamSymbol = symbols.lookup(fqName: listTypeParamFQName) else { return }
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
+        _ = types.make(.typeParam(TypeParamType(
             symbol: listTypeParamSymbol,
             nullability: .nonNull
         )))
 
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: iterableInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let listReturnType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let listOfListReturnType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listReturnType)],
-            nullability: .nonNull
-        )))
-        let transformParameterType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.invariant(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let transformType = types.make(.functionType(FunctionType(
-            params: [transformParameterType],
-            returnType: types.anyType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let listOfAnyReturnType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(types.anyType)],
-            nullability: .nonNull
-        )))
-
-        func registerWindowedOverload(_ parameterTypes: [TypeID], externalLinkName: String) {
-            let existingOverloads = symbols.lookupAll(fqName: memberFQName)
-            let alreadyRegistered = existingOverloads.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes == parameterTypes
-                    && symbols.externalLinkName(for: symID) == externalLinkName
-            }
-            guard !alreadyRegistered else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: listOfListReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        func registerWindowedTransformOverload(_ parameterTypes: [TypeID]) {
-            let existingOverloads = symbols.lookupAll(fqName: memberFQName)
-            let alreadyRegistered = existingOverloads.contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else { return false }
-                return sig.parameterTypes == parameterTypes
-                    && symbols.externalLinkName(for: symID) == "kk_list_windowed_transform"
-            }
-            guard !alreadyRegistered else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_windowed_transform", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: parameterTypes,
-                    returnType: listOfAnyReturnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        registerWindowedOverload([types.intType], externalLinkName: "kk_list_windowed_default")
-        registerWindowedOverload([types.intType, types.intType], externalLinkName: "kk_list_windowed")
-        registerWindowedOverload(
-            [types.intType, types.intType, types.booleanType],
-            externalLinkName: "kk_list_windowed_partial"
-        )
-        registerWindowedTransformOverload([types.intType, transformType])
-        registerWindowedTransformOverload([types.intType, types.intType, transformType])
-        registerWindowedTransformOverload([types.intType, types.intType, types.booleanType, transformType])
+        // List windowed synthetic stubs are now registered in HeaderHelpers+SyntheticListTransformMembers.swift
     }
 
     /// Register `Iterable<E>.firstNotNullOf(transform)` (STDLIB-COL-HOF-001).

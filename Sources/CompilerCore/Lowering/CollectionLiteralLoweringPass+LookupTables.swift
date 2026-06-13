@@ -588,6 +588,8 @@ struct CollectionLiteralLookupTables {
     let indexOfFirstName: InternedString
     let indexOfLastName: InternedString
     let chunkedName: InternedString
+    // List windowed uses Kotlin stdlib source implementation (RF-STDLIB-005)
+    // but Range.windowed still uses Swift runtime
     let windowedName: InternedString
     let sortedDescendingName: InternedString
     let sortedByDescendingName: InternedString
@@ -1392,6 +1394,8 @@ struct CollectionLiteralLookupTables {
         indexOfFirstName = interner.intern("indexOfFirst")
         indexOfLastName = interner.intern("indexOfLast")
         chunkedName = interner.intern("chunked")
+        // List windowed uses Kotlin stdlib source implementation (RF-STDLIB-005)
+        // but Range.windowed still uses Swift runtime
         windowedName = interner.intern("windowed")
         sortedDescendingName = interner.intern("sortedDescending")
         sortedByDescendingName = interner.intern("sortedByDescending")

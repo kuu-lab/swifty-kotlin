@@ -401,16 +401,6 @@ extension CallLowerer {
                 )
             case "sortedArrayWith":
                 return interner.intern("kk_array_sortedArrayWith")
-            case "fold":
-                return interner.intern("kk_array_fold")
-            case "foldIndexed":
-                return interner.intern("kk_array_foldIndexed")
-            case "reduce":
-                return interner.intern("kk_array_reduce")
-            case "reduceIndexed":
-                return interner.intern("kk_array_reduceIndexed")
-            case "reduceOrNull":
-                return interner.intern("kk_array_reduceOrNull")
             case "find":
                 return interner.intern("kk_array_find")
             case "findLast":
@@ -780,7 +770,16 @@ extension CallLowerer {
                     ? "kk_sequence_chunked_transform"
                     : "kk_sequence_chunked")
             case interner.intern("windowed"):
-                return interner.intern("kk_sequence_windowed")
+                // String/CharSequence.windowed uses Swift runtime (kk_string_windowedSequence_*)
+                // List.windowed uses Swift runtime (kk_list_windowed_*)
+                // Only dispatch to sequence runtime for non-String, non-List receivers
+                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+                if !sema.types.isSubtype(nonNullReceiverType, sema.types.stringType),
+                   !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
+                {
+                    return interner.intern("kk_sequence_windowed")
+                }
+                return nil
             case interner.intern("onEach"):
                 return interner.intern("kk_sequence_onEach")
             case interner.intern("onEachIndexed"):

@@ -3216,246 +3216,250 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-316: String.chunked / String.windowed ---
         // chunked(size): List<String> migrated to Stdlib/kotlin/text/StringSplitJoin.kt (RF-STDLIB-005)
+        // chunkedSequence synthetic stub removed - now implemented in Kotlin stdlib source
 
-        for receiverType in [charSequenceType, stringType] {
-            registerSyntheticStringExtensionFunction(
-                named: "chunkedSequence",
-                externalLinkName: "kk_string_chunked_sequence",
-                receiverType: receiverType,
-                parameters: [
-                    ("size", intType, false, false),
-                ],
-                returnType: sequenceStringType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // for receiverType in [charSequenceType, stringType] {
+        //     registerSyntheticStringExtensionFunction(
+        //         named: "chunkedSequence",
+        //         externalLinkName: "kk_string_chunked_sequence",
+        //         receiverType: receiverType,
+        //         parameters: [
+        //             ("size", intType, false, false),
+        //         ],
+        //         returnType: sequenceStringType,
+        //         packageFQName: kotlinTextPkg,
+        //         symbols: symbols,
+        //         interner: interner
+        //     )
+        // }
 
-        do {
-            let functionName = interner.intern("chunkedSequence")
-            let functionFQName = kotlinTextPkg + [functionName]
-            let rName = interner.intern("R")
-            let rFQName = functionFQName + [rName]
-            let rSymbol: SymbolID = if let existing = symbols.lookup(fqName: rFQName) {
-                existing
-            } else {
-                symbols.define(
-                    kind: .typeParameter,
-                    name: rName,
-                    fqName: rFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: []
-                )
-            }
-            let rType = types.make(.typeParam(TypeParamType(
-                symbol: rSymbol,
-                nullability: .nonNull
-            )))
-            let transformType = types.make(.functionType(FunctionType(
-                params: [charSequenceType],
-                returnType: rType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let sequenceRType = makeSequenceType(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                elementType: rType
-            )
-            for receiverType in [charSequenceType, stringType] {
-                guard !symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else {
-                        return false
-                    }
-                    return signature.receiverType == receiverType
-                        && signature.parameterTypes == [intType, transformType]
-                }) else {
-                    continue
-                }
-                let functionSymbol = symbols.define(
-                    kind: .function,
-                    name: functionName,
-                    fqName: functionFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .inlineFunction]
-                )
-                if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                    symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-                }
-                symbols.setExternalLinkName("kk_string_chunked_sequence_transform", for: functionSymbol)
-                let sizeParameter = symbols.define(
-                    kind: .valueParameter,
-                    name: interner.intern("size"),
-                    fqName: functionFQName + [interner.intern("size")],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                let transformParameter = symbols.define(
-                    kind: .valueParameter,
-                    name: interner.intern("transform"),
-                    fqName: functionFQName + [interner.intern("transform")],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(functionSymbol, for: sizeParameter)
-                symbols.setParentSymbol(functionSymbol, for: transformParameter)
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: [intType, transformType],
-                        returnType: sequenceRType,
-                        isSuspend: false,
-                        valueParameterSymbols: [sizeParameter, transformParameter],
-                        valueParameterHasDefaultValues: [false, false],
-                        valueParameterIsVararg: [false, false],
-                        typeParameterSymbols: [rSymbol]
-                    ),
-                    for: functionSymbol
-                )
-            }
-        }
+        // chunkedSequence transform synthetic stub removed - now implemented in Kotlin stdlib source
+        // do {
+        //     let functionName = interner.intern("chunkedSequence")
+        //     let functionFQName = kotlinTextPkg + [functionName]
+        //     let rName = interner.intern("R")
+        //     let rFQName = functionFQName + [rName]
+        //     let rSymbol: SymbolID = if let existing = symbols.lookup(fqName: rFQName) {
+        //         existing
+        //     } else {
+        //         symbols.define(
+        //             kind: .typeParameter,
+        //             name: rName,
+        //             fqName: rFQName,
+        //             declSite: nil,
+        //             visibility: .private,
+        //             flags: []
+        //         )
+        //     }
+        //     let rType = types.make(.typeParam(TypeParamType(
+        //         symbol: rSymbol,
+        //         nullability: .nonNull
+        //     )))
+        //     let transformType = types.make(.functionType(FunctionType(
+        //         params: [charSequenceType],
+        //         returnType: rType,
+        //         isSuspend: false,
+        //         nullability: .nonNull
+        //     )))
+        //     let sequenceRType = makeSequenceType(
+        //         symbols: symbols,
+        //         types: types,
+        //         interner: interner,
+        //         elementType: rType
+        //     )
+        //     for receiverType in [charSequenceType, stringType] {
+        //         guard !symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
+        //             guard let signature = symbols.functionSignature(for: symbolID) else {
+        //                 return false
+        //             }
+        //             return signature.receiverType == receiverType
+        //                 && signature.parameterTypes == [intType, transformType]
+        //         }) else {
+        //             continue
+        //         }
+        //         let functionSymbol = symbols.define(
+        //             kind: .function,
+        //             name: functionName,
+        //             fqName: functionFQName,
+        //             declSite: nil,
+        //             visibility: .public,
+        //             flags: [.synthetic, .inlineFunction]
+        //         )
+        //         if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
+        //             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
+        //         }
+        //         symbols.setExternalLinkName("kk_string_chunked_sequence_transform", for: functionSymbol)
+        //         let sizeParameter = symbols.define(
+        //             kind: .valueParameter,
+        //             name: interner.intern("size"),
+        //             fqName: functionFQName + [interner.intern("size")],
+        //             declSite: nil,
+        //             visibility: .private,
+        //             flags: [.synthetic]
+        //         )
+        //         let transformParameter = symbols.define(
+        //             kind: .valueParameter,
+        //             name: interner.intern("transform"),
+        //             fqName: functionFQName + [interner.intern("transform")],
+        //             declSite: nil,
+        //             visibility: .private,
+        //             flags: [.synthetic]
+        //         )
+        //         symbols.setParentSymbol(functionSymbol, for: sizeParameter)
+        //         symbols.setParentSymbol(functionSymbol, for: transformParameter)
+        //         symbols.setFunctionSignature(
+        //             FunctionSignature(
+        //                 receiverType: receiverType,
+        //                 parameterTypes: [intType, transformType],
+        //                 returnType: sequenceRType,
+        //                 isSuspend: false,
+        //                 valueParameterSymbols: [sizeParameter, transformParameter],
+        //                 valueParameterHasDefaultValues: [false, false],
+        //                 valueParameterIsVararg: [false, false],
+        //                 typeParameterSymbols: [rSymbol]
+        //             ),
+        //             for: functionSymbol
+        //         )
+        //     }
+        // }
 
         // windowed(size, step, partialWindows): List<String> migrated to Stdlib/kotlin/text/StringSplitJoin.kt (RF-STDLIB-005)
+        // windowedSequence synthetic stubs removed - now implemented in Kotlin stdlib source
 
-        // --- STDLIB-TEXT-SEQ-003: CharSequence.windowedSequence(size, step, partialWindows) ---
+        // // --- STDLIB-TEXT-SEQ-003: CharSequence.windowedSequence(size, step, partialWindows) ---
 
-        registerSyntheticStringExtensionFunction(
-            named: "windowedSequence",
-            externalLinkName: "kk_string_windowedSequence_partial",
-            receiverType: charSequenceType,
-            parameters: [
-                ("size", intType, false, false),
-                ("step", intType, false, false),
-                ("partialWindows", boolType, false, false),
-            ],
-            returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // registerSyntheticStringExtensionFunction(
+        //     named: "windowedSequence",
+        //     externalLinkName: "kk_string_windowedSequence_partial",
+        //     receiverType: charSequenceType,
+        //     parameters: [
+        //         ("size", intType, false, false),
+        //         ("step", intType, false, false),
+        //         ("partialWindows", boolType, false, false),
+        //     ],
+        //     returnType: sequenceStringType,
+        //     packageFQName: kotlinTextPkg,
+        //     symbols: symbols,
+        //     interner: interner
+        // )
 
-        // --- STDLIB-TEXT-SEQ-004: CharSequence.windowedSequence(size, step, partialWindows, transform) ---
+        // // --- STDLIB-TEXT-SEQ-004: CharSequence.windowedSequence(size, step, partialWindows, transform) ---
+        // // windowedSequence transform synthetic stub removed - now implemented in Kotlin stdlib source
 
-        let windowedSequenceTransformFQName = kotlinTextPkg + [interner.intern("windowedSequence")]
-        let windowedSequenceRName = interner.intern("R")
-        let windowedSequenceRFQName = windowedSequenceTransformFQName + [windowedSequenceRName]
-        let windowedSequenceRSymbol: SymbolID = if let existing = symbols.lookup(fqName: windowedSequenceRFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: windowedSequenceRName,
-                fqName: windowedSequenceRFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let windowedSequenceRType = types.make(.typeParam(TypeParamType(
-            symbol: windowedSequenceRSymbol,
-            nullability: .nonNull
-        )))
-        let windowedSequenceTransformType = types.make(.functionType(FunctionType(
-            params: [charSequenceType],
-            returnType: windowedSequenceRType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        let windowedSequenceTransformReturnType = makeSequenceType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: windowedSequenceRType
-        )
-        let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
-            guard let sig = symbols.functionSignature(for: symID) else {
-                return false
-            }
-            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 4
-        }
-        if !hasWindowedSequenceTransform {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: interner.intern("windowedSequence"),
-                fqName: windowedSequenceTransformFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
-            }
-            symbols.setExternalLinkName("kk_string_windowedSequence_transform", for: memberSymbol)
+        // let windowedSequenceTransformFQName = kotlinTextPkg + [interner.intern("windowedSequence")]
+        // let windowedSequenceRName = interner.intern("R")
+        // let windowedSequenceRFQName = windowedSequenceTransformFQName + [windowedSequenceRName]
+        // let windowedSequenceRSymbol: SymbolID = if let existing = symbols.lookup(fqName: windowedSequenceRFQName) {
+        //     existing
+        // } else {
+        //     symbols.define(
+        //         kind: .typeParameter,
+        //         name: windowedSequenceRName,
+        //         fqName: windowedSequenceRFQName,
+        //         declSite: nil,
+        //         visibility: .private,
+        //         flags: []
+        //     )
+        // }
+        // let windowedSequenceRType = types.make(.typeParam(TypeParamType(
+        //     symbol: windowedSequenceRSymbol,
+        //     nullability: .nonNull
+        // )))
+        // let windowedSequenceTransformType = types.make(.functionType(FunctionType(
+        //     params: [charSequenceType],
+        //     returnType: windowedSequenceRType,
+        //     isSuspend: false,
+        //     nullability: .nonNull
+        // )))
+        // let windowedSequenceTransformReturnType = makeSequenceType(
+        //     symbols: symbols,
+        //     types: types,
+        //     interner: interner,
+        //     elementType: windowedSequenceRType
+        // )
+        // let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
+        //     guard let sig = symbols.functionSignature(for: symID) else {
+        //         return false
+        //     }
+        //     return sig.receiverType == charSequenceType && sig.parameterTypes.count == 4
+        // }
+        // if !hasWindowedSequenceTransform {
+        //     let memberSymbol = symbols.define(
+        //         kind: .function,
+        //         name: interner.intern("windowedSequence"),
+        //         fqName: windowedSequenceTransformFQName,
+        //         declSite: nil,
+        //         visibility: .public,
+        //         flags: [.synthetic, .inlineFunction]
+        //     )
+        //     if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
+        //         symbols.setParentSymbol(packageSymbol, for: memberSymbol)
+        //     }
+        //     symbols.setExternalLinkName("kk_string_windowedSequence_transform", for: memberSymbol)
 
-            let sizeParamName = interner.intern("size")
-            let sizeParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: sizeParamName,
-                fqName: windowedSequenceTransformFQName + [sizeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: sizeParamSymbol)
+        //     let sizeParamName = interner.intern("size")
+        //     let sizeParamSymbol = symbols.define(
+        //         kind: .valueParameter,
+        //         name: sizeParamName,
+        //         fqName: windowedSequenceTransformFQName + [sizeParamName],
+        //         declSite: nil,
+        //         visibility: .private,
+        //         flags: [.synthetic]
+        //     )
+        //     symbols.setParentSymbol(memberSymbol, for: sizeParamSymbol)
 
-            let stepParamName = interner.intern("step")
-            let stepParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: stepParamName,
-                fqName: windowedSequenceTransformFQName + [stepParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: stepParamSymbol)
+        //     let stepParamName = interner.intern("step")
+        //     let stepParamSymbol = symbols.define(
+        //         kind: .valueParameter,
+        //         name: stepParamName,
+        //         fqName: windowedSequenceTransformFQName + [stepParamName],
+        //         declSite: nil,
+        //         visibility: .private,
+        //         flags: [.synthetic]
+        //     )
+        //     symbols.setParentSymbol(memberSymbol, for: stepParamSymbol)
 
-            let partialWindowsParamName = interner.intern("partialWindows")
-            let partialWindowsParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: partialWindowsParamName,
-                fqName: windowedSequenceTransformFQName + [partialWindowsParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: partialWindowsParamSymbol)
+        //     let partialWindowsParamName = interner.intern("partialWindows")
+        //     let partialWindowsParamSymbol = symbols.define(
+        //         kind: .valueParameter,
+        //         name: partialWindowsParamName,
+        //         fqName: windowedSequenceTransformFQName + [partialWindowsParamName],
+        //         declSite: nil,
+        //         visibility: .private,
+        //         flags: [.synthetic]
+        //     )
+        //     symbols.setParentSymbol(memberSymbol, for: partialWindowsParamSymbol)
 
-            let transformParamName = interner.intern("transform")
-            let transformParamSymbol = symbols.define(
-                kind: .valueParameter,
-                name: transformParamName,
-                fqName: windowedSequenceTransformFQName + [transformParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
+        //     let transformParamName = interner.intern("transform")
+        //     let transformParamSymbol = symbols.define(
+        //         kind: .valueParameter,
+        //         name: transformParamName,
+        //         fqName: windowedSequenceTransformFQName + [transformParamName],
+        //         declSite: nil,
+        //         visibility: .private,
+        //         flags: [.synthetic]
+        //     )
+        //     symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
 
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: charSequenceType,
-                    parameterTypes: [intType, intType, boolType, windowedSequenceTransformType],
-                    returnType: windowedSequenceTransformReturnType,
-                    valueParameterSymbols: [
-                        sizeParamSymbol,
-                        stepParamSymbol,
-                        partialWindowsParamSymbol,
-                        transformParamSymbol,
-                    ],
-                    valueParameterHasDefaultValues: [false, false, false, false],
-                    valueParameterIsVararg: [false, false, false, false],
-                    typeParameterSymbols: [windowedSequenceRSymbol],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
-        }
+        //     symbols.setFunctionSignature(
+        //         FunctionSignature(
+        //             receiverType: charSequenceType,
+        //             parameterTypes: [intType, intType, boolType, windowedSequenceTransformType],
+        //             returnType: windowedSequenceTransformReturnType,
+        //             valueParameterSymbols: [
+        //                 sizeParamSymbol,
+        //                 stepParamSymbol,
+        //                 partialWindowsParamSymbol,
+        //                 transformParamSymbol,
+        //             ],
+        //             valueParameterHasDefaultValues: [false, false, false, false],
+        //             valueParameterIsVararg: [false, false, false, false],
+        //             typeParameterSymbols: [windowedSequenceRSymbol],
+        //             classTypeParameterCount: 0
+        //         ),
+        //         for: memberSymbol
+        //     )
+        // }
 
         // --- STDLIB-318: commonPrefixWith / commonSuffixWith migrated to StringComparison.kt (RF-STDLIB-004) ---
 

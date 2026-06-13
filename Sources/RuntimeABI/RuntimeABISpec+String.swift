@@ -2295,5 +2295,16 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowedList_partial",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .int32),
+                RuntimeABIParameter(name: "step", type: .int32),
+                RuntimeABIParameter(name: "partialWindows", type: .int32),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
     ]
 }
