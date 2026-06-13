@@ -2703,10 +2703,22 @@ public func kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_replaceIndentByMargin")
-public func kk_string_replaceIndentByMargin(_ strRaw: Int, _ newIndentRaw: Int, _ marginPrefixRaw: Int) -> Int {
+public func kk_string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let newIndent = runtimeStringFromRaw(newIndentRaw) ?? ""
     let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "marginPrefix must be non-blank string."
+        )
+        return runtimeMakeStringRaw("")
+    }
     return runtimeMakeStringRaw(
         runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
     )
@@ -3366,9 +3378,6 @@ private func runtimeReplaceIndentByMargin(
     newIndent: String,
     marginPrefix: String
 ) -> String {
-    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
-        fatalError("IllegalArgumentException: marginPrefix must be non-blank string.")
-    }
     let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
     guard !lines.isEmpty else {
         return ""
@@ -4593,8 +4602,13 @@ public func __string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
 }
 
 @_cdecl("__string_replaceIndentByMargin")
-public func __string_replaceIndentByMargin(_ strRaw: Int, _ newIndentRaw: Int, _ marginPrefixRaw: Int) -> Int {
-    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw)
+public func __string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw, outThrown)
 }
 
 @_cdecl("__string_format")

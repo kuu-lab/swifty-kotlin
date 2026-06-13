@@ -187,7 +187,6 @@ extension ABILoweringPass {
             interner.intern("kk_string_prependIndent"),
             interner.intern("kk_string_replaceIndent_default"),
             interner.intern("kk_string_replaceIndent"),
-            interner.intern("kk_string_replaceIndentByMargin"),
             interner.intern("kk_string_equalsIgnoreCase"),
             interner.intern("kk_string_iterable_toList"),
             interner.intern("kk_string_iterable_iterator"),
