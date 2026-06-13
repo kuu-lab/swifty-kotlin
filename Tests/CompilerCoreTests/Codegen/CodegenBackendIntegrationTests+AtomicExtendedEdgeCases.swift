@@ -354,14 +354,13 @@ extension CodegenBackendIntegrationTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicInteger
-        import java.util.concurrent.atomic.AtomicLong
         import kotlin.concurrent.atomics.asKotlinAtomic
 
         fun main() {
             val intAtomic = AtomicInteger(1).asKotlinAtomic()
-            val longAtomic = AtomicLong(2L).asKotlinAtomic()
+            val boolAtomic = AtomicBoolean(true).asKotlinAtomic()
             println(intAtomic.load())
-            println(longAtomic.load())
+            println(boolAtomic.load())
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -369,7 +368,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\ntrue\n")
         }
     }
 
