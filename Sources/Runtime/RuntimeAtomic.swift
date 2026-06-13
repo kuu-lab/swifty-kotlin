@@ -520,11 +520,6 @@ public func kk_atomic_bool_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
 }
 
-@_cdecl("kk_java_atomic_bool_asKotlinAtomic")
-public func kk_java_atomic_bool_asKotlinAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_bool_getAndUpdate")
 public func kk_atomic_bool_getAndUpdate(
     _ receiver: Int,
