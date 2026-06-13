@@ -97,14 +97,6 @@ fun main() {
     println(charA == charB)
     println(charA != charB)
     
-    // Char get operation (if supported)
-    println("=== Char Get Operation ===")
-    try {
-        println(charA.get(0))
-    } catch (e: Exception) {
-        println("Char.get not supported: ${e.message}")
-    }
-    
     // Additional edge cases
     println("=== Edge Cases ===")
     println(0 and 0)
