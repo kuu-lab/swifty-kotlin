@@ -2740,6 +2740,35 @@ public func kk_files_walk(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMu
     return registerRuntimeObject(RuntimeListBox(elements: paths))
 }
 
+/// Path.walk(vararg options: PathWalkOption) — STDLIB-IO-PATH-FN-039
+/// optionsRaw: List<PathWalkOption> handle (vararg は List として渡される)
+/// PathWalkOption ordinal: 0 = BREADTH_FIRST, 1 = FOLLOW_LINKS
+@_cdecl("kk_path_walk")
+public func kk_path_walk(_ pathRaw: Int, _ optionsRaw: Int) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_walk received invalid Path handle")
+    }
+    // optionsRaw は vararg List<PathWalkOption> — 現時点では FOLLOW_LINKS のみ意味を持つ
+    var followLinks = false
+    if let optList = runtimeListBox(from: optionsRaw) {
+        for elem in optList.elements {
+            if kk_unbox_int(elem) == 1 { followLinks = true }
+        }
+    }
+    var paths: [Int] = [registerRuntimeObject(RuntimePathBox(path.pathString))]
+    let opts: FileManager.DirectoryEnumerationOptions = followLinks ? [] : [.skipsSubdirectoryDescendants]
+    // FileManager.enumerator(atPath:) は symlink を自動追跡しないため followLinks は将来対応
+    _ = opts
+    if let enumerator = FileManager.default.enumerator(atPath: path.pathString) {
+        while let relativePath = enumerator.nextObject() as? String {
+            let fullPath = (path.pathString as NSString).appendingPathComponent(relativePath)
+            paths.append(registerRuntimeObject(RuntimePathBox(fullPath)))
+        }
+    }
+    // Sequence<Path> として RuntimeListBox で返す（既存の Sequence 実装に合わせる）
+    return registerRuntimeObject(RuntimeListBox(elements: paths))
+}
+
 /// Files.list(path) — lists direct children of a directory, returns List<Path>.
 @_cdecl("kk_files_list")
 public func kk_files_list(_ filesRaw: Int, _ pathRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
