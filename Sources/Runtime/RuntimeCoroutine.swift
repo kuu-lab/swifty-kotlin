@@ -3140,5 +3140,5 @@ public func kk_channel_send_suspending(_ handle: Int, _ value: Int, _ continuati
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send_suspending received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
-    return channel.send(resolvedValue, continuation: continuation)
+    return channel.send(resolvedValue, continuation: continuation).rawValue
 }
