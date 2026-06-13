@@ -303,15 +303,14 @@ extension CollectionLiteralLoweringPass {
         }
 
         // --- STDLIB-189: String HOF closureRaw injection ---
-        // String higher-order functions (filter, map, count, any, all, none)
-        // are called with args = [receiver, lambdaRef] but the runtime
-        // expects (strRaw, fnPtr, closureRaw, outThrown).  Insert the
-        // missing closureRaw=0 argument so the ABI lowering pass only
-        // needs to append the outThrown slot.
+        // String higher-order functions (count, any, all, none) are called with
+        // args = [receiver, lambdaRef] but the runtime expects
+        // (strRaw, fnPtr, closureRaw, outThrown).  Insert the missing closureRaw=0
+        // argument so the ABI lowering pass only needs to append the outThrown slot.
+        // filter and map are migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
+        // and no longer need closureRaw injection.
         if arguments.count == 2,
-           callee == lookup.kkStringFilterName
-            || callee == lookup.kkStringMapName
-            || callee == lookup.kkStringCountName
+           callee == lookup.kkStringCountName
             || callee == lookup.kkStringAnyName
             || callee == lookup.kkStringAllName
             || callee == lookup.kkStringNoneName
@@ -320,8 +319,6 @@ extension CollectionLiteralLoweringPass {
             let lambdaID = arguments[1]
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            let isStringResult = callee == lookup.kkStringFilterName
-                || callee == lookup.kkStringMapName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: callee,
@@ -330,9 +327,6 @@ extension CollectionLiteralLoweringPass {
                 canThrow: canThrow,
                 thrownResult: thrownResult
             ))
-            if isStringResult, let result {
-                state.stringExprIDs.insert(result.rawValue)
-            }
             return true
         }
 

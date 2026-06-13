@@ -2196,28 +2196,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: stringType
         )
-        registerSyntheticStringExtensionFunction(
-            named: "filter",
-            externalLinkName: "kk_string_filter",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // String.map returns List<R> in Kotlin; use (Char) -> Any transform
-        // and Any return type to allow arbitrary mapping.
-        registerSyntheticStringExtensionFunction(
-            named: "map",
-            externalLinkName: "kk_string_map",
-            receiverType: stringType,
-            parameters: [("transform", charToAnyType, false, false)],
-            returnType: types.anyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // filter, map — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
         registerSyntheticStringExtensionFunction(
             named: "count",
             externalLinkName: "kk_string_count",
@@ -2258,26 +2237,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "mapIndexed",
-            externalLinkName: "kk_string_mapIndexed",
-            receiverType: stringType,
-            parameters: [("transform", intCharToAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "mapNotNull",
-            externalLinkName: "kk_string_mapNotNull",
-            receiverType: stringType,
-            parameters: [("transform", charToNullableAnyType, false, false)],
-            returnType: listAnyType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // mapIndexed, mapNotNull — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
 
         // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
         let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
@@ -2406,57 +2366,8 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-TEXT-HOF-003: CharSequence.reduceRightIndexed(operation) ---
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightIndexed",
-            externalLinkName: "kk_string_reduceRightIndexed",
-            receiverType: charSequenceType,
-            parameters: [("operation", intCharCharToCharType, false, false)],
-            returnType: charType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-HOF-004: CharSequence.reduceRightIndexedOrNull(operation) ---
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightIndexedOrNull",
-            externalLinkName: "kk_string_reduceRightIndexedOrNull",
-            receiverType: charSequenceType,
-            parameters: [("operation", intCharCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-HOF-005: CharSequence.reduceRightOrNull(operation) ---
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightOrNull",
-            externalLinkName: "kk_string_reduceRightOrNull",
-            receiverType: charSequenceType,
-            parameters: [("operation", charCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
-        registerSyntheticStringExtensionFunction(
-            named: "reduceOrNull",
-            externalLinkName: "kk_string_reduceOrNull",
-            receiverType: charSequenceType,
-            parameters: [("operation", charCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // reduceRightIndexed, reduceRightIndexedOrNull, reduceRightOrNull, reduceOrNull
+        // — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
 
         // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
@@ -2502,57 +2413,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "filterIndexed",
-            externalLinkName: "kk_string_filterIndexed",
-            receiverType: stringType,
-            parameters: [("predicate", intCharToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "filterNot",
-            externalLinkName: "kk_string_filterNot",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "takeWhile",
-            externalLinkName: "kk_string_takeWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // --- STDLIB-TEXT-FN-081: CharSequence.takeLastWhile(predicate: (Char) -> Boolean): String ---
-        registerSyntheticStringExtensionFunction(
-            named: "takeLastWhile",
-            externalLinkName: "kk_string_takeLastWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "dropWhile",
-            externalLinkName: "kk_string_dropWhile",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // filterIndexed, filterNot, takeWhile, takeLastWhile, dropWhile, find, findLast
+        // — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
 
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
@@ -2604,27 +2466,6 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "find",
-            externalLinkName: "kk_string_find",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "findLast",
-            externalLinkName: "kk_string_findLast",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: nullableCharType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3699,27 +3540,7 @@ extension DataFlowSemaPhase {
         registerZipWithNextTransform(receiverType: stringType)
         registerZipWithNextTransform(receiverType: charSequenceType)
 
-        // --- String.partition ---
-        let pairStringStringType: TypeID
-        if let pairSymbol = symbols.lookup(fqName: pairFQName) {
-            pairStringStringType = types.make(.classType(ClassType(
-                classSymbol: pairSymbol,
-                args: [.out(stringType), .out(stringType)],
-                nullability: .nonNull
-            )))
-        } else {
-            pairStringStringType = types.anyType
-        }
-        registerSyntheticStringExtensionFunction(
-            named: "partition",
-            externalLinkName: "kk_string_partition",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: pairStringStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // partition — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
 
         // --- STDLIB-317: String.asSequence / asIterable ---
 

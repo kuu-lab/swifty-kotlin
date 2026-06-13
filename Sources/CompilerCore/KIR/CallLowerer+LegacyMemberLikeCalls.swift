@@ -1603,21 +1603,15 @@ extension CallLowerer {
                 || calleeStr == "chunkedSequence"
                 || calleeStr == "firstNotNullOf"
                 || calleeStr == "firstNotNullOfOrNull"
-                || calleeStr == "reduceOrNull"
-                || calleeStr == "reduceRightIndexed"
-                || calleeStr == "reduceRightIndexedOrNull"
-                || calleeStr == "reduceRightOrNull"
                 || calleeStr == "sumBy"
                 || calleeStr == "sumByDouble"
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                 || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
+                // reduceOrNull/reduceRightIndexed/reduceRightIndexedOrNull/reduceRightOrNull
+                // are migrated to BundledKotlinStdlib (MIGRATION-TEXT-008) — fall through.
                 if calleeStr == "firstNotNullOf"
                     || calleeStr == "firstNotNullOfOrNull"
-                    || calleeStr == "reduceOrNull"
-                    || calleeStr == "reduceRightIndexed"
-                    || calleeStr == "reduceRightIndexedOrNull"
-                    || calleeStr == "reduceRightOrNull"
                     || calleeStr == "sumBy"
                     || calleeStr == "sumByDouble"
                 {
@@ -1650,12 +1644,8 @@ extension CallLowerer {
                     let runtimeCallee = switch calleeStr {
                     case "firstNotNullOf": "kk_string_firstNotNullOf"
                     case "firstNotNullOfOrNull": "kk_string_firstNotNullOfOrNull"
-                    case "reduceOrNull": "kk_string_reduceOrNull"
-                    case "reduceRightIndexed": "kk_string_reduceRightIndexed"
-                    case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
                     case "sumBy": "kk_string_sumBy"
-                    case "sumByDouble": "kk_string_sumByDouble"
-                    default: "kk_string_reduceRightOrNull"
+                    default: "kk_string_sumByDouble"
                     }
                     instructions.append(.call(
                         symbol: nil,
@@ -1756,32 +1746,15 @@ extension CallLowerer {
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
                     ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
-                case "mapIndexed":
-                    ("kk_string_mapIndexed", [loweredReceiverID] + normalizedArgIDs)
-                case "mapNotNull":
-                    ("kk_string_mapNotNull", [loweredReceiverID] + normalizedArgIDs)
-                case "filterIndexed":
-                    ("kk_string_filterIndexed", [loweredReceiverID] + normalizedArgIDs)
-                case "filterNot":
-                    ("kk_string_filterNot", [loweredReceiverID] + normalizedArgIDs)
+                // mapIndexed, mapNotNull, filterIndexed, filterNot, takeWhile, takeLastWhile,
+                // dropWhile, find, findLast, partition — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
                 case "indexOfFirst":
                     ("kk_string_indexOfFirst", [loweredReceiverID] + normalizedArgIDs)
                 case "indexOfLast":
                     ("kk_string_indexOfLast", [loweredReceiverID] + normalizedArgIDs)
-                case "takeWhile":
-                    ("kk_string_takeWhile", [loweredReceiverID] + normalizedArgIDs)
-                case "takeLastWhile":
-                    ("kk_string_takeLastWhile", [loweredReceiverID] + normalizedArgIDs)
-                case "dropWhile":
-                    ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
+                // takeWhile, takeLastWhile, dropWhile — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
                 case "splitToSequence":
                     ("kk_string_splitToSequence", [loweredReceiverID] + normalizedArgIDs)
-                case "find":
-                    ("kk_string_find", [loweredReceiverID] + normalizedArgIDs)
-                case "findLast":
-                    ("kk_string_findLast", [loweredReceiverID] + normalizedArgIDs)
-                case "partition":
-                    ("kk_string_partition", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
                     ("kk_string_ifBlank", [loweredReceiverID] + normalizedArgIDs)
                 case "ifEmpty":
@@ -1837,7 +1810,6 @@ extension CallLowerer {
                     let stringHOFCanThrow = calleeStr == "replaceFirstChar"
                         || calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
-                        || calleeStr == "partition"
                         || calleeStr == "ifBlank"
                         || calleeStr == "ifEmpty"
                         || calleeStr == "trim"
@@ -1847,25 +1819,13 @@ extension CallLowerer {
                         || calleeStr == "drop"
                         || calleeStr == "takeLast"
                         || calleeStr == "dropLast"
-                    // Only `partition` captures the thrown result into a register so the
-                    // caller can inspect it.  All other HOFs propagate exceptions through
-                    // the standard thrown-channel codegen path (thrownResult == nil),
-                    // which emits an early return when the channel is non-zero.  Setting
-                    // thrownResult to non-nil for those HOFs would silently swallow the
-                    // exception instead of propagating it.
-                    let stringHOFThrownResult: KIRExprID? = calleeStr == "partition"
-                        ? arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
-                        )
-                        : nil
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(runtimeCall.callee),
                         arguments: runtimeCall.arguments,
                         result: result,
                         canThrow: stringHOFCanThrow,
-                        thrownResult: stringHOFThrownResult
+                        thrownResult: nil
                     ))
                     return result
                 }

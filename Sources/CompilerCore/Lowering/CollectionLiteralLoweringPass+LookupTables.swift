@@ -75,8 +75,7 @@ struct CollectionLiteralLookupTables {
     let kkStringIteratorName: InternedString
     let kkStringIteratorHasNextName: InternedString
     let kkStringIteratorNextName: InternedString
-    let kkStringFilterName: InternedString
-    let kkStringMapName: InternedString
+    // filter and map are migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
     let kkStringCountName: InternedString
     let kkStringAnyName: InternedString
     let kkStringAllName: InternedString
@@ -899,8 +898,7 @@ struct CollectionLiteralLookupTables {
         kkStringIteratorName = interner.intern("kk_string_iterator")
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
-        kkStringFilterName = interner.intern("kk_string_filter")
-        kkStringMapName = interner.intern("kk_string_map")
+        // kkStringFilterName and kkStringMapName removed (MIGRATION-TEXT-008)
         kkStringCountName = interner.intern("kk_string_count")
         kkStringAnyName = interner.intern("kk_string_any")
         kkStringAllName = interner.intern("kk_string_all")
@@ -1684,7 +1682,7 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceIndent_default"),
             interner.intern("kk_string_replaceIndent"),
             interner.intern("kk_string_replaceIndentByMargin"),
-            kkStringFilterName,
+            // kk_string_filter removed (MIGRATION-TEXT-008): String.filter now compiled via BundledKotlinStdlib
             interner.intern("kk_build_string"),
             interner.intern("kk_build_string_with_capacity"),
         ]

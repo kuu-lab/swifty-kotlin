@@ -138,5 +138,246 @@ fun ByteArray.decodeToString(startIndex: Int, endIndex: Int): String =
 
 fun ByteArray.decodeToString(startIndex: Int, endIndex: Int, throwOnInvalidSequence: Boolean): String =
     this.__kk_decodeToString_range_throw(startIndex, endIndex, throwOnInvalidSequence)
+// MIGRATION-TEXT-008: String HOF functions migrated from Swift cdecl to Kotlin source.
+
+fun String.filter(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (predicate(c)) sb.append(c)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.filterNot(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (!predicate(c)) sb.append(c)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.filterIndexed(predicate: (Int, Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (predicate(i, c)) sb.append(c)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.takeWhile(predicate: (Char) -> Boolean): String {
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (!predicate(c)) break
+        sb.append(c)
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.takeLastWhile(predicate: (Char) -> Boolean): String {
+    var i = length - 1
+    while (i >= 0) {
+        if (!predicate(this[i])) break
+        i -= 1
+    }
+    val sb = StringBuilder()
+    var j = i + 1
+    while (j < length) {
+        sb.append(this[j])
+        j += 1
+    }
+    return sb.toString()
+}
+
+fun String.dropWhile(predicate: (Char) -> Boolean): String {
+    var i = 0
+    while (i < length) {
+        if (!predicate(this[i])) break
+        i += 1
+    }
+    val sb = StringBuilder()
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.find(predicate: (Char) -> Boolean): Char? {
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i += 1
+    }
+    return null
+}
+
+fun String.findLast(predicate: (Char) -> Boolean): Char? {
+    var i = length - 1
+    while (i >= 0) {
+        val c = this[i]
+        if (predicate(c)) return c
+        i -= 1
+    }
+    return null
+}
+
+fun String.reduce(operation: (Char, Char) -> Char): Char {
+    if (isEmpty()) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var acc = this[0]
+    var i = 1
+    while (i < length) {
+        acc = operation(acc, this[i])
+        i += 1
+    }
+    return acc
+}
+
+fun String.reduceOrNull(operation: (Char, Char) -> Char): Char? {
+    if (isEmpty()) return null
+    var acc = this[0]
+    var i = 1
+    while (i < length) {
+        acc = operation(acc, this[i])
+        i += 1
+    }
+    return acc
+}
+
+fun String.reduceRightOrNull(operation: (Char, Char) -> Char): Char? {
+    if (isEmpty()) return null
+    var acc = this[length - 1]
+    var i = length - 2
+    while (i >= 0) {
+        acc = operation(this[i], acc)
+        i -= 1
+    }
+    return acc
+}
+
+fun String.reduceRightIndexed(operation: (Int, Char, Char) -> Char): Char {
+    if (isEmpty()) throw UnsupportedOperationException("Empty char sequence can't be reduced.")
+    var acc = this[length - 1]
+    var i = length - 2
+    while (i >= 0) {
+        acc = operation(i, this[i], acc)
+        i -= 1
+    }
+    return acc
+}
+
+fun String.reduceRightIndexedOrNull(operation: (Int, Char, Char) -> Char): Char? {
+    if (isEmpty()) return null
+    var acc = this[length - 1]
+    var i = length - 2
+    while (i >= 0) {
+        acc = operation(i, this[i], acc)
+        i -= 1
+    }
+    return acc
+}
+
+fun String.partition(predicate: (Char) -> Boolean): Pair<String, String> {
+    val matched = StringBuilder()
+    val unmatched = StringBuilder()
+    var i = 0
+    while (i < length) {
+        val c = this[i]
+        if (predicate(c)) matched.append(c) else unmatched.append(c)
+        i += 1
+    }
+    return Pair(matched.toString(), unmatched.toString())
+}
+
+fun <R> String.map(transform: (Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        result.add(transform(this[i]))
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.mapIndexed(transform: (Int, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        result.add(transform(i, this[i]))
+        i += 1
+    }
+    return result
+}
+
+fun <R : Any> String.mapNotNull(transform: (Char) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        val mapped = transform(this[i])
+        if (mapped != null) result.add(mapped)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.fold(initial: R, operation: (R, Char) -> R): R {
+    var acc = initial
+    var i = 0
+    while (i < length) {
+        acc = operation(acc, this[i])
+        i += 1
+    }
+    return acc
+}
+
+fun <R> String.foldIndexed(initial: R, operation: (Int, R, Char) -> R): R {
+    var acc = initial
+    var i = 0
+    while (i < length) {
+        acc = operation(i, acc, this[i])
+        i += 1
+    }
+    return acc
+}
+
+fun <R> String.flatMap(transform: (Char) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    var i = 0
+    while (i < length) {
+        for (item in transform(this[i])) {
+            result.add(item)
+        }
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.scan(initial: R, operation: (R, Char) -> R): List<R> {
+    val result = mutableListOf<R>()
+    result.add(initial)
+    var acc = initial
+    var i = 0
+    while (i < length) {
+        acc = operation(acc, this[i])
+        result.add(acc)
+        i += 1
+    }
+    return result
+}
+
+fun <R> String.runningFold(initial: R, operation: (R, Char) -> R): List<R> =
+    scan(initial, operation)
 """
 }
