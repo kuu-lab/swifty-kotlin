@@ -7,7 +7,6 @@ a.out
 firebase-debug.log
 .DS_Store
 .build-codex-run/
-.bench_results/
 .artifacts/
 .air/
 .claude/settings.local.json
