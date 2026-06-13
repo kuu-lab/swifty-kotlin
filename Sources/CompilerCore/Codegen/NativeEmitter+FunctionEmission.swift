@@ -868,6 +868,48 @@ extension NativeEmitter {
                     continue
                 }
 
+                // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
+                if calleeName == "kk_channel_receive" {
+                    let outValueSlot = bindings.buildAlloca(
+                        builder,
+                        type: int64Type,
+                        name: "channel_out_value_\(instructionIndex)"
+                    )
+                    if let outValueSlot {
+                        _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
+                    }
+                    if let receiveFunction = declareExternalFunction(
+                        named: "kk_channel_receive",
+                        argumentCount: 3,
+                        appendThrownChannel: false
+                    ) {
+                        var receiveArgs = argumentValues
+                        receiveArgs.append(outValueSlot ?? nullThrownPointer)
+                        _ = bindings.buildCall(
+                            builder,
+                            functionType: receiveFunction.type,
+                            callee: receiveFunction.value,
+                            arguments: receiveArgs,
+                            name: "channel_receive_\(instructionIndex)"
+                        )
+                        if let outValueSlot,
+                           let loadedValue = bindings.buildLoad(
+                               builder,
+                               type: int64Type,
+                               pointer: outValueSlot,
+                               name: "channel_recv_val_\(instructionIndex)"
+                           )
+                        {
+                            storeResult(result, loadedValue)
+                        } else {
+                            storeResult(result, zeroValue)
+                        }
+                    } else {
+                        storeResult(result, zeroValue)
+                    }
+                    continue
+                }
+
                 let normalizedSymbol: SymbolID? = if let symbol, symbol != .invalid {
                     symbol
                 } else {

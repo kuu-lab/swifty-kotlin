@@ -684,6 +684,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
                 RuntimeABIParameter(name: "continuation", type: .intptr),
+                RuntimeABIParameter(name: "outValue", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -699,7 +700,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_channel_is_closed_token",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "status", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
