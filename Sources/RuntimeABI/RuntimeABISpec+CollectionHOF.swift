@@ -75,8 +75,7 @@ public extension RuntimeABISpec {
         let scanReduceSpec = hofSpec("kk_list_scanReduce")
         let genericAfter = [
             "kk_list_reduce", "kk_list_groupBy", "kk_list_sortedBy",
-            "kk_list_count", "kk_list_first", "kk_list_last", "kk_list_find", "kk_list_findLast",
-            "kk_list_firstOrNull_predicate",
+            "kk_list_count",
         ]
         let destinationLambdaParams = [
             RuntimeABIParameter(name: "listRaw", type: .intptr),
@@ -729,8 +728,6 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-                hofSpec("kk_list_indexOfFirst"),
-                hofSpec("kk_list_indexOfLast"),
                 RuntimeABIFunctionSpec(
                     name: "kk_list_filterIsInstance",
                     parameters: [

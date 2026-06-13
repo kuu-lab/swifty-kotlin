@@ -3221,8 +3221,6 @@ extension CallLowerer {
                     "kk_list_minOfWithOrNull"
                 case "minBy":
                     "kk_list_minBy"
-                case "indexOf":
-                    "kk_list_indexOf"
                 case "lastIndexOf":
                     "kk_list_lastIndexOf"
                 case "partition":

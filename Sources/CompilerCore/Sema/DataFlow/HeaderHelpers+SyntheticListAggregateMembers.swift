@@ -500,40 +500,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // firstOrNull / lastOrNull no-predicate (STDLIB-210)
-        registerSimpleMember(name: "firstOrNull", returnType: nullableElementType, externalLinkName: "kk_list_firstOrNull")
-        registerSimpleMember(name: "lastOrNull", returnType: nullableElementType, externalLinkName: "kk_list_lastOrNull")
-        // single no-predicate (STDLIB-COL-FN-184)
-        registerSimpleMember(name: "single", returnType: listTypeParamType, externalLinkName: "kk_list_single", canThrow: true)
-        // singleOrNull no-predicate (STDLIB-211)
-        registerSimpleMember(name: "singleOrNull", returnType: nullableElementType, externalLinkName: "kk_list_singleOrNull")
-
-        // indexOf / lastIndexOf (non-HOF, element argument)
-        let indexOfName = interner.intern("indexOf")
-        let indexOfFQName = listFQName + [indexOfName]
-        if symbols.lookup(fqName: indexOfFQName) == nil {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfName,
-                fqName: indexOfFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOf", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [listTypeParamType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
         let lastIndexOfName = interner.intern("lastIndexOf")
         let lastIndexOfFQName = listFQName + [lastIndexOfName]
         if symbols.lookup(fqName: lastIndexOfFQName) == nil {
@@ -801,63 +767,12 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // indexOfFirst / indexOfLast (HOF, predicate lambda)
         let predicateType = types.make(.functionType(FunctionType(
             params: [listTypeParamType],
             returnType: types.booleanType,
             isSuspend: false,
             nullability: .nonNull
         )))
-
-        let indexOfFirstName = interner.intern("indexOfFirst")
-        let indexOfFirstFQName = listFQName + [indexOfFirstName]
-        if symbols.lookup(fqName: indexOfFirstFQName) == nil {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfFirstName,
-                fqName: indexOfFirstFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOfFirst", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [predicateType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        let indexOfLastName = interner.intern("indexOfLast")
-        let indexOfLastFQName = listFQName + [indexOfLastName]
-        if symbols.lookup(fqName: indexOfLastFQName) == nil {
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: indexOfLastName,
-                fqName: indexOfLastFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName("kk_list_indexOfLast", for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [predicateType],
-                    returnType: types.intType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
 
         // takeWhile / dropWhile / takeLastWhile / dropLastWhile (STDLIB-440)
         for (funcName, linkName, canThrow) in [
