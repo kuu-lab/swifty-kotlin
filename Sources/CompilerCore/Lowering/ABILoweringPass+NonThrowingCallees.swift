@@ -636,11 +636,7 @@ extension ABILoweringPass {
             interner.intern("kk_list_of"),
             interner.intern("kk_list_size"),
             interner.intern("kk_list_get"),
-            interner.intern("kk_list_component1"),
-            interner.intern("kk_list_component2"),
-            interner.intern("kk_list_component3"),
-            interner.intern("kk_list_component4"),
-            interner.intern("kk_list_component5"),
+        ] + (1...5).map { interner.intern("kk_list_component\($0)") } + [
             interner.intern("kk_list_contains"),
             interner.intern("kk_list_containsAll"),
             interner.intern("kk_list_is_empty"),
