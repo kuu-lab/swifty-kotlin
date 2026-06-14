@@ -27,7 +27,7 @@ extension LexerParserEdgeCaseTests {
             XCTAssertFalse(ctx.tokens.isEmpty)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 1 user file + 2 bundled stdlib files
+            // 1 user file + 2 bundled stdlib files (collections + text)
             XCTAssertEqual(ast.files.count, 3)
             XCTAssertGreaterThanOrEqual(ast.declarationCount, 6)
             XCTAssertFalse(ctx.diagnostics.hasError)
@@ -156,7 +156,7 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files
+            // 2 user files + 2 bundled stdlib files (collections + text)
             XCTAssertEqual(ast.files.count, 4)
 
             XCTAssertEqual(ctx.tokensByFile.count, 4)
@@ -166,7 +166,7 @@ extension LexerParserEdgeCaseTests {
                 XCTAssertTrue(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
-            // Skip bundled stdlib files (indices 0 and 1), user files at indices 2 and 3
+            // Skip bundled stdlib files (indices 0–1), user files at indices 2 and 3
             let file0 = ast.files[2]
             let file1 = ast.files[3]
             XCTAssertNotEqual(file0.fileID, file1.fileID)
@@ -211,7 +211,7 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files
+            // 2 user files + 2 bundled stdlib files (collections + text)
             XCTAssertEqual(ast.files.count, 4)
 
             let allFunNames = ast.arena.declarations().compactMap { decl -> String? in
@@ -220,8 +220,8 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 20 bundled stdlib functions
-            XCTAssertEqual(allFunNames.count, 22)
+            // 2 user functions + 18 bundled stdlib functions (7 collections + 11 text)
+            XCTAssertEqual(allFunNames.count, 20)
 
             XCTAssertEqual(ctx.syntaxTrees.count, 4)
             for (_, cst, root) in ctx.syntaxTrees {
@@ -246,7 +246,7 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 2 bundled stdlib files
+            // 2 user files + 2 bundled stdlib files (collections + text)
             XCTAssertEqual(ast.files.count, 4)
             XCTAssertEqual(ctx.syntaxTrees.count, 4)
 
