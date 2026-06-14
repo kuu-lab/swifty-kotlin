@@ -2366,8 +2366,41 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // reduceRightIndexed, reduceRightIndexedOrNull, reduceRightOrNull, reduceOrNull
-        // — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
+        // Keep the CharSequence receiver surfaces synthetic; MIGRATION-TEXT-008
+        // only provides bundled Kotlin implementations for String receivers.
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexed",
+            externalLinkName: "kk_string_reduceRightIndexed",
+            receiverType: charSequenceType,
+            parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexedOrNull",
+            externalLinkName: "kk_string_reduceRightIndexedOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", intCharCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightOrNull",
+            externalLinkName: "kk_string_reduceRightOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", charCharToCharType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
