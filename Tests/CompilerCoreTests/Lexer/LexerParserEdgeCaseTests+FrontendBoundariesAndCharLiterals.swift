@@ -27,8 +27,8 @@ extension LexerParserEdgeCaseTests {
             XCTAssertFalse(ctx.tokens.isEmpty)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 1 user file + 1 bundled stdlib file
-            XCTAssertEqual(ast.files.count, 2)
+            // 1 user file + 2 bundled stdlib files (collections + text)
+            XCTAssertEqual(ast.files.count, 3)
             XCTAssertGreaterThanOrEqual(ast.declarationCount, 6)
             XCTAssertFalse(ctx.diagnostics.hasError)
         }
@@ -156,19 +156,19 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 1 bundled stdlib file
-            XCTAssertEqual(ast.files.count, 3)
+            // 2 user files + 2 bundled stdlib files (collections + text)
+            XCTAssertEqual(ast.files.count, 4)
 
-            XCTAssertEqual(ctx.tokensByFile.count, 3)
-            XCTAssertEqual(ctx.syntaxTrees.count, 3)
+            XCTAssertEqual(ctx.tokensByFile.count, 4)
+            XCTAssertEqual(ctx.syntaxTrees.count, 4)
 
             for (_, fileTokens) in ctx.tokensByFile {
                 XCTAssertTrue(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
-            // Skip bundled stdlib file (index 0), user files at indices 1 and 2
-            let file0 = ast.files[1]
-            let file1 = ast.files[2]
+            // Skip bundled stdlib files (indices 0–1), user files at indices 2 and 3
+            let file0 = ast.files[2]
+            let file1 = ast.files[3]
             XCTAssertNotEqual(file0.fileID, file1.fileID)
 
             let file0DeclNames = file0.topLevelDecls.compactMap { declID -> String? in
@@ -211,8 +211,8 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 1 bundled stdlib file
-            XCTAssertEqual(ast.files.count, 3)
+            // 2 user files + 2 bundled stdlib files (collections + text)
+            XCTAssertEqual(ast.files.count, 4)
 
             let allFunNames = ast.arena.declarations().compactMap { decl -> String? in
                 guard case let .funDecl(f) = decl else { return nil }
@@ -220,10 +220,10 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 11 bundled stdlib functions
-            XCTAssertEqual(allFunNames.count, 13)
+            // 2 user functions + 18 bundled stdlib functions (7 collections + 11 text)
+            XCTAssertEqual(allFunNames.count, 20)
 
-            XCTAssertEqual(ctx.syntaxTrees.count, 3)
+            XCTAssertEqual(ctx.syntaxTrees.count, 4)
             for (_, cst, root) in ctx.syntaxTrees {
                 XCTAssertEqual(cst.node(root).kind, .kotlinFile)
             }
@@ -246,9 +246,9 @@ extension LexerParserEdgeCaseTests {
             try runFrontend(ctx)
 
             let ast = try XCTUnwrap(ctx.ast)
-            // 2 user files + 1 bundled stdlib file
-            XCTAssertEqual(ast.files.count, 3)
-            XCTAssertEqual(ctx.syntaxTrees.count, 3)
+            // 2 user files + 2 bundled stdlib files (collections + text)
+            XCTAssertEqual(ast.files.count, 4)
+            XCTAssertEqual(ctx.syntaxTrees.count, 4)
 
             let rootKinds = ctx.syntaxTrees.map { $0.1.node($0.2).kind }
             XCTAssertTrue(rootKinds.contains(.kotlinFile))
@@ -258,7 +258,7 @@ extension LexerParserEdgeCaseTests {
             XCTAssertNotNil(scriptFile)
 
             // Find user's .kt file (not bundled stdlib)
-            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue != 0 })
+            let kotlinFile = ast.files.first(where: { $0.scriptBody.isEmpty && $0.fileID.rawValue >= 2 })
             XCTAssertNotNil(kotlinFile)
             let kotlinDeclNames = (kotlinFile?.topLevelDecls ?? []).compactMap { declID -> String? in
                 guard let decl = ast.arena.decl(declID) else { return nil }

@@ -147,6 +147,12 @@ final class MetadataEncoder {
                 if let declSite = symbol.declSite, excludedFileIDs.contains(declSite.start.file.rawValue) {
                     return false
                 }
+                // Library metadata exports user module symbols only. Stdlib synthetic stubs
+                // (also/apply/charArrayOf/…) are re-registered on every compilation and must
+                // not be serialized into .kklib metadata.
+                if !excludedFileIDs.isEmpty, symbol.flags.contains(.synthetic) {
+                    return false
+                }
                 return true
             }
             .sorted { lhs, rhs in
