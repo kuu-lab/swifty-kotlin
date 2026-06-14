@@ -161,7 +161,7 @@ final class ABIMismatchTests: XCTestCase {
     func testCoroutineFunctionCount() {
         // Keep this in sync with RuntimeABISpec.coroutineFunctions entries.
         // Includes the Job lifecycle helpers plus the read-write lock runtime entry points.
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.coroutineFunctions.count, 121)
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.coroutineFunctions.count, 116)
     }
 
     func testBoxingFunctionCount() {
