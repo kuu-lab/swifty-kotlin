@@ -148,10 +148,10 @@ final class ComparatorSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            let callExpr = try XCTUnwrap(allExprIDs(in: ast) { _, expr in
+            let callExpr = try XCTUnwrap(lastExprID(in: ast) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "compare"
-            }.first)
+            })
 
             let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
             let symbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
