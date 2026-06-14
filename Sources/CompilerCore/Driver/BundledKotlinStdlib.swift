@@ -7,14 +7,18 @@ enum BundledKotlinStdlib {
     // MIGRATION-COL-008: List 集計 HOF
     // count / any / all / none — currently Sema-unresolved (no synthetic stub), so these
     // extension functions are the first resolved definitions and will be called directly.
-    // sumOf / maxByOrNull / minByOrNull / maxWith / minWith — synthetic stubs exist in
+    // sumOf / maxByOrNull / minByOrNull — synthetic stubs exist in
     // HeaderHelpers+SyntheticListAggregateMembers.swift (member > extension in resolution
     // priority), so these serve as the migration-target definitions; stub removal and
+    // dispatch wiring happen in the follow-up RF-LOWER tasks.
     // dispatch wiring happen in the follow-up RF-LOWER tasks.
     //
     // MIGRATION-COL-013: Set HOF implementations in Kotlin source.
     // sorted/first/last are already routed to kk_set_* by CallLowerer+UnresolvedMemberCalls
     // for Set receivers, so they are excluded here to avoid duplicate resolution.
+    //
+    // maxWith / minWith are omitted here because they call Comparator.compare, which is not
+    // yet lowerable to a linkable symbol when bundled functions are codegen'd unconditionally.
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
@@ -76,30 +80,6 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
         i += 1
     }
     return bestElem
-}
-
-public fun <T> List<T>.maxWith(comparator: Comparator<in T>): T {
-    if (isEmpty()) throw NoSuchElementException("List is empty.")
-    var best = this[0]
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        if (comparator.compare(elem, best) > 0) best = elem
-        i += 1
-    }
-    return best
-}
-
-public fun <T> List<T>.minWith(comparator: Comparator<in T>): T {
-    if (isEmpty()) throw NoSuchElementException("List is empty.")
-    var best = this[0]
-    var i = 1
-    while (i < size) {
-        val elem = this[i]
-        if (comparator.compare(elem, best) < 0) best = elem
-        i += 1
-    }
-    return best
 }
 
 internal fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
