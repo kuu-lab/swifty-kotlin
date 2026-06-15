@@ -1605,11 +1605,66 @@ extension CallLowerer {
                 || calleeStr == "firstNotNullOfOrNull"
                 || calleeStr == "sumBy"
                 || calleeStr == "sumByDouble"
+                || calleeStr == "reduceRightIndexed"
+                || calleeStr == "reduceRightIndexedOrNull"
+                || calleeStr == "reduceRightOrNull"
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
                 || (isCharSequenceTextHelper && isCharSequenceReceiver)
             {
-                // reduceOrNull/reduceRightIndexed/reduceRightIndexedOrNull/reduceRightOrNull
-                // are migrated to BundledKotlinStdlib (MIGRATION-TEXT-008) — fall through.
+                // reduceRightIndexed/reduceRightIndexedOrNull/reduceRightOrNull route through
+                // cdecl stubs for both String and CharSequence receivers. The bundled Kotlin
+                // implementations in BundledKotlinStdlib (MIGRATION-TEXT-008) use a direct
+                // `throw` which is silently dropped when dispatched via virtual call with
+                // canThrow: false. Keeping the cdecl path (which uses handleCollectionLambdaThrow)
+                // ensures proper exception propagation.
+                if (sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+                    || isCharSequenceReceiver)
+                    && (calleeStr == "reduceRightIndexed"
+                        || calleeStr == "reduceRightIndexedOrNull"
+                        || calleeStr == "reduceRightOrNull")
+                {
+                    let originalCallBinding = sema.bindings.callBindings[exprID]
+                    let originalChosen: SymbolID? = if let chosen = originalCallBinding?.chosenCallee, chosen != .invalid {
+                        chosen
+                    } else {
+                        nil
+                    }
+                    let normalizedOriginalArgs = driver.callSupportLowerer.normalizedCallArguments(
+                        providedArguments: loweredArgIDs,
+                        callBinding: originalCallBinding,
+                        chosenCallee: originalChosen,
+                        spreadFlags: args.map(\.isSpread),
+                        ast: ast,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        propertyConstantInitializers: propertyConstantInitializers,
+                        instructions: &instructions
+                    ).arguments
+                    let transformArg = normalizedOriginalArgs.first ?? loweredArgIDs[0]
+                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                        transformArg,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    let runtimeCallee = switch calleeStr {
+                    case "reduceRightIndexed": "kk_string_reduceRightIndexed"
+                    case "reduceRightIndexedOrNull": "kk_string_reduceRightIndexedOrNull"
+                    default: "kk_string_reduceRightOrNull"
+                    }
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern(runtimeCallee),
+                        arguments: [loweredReceiverID, fnPtrExpr, envPtrExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                // reduceOrNull on String receiver is migrated to BundledKotlinStdlib (MIGRATION-TEXT-008) — fall through.
                 if calleeStr == "firstNotNullOf"
                     || calleeStr == "firstNotNullOfOrNull"
                     || calleeStr == "sumBy"
