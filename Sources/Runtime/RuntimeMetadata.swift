@@ -114,14 +114,6 @@ public struct KmCompilerPluginMetadata: Codable, Equatable, Sendable {
     }
 }
 
-public func compilerPluginMetadata(
-    pluginId: String,
-    version: String? = nil,
-    data: [String: String] = [:]
-) -> KmCompilerPluginMetadata {
-    KmCompilerPluginMetadata(pluginId: pluginId, version: version, data: data)
-}
-
 public struct KotlinMetadata: Codable, Equatable, Sendable {
     public let functions: [KmFunction]
     public let constructors: [KmConstructor]
