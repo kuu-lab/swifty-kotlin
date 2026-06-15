@@ -47,6 +47,10 @@ extension LLVMCAPIBindings {
         setLinkageFn(value, 8)
     }
 
+    func setLinkOnceODRLinkage(_ value: LLVMValueRef?) {
+        setLinkageFn(value, 3)
+    }
+
     func int8Type(context: LLVMContextRef?) -> LLVMTypeRef? {
         int8TypeInContextFn(context)
     }
