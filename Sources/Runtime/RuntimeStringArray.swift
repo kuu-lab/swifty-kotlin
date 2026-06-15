@@ -198,11 +198,6 @@ public func kk_throwable_suppressedExceptions(_ throwableRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: throwable.suppressed), typeID: listRuntimeTypeID)
 }
 
-@_cdecl("kk_panic")
-public func kk_panic(_ cstr: UnsafePointer<CChar>) -> Never {
-    fatalError(runtimePanicMessage(fromCString: cstr))
-}
-
 @_cdecl("kk_abort_unreachable")
 public func kk_abort_unreachable(_ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     _ = outThrown
