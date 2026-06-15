@@ -86,7 +86,7 @@ final class FrontendPhasesTests: XCTestCase {
             incrementalCtx.installIncrementalFrontendState(cachedState)
 
             try LexPhase().run(incrementalCtx)
-            // FileID 0 = bundled collections stdlib, FileID 1 = bundled text stdlib, FileID 2 = kept, FileID 3 = changed
+            // FileID 0 = bundled collections, FileID 1 = bundled text, FileID 2 = kept, FileID 3 = changed
             XCTAssertEqual(incrementalCtx.tokensByFile.map(\.0), [FileID(rawValue: 3)])
 
             try ParsePhase().run(incrementalCtx)
