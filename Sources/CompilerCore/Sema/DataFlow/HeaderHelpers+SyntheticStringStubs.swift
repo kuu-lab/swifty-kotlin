@@ -2148,6 +2148,18 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        let charIndexedReduceRightType = types.make(.functionType(FunctionType(
+            params: [intType, charType, charType],
+            returnType: charType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        let charReduceRightType = types.make(.functionType(FunctionType(
+            params: [charType, charType],
+            returnType: charType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
         let sequenceStringType = makeSequenceType(
             symbols: symbols,
             types: types,
@@ -2325,7 +2337,41 @@ extension DataFlowSemaPhase {
         }
 
         // reduceRightIndexed, reduceRightIndexedOrNull, reduceRightOrNull, reduceOrNull
-        // — migrated to BundledKotlinStdlib (MIGRATION-TEXT-008)
+        // — implementations migrated to BundledKotlinStdlib (MIGRATION-TEXT-008),
+        // but CharSequence receiver surfaces are still needed for member resolution.
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexed",
+            externalLinkName: "kk_string_reduceRightIndexed",
+            receiverType: charSequenceType,
+            parameters: [("operation", charIndexedReduceRightType, false, false)],
+            returnType: charType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightIndexedOrNull",
+            externalLinkName: "kk_string_reduceRightIndexedOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", charIndexedReduceRightType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "reduceRightOrNull",
+            externalLinkName: "kk_string_reduceRightOrNull",
+            receiverType: charSequenceType,
+            parameters: [("operation", charReduceRightType, false, false)],
+            returnType: nullableCharType,
+            flags: [.synthetic, .inlineFunction],
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
