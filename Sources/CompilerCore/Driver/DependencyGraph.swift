@@ -24,11 +24,6 @@ public final class DependencyGraph: Codable {
         dependedSymbols[filePath] = symbols
     }
 
-    public func clearFile(_ filePath: String) {
-        providedSymbols.removeValue(forKey: filePath)
-        dependedSymbols.removeValue(forKey: filePath)
-    }
-
     // MARK: - Query
 
     /// Given a set of files that changed, compute the full set of files that need

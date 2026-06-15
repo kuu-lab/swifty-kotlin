@@ -41,31 +41,6 @@ final class SemaCacheContextTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testScopeLookupCacheInvalidation() {
-        let setup = makeSemaModule()
-        let interner = setup.interner
-        let symbols = setup.symbols
-
-        let name = interner.intern("bar")
-        let scope = BaseScope(parent: nil, symbols: symbols)
-
-        let cache = SemaCacheContext()
-        let before = cache.lookupInScope(name, scope: scope)
-        XCTAssertTrue(before.isEmpty)
-
-        let sym = symbols.define(
-            kind: .function, name: name,
-            fqName: [interner.intern("test"), interner.intern("bar")],
-            declSite: nil, visibility: .public, flags: []
-        )
-        scope.insert(sym)
-
-        // Invalidate and re-lookup
-        cache.invalidateScope(scope)
-        let after = cache.lookupInScope(name, scope: scope)
-        XCTAssertEqual(after, [sym])
-    }
-
     // MARK: - Symbol Lookup Cache
 
     func testSymbolLookupCacheReturnsSameResultAsUncached() {

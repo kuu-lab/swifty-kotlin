@@ -276,15 +276,6 @@ public final class IncrementalCompilationCache {
         }
     }
 
-    public func clearCache() {
-        try? FileManager.default.removeItem(atPath: cachePath)
-        previousFingerprints = [:]
-        previousBuildConfigurationHash = nil
-        previousOutputArtifact = nil
-        previousDependencyGraph = nil
-        currentFingerprints = [:]
-    }
-
     private func computeCurrentFingerprint(for path: String, sourceManager: SourceManager?) -> FileFingerprint? {
         if let sourceManager, let fileID = sourceManager.fileID(forPath: path) {
             let contents = sourceManager.contents(of: fileID)
