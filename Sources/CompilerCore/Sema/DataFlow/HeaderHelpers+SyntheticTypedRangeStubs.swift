@@ -122,7 +122,7 @@ extension DataFlowSemaPhase {
             receiverType: intRangeType,
             parameterTypes: [types.intType],
             returnType: types.booleanType,
-            externalLinkName: "kk_op_contains",
+            externalLinkName: "kk_range_contains",
             flags: [.synthetic, .operatorFunction],
             symbols: symbols,
             interner: interner

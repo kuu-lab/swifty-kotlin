@@ -347,6 +347,7 @@ extension ABILoweringPass {
             interner.intern("kk_op_downTo"),
             // kk_op_step is intentionally NOT in this list — it throws
             // IllegalArgumentException for step<=0 (STDLIB-022).
+            interner.intern("kk_range_contains"),
             interner.intern("kk_range_first"),
             interner.intern("kk_range_last"),
             interner.intern("kk_range_endExclusive"),
