@@ -373,41 +373,11 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_fileTime_toMillis", parameters: [
             p("fileTimeRaw", .intptr),
         ]),
-        abiParitySpec("kk_flow_catch", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
         abiParitySpec("kk_flow_emit_with_timestamp", parameters: [
             p("flowHandle", .intptr),
             p("value", .intptr),
             p("tag", .intptr),
             p("timestamp", .uint64),
-        ]),
-        abiParitySpec("kk_flow_on_completion", parameters: [
-            p("flowHandle", .intptr),
-            p("handlerFnPtr", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_resume", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackFlowHandle", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_on_error_return", parameters: [
-            p("flowHandle", .intptr),
-            p("fallbackValue", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry", parameters: [
-            p("flowHandle", .intptr),
-            p("retries", .intptr),
-            p("arg2", .intptr),
-        ]),
-        abiParitySpec("kk_flow_retry_when", parameters: [
-            p("flowHandle", .intptr),
-            p("predicateFnPtr", .intptr),
-            p("arg2", .intptr),
         ]),
         abiParitySpec("kk_flow_share_in", parameters: [
             p("flowHandle", .intptr),
