@@ -955,9 +955,6 @@ public func kk_alloc(_ size: UInt32, _ typeInfo: UnsafePointer<KTypeInfo>) -> Un
 
 @_cdecl("kk_gc_collect")
 public func kk_gc_collect()
-
-@_cdecl("kk_write_barrier")
-public func kk_write_barrier(_ owner: UnsafeMutableRawPointer, _ fieldAddr: UnsafeMutablePointer<UnsafeMutableRawPointer?>)
 ```
 
 ### 型情報
@@ -980,9 +977,6 @@ public struct KTypeInfo {
 ```swift
 @_cdecl("kk_throwable_new")
 public func kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer
-
-@_cdecl("kk_panic")
-public func kk_panic(_ cstr: UnsafePointer<CChar>) -> Never
 ```
 
 ### 文字列
