@@ -48,46 +48,6 @@ public func kk_long_coerceIn_range(_ value: Int, _ rangeRaw: Int) -> Int {
 
 // MARK: - Range-based coerceAtLeast/coerceAtMost functions (STDLIB-CONV-006)
 
-/// Double.coerceAtLeast(range) — use range first as minimum
-@_cdecl("kk_double_coerceAtLeast_range")
-public func kk_double_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceAtLeast_range")
-    }
-    let minimum = kk_double_to_bits(Double(range.first))
-    return kk_double_coerceAtLeast(value, minimum)
-}
-
-/// Double.coerceAtMost(range) — use range last as maximum
-@_cdecl("kk_double_coerceAtMost_range")
-public func kk_double_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_double_coerceAtMost_range")
-    }
-    let maximum = kk_double_to_bits(Double(range.last))
-    return kk_double_coerceAtMost(value, maximum)
-}
-
-/// Float.coerceAtLeast(range) — use range first as minimum
-@_cdecl("kk_float_coerceAtLeast_range")
-public func kk_float_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceAtLeast_range")
-    }
-    let minimum = kk_float_to_bits(Float(range.first))
-    return kk_float_coerceAtLeast(value, minimum)
-}
-
-/// Float.coerceAtMost(range) — use range last as maximum
-@_cdecl("kk_float_coerceAtMost_range")
-public func kk_float_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_float_coerceAtMost_range")
-    }
-    let maximum = kk_float_to_bits(Float(range.last))
-    return kk_float_coerceAtMost(value, maximum)
-}
-
 /// Int.coerceAtLeast(range) — use range first as minimum
 @_cdecl("kk_int_coerceAtLeast_range")
 public func kk_int_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
@@ -104,24 +64,6 @@ public func kk_int_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_int_coerceAtMost_range")
     }
     return kk_int_coerceAtMost(value, range.last)
-}
-
-/// Long.coerceAtLeast(range) — use range first as minimum
-@_cdecl("kk_long_coerceAtLeast_range")
-public func kk_long_coerceAtLeast_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceAtLeast_range")
-    }
-    return kk_long_coerceAtLeast(value, range.first)
-}
-
-/// Long.coerceAtMost(range) — use range last as maximum
-@_cdecl("kk_long_coerceAtMost_range")
-public func kk_long_coerceAtMost_range(_ value: Int, _ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_long_coerceAtMost_range")
-    }
-    return kk_long_coerceAtMost(value, range.last)
 }
 
 @_cdecl("kk_uint_to_int")
