@@ -88,14 +88,6 @@ private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
 
 private let kclassBridgeFunctions = [
     "kk_kclass_get_arity",
-    "kk_kclass_get_field_count",
-    "kk_kclass_get_instance_size_words",
-    "kk_kclass_get_qualified_name",
-    "kk_kclass_get_simple_name",
-    "kk_kclass_get_superclass_name",
-    "kk_kclass_is_data_class",
-    "kk_kclass_is_sealed_class",
-    "kk_kclass_is_value_class",
 ].map { bridgeSpec($0, section: "TypeCheck", params: ["kclassRaw"]) }
 
 private let sequenceOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
