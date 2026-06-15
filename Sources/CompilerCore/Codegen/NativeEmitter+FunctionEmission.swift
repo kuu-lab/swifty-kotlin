@@ -328,30 +328,6 @@ extension NativeEmitter {
             return block
         }
 
-        func buildBoolCondition(
-            from value: LLVMCAPIBindings.LLVMValueRef,
-            name: String
-        ) -> LLVMCAPIBindings.LLVMValueRef? {
-            let normalizedValue: LLVMCAPIBindings.LLVMValueRef = if let unboxBool = declareExternalFunction(
-                named: "kk_unbox_bool",
-                argumentCount: 1,
-                appendThrownChannel: false
-            ),
-                let unboxed = bindings.buildCall(
-                    builder,
-                    functionType: unboxBool.type,
-                    callee: unboxBool.value,
-                    arguments: [value],
-                    name: "\(name)_unboxed"
-                )
-            {
-                unboxed
-            } else {
-                value
-            }
-            return bindings.buildICmpNotEqual(builder, lhs: normalizedValue, rhs: zeroValue, name: name)
-        }
-
         /// Builds a condition for exception-thrown slot checks. Does NOT call kk_unbox_bool;
         /// thrown slots hold raw integers (0 = no exception, non-zero = exception).
         func buildThrownSlotCondition(
