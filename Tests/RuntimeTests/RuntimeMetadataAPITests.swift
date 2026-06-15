@@ -45,7 +45,7 @@ final class RuntimeMetadataAPITests: IsolatedRuntimeXCTestCase {
                 KmAnnotation(className: "sample.FileAnno", arguments: ["enabled=true"])
             ],
             compilerPlugins: [
-                compilerPluginMetadata(
+                KmCompilerPluginMetadata(
                     pluginId: "sample.plugin",
                     version: "1.2.3",
                     data: ["mode": "strict"]

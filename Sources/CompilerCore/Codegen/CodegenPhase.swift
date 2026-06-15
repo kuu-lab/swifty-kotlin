@@ -34,8 +34,6 @@ final class CodegenPhase: CompilerPhase {
                     module: kir,
                     outputIRPath: path,
                     interner: ctx.interner,
-                    typeSystem: ctx.sema?.types,
-                    symbols: ctx.sema?.symbols,
                     sourceManager: ctx.sourceManager,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                     reflectionMetadataRecords: reflectionRecords,
@@ -49,8 +47,6 @@ final class CodegenPhase: CompilerPhase {
                     module: kir,
                     outputObjectPath: path,
                     interner: ctx.interner,
-                    typeSystem: ctx.sema?.types,
-                    symbols: ctx.sema?.symbols,
                     sourceManager: ctx.sourceManager,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                     reflectionMetadataRecords: reflectionRecords,
@@ -65,8 +61,6 @@ final class CodegenPhase: CompilerPhase {
                         module: kir,
                         outputObjectPath: path,
                         interner: ctx.interner,
-                        typeSystem: ctx.sema?.types,
-                        symbols: ctx.sema?.symbols,
                         sourceManager: ctx.sourceManager,
                         fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                         reflectionMetadataRecords: reflectionRecords,
@@ -141,17 +135,28 @@ final class CodegenPhase: CompilerPhase {
         try fm.createDirectory(atPath: inlineDir, withIntermediateDirectories: true)
 
         let objectPath = objectsDir + "/\(ctx.options.moduleName)_0.o"
+        // Bundled stdlib functions appear in every compilation unit. Use linkonce_odr so the
+        // linker deduplicates them when the library object is linked with an app object.
+        let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .map(\.rawValue))
+        let bundledSymbolIDs: Set<SymbolID> = ctx.sema.map { sema in
+            Set(sema.symbols.allSymbols()
+                .filter { sym in
+                    guard let declSite = sym.declSite else { return false }
+                    return bundledFileIDs.contains(declSite.start.file.rawValue)
+                }
+                .map(\.id))
+        } ?? []
         try backend.emitObject(
             module: module,
             outputObjectPath: objectPath,
             interner: ctx.interner,
-            typeSystem: ctx.sema?.types,
-            symbols: ctx.sema?.symbols,
             sourceManager: ctx.sourceManager,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
             reflectionMetadataRecords: reflectionMetadataRecords,
             reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-            omitInlineFunctions: true
+            linkOnceODRSymbols: bundledSymbolIDs
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
@@ -362,9 +367,6 @@ final class CodegenPhase: CompilerPhase {
                 guard case let .function(function) = decl else {
                     return
                 }
-                guard !function.isInline else {
-                    return
-                }
                 partial[function.symbol] = CodegenSymbolSupport.cFunctionSymbol(
                     for: function,
                     interner: ctx.interner,
@@ -376,15 +378,6 @@ final class CodegenPhase: CompilerPhase {
         let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
             .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
             .map(\.rawValue))
-        let inlineFunctionSymbols: Set<SymbolID> = {
-            guard let kir = ctx.kir else { return [] }
-            return Set(kir.arena.declarations.compactMap { decl -> SymbolID? in
-                guard case let .function(function) = decl, function.isInline else {
-                    return nil
-                }
-                return function.symbol
-            })
-        }()
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
@@ -392,9 +385,6 @@ final class CodegenPhase: CompilerPhase {
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
             functionLinkNames: functionLinkNamesBySymbol,
-            inlineFunctionSymbols: inlineFunctionSymbols,
-            includeSynthetic: false,
-            includeSyntheticNominalAnchors: true,
             excludedFileIDs: bundledFileIDs
         )
         return encoder.serialize(records)

@@ -159,7 +159,7 @@ jobs:
         # shard values MUST be a contiguous 0..N-1 range. DIFF_SHARD_COUNT is
         # derived from strategy.job-total below, so just editing this list
         # resizes the split — the divisor can never drift out of sync.
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"

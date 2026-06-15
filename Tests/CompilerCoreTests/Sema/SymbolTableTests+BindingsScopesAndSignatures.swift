@@ -156,7 +156,7 @@ final class ScopeTests: XCTestCase {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let parent = FileScope(parent: nil, symbols: symbols)
-        let child = BlockScope(parent: parent, symbols: symbols)
+        let child = FunctionScope(parent: parent, symbols: symbols)
 
         let name = interner.intern("x")
         let id = symbols.define(kind: .local, name: name, fqName: [name], declSite: nil, visibility: .internal)
@@ -170,7 +170,7 @@ final class ScopeTests: XCTestCase {
         let interner = StringInterner()
         let symbols = SymbolTable()
         let parent = FileScope(parent: nil, symbols: symbols)
-        let child = BlockScope(parent: parent, symbols: symbols)
+        let child = FunctionScope(parent: parent, symbols: symbols)
 
         let name = interner.intern("x")
         let parentID = symbols.define(kind: .local, name: name, fqName: [interner.intern("outer"), name], declSite: nil, visibility: .internal)

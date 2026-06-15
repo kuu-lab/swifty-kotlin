@@ -33,15 +33,15 @@ struct NativeEmitter {
     let debugInfo: Bool
     let bindings: LLVMCAPIBindings
     let module: KIRModule
-    let typeSystem: TypeSystem?
-    let symbols: SymbolTable?
     let interner: StringInterner
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
     let reflectionMetadataRecords: [MetadataRecord]
     let reflectionMetadataSymbolPrefix: String?
-    let omitInlineFunctions: Bool
+    /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
+    /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
+    let linkOnceODRSymbols: Set<SymbolID>
 
     init(
         target: TargetTriple,
@@ -49,28 +49,24 @@ struct NativeEmitter {
         debugInfo: Bool,
         bindings: LLVMCAPIBindings,
         module: KIRModule,
-        typeSystem: TypeSystem? = nil,
-        symbols: SymbolTable? = nil,
         interner: StringInterner,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        omitInlineFunctions: Bool = false
+        linkOnceODRSymbols: Set<SymbolID> = []
     ) {
         self.target = target
         self.optLevel = optLevel
         self.debugInfo = debugInfo
         self.bindings = bindings
         self.module = module
-        self.typeSystem = typeSystem
-        self.symbols = symbols
         self.interner = interner
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
-        self.omitInlineFunctions = omitInlineFunctions
+        self.linkOnceODRSymbols = linkOnceODRSymbols
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -150,7 +146,6 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
-        let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
 
         do {
             try defineWeakFrameRuntimeStubs(
@@ -171,15 +166,9 @@ struct NativeEmitter {
                 continue
             }
             let slotName = "kk_global_root_slot_\(max(0, Int(global.symbol.rawValue)))"
-            let globalType = loweredLLVMType(for: global.type, lowering: typeLowering, defaultType: int64Type)
-            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: globalType, name: slotName) {
+            if let llvmGlobal = bindings.addGlobal(module: llvmModule, type: int64Type, name: slotName) {
                 bindings.setInternalLinkage(llvmGlobal)
-                if let zero = zeroLLVMValue(
-                    for: global.type,
-                    lowering: typeLowering,
-                    int64Type: int64Type,
-                    context: context
-                ) {
+                if let zero = bindings.constInt(int64Type, value: 0) {
                     bindings.setInitializer(llvmGlobal, value: zero)
                 }
                 llvmGlobalVariables[global.symbol] = llvmGlobal
@@ -187,28 +176,10 @@ struct NativeEmitter {
         }
 
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
-        let runtimeCallbackRawABISymbols = Set(
-            module.arena.callableValueInfoByExprID.values
-                .map(\.symbol)
-        )
-
-        func usesRuntimeCallbackRawABI(_ function: KIRFunction) -> Bool {
-            runtimeCallbackRawABISymbols.contains(function.symbol)
-        }
-
-        func returnsRawStringRuntimeCallback(_ function: KIRFunction) -> Bool {
-            guard usesRuntimeCallbackRawABI(function),
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: function.returnType)
-            else {
-                return false
-            }
-            return true
-        }
 
         for declaration in module.arena.declarations {
-            guard case let .function(function) = declaration,
-                  shouldEmit(function)
+guard case let .function(function) = declaration,
+                  !function.isInlineOnly
             else {
                 continue
             }
@@ -217,22 +188,18 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = usesRuntimeCallbackRawABI(function)
-                ? Array(repeating: int64Type, count: function.params.count)
-                : function.params.map {
-                    loweredLLVMType(for: $0.type, lowering: typeLowering, defaultType: int64Type)
-                }
+            var parameterTypes = Array(repeating: int64Type, count: function.params.count)
             parameterTypes.append(outThrownPointerType)
-            let returnType = returnsRawStringRuntimeCallback(function)
-                ? int64Type
-                : loweredLLVMType(for: function.returnType, lowering: typeLowering, defaultType: int64Type)
 
-            guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
+            guard let functionType = bindings.functionType(returnType: int64Type, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
                 bindings.disposeModule(llvmModule)
                 bindings.disposeContext(context)
                 throw LLVMBackendError.nativeEmissionFailed("failed to declare function '\(functionName)'")
+            }
+            if linkOnceODRSymbols.contains(function.symbol) {
+                bindings.setLinkOnceODRLinkage(functionValue)
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
         }
@@ -249,7 +216,7 @@ struct NativeEmitter {
 
         for declaration in module.arena.declarations {
             guard case let .function(function) = declaration,
-                  shouldEmit(function),
+                  !function.isInlineOnly,
                   let llvmFunction = internalFunctions[function.symbol]
             else {
                 continue
@@ -261,13 +228,9 @@ struct NativeEmitter {
                     llvmModule: llvmModule,
                     context: context,
                     int64Type: int64Type,
-                    typeLowering: typeLowering,
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,
-                    runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
-                    usesRuntimeCallbackRawABI: usesRuntimeCallbackRawABI(function),
-                    returnsRawStringRuntimeCallback: returnsRawStringRuntimeCallback(function),
                     diContext: diContext
                 )
             } catch {
@@ -299,16 +262,6 @@ struct NativeEmitter {
         }
 
         return (context: context, module: llvmModule)
-    }
-
-    private func shouldEmit(_ function: KIRFunction) -> Bool {
-        if function.isInlineOnly {
-            return false
-        }
-        if omitInlineFunctions && function.isInline {
-            return false
-        }
-        return true
     }
 
     /// Creates debug info metadata (DIBuilder, compile unit, file, subprograms)

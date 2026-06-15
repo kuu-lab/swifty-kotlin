@@ -113,24 +113,6 @@ public func kk_hexformat_bytes(_ formatRaw: Int) -> Int {
     return formatRaw
 }
 
-// MARK: - HexFormat.number.prefix / suffix setters (STDLIB-031-ABI-002)
-
-/// Sets the number prefix on the given HexFormat box and returns the format raw value.
-@_cdecl("kk_hexformat_prefix")
-public func kk_hexformat_prefix(_ formatRaw: Int, _ prefixRaw: Int) -> Int {
-    guard let format = hexFormatBoxFromRaw(formatRaw) else { return formatRaw }
-    format.numberPrefix = hexFormatStringFromRaw(prefixRaw) ?? ""
-    return formatRaw
-}
-
-/// Sets the number suffix on the given HexFormat box and returns the format raw value.
-@_cdecl("kk_hexformat_suffix")
-public func kk_hexformat_suffix(_ formatRaw: Int, _ suffixRaw: Int) -> Int {
-    guard let format = hexFormatBoxFromRaw(formatRaw) else { return formatRaw }
-    format.numberSuffix = hexFormatStringFromRaw(suffixRaw) ?? ""
-    return formatRaw
-}
-
 // MARK: - Private encode helper
 
 /// Applies prefix, case, removeLeadingZeros and suffix to a raw hex string.

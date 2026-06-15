@@ -34,10 +34,6 @@ let package = Package(
             resources: [.process("Stdlib")]
         ),
         .target(
-            name: "Stdlib",
-            path: "Stdlib"
-        ),
-        .target(
             name: "GoldenHarnessSupport",
             dependencies: ["CompilerCore"],
             path: "Sources/GoldenHarnessSupport",

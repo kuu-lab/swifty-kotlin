@@ -3,13 +3,7 @@ import Foundation
 import XCTest
 
 final class CompilerTypesTests: XCTestCase {
-    func testCompilerVersionAndTargetTripleStoreValues() {
-        let version = CompilerVersion(major: 1, minor: 2, patch: 3, gitHash: "abc123")
-        XCTAssertEqual(version.major, 1)
-        XCTAssertEqual(version.minor, 2)
-        XCTAssertEqual(version.patch, 3)
-        XCTAssertEqual(version.gitHash, "abc123")
-
+    func testTargetTripleStoreValues() {
         let triple = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: "14.0")
         XCTAssertEqual(triple.arch, "arm64")
         XCTAssertEqual(triple.vendor, "apple")
@@ -92,14 +86,6 @@ final class CompilerTypesTests: XCTestCase {
         XCTAssertEqual(options.runtimeFlags, ["-XruntimeA"])
     }
 
-    func testCompilerVersionWithNilGitHash() {
-        let version = CompilerVersion(major: 0, minor: 0, patch: 1, gitHash: nil)
-        XCTAssertEqual(version.major, 0)
-        XCTAssertEqual(version.minor, 0)
-        XCTAssertEqual(version.patch, 1)
-        XCTAssertNil(version.gitHash)
-    }
-
     func testTargetTripleWithNilOsVersion() {
         let triple = TargetTriple(arch: "x86_64", vendor: "unknown", os: "linux", osVersion: nil)
         XCTAssertEqual(triple.arch, "x86_64")
@@ -180,14 +166,6 @@ final class CompilerTypesTests: XCTestCase {
 
     func testOptimizationLevelEquality() {
         XCTAssertNotEqual(OptimizationLevel.O0, OptimizationLevel.O3)
-    }
-
-    func testCompilerVersionEquality() {
-        let v1 = CompilerVersion(major: 1, minor: 2, patch: 3, gitHash: "abc")
-        let v2 = CompilerVersion(major: 1, minor: 2, patch: 3, gitHash: "abc")
-        let v3 = CompilerVersion(major: 1, minor: 2, patch: 4, gitHash: "abc")
-        XCTAssertEqual(v1, v2)
-        XCTAssertNotEqual(v1, v3)
     }
 
     func testTargetTripleEquality() {

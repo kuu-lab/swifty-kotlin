@@ -194,48 +194,12 @@ extension TypeCheckHelpersCoverageTests {
 
         XCTAssertEqual(helpers.compoundAssignToBinaryOp(.plusAssign), .add)
         XCTAssertEqual(helpers.compoundAssignToBinaryOp(.modAssign), .modulo)
-
-        let boolCondition = fixture.astArena.appendExpr(.boolLiteral(true, range))
-        let smartCastFromBool = helpers.smartCastTypeForWhenSubjectCase(
-            conditionID: boolCondition,
-            subjectType: fixture.types.booleanType,
-            ast: fixture.ast,
-            sema: fixture.sema,
-            interner: fixture.interner
-        )
-        XCTAssertEqual(smartCastFromBool, fixture.types.booleanType)
     }
 
-    func testSmartCastAndMemberCallableSelection() {
+    func testMemberCallableSelection() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
         let range = makeRange()
-
-        let enumSymbol = fixture.symbols.define(
-            kind: .enumClass,
-            name: fixture.interner.intern("Color"),
-            fqName: [fixture.interner.intern("Color")],
-            declSite: nil,
-            visibility: .public
-        )
-        let enumEntry = fixture.symbols.define(
-            kind: .field,
-            name: fixture.interner.intern("RED"),
-            fqName: [fixture.interner.intern("Color"), fixture.interner.intern("RED")],
-            declSite: nil,
-            visibility: .public
-        )
-        let enumRefExpr = fixture.astArena.appendExpr(.nameRef(fixture.interner.intern("RED"), range))
-        fixture.bindings.bindIdentifier(enumRefExpr, symbol: enumEntry)
-        let enumSubjectType = fixture.types.make(.classType(ClassType(classSymbol: enumSymbol, args: [], nullability: .nonNull)))
-        let enumSmartCast = helpers.smartCastTypeForWhenSubjectCase(
-            conditionID: enumRefExpr,
-            subjectType: enumSubjectType,
-            ast: fixture.ast,
-            sema: fixture.sema,
-            interner: fixture.interner
-        )
-        XCTAssertNotNil(enumSmartCast)
 
         let base = fixture.symbols.define(
             kind: .class,
@@ -252,21 +216,6 @@ extension TypeCheckHelpersCoverageTests {
             visibility: .public
         )
         fixture.symbols.setDirectSupertypes([base], for: child)
-
-        let childRefExpr = fixture.astArena.appendExpr(.nameRef(fixture.interner.intern("Child"), range))
-        fixture.bindings.bindIdentifier(childRefExpr, symbol: child)
-
-        let nominalSmartCast = helpers.smartCastTypeForWhenSubjectCase(
-            conditionID: childRefExpr,
-            subjectType: fixture.types.make(.classType(ClassType(classSymbol: base, args: [], nullability: .nonNull))),
-            ast: fixture.ast,
-            sema: fixture.sema,
-            interner: fixture.interner
-        )
-        XCTAssertEqual(
-            nominalSmartCast,
-            fixture.types.make(.classType(ClassType(classSymbol: child, args: [], nullability: .nonNull)))
-        )
 
         let owner = fixture.symbols.define(
             kind: .class,

@@ -1,16 +1,5 @@
 import Foundation
 
-struct CompilerVersion: Equatable {
-    let major: Int
-    let minor: Int
-    let patch: Int
-    let gitHash: String?
-}
-
-enum KotlinLanguageVersion: Equatable {
-    case v2_3_10
-}
-
 public struct TargetTriple: Equatable {
     public let arch: String
     public let vendor: String

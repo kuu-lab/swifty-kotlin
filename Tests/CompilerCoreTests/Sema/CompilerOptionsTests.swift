@@ -2,29 +2,6 @@
 import XCTest
 
 final class CompilerOptionsTests: XCTestCase {
-    // MARK: - CompilerVersion
-
-    func testCompilerVersionInit() {
-        let v = CompilerVersion(major: 1, minor: 2, patch: 3, gitHash: "abc123")
-        XCTAssertEqual(v.major, 1)
-        XCTAssertEqual(v.minor, 2)
-        XCTAssertEqual(v.patch, 3)
-        XCTAssertEqual(v.gitHash, "abc123")
-    }
-
-    func testCompilerVersionEquatable() {
-        let v1 = CompilerVersion(major: 1, minor: 0, patch: 0, gitHash: nil)
-        let v2 = CompilerVersion(major: 1, minor: 0, patch: 0, gitHash: nil)
-        let v3 = CompilerVersion(major: 2, minor: 0, patch: 0, gitHash: nil)
-        XCTAssertEqual(v1, v2)
-        XCTAssertNotEqual(v1, v3)
-    }
-
-    func testCompilerVersionWithNilGitHash() {
-        let v = CompilerVersion(major: 0, minor: 1, patch: 0, gitHash: nil)
-        XCTAssertNil(v.gitHash)
-    }
-
     // MARK: - TargetTriple
 
     func testTargetTripleInit() {
@@ -350,11 +327,4 @@ final class CompilerOptionsTests: XCTestCase {
         XCTAssertEqual(LazyDelegateThreadSafetyMode.publication.rawValue, 2)
     }
 
-    // MARK: - KotlinLanguageVersion
-
-    func testKotlinLanguageVersionEquatable() {
-        let v1 = KotlinLanguageVersion.v2_3_10
-        let v2 = KotlinLanguageVersion.v2_3_10
-        XCTAssertEqual(v1, v2)
-    }
 }

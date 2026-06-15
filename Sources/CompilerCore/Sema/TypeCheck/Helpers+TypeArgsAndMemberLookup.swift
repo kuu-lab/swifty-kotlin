@@ -329,63 +329,6 @@ extension TypeCheckHelpers {
         }
     }
 
-    func smartCastTypeForWhenSubjectCase(
-        conditionID: ExprID,
-        subjectType: TypeID,
-        ast: ASTModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        guard let conditionExpr = ast.arena.expr(conditionID) else { return nil }
-        switch conditionExpr {
-        case .boolLiteral:
-            return smartCastTypeForBoolLiteral(subjectType: subjectType, sema: sema)
-        case let .nameRef(name, _):
-            return smartCastTypeForNameRef(
-                name: name, conditionID: conditionID,
-                subjectType: subjectType, sema: sema, interner: interner
-            )
-        default:
-            return nil
-        }
-    }
-
-    private func smartCastTypeForBoolLiteral(subjectType: TypeID, sema: SemaModule) -> TypeID? {
-        switch sema.types.kind(of: subjectType) {
-        case .primitive(.boolean, _):
-            sema.types.booleanType
-        default:
-            nil
-        }
-    }
-
-    private func smartCastTypeForNameRef(
-        name: InternedString,
-        conditionID: ExprID,
-        subjectType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        if name == KnownCompilerNames(interner: interner).null { return nil }
-        guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID],
-              let conditionSymbol = sema.symbols.symbol(conditionSymbolID)
-        else { return nil }
-        switch conditionSymbol.kind {
-        case .field:
-            guard let enumOwner = enumOwnerSymbol(for: conditionSymbol, symbols: sema.symbols),
-                  nominalSymbol(of: subjectType, types: sema.types) == enumOwner
-            else { return nil }
-            return sema.types.make(.classType(ClassType(classSymbol: enumOwner, args: [], nullability: .nonNull)))
-        case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-            guard let subjectNominal = nominalSymbol(of: subjectType, types: sema.types),
-                  isNominalSubtype(conditionSymbolID, of: subjectNominal, symbols: sema.symbols)
-            else { return nil }
-            return sema.types.make(.classType(ClassType(classSymbol: conditionSymbolID, args: [], nullability: .nonNull)))
-        default:
-            return nil
-        }
-    }
-
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
         case let .classType(classType):

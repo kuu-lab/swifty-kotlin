@@ -582,9 +582,7 @@ final class RuntimeHexFormatEdgeCaseTests: XCTestCase {
     //
     // Kotlin's HexFormat.number.prefix / HexFormat.number.suffix allow attaching
     // a constant prefix (e.g. "0x") or suffix to formatted number strings.
-    // kk_hexformat_prefix and kk_hexformat_suffix are NOT YET IMPLEMENTED as ABI stubs.
-    // The tests below document expected runtime semantics using helper simulation so
-    // that ABI authors have concrete expectations to match.
+    // The tests below document expected runtime semantics using helper simulation.
 
     /// Simulates Int.toHexString with a "0x" prefix applied manually.
     func testNumberFormatPrefixSimulated() {

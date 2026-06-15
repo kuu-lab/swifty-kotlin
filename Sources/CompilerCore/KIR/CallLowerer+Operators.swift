@@ -208,7 +208,7 @@ extension CallLowerer {
         //   Collection-removal (Sequence.minus(Iterable)) is not yet supported
         //   at the ABI level; return the LHS unchanged to avoid falling through
         //   to the generic arithmetic path (kk_op_sub).
-        // TODO: Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
+        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
         // deduplicate logic across CallLowerer+Operators, CallRewrite, and
         // VirtualCallRewrite (see PR #460 review).
         if isSequenceLikeType(sema.bindings.exprTypes[lhs] ?? sema.types.anyType, sema: sema, interner: interner) {

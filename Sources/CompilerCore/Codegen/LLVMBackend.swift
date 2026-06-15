@@ -32,13 +32,11 @@ final class LLVMBackend {
         module: KIRModule,
         outputObjectPath: String,
         interner: StringInterner,
-        typeSystem: TypeSystem? = nil,
-        symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
         reflectionMetadataSymbolPrefix: String? = nil,
-        omitInlineFunctions: Bool = false
+        linkOnceODRSymbols: Set<SymbolID> = []
     ) throws {
         try emitNative(
             context: "object",
@@ -49,14 +47,12 @@ final class LLVMBackend {
                     debugInfo: debugInfo,
                     bindings: bindings,
                     module: module,
-                    typeSystem: typeSystem,
-                    symbols: symbols,
                     interner: interner,
                     sourceManager: sourceManager,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID,
                     reflectionMetadataRecords: reflectionMetadataRecords,
                     reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
-                    omitInlineFunctions: omitInlineFunctions
+                    linkOnceODRSymbols: linkOnceODRSymbols
                 )
                 try emitter.emitObject(outputPath: outputObjectPath)
             }
@@ -67,8 +63,6 @@ final class LLVMBackend {
         module: KIRModule,
         outputIRPath: String,
         interner: StringInterner,
-        typeSystem: TypeSystem? = nil,
-        symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
@@ -83,8 +77,6 @@ final class LLVMBackend {
                     debugInfo: debugInfo,
                     bindings: bindings,
                     module: module,
-                    typeSystem: typeSystem,
-                    symbols: symbols,
                     interner: interner,
                     sourceManager: sourceManager,
                     fileFacadeNamesByFileID: fileFacadeNamesByFileID,

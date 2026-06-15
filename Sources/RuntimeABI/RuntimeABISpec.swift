@@ -92,15 +92,6 @@ public enum RuntimeABISpec {
             returnType: .void,
             section: "Memory"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_write_barrier",
-            parameters: [
-                RuntimeABIParameter(name: "owner", type: .opaquePointer),
-                RuntimeABIParameter(name: "fieldAddr", type: .fieldAddrPointer),
-            ],
-            returnType: .void,
-            section: "Memory"
-        ),
     ]
 
     public static let exceptionFunctions: [RuntimeABIFunctionSpec] = [
@@ -211,14 +202,6 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_panic",
-            parameters: [
-                RuntimeABIParameter(name: "cstr", type: .constCCharPointer),
-            ],
-            returnType: .noreturn,
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
@@ -841,14 +824,6 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "jsNumberRaw", type: .intptr),
             ],
             returnType: .double,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_number_toInt",
-            parameters: [
-                RuntimeABIParameter(name: "jsNumberRaw", type: .intptr),
-            ],
-            returnType: .int32,
             section: "System"
         ),
         RuntimeABIFunctionSpec(
@@ -1786,15 +1761,6 @@ public enum RuntimeABISpec {
             section: "Char"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_char_plus",
-            parameters: [
-                RuntimeABIParameter(name: "charValue", type: .intptr),
-                RuntimeABIParameter(name: "stringRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Char"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_char_rangeTo",
             parameters: [
                 RuntimeABIParameter(name: "startValue", type: .intptr),
@@ -2286,7 +2252,6 @@ public enum RuntimeABISpec {
         RuntimeABIFunctionSpec(name: "kk_path_createTempDirectory_prefix_attributes", parameters: [RuntimeABIParameter(name: "prefixRaw", type: .intptr), RuntimeABIParameter(name: "attributesRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_deleteIfExists", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_listDirectoryEntries", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
-        RuntimeABIFunctionSpec(name: "kk_path_equals", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "otherRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_startsWith_path", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "otherRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_startsWith_string", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "otherRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_endsWith_path", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "otherRaw", type: .intptr)], returnType: .intptr, section: "Path"),
@@ -2835,14 +2800,6 @@ public enum RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_timedvalue_toString",
-            parameters: [
-                RuntimeABIParameter(name: "timedValueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_time_source_mark_now",
             parameters: [
                 RuntimeABIParameter(name: "receiver", type: .intptr),
@@ -2971,7 +2928,6 @@ public enum RuntimeABISpec {
         bitwiseFunctions,
         booleanFunctions,
         boxingFunctions,
-        broadcastChannelFunctions,
         callableRefFunctions,
         charFunctions,
         collectionBridgeFunctions,
