@@ -135,6 +135,19 @@ final class CodegenPhase: CompilerPhase {
         try fm.createDirectory(atPath: inlineDir, withIntermediateDirectories: true)
 
         let objectPath = objectsDir + "/\(ctx.options.moduleName)_0.o"
+        // Bundled stdlib functions appear in every compilation unit. Use linkonce_odr so the
+        // linker deduplicates them when the library object is linked with an app object.
+        let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .map(\.rawValue))
+        let bundledSymbolIDs: Set<SymbolID> = ctx.sema.map { sema in
+            Set(sema.symbols.allSymbols()
+                .filter { sym in
+                    guard let declSite = sym.declSite else { return false }
+                    return bundledFileIDs.contains(declSite.start.file.rawValue)
+                }
+                .map(\.id))
+        } ?? []
         try backend.emitObject(
             module: module,
             outputObjectPath: objectPath,
@@ -142,7 +155,8 @@ final class CodegenPhase: CompilerPhase {
             sourceManager: ctx.sourceManager,
             fileFacadeNamesByFileID: CodegenSymbolSupport.fileFacadeNames(from: ctx.ast),
             reflectionMetadataRecords: reflectionMetadataRecords,
-            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix
+            reflectionMetadataSymbolPrefix: reflectionMetadataSymbolPrefix,
+            linkOnceODRSymbols: bundledSymbolIDs
         )
         ctx.storeGeneratedObjectPath(objectPath)
 
@@ -361,13 +375,17 @@ final class CodegenPhase: CompilerPhase {
                 )
             }
         }()
+        let bundledFileIDs = Set(ctx.sourceManager.fileIDs()
+            .filter { ctx.sourceManager.path(of: $0).hasPrefix("__bundled_") }
+            .map(\.rawValue))
         let encoder = MetadataEncoder()
         let records = encoder.buildRecords(
             symbols: sema.symbols,
             types: sema.types,
             moduleName: ctx.options.moduleName,
             interner: ctx.interner,
-            functionLinkNames: functionLinkNamesBySymbol
+            functionLinkNames: functionLinkNamesBySymbol,
+            excludedFileIDs: bundledFileIDs
         )
         return encoder.serialize(records)
     }
