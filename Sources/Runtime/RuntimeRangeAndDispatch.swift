@@ -179,6 +179,105 @@ func runtimeUnsignedRangeLastMatch(
     return 0
 }
 
+// MARK: - Signed range traverse helpers (parallel to unsigned variants above)
+
+func runtimeSignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
+    if range.step > 0 { return range.first > range.last }
+    if range.step < 0 { return range.first < range.last }
+    return true
+}
+
+func runtimeSignedRangeTraverse(
+    _ range: RuntimeRangeBox,
+    _ body: (_ current: Int, _ index: Int) -> Bool
+) -> Bool {
+    var current = range.first
+    var index = 0
+    if range.step > 0 {
+        while current <= range.last {
+            if !body(current, index) { return false }
+            current &+= range.step
+            index &+= 1
+        }
+    } else if range.step < 0 {
+        while current >= range.last {
+            if !body(current, index) { return false }
+            current &+= range.step
+            index &+= 1
+        }
+    }
+    return true
+}
+
+func runtimeSignedRangeTraverseReversed(
+    _ range: RuntimeRangeBox,
+    _ body: (_ current: Int) -> Bool
+) -> Bool {
+    var current = range.last
+    if range.step > 0 {
+        while current >= range.first {
+            if !body(current) { return false }
+            current &-= range.step
+        }
+    } else if range.step < 0 {
+        while current <= range.first {
+            if !body(current) { return false }
+            current &-= range.step
+        }
+    }
+    return true
+}
+
+func runtimeSignedRangeFirstMatch(
+    _ range: RuntimeRangeBox,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    orNull: Bool
+) -> Int {
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var found = false
+    var match = 0
+    var didThrow = false
+    _ = runtimeSignedRangeTraverse(range) { current, _ in
+        var thrown = 0
+        let result = lambda(closureRaw, current, &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; didThrow = true; return false }
+        if result != 0 { found = true; match = current; return false }
+        return true
+    }
+    if found { return match }
+    if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
+    if orNull { return runtimeNullSentinelInt }
+    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    return 0
+}
+
+func runtimeSignedRangeLastMatch(
+    _ range: RuntimeRangeBox,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    orNull: Bool
+) -> Int {
+    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
+    var found = false
+    var match = 0
+    var didThrow = false
+    _ = runtimeSignedRangeTraverseReversed(range) { current in
+        var thrown = 0
+        let result = lambda(closureRaw, current, &thrown)
+        if thrown != 0 { outThrown?.pointee = thrown; didThrow = true; return false }
+        if result != 0 { found = true; match = current; return false }
+        return true
+    }
+    if found { return match }
+    if didThrow { return orNull ? runtimeNullSentinelInt : 0 }
+    if orNull { return runtimeNullSentinelInt }
+    outThrown?.pointee = runtimeAllocateThrowable(message: "NoSuchElementException: No element matching the predicate was found.")
+    return 0
+}
+
 // MARK: - Range randomOrNull helpers
 
 func runtimeRandomIndex(count: Int, randomRaw: Int?) -> Int {

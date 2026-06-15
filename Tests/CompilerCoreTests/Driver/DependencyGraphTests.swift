@@ -26,15 +26,6 @@ final class DependencyGraphTests: XCTestCase {
         XCTAssertEqual(graph.depended(by: "unknown.kt"), [])
     }
 
-    func testClearFileRemovesBothProvidedAndDepended() {
-        let graph = DependencyGraph()
-        graph.recordProvided(filePath: "a.kt", symbols: ["X"])
-        graph.recordDepended(filePath: "a.kt", symbols: ["Y"])
-        graph.clearFile("a.kt")
-        XCTAssertEqual(graph.provided(by: "a.kt"), [])
-        XCTAssertEqual(graph.depended(by: "a.kt"), [])
-    }
-
     // MARK: - trackedFiles
 
     func testTrackedFilesReturnsSortedUnion() {

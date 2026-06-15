@@ -147,6 +147,13 @@ final class MetadataEncoder {
                 if let declSite = symbol.declSite, excludedFileIDs.contains(declSite.start.file.rawValue) {
                     return false
                 }
+                // Synthetic symbols are always re-registered by HeaderHelpers in every
+                // compilation context. Exporting them to kklib would cause downstream
+                // contexts to skip re-registration (due to the guard-exists checks),
+                // resulting in type-incompatible stale symbols and SEMA-0002 errors.
+                if !includeNonPublic && symbol.flags.contains(.synthetic) {
+                    return false
+                }
                 return true
             }
             .sorted { lhs, rhs in
