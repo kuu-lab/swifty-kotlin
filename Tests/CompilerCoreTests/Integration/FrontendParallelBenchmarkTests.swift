@@ -74,7 +74,7 @@ final class FrontendParallelBenchmarkTests: XCTestCase {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 1)
 
-        // 5 user files + 2 bundled stdlib files
+        // 5 user files + 2 bundled stdlib files (collections + text)
         XCTAssertEqual(ctx.tokensByFile.count, 7, "Expected tokens for 7 files (5 user + 2 bundled stdlib)")
         XCTAssertEqual(ctx.syntaxTrees.count, 7, "Expected syntax trees for 7 files")
         let ast = try XCTUnwrap(ctx.ast)
@@ -89,7 +89,7 @@ final class FrontendParallelBenchmarkTests: XCTestCase {
         let sources = generateSources(count: 5)
         let (ctx, _) = try runFrontendTimed(sources: sources, jobs: 4)
 
-        // 5 user files + 2 bundled stdlib files
+        // 5 user files + 2 bundled stdlib files (collections + text)
         XCTAssertEqual(ctx.tokensByFile.count, 7, "Expected tokens for 7 files in parallel mode (5 user + 2 bundled stdlib)")
         XCTAssertEqual(ctx.syntaxTrees.count, 7, "Expected syntax trees for 7 files in parallel mode")
         let ast = try XCTUnwrap(ctx.ast)
