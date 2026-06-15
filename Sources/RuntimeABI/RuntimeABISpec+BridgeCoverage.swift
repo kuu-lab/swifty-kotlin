@@ -420,7 +420,6 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),
             // STDLIB-TIME-181: Native clock_gettime bridge
-            bridgeSpec("kk_clock_gettime_realtime", section: "System"),
             bridgeSpec("kk_clock_gettime_monotonic_ns", section: "System"),
             bridgeSpec("kk_clock_monotonic_mark_now", section: "System"),
             // STDLIB-TIME-181: Type-safe epoch conversion helpers

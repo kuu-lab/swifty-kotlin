@@ -706,24 +706,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_long_coerceAtLeast_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_coerceAtMost_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_double_coerceIn_range",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
@@ -733,43 +715,7 @@ public extension RuntimeABISpec {
             section: "NumericConversion"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_coerceAtLeast_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_double_coerceAtMost_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_float_coerceIn_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_float_coerceAtLeast_range",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-                RuntimeABIParameter(name: "range", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_float_coerceAtMost_range",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
                 RuntimeABIParameter(name: "range", type: .intptr),

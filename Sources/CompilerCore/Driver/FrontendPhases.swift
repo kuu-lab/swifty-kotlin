@@ -74,6 +74,7 @@ final class LoadSourcesPhase: CompilerPhase {
 
     private func injectBundledStdlib(into sourceManager: SourceManager) {
         let sources: [(path: String, source: String)] = [
+            ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
             ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
         ]
         for (path, source) in sources {
