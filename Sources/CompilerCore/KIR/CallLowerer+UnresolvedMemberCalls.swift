@@ -125,10 +125,26 @@ extension CallLowerer {
                 return interner.intern("kk_list_distinctBy")
             case "sortedByDescending":
                 return interner.intern("kk_list_sortedByDescending")
+            case "first":
+                return interner.intern("kk_list_first")
+            case "firstOrNull":
+                return interner.intern("kk_list_firstOrNull")
+            case "lastOrNull":
+                return interner.intern("kk_list_lastOrNull")
+            case "single":
+                return interner.intern("kk_list_single")
+            case "singleOrNull":
+                return interner.intern("kk_list_singleOrNull")
             case "sortedWith":
                 return interner.intern("kk_list_sortedWith")
+            case "indexOf":
+                return interner.intern("kk_list_indexOf")
             case "lastIndexOf":
                 return interner.intern("kk_list_lastIndexOf")
+            case "indexOfFirst":
+                return interner.intern("kk_list_indexOfFirst")
+            case "indexOfLast":
+                return interner.intern("kk_list_indexOfLast")
             case "maxBy":
                 return interner.intern("kk_list_maxBy")
             case "maxByOrNull":
@@ -464,8 +480,14 @@ extension CallLowerer {
             return interner.intern(hasHOFLambdaArg
                 ? "kk_list_zipWithNextTransform"
                 : "kk_list_zipWithNext")
+        case "indexOf":
+            return interner.intern("kk_list_indexOf")
         case "lastIndexOf":
             return interner.intern("kk_list_lastIndexOf")
+        case "indexOfFirst":
+            return interner.intern("kk_list_indexOfFirst")
+        case "indexOfLast":
+            return interner.intern("kk_list_indexOfLast")
         case "maxBy":
             return interner.intern("kk_list_maxBy")
         case "maxByOrNull":
@@ -508,6 +530,14 @@ extension CallLowerer {
             return interner.intern("kk_list_onEach")
         case "onEachIndexed":
             return interner.intern("kk_list_onEachIndexed")
+        case "firstOrNull":
+            return interner.intern("kk_list_firstOrNull")
+        case "lastOrNull":
+            return interner.intern("kk_list_lastOrNull")
+        case "single":
+            return interner.intern("kk_list_single")
+        case "singleOrNull":
+            return interner.intern("kk_list_singleOrNull")
         case "sortedWith":
             return interner.intern("kk_list_sortedWith")
         case "getOrNull":
