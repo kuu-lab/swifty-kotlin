@@ -617,18 +617,6 @@ public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
 
 // MARK: - Native: clock_gettime bridge (STDLIB-TIME-181)
 
-/// Returns wall-clock time as a kotlin.time.Instant using POSIX clock_gettime(CLOCK_REALTIME).
-///
-/// This is a lower-level alternative to kk_instant_now that bypasses Foundation.Date.
-@_cdecl("kk_clock_gettime_realtime")
-public func kk_clock_gettime_realtime() -> Int {
-    var ts = timespec()
-    clock_gettime(CLOCK_REALTIME, &ts)
-    return registerRuntimeObject(
-        RuntimeInstantBox(epochSeconds: Int64(ts.tv_sec), nanoOfSecond: Int32(ts.tv_nsec))
-    )
-}
-
 /// Returns monotonic time in nanoseconds using POSIX clock_gettime(CLOCK_MONOTONIC).
 ///
 /// Kotlin/Native: TimeSource.Monotonic.markNow() lower-level primitive.
