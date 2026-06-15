@@ -16,6 +16,23 @@ final class RuntimeCharArithmeticTests: XCTestCase {
         }
     }
 
+    private func withFlatString<T>(
+        _ value: String,
+        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
+    ) -> T {
+        var length = 0
+        var byteCount = 0
+        var hash = 0
+        let data = runtimeRegisterFlatString(
+            value,
+            outLength: &length,
+            outByteCount: &byteCount,
+            outHash: &hash
+        )
+        let constData = data.map { UnsafePointer($0) }
+        return body(constData, length, byteCount, hash)
+    }
+
     // MARK: - isISOControl
 
     func testIsISOControl_nulIsControl() {
@@ -77,26 +94,29 @@ final class RuntimeCharArithmeticTests: XCTestCase {
     // MARK: - String.get
 
     func testStringGet_normalAccess() {
-        let str = runtimeString("hello")
-        var outThrown: Int = 0
-        let ch = kk_string_get(str, 1, &outThrown)
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertEqual(ch, Int(Unicode.Scalar("e").value))
+        withFlatString("hello") { data, length, byteCount, hash in
+            var outThrown: Int = 0
+            let ch = kk_string_get_flat(data, length, byteCount, hash, 1, &outThrown)
+            XCTAssertEqual(outThrown, 0)
+            XCTAssertEqual(ch, Int(Unicode.Scalar("e").value))
+        }
     }
 
     func testStringGet_firstChar() {
-        let str = runtimeString("world")
-        var outThrown: Int = 0
-        let ch = kk_string_get(str, 0, &outThrown)
-        XCTAssertEqual(outThrown, 0)
-        XCTAssertEqual(ch, Int(Unicode.Scalar("w").value))
+        withFlatString("world") { data, length, byteCount, hash in
+            var outThrown: Int = 0
+            let ch = kk_string_get_flat(data, length, byteCount, hash, 0, &outThrown)
+            XCTAssertEqual(outThrown, 0)
+            XCTAssertEqual(ch, Int(Unicode.Scalar("w").value))
+        }
     }
 
     func testStringGet_outOfBounds_throws() {
-        let str = runtimeString("hi")
-        var outThrown: Int = 0
-        _ = kk_string_get(str, 5, &outThrown)
-        XCTAssertNotEqual(outThrown, 0, "index 5 on length-2 string must throw")
+        withFlatString("hi") { data, length, byteCount, hash in
+            var outThrown: Int = 0
+            _ = kk_string_get_flat(data, length, byteCount, hash, 5, &outThrown)
+            XCTAssertNotEqual(outThrown, 0, "index 5 on length-2 string must throw")
+        }
     }
 
     // MARK: - CharRange.forEach
