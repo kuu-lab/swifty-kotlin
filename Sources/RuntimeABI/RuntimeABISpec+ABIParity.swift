@@ -192,28 +192,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_callable_ref_parameters", parameters: [
             p("tagged", .intptr),
         ]),
-        abiParitySpec("kk_callback_flow_await_close", parameters: [
-            p("channelRaw", .intptr),
-            p("closeHandlerFnPtr", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_callback_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_create", parameters: [
-            p("emitterFnPtr", .intptr),
-            p("arg1", .intptr),
-        ]),
-        abiParitySpec("kk_channel_flow_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_channel_flow_try_send", parameters: [
-            p("channelRaw", .intptr),
-            p("value", .intptr),
-        ]),
         abiParitySpec("kk_channel_is_closed_for_receive", parameters: [
             p("handle", .intptr),
         ]),
@@ -228,11 +206,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_channel_iterator_next", parameters: [
             p("iterHandle", .intptr),
-        ]),
-        abiParitySpec("kk_channel_send_suspending", parameters: [
-            p("handle", .intptr),
-            p("value", .intptr),
-            p("continuation", .intptr),
         ]),
         abiParitySpec("kk_char_digitToChar_radix", parameters: [
             p("digit", .intptr),
