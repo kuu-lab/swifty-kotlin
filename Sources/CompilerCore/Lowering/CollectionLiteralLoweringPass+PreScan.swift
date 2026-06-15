@@ -279,8 +279,6 @@ extension CollectionLiteralLoweringPass {
         if lookup.listFactoryNames.contains(callee) || lookup.mutableListConstructorNames.contains(callee)
             || callee == lookup.kkListOfName
             || callee == lookup.kkStringSplitName
-            || callee == lookup.kkStringChunkedName
-            || callee == lookup.kkStringWindowedName
             || callee == lookup.kkStringAsIterableName
             || callee == lookup.kkArrayToListName
         {
@@ -408,8 +406,6 @@ extension CollectionLiteralLoweringPass {
             return
         }
         if callee == lookup.kkStringSplitName
-            || callee == lookup.kkStringChunkedName
-            || callee == lookup.kkStringWindowedName
             || callee == lookup.kkStringAsIterableName
         {
             if let result { listExprIDs.insert(result.rawValue) }

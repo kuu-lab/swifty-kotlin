@@ -2745,8 +2745,19 @@ public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
 
 @_cdecl("kk_string_chunked_sequence")
 public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
-    let chunksRaw = kk_string_chunked(strRaw, size)
-    return kk_list_asSequence(chunksRaw)
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard size > 0 else {
+        return kk_list_asSequence(runtimeMakeStringListRaw([]))
+    }
+    let scalars = Array(source.unicodeScalars)
+    var chunks: [String] = []
+    var i = 0
+    while i < scalars.count {
+        let end = Swift.min(i + size, scalars.count)
+        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        i = end
+    }
+    return kk_list_asSequence(runtimeMakeStringListRaw(chunks))
 }
 
 @_cdecl("kk_string_chunked_sequence_transform")
@@ -2790,12 +2801,7 @@ public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
 
 @_cdecl("kk_string_windowed")
 public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
-    // Validate handle before any early return so invalid handles always trap
-    // consistently with other string runtime entry points.
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    // Return an empty list for non-positive size/step to preserve the
-    // original 2-arg overload semantics (Kotlin throws IllegalArgumentException,
-    // but this runtime returns empty for resilience).
     guard size > 0, step > 0 else {
         return runtimeMakeStringListRaw([])
     }
@@ -2812,15 +2818,14 @@ public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
 @_cdecl("kk_string_windowed_partial")
 public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    // Clamp non-positive size/step to 1, matching list windowed_partial behaviour (kk_list_windowed_partial).
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
+    let clampedSize = Swift.max(1, size)
+    let clampedStep = Swift.max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
     var windows: [String] = []
     var i = 0
     while i < scalars.count {
-        let end = min(i + clampedSize, scalars.count)
+        let end = Swift.min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
         windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
