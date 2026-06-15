@@ -82,8 +82,8 @@ final class ABIMismatchTests: XCTestCase {
     // tightening a lower bound.
 
     func testMemoryFunctionCount() {
-        // kk_alloc, kk_gc_collect, kk_write_barrier
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.memoryFunctions.count, 3)
+        // kk_alloc, kk_gc_collect
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.memoryFunctions.count, 2)
     }
 
     func testExceptionFunctionCount() {
@@ -92,7 +92,7 @@ final class ABIMismatchTests: XCTestCase {
         // kk_no_when_branch_matched_exception_new* constructors,
         // kk_concurrent_modification_exception_new* constructors,
         // kk_array_index_out_of_bounds_exception_new* constructors,
-        // kk_panic, kk_abort_unreachable,
+        // kk_abort_unreachable,
         // kk_require, kk_check, kk_require_lazy, kk_check_lazy,
         // kk_precondition_assert, kk_precondition_assert_lazy,
         // kk_assertions_enabled, kk_assertions_set_enabled, kk_assertions_reset,
@@ -269,7 +269,6 @@ final class ABIMismatchTests: XCTestCase {
             RuntimeABISpec.threadFunctions,
             RuntimeABISpec.parallelFunctions,
             RuntimeABISpec.bigIntegerFunctions,
-            RuntimeABISpec.broadcastChannelFunctions,
             RuntimeABISpec.serializationFunctions,
             RuntimeABISpec.networkFunctions,
             RuntimeABISpec.abiParityFunctions,
@@ -352,14 +351,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.parameters[6].type, .intptr)
     }
 
-    func testKKWriteBarrierSignature() throws {
-        let spec = try requireSpec("kk_write_barrier")
-        XCTAssertEqual(spec.returnType, .void)
-        XCTAssertEqual(spec.parameters.count, 2)
-        XCTAssertEqual(spec.parameters[0].type, .opaquePointer)
-        XCTAssertEqual(spec.parameters[1].type, .fieldAddrPointer)
-    }
-
     func testKKThrowableNewSignature() throws {
         let spec = try requireSpec("kk_throwable_new")
         XCTAssertEqual(spec.returnType, .opaquePointer)
@@ -440,13 +431,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(spec.returnType, .intptr)
         XCTAssertEqual(spec.parameters.count, 1)
         XCTAssertEqual(spec.parameters[0].type, .intptr)
-    }
-
-    func testKKPanicSignature() throws {
-        let spec = try requireSpec("kk_panic")
-        XCTAssertEqual(spec.returnType, .noreturn)
-        XCTAssertEqual(spec.parameters.count, 1)
-        XCTAssertEqual(spec.parameters[0].type, .constCCharPointer)
     }
 
     func testKKStringFromUTF8Signature() throws {
@@ -1016,14 +1000,6 @@ final class ABIMismatchTests: XCTestCase {
         XCTAssertEqual(
             spec.cDeclaration,
             "void kk_println_any(void * _Nullable obj);"
-        )
-    }
-
-    func testCDeclarationForKKPanic() throws {
-        let spec = try requireSpec("kk_panic")
-        XCTAssertEqual(
-            spec.cDeclaration,
-            "_Noreturn void kk_panic(const char * cstr);"
         )
     }
 
