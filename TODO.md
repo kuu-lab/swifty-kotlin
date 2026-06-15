@@ -185,9 +185,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
 - [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
 - [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
-- [x] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
-- [ ] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
-- [ ] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
+- [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
+- [x] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
+- [x] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
 
 ### Phase M2: kotlin.text StringBuilder
@@ -324,7 +324,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
 - [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
-- [x] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
+- [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
@@ -348,7 +348,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-032: `kk_java_random_new_seed` stub削除（`HeaderHelpers+SyntheticRandomStubs.swift`, `RuntimeRandom.swift`実装も削除）
 #### JS/Wasm/JVM stub登録呼び出し削除
 - [ ] CLEANUP-STUB-033: `HeaderHelpers+SyntheticPhase_PlatformAndJS.swift`の全呼び出し削除
-- [x] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
+- [ ] CLEANUP-STUB-034: `HeaderHelpers+SyntheticPhase_ExtendedStdlib.swift`のJS/Wasm/JVM関連呼び出し削除
 #### その他JS固有stub（ファイル単位）
 - [ ] CLEANUP-STUB-035: JS Console stub削除（`HeaderHelpers+SyntheticJsConsoleStubs.swift`）
 - [ ] CLEANUP-STUB-036: JS Eval stub削除（`HeaderHelpers+SyntheticJsEvalStubs.swift`）
@@ -479,7 +479,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > (4) M1–M17・CLEANUP-STUB-001〜084 とは重複させず、本計画はその「前提基盤」と「それ以外の負債」を扱う。
 
 ### Phase RF0: 計測・ガードレール（他フェーズの前提・即着手可）
-- [ ] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数 / Sources 全体 TODO+FIXME 件数 を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する（RF-LOWER-001 計測: KIR 2 件・Lowering 2 件・Sources 合計 21 件・Sources+Tests 28 件、2026-06-14 時点）
+- [ ] RF-GUARD-001: LoC メトリクススクリプト `Scripts/loc_report.sh` を追加する（ディレクトリ別行数 / `HeaderHelpers+Synthetic*` 合計行数 / `"kk_` リテラル数 / `interner.resolve == "..."` 数を TSV 出力）。ベースライン値を `docs/refactoring-metrics.md` に記録する
 - [ ] RF-GUARD-002: `.jscpd.json` の `path` に `Tests/` を追加し重複率を再計測する（まず report-only ジョブで観測、閾値は実測後に設定。現状 Tests/ は完全に未監視）
 - [ ] RF-GUARD-003: SwiftLint の `file_length` / `type_body_length` を有効化し、既存違反は `.swiftlint.baseline.json` で凍結する（新規悪化のみ CI fail にするラチェット）
 - [ ] RF-GUARD-004: `RuntimeABIExternalLinkValidationTests` の検証範囲を調査し、「CompilerCore が emit しうる全 `kk_*` 名が `RuntimeABISpec` に宣言されている」ことの検証ギャップ一覧を作る（enforcing 化は RF-KIR-005）
@@ -529,7 +529,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] RF-KIR-005: RF-GUARD-004 の検証を enforcing に昇格する（`RuntimeABISpec` 未宣言の `kk_*` 名 emit を CI fail にする）
 
 ### Phase RF5: Lowering パス再編（RF3/RF4 の削減確定後、残存コードのみ）
-- [x] RF-LOWER-001: KIR + Lowering の TODO/FIXME を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）— 実際は 4 件（KIR 2・Lowering 2、推定 620 は大幅過大）。DEBT-KIR-001・RF-LOWER-002・RF-LOWER-003 にすべて追跡済み。タグなし TODO 2 件に (RF-LOWER-003) を付与
+- [ ] RF-LOWER-001: KIR + Lowering の TODO/FIXME 約 620 件を triage する（即修正 / タスク化 / 削除の 3 分類。件数を RF-GUARD-001 メトリクスへ組み込み）
 - [ ] RF-LOWER-002: `CollectionLiteralLoweringPass`（31 ファイル・~12k 行）を責務分割する（リテラル構築 / VirtualCallRewrite / LookupTables を独立パス・レジストリへ。`+PreScan.swift:671` の単純名マッチによる stdlib 誤分類も解消）
 - [ ] RF-LOWER-003: `CallLowerer+Operators` / `CallRewrite` / `VirtualCallRewrite` に跨る sequence plus/minus 重複ロジックを共通ヘルパーへ抽出する（`+Operators.swift:211` の既知 TODO）
 - [ ] RF-LOWER-004: `InlineLoweringPass`（1,280 行）と `LambdaClosureConversionPass` の共有ヘルパーを抽出する（`InlineLoweringPass.swift:428` の既知 TODO）
@@ -642,17 +642,14 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEADCODE-007: HTTP/Network 系 6 件を削除する — `kk_http_client_clearAuthentication` / `get_async` / `post` / `setBasicAuth` / `setDefaultHeader`、`kk_http_response_contentType`（`RuntimeNetwork.swift`。HTTP 面全体がターゲット外だが、他の `kk_http_*` は Sema stub から emit されるため、まず未到達 6 件のみ。残りは DEADCODE-012 の棚卸しで判定）
 - [x] DEADCODE-008: コルーチン系 8 件を削除する — `kk_kxmini_async_await_throwing` / `async_with_dispatcher` / `run_loop`、`kk_coroutine_scope_cancel_propagate` / `scope_get_parent`、`kk_context_get_exception_handler`、`kk_await_all`、`kk_async_task_cancel`
 - [ ] DEADCODE-009: Array HOF 8 件を削除する — `kk_array_filterIndexed` / `filterNot` / `filterNotNull` / `first` / `firstOrNull` / `last` / `lastOrNull` / `mapIndexed`（`RuntimeCollectionHOFArray.swift`。Array 受信者のこれらは `StdlibSurfaceSpec.collectionHOF*` テーブルにも載っておらず別経路で lowering される）
-- [x] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
+- [ ] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
 
 ### CompilerCore / LSPServer / RuntimeABI: 参照ゼロの Swift シンボル
 - [ ] DEADCODE-011: 参照ゼロの Swift 宣言 7 件を削除する — `StdlibSurfaceSpec.collectionHOFRuntimeLinkNames(ownerKind:)`（`Sources/RuntimeABI/StdlibSurfaceSpec.swift:127`、単数形 `collectionHOFRuntimeLinkName` のみ使用）、`DocumentStore.allURIs()`（`Sources/LSPServer/DocumentStore.swift:67`）、`PositionResolver.enclosingDecl(at:)`（`Sources/LSPServer/PositionResolver.swift:39`）、`runtimeParallelStreamElements(from:)`（`Sources/Runtime/RuntimeParallel.swift:50`）、ネスト関数 `buildBoolCondition`（`Sources/CompilerCore/Codegen/NativeEmitter+FunctionEmission.swift:331`）、`runtimeRetainObjectHandle` と `typealias ComparatorLambda`（`Sources/Runtime/RuntimeCollectionHelpers.swift:525-528`）
 
 ### テストのみ参照（fiction 棚卸し — 配線するか、テストごと削除するか）
-- [~] DEADCODE-012: CompilerCore から emit されないがテストが直接呼ぶ `kk_*` 119 件を領域単位で棚卸しする（fiction 解消: Sema/lowering へ配線するか、テストごと削除するかを判定）。内訳: `kk_http_*` 14、`kk_set_*` 6、`kk_parallel_*` 6、`kk_float_*` 6、`kk_double_*` 6、`kk_int_*` 5、`kk_kproperty_stub_*` 4、`kk_flow_*` 4、`kk_coroutine_*` 4 ほか。特に `kk_set_*`（TEST-COL-012）と `kk_range_contains`（TEST-RANGE-015）は既存テストタスクが「実装あり」を前提にしている fiction なので優先的に解消する。意図的なテストシーム（`kk_runtime_force_reset` / `kk_runtime_heap_object_count` / `kk_assertions_*` 等）は維持してよい。リスト再生成は監査方法（冒頭注記）参照。**2026-06-14 棚卸し結果**: (A) kk_set_* 6件 → 全て ALIVE 確認済み（StdlibSurfaceSpec+SetHOF / CallLowerer isSetLikeType / CollectionLiteralLoweringPass の三経路で emit されている。maxOrNull/minOrNull は Sema externalLinkName 汎用パス経由で ALIVE 確認済み（`Set<Int>.maxOrNull()/minOrNull()` のコンパイル＆実行で検証）。(B) kk_range_contains → IntRange.contains() の externalLinkName を kk_op_contains から kk_range_contains に変更して配線完了（本コミット）。overflow 保護付き実装が `x in range` と `range.contains(x)` の両パスで使われるようになった。(C) kk_http_* テスト参照 14件・kk_parallel_* 6件・kk_double_toJsNumber・kk_int_toJsNumber・kk_flow_emit_with_timestamp → テストごと削除（DEADCODE-015 で対処）。(D) kk_kproperty_stub_create_full/is_const/is_lateinit/visibility → DEADCODE-004 で一括削除。(E) 数値定数 kk_double_max_value/min_value/nan/infinity・kk_float_同上・kk_int_max_value/min_value → Kotlin companion object プロパティとして Sema 配線が必要（DEADCODE-016 で対処）。(F) kk_float_to_bits/kk_double_to_bits → `Double.toBits()`/`Float.toBits()` として配線が必要（DEADCODE-016 で対処）。(G) kk_int_coerceAtLeast_range/coerceAtMost_range/coerceIn_range → `coerceIn(range: IntRange)` overload として配線が必要（DEADCODE-016 で対処）。(H) kk_flow_count/fold/reduce → Flow 標準 HOF として配線が必要（DEADCODE-016 で対処）。(I) kk_coroutine_cancel/name_get/scope_is_active/scope_is_cancelled → コルーチン制御 API として配線が必要（DEADCODE-016 で対処）
+- [ ] DEADCODE-012: CompilerCore から emit されないがテストが直接呼ぶ `kk_*` 119 件を領域単位で棚卸しする（fiction 解消: Sema/lowering へ配線するか、テストごと削除するかを判定）。内訳: `kk_http_*` 14、`kk_set_*` 6、`kk_parallel_*` 6、`kk_float_*` 6、`kk_double_*` 6、`kk_int_*` 5、`kk_kproperty_stub_*` 4、`kk_flow_*` 4、`kk_coroutine_*` 4 ほか。特に `kk_set_*`（TEST-COL-012）と `kk_range_contains`（TEST-RANGE-015）は既存テストタスクが「実装あり」を前提にしている fiction なので優先的に解消する。意図的なテストシーム（`kk_runtime_force_reset` / `kk_runtime_heap_object_count` / `kk_assertions_*` 等）は維持してよい。リスト再生成は監査方法（冒頭注記）参照
 - [ ] DEADCODE-013: テストのみ参照の Swift シンボル約 20 件を棚卸しする — `PhaseTimer.exportTSV` / `exportJSON`、`KotlinParser.canStartTypeArguments`、`KotlinLanguageVersion` / `CompilerVersion`（`CompilerTypes.swift`、製品コードから未使用）、`BlockScope` / `validateExpectActualLinks` / `setTypeParameterUpperBound` / `hasContractReturnsNotNull`（`SemanticsModels.swift`）、`smartCastTypeForWhenSubjectCase`、DataFlow の `invalidateVariable` / `narrowToNonNull`、`IncrementalCompilationCache.clearCache`、`SemaCacheContext.invalidateScope`、`FileFingerprint.mtimeUnchanged`、`DependencyGraph.clearFile`、`RuntimeMetadataCodec` / `compilerPluginMetadata`（`RuntimeMetadata.swift`）、`RuntimeReflectionMetadataDecoder`、`completeCancellationIfNeeded`（`RuntimeCoroutine.swift:962`）、`runtimeDetectMemoryLeak`、`RuntimeABIExterns.externDecl`。意図的シーム（`Driver.runForTesting` / `RuntimeABISpec.generateCHeader` / `GoldenHarnessAPI.loadCasesOrCrash` / `renderInSubprocess`）は対象外
-
-- [ ] DEADCODE-015: DEADCODE-012 棚卸しで「テストごと削除」と判定した fiction テストを削除する — (1) `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` と `Tests/RuntimeTests/RuntimeNetworkTests.swift` の HTTP 系テストを削除（`kk_http_client_get` / `kk_http_client_new` / `kk_http_client_send` / `kk_http_client_setBearerToken` / `kk_http_client_setConnectTimeoutMillis` / `kk_http_client_setFollowRedirects` / `kk_http_client_setReadTimeoutMillis` / `kk_http_client_post_async` / `kk_http_request_builder_build` / `kk_http_response_errorMessage` / `kk_http_response_header` / `kk_http_response_isSuccessful` / `kk_http_response_timedOut` / `kk_http_response_url` — HTTP はターゲット外、RuntimeABISpec+Parallel.swift の対応エントリも削除）。(2) `Tests/RuntimeTests/RuntimeParallelTests.swift` を削除（`kk_parallel_pool_new` / `kk_parallel_stream_from_collection` / `kk_parallel_stream_to_list` / `kk_parallel_stream_map` / `kk_parallel_stream_forEach` / `kk_parallel_stream_reduce` — java.util.stream は JVM 専用でターゲット外、RuntimeABISpec+Parallel.swift と Sources/Runtime/RuntimeParallel.swift も削除）。(3) `kk_double_toJsNumber` / `kk_int_toJsNumber` / `kk_flow_emit_with_timestamp` を参照するテストケースを削除（JS ターゲット専用 / 非標準 API）。各削除に際して RuntimeABISpec の対応エントリとテスト参照を同時に除去する
-- [ ] DEADCODE-016: DEADCODE-012 棚卸しで「配線が必要」と判定した未配線 kk_* を Sema/lowering に接続する — (A) 数値定数（`kk_double_max_value` / `kk_double_min_value` / `kk_double_nan` / `kk_double_positive_infinity` / `kk_double_negative_infinity` / `kk_float_max_value` / `kk_float_min_value` / `kk_float_nan` / `kk_float_positive_infinity` / `kk_float_negative_infinity` / `kk_int_max_value` / `kk_int_min_value`）: Kotlin の `Double.MAX_VALUE` 等 companion object プロパティとして Sema stub を追加し lowering で emit。(B) ビット変換（`kk_float_to_bits` / `kk_double_to_bits`）: `Float.toBits()` / `Double.toBits()` の明示的呼び出しを emit するよう Sema stub を追加。(C) range coerce overload（`kk_int_coerceAtLeast_range` / `kk_int_coerceAtMost_range` / `kk_int_coerceIn_range`）: `Int.coerceIn(range: IntRange)` の range 受け取り overload を配線。(D) Flow HOF（`kk_flow_count` / `kk_flow_fold` / `kk_flow_reduce`）: Flow の終端演算子を Sema stub から lowering 経由で emit。(E) コルーチン制御（`kk_coroutine_cancel` / `kk_coroutine_name_get` / `kk_coroutine_scope_is_active` / `kk_coroutine_scope_is_cancelled`）: CoroutineScope / CoroutineName / Job の API を Sema stub から lowering 経由で emit。各項目で配線完了後に Codegen 統合テストを追加する
 
 ### 未監査領域（フォローアップ）
 - [ ] DEADCODE-014: 今回未監査の領域を同手法で監査する — Runtime の C コード（GC 等の .c/.h）、診断コード `KSWIFTK-*` の未発行コード、stored property / global 定数、Tests 内ヘルパ、`Scripts/diff_cases` の SKIP-DIFF ケースの実行可否。以降は RF-GOV-004 の四半期運用に乗せる
