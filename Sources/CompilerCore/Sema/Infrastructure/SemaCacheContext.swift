@@ -44,13 +44,6 @@ final class SemaCacheContext {
         return result
     }
 
-    /// Invalidates all cached entries for a specific scope (e.g. after an insert).
-    func invalidateScope(_ scope: Scope) {
-        let key = ObjectIdentifier(scope)
-        scopeCache.removeValue(forKey: key)
-        scopeRetainer.removeValue(forKey: key)
-    }
-
     // MARK: - Symbol lookup cache
 
     /// Caches ``SymbolTable.symbol(_:)`` results to avoid repeated bounds checks.

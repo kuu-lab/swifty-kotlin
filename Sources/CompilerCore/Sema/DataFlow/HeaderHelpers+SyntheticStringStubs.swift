@@ -173,6 +173,8 @@ extension DataFlowSemaPhase {
         )
 
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trim",
             externalLinkName: "kk_string_trim",
@@ -698,6 +700,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
             externalLinkName: "kk_string_subSequence",
@@ -763,6 +767,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "substring",
             externalLinkName: "kk_string_substring",
@@ -775,7 +781,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
@@ -1259,6 +1264,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "drop",
             externalLinkName: "kk_string_drop",
@@ -2545,6 +2552,8 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
             externalLinkName: "kk_string_trimStart",
