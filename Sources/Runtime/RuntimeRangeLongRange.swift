@@ -417,11 +417,6 @@ public func kk_itable_lookup(_ receiver: Int, _ ifaceSlot: Int, _ methodSlot: In
     return Int(bitPattern: functionPointer)
 }
 
-@_cdecl("kk_kxmini_run_loop")
-public func kk_kxmini_run_loop(_ entryPointRaw: Int, _ functionID: Int) -> Int {
-    runSuspendEntryLoop(entryPointRaw: entryPointRaw, functionID: functionID)
-}
-
 func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil

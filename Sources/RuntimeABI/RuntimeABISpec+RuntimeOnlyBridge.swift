@@ -83,7 +83,6 @@ private let numericOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
 
 private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_flow_stopped", section: "Coroutine"),
-    bridgeSpec("kk_kxmini_run_loop", section: "Coroutine", params: ["entryPointRaw", "functionID"]),
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
 
