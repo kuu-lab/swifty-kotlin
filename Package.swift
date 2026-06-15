@@ -34,11 +34,7 @@ let package = Package(
         .target(
             name: "CompilerCore",
             dependencies: ["CLLVM", "RuntimeABI"],
-            resources: [.process("Stdlib")]
-        ),
-        .target(
-            name: "Stdlib",
-            path: "Stdlib"
+            exclude: ["Stdlib"]
         ),
         .target(
             name: "GoldenHarnessSupport",
