@@ -654,18 +654,47 @@ final class CallLowerer {
             ))
             return result
         }
-        if sema.bindings.builderDSLKind(for: exprID) == .buildString {
-            let builderRuntimeCallee: String? = switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-            case ("append", 1):
-                "kk_string_builder_append"
-            case ("appendLine", 0):
-                "kk_string_builder_append_line_noarg"
-            case ("appendLine", 1):
-                "kk_string_builder_append_line"
-            case ("appendRange", 3):
-                "kk_string_builder_append_range"
-            default:
-                nil
+        if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
+            let sourceName = interner.resolve(sourceCalleeName)
+            let builderRuntimeCallee: String? = switch builderKind {
+            case .buildString:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("append", 1):
+                    "kk_string_builder_append"
+                case ("appendLine", 0):
+                    "kk_string_builder_append_line_noarg"
+                case ("appendLine", 1):
+                    "kk_string_builder_append_line"
+                case ("appendRange", 3):
+                    "kk_string_builder_append_range"
+                default:
+                    nil
+                }
+            case .buildList:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("add", 1):
+                    "kk_builder_list_add"
+                case ("addAll", 1):
+                    "kk_builder_list_addAll"
+                default:
+                    nil
+                }
+            case .buildSet:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("add", 1):
+                    "kk_builder_set_add"
+                case ("addAll", 1):
+                    "kk_builder_set_addAll"
+                default:
+                    nil
+                }
+            case .buildMap:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("put", 2):
+                    "kk_builder_map_put"
+                default:
+                    nil
+                }
             }
             if let builderRuntimeCallee {
                 let result = arena.appendExpr(

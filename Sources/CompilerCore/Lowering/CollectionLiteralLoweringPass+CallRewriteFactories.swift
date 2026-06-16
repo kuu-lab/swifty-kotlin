@@ -603,7 +603,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         // --- Rewrite buildString/buildList/buildMap → kk_build_* (STDLIB-002) ---
-        if symbol == nil, lookup.builderDSLNames.contains(callee) {
+        if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let kkCallee: InternedString = switch callee {
             case lookup.buildStringName:
                 arguments.count == 2 ? lookup.kkBuildStringWithCapacityName : lookup.kkBuildStringName
