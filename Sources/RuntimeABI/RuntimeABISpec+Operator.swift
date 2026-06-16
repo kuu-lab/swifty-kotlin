@@ -1,7 +1,7 @@
 // Operator / TypeCheck / Reflection functions.
 
 public extension RuntimeABISpec {
-    static let operatorFunctions: [RuntimeABIFunctionSpec] = [
+    public static let operatorFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_type_register_super",
             parameters: [
