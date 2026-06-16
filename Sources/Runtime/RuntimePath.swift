@@ -1043,17 +1043,6 @@ public func kk_path_normalize(_ pathRaw: Int) -> Int {
 
 // MARK: - Path comparison methods
 
-@_cdecl("kk_path_equals")
-public func kk_path_equals(_ pathRaw: Int, _ otherRaw: Int) -> Int {
-    guard let path = runtimePathBox(from: pathRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_equals received invalid Path handle")
-    }
-    guard let other = runtimePathBox(from: otherRaw) else {
-        return kk_box_bool(0)
-    }
-    return kk_box_bool(path.pathString == other.pathString ? 1 : 0)
-}
-
 @_cdecl("kk_path_startsWith_path")
 public func kk_path_startsWith_path(_ pathRaw: Int, _ otherRaw: Int) -> Int {
     guard let path = runtimePathBox(from: pathRaw) else {

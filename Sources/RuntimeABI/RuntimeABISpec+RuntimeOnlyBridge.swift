@@ -1,16 +1,9 @@
 private let arrayHOFBridgeNames = [
     "kk_array_all",
     "kk_array_count",
-    "kk_array_filterIndexed",
-    "kk_array_filterNot",
     "kk_array_find",
     "kk_array_findLast",
-    "kk_array_first",
-    "kk_array_firstOrNull",
     "kk_array_flatMap",
-    "kk_array_last",
-    "kk_array_lastOrNull",
-    "kk_array_mapIndexed",
     "kk_array_mapNotNull",
     "kk_array_reduce",
     "kk_array_reduceIndexed",
@@ -48,7 +41,6 @@ private let arrayFoldBridgeFunctions = [
 }
 
 private let arraySpecialBridgeFunctions: [RuntimeABIFunctionSpec] = [
-    bridgeSpec("kk_array_filterNotNull", section: "Collection", params: ["arrayRaw"]),
     RuntimeABIFunctionSpec(
         name: "kk_bits_to_double",
         parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
@@ -83,20 +75,11 @@ private let numericOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
 
 private let coroutineOnlyBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_flow_stopped", section: "Coroutine"),
-    bridgeSpec("kk_kxmini_run_loop", section: "Coroutine", params: ["entryPointRaw", "functionID"]),
     bridgeSpec("kk_supervisor_scope_new", section: "Coroutine"),
 ]
 
 private let kclassBridgeFunctions = [
     "kk_kclass_get_arity",
-    "kk_kclass_get_field_count",
-    "kk_kclass_get_instance_size_words",
-    "kk_kclass_get_qualified_name",
-    "kk_kclass_get_simple_name",
-    "kk_kclass_get_superclass_name",
-    "kk_kclass_is_data_class",
-    "kk_kclass_is_sealed_class",
-    "kk_kclass_is_value_class",
 ].map { bridgeSpec($0, section: "TypeCheck", params: ["kclassRaw"]) }
 
 private let sequenceOnlyBridgeFunctions: [RuntimeABIFunctionSpec] =
