@@ -70,8 +70,6 @@ struct CollectionLiteralLookupTables {
     // Set predicate HOF ABI names (STDLIB-SET-PRED)
 
     let kkStringSplitName: InternedString
-    let kkStringChunkedName: InternedString
-    let kkStringWindowedName: InternedString
     let kkStringAsSequenceName: InternedString
     let kkStringAsIterableName: InternedString
     let kkStringIteratorName: InternedString
@@ -891,8 +889,6 @@ struct CollectionLiteralLookupTables {
         kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
         kkSetToListName = interner.intern("kk_set_toList")
         kkStringSplitName = interner.intern("kk_string_split")
-        kkStringChunkedName = interner.intern("kk_string_chunked")
-        kkStringWindowedName = interner.intern("kk_string_windowed")
         kkStringAsSequenceName = interner.intern("kk_string_asSequence")
         kkStringAsIterableName = interner.intern("kk_string_asIterable")
         kkStringIteratorName = interner.intern("kk_string_iterator")

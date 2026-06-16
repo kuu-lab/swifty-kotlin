@@ -1,6 +1,8 @@
-// Operator / TypeCheck / Reflection functions.
+// swiftlint:disable file_length
 
+/// `RuntimeABISpec.operatorFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
+
     static let operatorFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_type_register_super",
@@ -508,4 +510,6 @@ public extension RuntimeABISpec {
             section: "TypeCheck"
         ),
     ]
+
+    /// Stdlib Delegate Functions (P5-80)
 }

@@ -57,9 +57,7 @@ extension DataFlowSemaPhase {
         registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBase64Stubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsDateStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsCollectionsReadonlyMapToMutableMapStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsBigIntInteropStubs(symbols: symbols, types: types, interner: interner)
+registerSyntheticJsBigIntInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeGetterStubs(symbols: symbols, interner: interner)
         registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
     }
