@@ -3,7 +3,7 @@
 /// `RuntimeABISpec.rangeFunctions` (P5-68) extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     /// Range/Progression (P5-68)
-    public static let rangeFunctions: [RuntimeABIFunctionSpec] = [
+    static let rangeFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_op_rangeTo",
             parameters: [
@@ -102,6 +102,15 @@ public extension RuntimeABISpec {
             name: "kk_range_count",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_range_contains",
+            parameters: [
+                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
             section: "Range"

@@ -68,36 +68,14 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection"
         ),
+    ] + (1...5).map { i in
         RuntimeABIFunctionSpec(
-            name: "kk_list_component1",
+            name: "kk_list_component\(i)",
             parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
             returnType: .intptr,
             section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component2",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component3",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component4",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_list_component5",
-            parameters: [RuntimeABIParameter(name: "listRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Collection"
-        ),
+        )
+    } + [
         RuntimeABIFunctionSpec(
             name: "kk_list_contains",
             parameters: [

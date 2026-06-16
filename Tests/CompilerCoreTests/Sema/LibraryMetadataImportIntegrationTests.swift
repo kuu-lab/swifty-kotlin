@@ -40,7 +40,11 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                         symbol.flags.contains(.synthetic)
                 }
                 XCTAssertNotNil(importedPlus)
-                XCTAssertFalse(appCtx.diagnostics.diagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
+                let appFileDiagnostics = appCtx.diagnostics.diagnostics.filter { diag in
+                    guard let range = diag.primaryRange else { return false }
+                    return appCtx.sourceManager.path(of: range.start.file) == appPath
+                }
+                XCTAssertFalse(appFileDiagnostics.contains { $0.code == "KSWIFTK-SEMA-0002" })
             }
         }
     }

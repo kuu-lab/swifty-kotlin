@@ -3,7 +3,7 @@
 public extension RuntimeABISpec {
     // MARK: - File I/O (STDLIB-320/321/322/323)
 
-    public static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
+    static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_file_new",
             parameters: [
