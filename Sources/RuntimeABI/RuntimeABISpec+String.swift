@@ -5,7 +5,7 @@
 /// Mirrors the existing per-section split convention used elsewhere in
 /// `Sources/RuntimeABI/` (`+Collection.swift`, `+Sequence.swift`, etc.).
 public extension RuntimeABISpec {
-    public static let stringFunctions: [RuntimeABIFunctionSpec] = [
+    static let stringFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_string_from_utf8",
             parameters: [
