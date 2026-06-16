@@ -6,7 +6,7 @@ extension CollectionLiteralLoweringPass {
         let builderLambdaKinds = collectBuilderLambdaKinds(
             module: module,
             lookup: lookup,
-            interner: ctx.interner
+            ctx: ctx
         )
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
