@@ -114,14 +114,6 @@ public extension RuntimeABISpec {
             section: "Exception"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_panic",
-            parameters: [
-                RuntimeABIParameter(name: "cstr", type: .constCCharPointer),
-            ],
-            returnType: .noreturn,
-            section: "Exception"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_abort_unreachable",
             parameters: [
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),

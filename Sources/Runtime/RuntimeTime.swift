@@ -54,16 +54,6 @@ private func runtimeKotlinDurationBox(from raw: Int) -> RuntimeDurationBox? {
     return tryCast(ptr, to: RuntimeDurationBox.self)
 }
 
-private func runtimeJavaInstantBox(from raw: Int) -> RuntimeJavaInstantBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeJavaInstantBox.self)
-}
-
-private func runtimeJavaDurationBox(from raw: Int) -> RuntimeJavaDurationBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeJavaDurationBox.self)
-}
-
 private func runtimeJSDateBox(from raw: Int) -> RuntimeJSDateBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeJSDateBox.self)
@@ -353,203 +343,6 @@ public func kk_test_time_source_read(_ sourceRaw: Int) -> Int {
     return Int(source.nanoseconds)
 }
 
-// MARK: - java.time.Instant property accessors (STDLIB-TIME-181)
-
-/// Returns the epochSeconds field of a java.time.Instant handle.
-///
-/// Kotlin/JVM: javaInstant.epochSecond
-@_cdecl("kk_java_instant_epoch_seconds")
-public func kk_java_instant_epoch_seconds(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeJavaInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_instant_epoch_seconds received invalid java.time.Instant handle")
-    }
-    return Int(instant.epochSeconds)
-}
-
-/// Returns the nanoOfSecond field of a java.time.Instant handle.
-///
-/// Kotlin/JVM: javaInstant.nano
-@_cdecl("kk_java_instant_nano_of_second")
-public func kk_java_instant_nano_of_second(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeJavaInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_instant_nano_of_second received invalid java.time.Instant handle")
-    }
-    return Int(instant.nanoOfSecond)
-}
-
-/// Returns the epoch-millisecond value of a java.time.Instant handle.
-///
-/// Kotlin/JVM: javaInstant.toEpochMilli()
-@_cdecl("kk_java_instant_to_epoch_milli")
-public func kk_java_instant_to_epoch_milli(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeJavaInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_instant_to_epoch_milli received invalid java.time.Instant handle")
-    }
-    let millis = runtimeEpochMilliseconds(epochSeconds: instant.epochSeconds, nanoOfSecond: instant.nanoOfSecond)
-    return Int(millis)
-}
-
-/// Creates a java.time.Instant from epoch seconds and nanoOfSecond.
-///
-/// Kotlin/JVM: java.time.Instant.ofEpochSecond(epochSecond, nanoAdjustment)
-@_cdecl("kk_java_instant_of_epoch_second")
-public func kk_java_instant_of_epoch_second(_ epochSeconds: Int, _ nanoOfSecond: Int) -> Int {
-    return registerRuntimeObject(
-        RuntimeJavaInstantBox(epochSeconds: Int64(epochSeconds), nanoOfSecond: Int32(nanoOfSecond))
-    )
-}
-
-/// Creates a java.time.Instant from epoch milliseconds.
-///
-/// Kotlin/JVM: java.time.Instant.ofEpochMilli(epochMilli)
-@_cdecl("kk_java_instant_of_epoch_milli")
-public func kk_java_instant_of_epoch_milli(_ epochMillis: Int) -> Int {
-    let epochMillis64 = Int64(epochMillis)
-    let nanoRem = epochMillis64 % 1_000
-    let secs = epochMillis64 / 1_000
-    let nanoOfSecond: Int32
-    let epochSecs: Int64
-    if nanoRem < 0 {
-        nanoOfSecond = Int32((nanoRem + 1_000) * 1_000_000)
-        epochSecs = secs - 1
-    } else {
-        nanoOfSecond = Int32(nanoRem * 1_000_000)
-        epochSecs = secs
-    }
-    return registerRuntimeObject(RuntimeJavaInstantBox(epochSeconds: epochSecs, nanoOfSecond: nanoOfSecond))
-}
-
-/// Returns a human-readable ISO-8601 string for a java.time.Instant.
-///
-/// Kotlin/JVM: javaInstant.toString()
-@_cdecl("kk_java_instant_to_string")
-public func kk_java_instant_to_string(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeJavaInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_instant_to_string received invalid java.time.Instant handle")
-    }
-    let date = Date(timeIntervalSince1970: Double(instant.epochSeconds) + Double(instant.nanoOfSecond) / 1_000_000_000)
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let str = formatter.string(from: date)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
-// MARK: - java.time.Duration property accessors (STDLIB-TIME-181)
-
-/// Returns the seconds field of a java.time.Duration handle.
-///
-/// Kotlin/JVM: javaDuration.seconds
-@_cdecl("kk_java_duration_seconds")
-public func kk_java_duration_seconds(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeJavaDurationBox(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_duration_seconds received invalid java.time.Duration handle")
-    }
-    return Int(duration.seconds)
-}
-
-/// Returns the nanoAdjustment field of a java.time.Duration handle.
-///
-/// Kotlin/JVM: javaDuration.nano
-@_cdecl("kk_java_duration_nano")
-public func kk_java_duration_nano(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeJavaDurationBox(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_duration_nano received invalid java.time.Duration handle")
-    }
-    return Int(duration.nanoAdjustment)
-}
-
-/// Returns the total milliseconds of a java.time.Duration handle.
-///
-/// Kotlin/JVM: javaDuration.toMillis()
-@_cdecl("kk_java_duration_to_millis")
-public func kk_java_duration_to_millis(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeJavaDurationBox(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_duration_to_millis received invalid java.time.Duration handle")
-    }
-    let secondsAsMillis = runtimeSaturatingAdd(
-        saturatingMultiply(duration.seconds, 1_000),
-        Int64(duration.nanoAdjustment) / 1_000_000
-    )
-    return Int(secondsAsMillis)
-}
-
-/// Creates a java.time.Duration from seconds and nanoAdjustment.
-///
-/// Kotlin/JVM: java.time.Duration.ofSeconds(seconds, nanoAdjustment)
-@_cdecl("kk_java_duration_of_seconds")
-public func kk_java_duration_of_seconds(_ seconds: Int, _ nanoAdjustment: Int) -> Int {
-    return registerRuntimeObject(
-        RuntimeJavaDurationBox(seconds: Int64(seconds), nanoAdjustment: Int32(nanoAdjustment))
-    )
-}
-
-/// Creates a java.time.Duration from milliseconds.
-///
-/// Kotlin/JVM: java.time.Duration.ofMillis(millis)
-@_cdecl("kk_java_duration_of_millis")
-public func kk_java_duration_of_millis(_ millis: Int) -> Int {
-    let millis64 = Int64(millis)
-    let nanoRem = millis64 % 1_000
-    let secs = millis64 / 1_000
-    let nanoAdjustment: Int32
-    let seconds: Int64
-    if nanoRem < 0 {
-        nanoAdjustment = Int32((nanoRem + 1_000) * 1_000_000)
-        seconds = secs - 1
-    } else {
-        nanoAdjustment = Int32(nanoRem * 1_000_000)
-        seconds = secs
-    }
-    return registerRuntimeObject(RuntimeJavaDurationBox(seconds: seconds, nanoAdjustment: nanoAdjustment))
-}
-
-/// Returns a human-readable string for a java.time.Duration (ISO-8601 format).
-///
-/// Kotlin/JVM: javaDuration.toString()
-///
-/// Java's Duration.toString() follows the ISO-8601 pattern PTnHnMn.nS.
-/// The sign is placed on each component, not as a leading "-PT" prefix.
-/// For example: Duration.ofMillis(-1500) → "PT-1.500000000S"
-///              Duration.ofSeconds(-3600) → "PT-1H"
-@_cdecl("kk_java_duration_to_string")
-public func kk_java_duration_to_string(_ durationRaw: Int) -> Int {
-    guard let duration = runtimeJavaDurationBox(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_java_duration_to_string received invalid java.time.Duration handle")
-    }
-    // duration.seconds and duration.nanoAdjustment are the canonical fields
-    // (nanoAdjustment is always in [0, 999_999_999] after construction).
-    let secs = duration.seconds
-    let nano = Int64(duration.nanoAdjustment)
-
-    // Build ISO-8601 duration string: PT[nH][nM][n[.nnnnnnnnn]S]
-    // Components are signed individually, matching java.time.Duration.toString().
-    var result = "PT"
-    let absSecs = secs == Int64.min ? Int64.max : (secs < 0 ? -secs : secs)
-    let hours = absSecs / 3_600
-    let minutes = (absSecs % 3_600) / 60
-    let seconds = absSecs % 60
-    let isNegative = secs < 0
-
-    if hours > 0 { result += isNegative ? "-\(hours)H" : "\(hours)H" }
-    if minutes > 0 { result += isNegative ? "-\(minutes)M" : "\(minutes)M" }
-    if seconds > 0 || nano > 0 || (hours == 0 && minutes == 0) {
-        let signedSec = isNegative ? -Int64(seconds) : Int64(seconds)
-        if nano == 0 {
-            result += "\(signedSec)S"
-        } else {
-            let fracStr = String(format: "%09d", nano).replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
-            result += "\(signedSec).\(fracStr)S"
-        }
-    }
-    let utf8 = Array(result.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
-}
-
 // MARK: - JS Date property accessors (STDLIB-TIME-181)
 
 /// Returns the epochMilliseconds of a JS Date handle.
@@ -561,32 +354,6 @@ public func kk_js_date_epoch_millis(_ dateRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_epoch_millis received invalid JS Date handle")
     }
     return Int(date.epochMilliseconds)
-}
-
-/// Creates a JS Date from epoch milliseconds.
-///
-/// Kotlin/JS: Date(milliseconds)
-@_cdecl("kk_js_date_from_epoch_millis")
-public func kk_js_date_from_epoch_millis(_ epochMillis: Int) -> Int {
-    return registerRuntimeObject(RuntimeJSDateBox(epochMilliseconds: Double(epochMillis)))
-}
-
-/// Returns a human-readable ISO-8601 string for a JS Date.
-///
-/// Kotlin/JS: date.toISOString()
-@_cdecl("kk_js_date_to_string")
-public func kk_js_date_to_string(_ dateRaw: Int) -> Int {
-    guard let jsDate = runtimeJSDateBox(from: dateRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_to_string received invalid JS Date handle")
-    }
-    let foundationDate = Date(timeIntervalSince1970: jsDate.epochMilliseconds / 1_000)
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let str = formatter.string(from: foundationDate)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        Int(bitPattern: kk_string_from_utf8(buf.baseAddress!, Int32(buf.count)))
-    }
 }
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
@@ -616,18 +383,6 @@ public func kk_foundation_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
 }
 
 // MARK: - Native: clock_gettime bridge (STDLIB-TIME-181)
-
-/// Returns wall-clock time as a kotlin.time.Instant using POSIX clock_gettime(CLOCK_REALTIME).
-///
-/// This is a lower-level alternative to kk_instant_now that bypasses Foundation.Date.
-@_cdecl("kk_clock_gettime_realtime")
-public func kk_clock_gettime_realtime() -> Int {
-    var ts = timespec()
-    clock_gettime(CLOCK_REALTIME, &ts)
-    return registerRuntimeObject(
-        RuntimeInstantBox(epochSeconds: Int64(ts.tv_sec), nanoOfSecond: Int32(ts.tv_nsec))
-    )
-}
 
 /// Returns monotonic time in nanoseconds using POSIX clock_gettime(CLOCK_MONOTONIC).
 ///

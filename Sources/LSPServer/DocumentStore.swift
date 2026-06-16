@@ -64,7 +64,4 @@ public final class DocumentStore {
         documents[uri]?.version
     }
 
-    public func allURIs() -> [String] {
-        Array(documents.keys)
-    }
 }
