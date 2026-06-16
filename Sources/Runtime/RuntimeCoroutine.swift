@@ -25,7 +25,6 @@ func makePthreadKey() -> pthread_key_t {
     #endif
     return key
 }
-
 /// Read the object stored under `key` for the current thread.
 func pthreadGetValue<T: AnyObject>(_ key: pthread_key_t) -> T? {
     guard let raw = pthread_getspecific(key) else { return nil }
@@ -3090,4 +3089,3 @@ public func kk_suspend_function_invoke(
 
     return Int(continuationState.completion)
 }
-
