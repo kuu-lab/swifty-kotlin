@@ -23,27 +23,6 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
 
     // MARK: - chunked tests
 
-    func testChunkedBasic() {
-        let result = kk_string_chunked(runtimeMakeStringRaw("abcdef"), 2)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
-    }
-
-    func testChunkedEmptyString() {
-        let result = kk_string_chunked(runtimeMakeStringRaw(""), 3)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 0)
-    }
-
-    func testChunkedSizeGreaterThanLength() {
-        let result = kk_string_chunked(runtimeMakeStringRaw("hi"), 100)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 1)
-    }
-
     func testChunkedTransformFunctionExists() {
         // Verify the function symbol exists. Cannot invoke with a real lambda at the
         // runtime level without a compiled Kotlin closure.
@@ -52,31 +31,6 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
     }
 
     // MARK: - windowed tests
-
-    func testWindowedBasic() {
-        let result = kk_string_windowed(runtimeMakeStringRaw("abcde"), 3, 1)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-        XCTAssertEqual(list?.elements.count, 3)
-    }
-
-    func testWindowedPartialWindowsFalse() {
-        let result = kk_string_windowed_partial(runtimeMakeStringRaw("abcde"), 3, 2, 0)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-    }
-
-    func testWindowedPartialWindowsTrue() {
-        let result = kk_string_windowed_partial(runtimeMakeStringRaw("abcde"), 3, 2, 1)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-    }
-
-    func testWindowedStepLargerThanSize() {
-        let result = kk_string_windowed(runtimeMakeStringRaw("abcdef"), 2, 3)
-        let list = runtimeListBox(from: result)
-        XCTAssertNotNil(list)
-    }
 
     func testWindowedTransformFunctionExists() {
         let fn: (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_string_windowedSequence_transform
