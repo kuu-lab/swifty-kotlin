@@ -726,6 +726,16 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(javaRandomType, for: javaRandomSymbol)
 
+        let longType = types.longType
+        registerSyntheticRandomConstructor(
+            ownerSymbol: javaRandomSymbol,
+            ownerType: javaRandomType,
+            externalLinkName: "kk_java_util_random_create_seeded",
+            parameters: [(name: "seed", type: longType)],
+            symbols: symbols,
+            interner: interner
+        )
+
         return javaRandomType
     }
 
