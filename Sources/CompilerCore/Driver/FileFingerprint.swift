@@ -35,12 +35,6 @@ public struct FileFingerprint: Equatable, Codable {
         contentHash != other.contentHash
     }
 
-    /// Returns `true` when the file path and recorded mtime are unchanged.
-    /// Incremental correctness must still use `contentHash`.
-    public func mtimeUnchanged(from other: FileFingerprint) -> Bool {
-        path == other.path && mtimeNanos == other.mtimeNanos
-    }
-
     // MARK: - Private helpers
 
     private static func sha256Hex(_ data: Data) -> String {
