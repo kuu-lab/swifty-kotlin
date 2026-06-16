@@ -786,7 +786,7 @@ extension CollectionLiteralLoweringPass {
         // plus(other) on sequence → kk_sequence_plus (STDLIB-561)
         // Wrap single-element arguments in a one-element sequence so the
         // runtime ABI always receives a collection handle.
-        // TODO: Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
+        // TODO(RF-LOWER-003): Extract shared helper (e.g., emitSequencePlusMinusRewrite) to
         // deduplicate logic across VirtualCallRewrite, CallRewrite, and
         // CallLowerer+Operators (see PR #460 review).
         if callee == lookup.plusMemberName, arguments.count == 1, sequenceExprIDs.contains(receiver.rawValue) {
