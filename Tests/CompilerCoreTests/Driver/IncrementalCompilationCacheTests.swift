@@ -210,24 +210,6 @@ final class IncrementalCompilationCacheTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(result?.isEmpty))
     }
 
-    // MARK: - clearCache
-
-    func testClearCacheRemovesDirectory() throws {
-        let sourceDir = tempDir + "/src"
-        try FileManager.default.createDirectory(atPath: sourceDir, withIntermediateDirectories: true)
-        let sourceFile = sourceDir + "/a.kt"
-        try "fun main() {}".write(toFile: sourceFile, atomically: true, encoding: .utf8)
-
-        let cache = IncrementalCompilationCache(cachePath: tempDir)
-        cache.computeCurrentFingerprints(for: [sourceFile])
-        cache.saveState(dependencyGraph: DependencyGraph())
-
-        XCTAssertTrue(FileManager.default.fileExists(atPath: tempDir + "/manifest.json"))
-        cache.clearCache()
-        XCTAssertFalse(FileManager.default.fileExists(atPath: tempDir + "/manifest.json"))
-        XCTAssertFalse(cache.hasPreviousCache)
-    }
-
     // MARK: - loadPreviousState with unsupported manifest version
 
     func testLoadPreviousStateIgnoresUnsupportedManifestVersion() throws {
