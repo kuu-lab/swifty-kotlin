@@ -2,7 +2,7 @@
 
 /// `RuntimeABISpec.coroutineFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
-    public static let coroutineFunctions: [RuntimeABIFunctionSpec] = [
+    static let coroutineFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_suspended",
             parameters: [],
