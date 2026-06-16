@@ -11,7 +11,6 @@ enum BundledKotlinStdlib {
     // HeaderHelpers+SyntheticListAggregateMembers.swift (member > extension in resolution
     // priority), so these serve as the migration-target definitions; stub removal and
     // dispatch wiring happen in the follow-up RF-LOWER tasks.
-    // dispatch wiring happen in the follow-up RF-LOWER tasks.
     //
     // MIGRATION-COL-013: Set HOF implementations in Kotlin source.
     // sorted/first/last are already routed to kk_set_* by CallLowerer+UnresolvedMemberCalls
