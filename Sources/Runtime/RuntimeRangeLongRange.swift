@@ -458,7 +458,7 @@ private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBui
 
 @_cdecl("kk_dispatch_error")
 public func kk_dispatch_error() -> Int {
-    fatalError("KSWIFTK-RT-0001: Virtual dispatch failed: method not found in vtable/itable")
+    runtimeStructuredPanic("Virtual dispatch failed: method not found in vtable/itable")
 }
 
 private func runtimeTypeInfo(from receiver: Int) -> UnsafePointer<KTypeInfo>? {
