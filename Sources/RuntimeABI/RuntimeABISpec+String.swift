@@ -256,8 +256,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "String",
-            isThrowing: false
+            section: "String"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_format",
