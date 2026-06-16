@@ -164,6 +164,14 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
+        // NOTE: Kotlin source exists in BundledKotlinStdlib.kotlinCollectionsSearchSource (MIGRATION-COL-005)
+        // Keep stub until RF-LOWER dispatch is wired for extension fallback.
+        registerMember(
+            name: "find",
+            parameterTypes: [listPredicateType],
+            externalLinkName: "kk_list_find",
+            returnTypeOverride: types.makeNullable(listTypeParamType)
+        )
         registerMemberOverload(
             memberName: interner.intern("filterNot"),
             memberFQName: listFQName + [interner.intern("filterNot")],
