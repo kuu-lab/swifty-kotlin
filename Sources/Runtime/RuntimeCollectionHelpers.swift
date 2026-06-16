@@ -522,17 +522,6 @@ typealias RuntimeCollectionLambda2 = @convention(c) (Int, Int, Int, UnsafeMutabl
 typealias RuntimeCollectionLambda3 = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda4 = @convention(c) (Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias RuntimeCollectionLambda5 = @convention(c) (Int, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
-typealias ComparatorLambda = RuntimeCollectionLambda2
-
-/// Retains an object and registers it as a runtime handle.
-func runtimeRetainObjectHandle(_ object: AnyObject) -> Int {
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(object).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
-}
-
 /// Writes a thrown payload when the caller provided an out-thrown slot.
 func runtimeSetThrown(_ outThrown: UnsafeMutablePointer<Int>?, _ value: Int) {
     outThrown?.pointee = value

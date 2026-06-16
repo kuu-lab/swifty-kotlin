@@ -235,7 +235,7 @@ public func kk_regex_create(_ patternRaw: Int) -> Int {
                     return registerRuntimeObject(RuntimeRegexBox(regex: lastResort, pattern: pattern))
                 } catch {
                     // This should never happen, but handle gracefully
-                    fatalError("Failed to create any NSRegularExpression instance")
+                    runtimeStructuredPanic("Failed to create any NSRegularExpression instance")
                 }
             }
         }
@@ -746,7 +746,7 @@ public func kk_regex_from_literal(_ companionRef: Int, _ literalRaw: Int) -> Int
             let fallback = try NSRegularExpression(pattern: "(?!)", options: [])
             return registerRuntimeObject(RuntimeRegexBox(regex: fallback, pattern: literal))
         } catch {
-            fatalError("Failed to create fallback NSRegularExpression")
+            runtimeStructuredPanic("Failed to create fallback NSRegularExpression")
         }
     }
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: escapedPattern))
