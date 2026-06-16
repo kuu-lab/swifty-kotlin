@@ -47,10 +47,6 @@ private func runtimeParallelStreamBox(from rawValue: Int) -> RuntimeParallelStre
     resolveRuntimeHandle(rawValue, as: RuntimeParallelStreamBox.self)
 }
 
-func runtimeParallelStreamElements(from rawValue: Int) -> [Int]? {
-    runtimeParallelStreamBox(from: rawValue)?.elements
-}
-
 private func runtimeParallelSourceElements(from rawValue: Int) -> [Int]? {
     if let elements = runtimeSequenceSourceElements(from: rawValue) {
         return elements

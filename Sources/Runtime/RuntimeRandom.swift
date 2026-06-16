@@ -204,6 +204,11 @@ public func kk_random_create_seeded(_ seed: Int) -> Int {
     runtimeCreateSeededRandom(seed: seed)
 }
 
+@_cdecl("kk_java_random_new_seed")
+public func kk_java_random_new_seed(_ seed: Int) -> Int {
+    runtimeCreateSeededRandom(seed: seed)
+}
+
 // MARK: - SecureRandom Constructor / Factory
 
 @_cdecl("kk_secure_random_get_instance")
@@ -267,13 +272,6 @@ public func kk_random_asKotlinRandom(_ receiver: Int) -> Int {
 @_cdecl("kk_random_asJavaRandom")
 public func kk_random_asJavaRandom(_ receiver: Int) -> Int {
     receiver
-}
-
-@_cdecl("kk_java_util_random_create_seeded")
-public func kk_java_util_random_create_seeded(_ seed: Int) -> Int {
-    // Java Random uses the same seeding mechanism as Kotlin Random
-    // We can reuse the same implementation
-    kk_random_create_seeded(seed)
 }
 
 @_cdecl("kk_random_nextInt")

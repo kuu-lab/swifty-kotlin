@@ -722,50 +722,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "take",
-            externalLinkName: "kk_string_take",
-            receiverType: stringType,
-            parameters: [("n", intType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "takeLast",
-            externalLinkName: "kk_string_takeLast",
-            receiverType: stringType,
-            parameters: [("n", intType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "drop",
-            externalLinkName: "kk_string_drop",
-            receiverType: stringType,
-            parameters: [("n", intType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "dropLast",
-            externalLinkName: "kk_string_dropLast",
-            receiverType: stringType,
-            parameters: [("n", intType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
             named: "toLong",
@@ -1303,6 +1259,60 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
+        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
+        registerSyntheticStringExtensionFunction(
+            named: "drop",
+            externalLinkName: "kk_string_drop",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "take",
+            externalLinkName: "kk_string_take",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "dropLast",
+            externalLinkName: "kk_string_dropLast",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "takeLast",
+            externalLinkName: "kk_string_takeLast",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3509,8 +3519,6 @@ extension DataFlowSemaPhase {
         }
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",

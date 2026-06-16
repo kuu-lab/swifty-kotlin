@@ -82,6 +82,7 @@ final class LoadSourcesPhase: CompilerPhase {
             _ = sourceManager.addFile(path: path, contents: Data(source.utf8))
         }
     }
+
 }
 
 final class LexPhase: CompilerPhase {
