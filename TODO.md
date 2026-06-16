@@ -411,6 +411,18 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
+#### その他JS固有stub（ファイル単位・2026-06-12 棚卸しで発見した抜け漏れ）
+- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
+- [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
+- [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
+- [ ] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
+- [ ] CLEANUP-STUB-090: JS Symbol stub削除（`HeaderHelpers+SyntheticJsSymbolStubs.swift` — `@JsSymbol` annotation surface）
+- [ ] CLEANUP-STUB-091: JS Date 系 stub削除（`kk_js_date_to_kotlin_instant` / `kk_js_date_epoch_millis` / `kk_js_date_from_epoch_millis` / `kk_js_date_to_string`。`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` の登録と `RuntimeTime.swift` 実装も削除）
+- [ ] CLEANUP-STUB-092: `kk_java_instant_*` 合成サーフェス削除（`of_epoch_second` / `of_epoch_milli` / `epoch_seconds` / `nano_of_second` / `to_epoch_milli` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
+- [ ] CLEANUP-STUB-093: `kk_java_duration_*` 合成サーフェス削除（`of_seconds` / `of_millis` / `seconds` / `nano` / `to_millis` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
+- [ ] CLEANUP-STUB-094: `Sources/Runtime/RuntimeJsInterop.swift` 削除（`kk_js_reference_get` / `kk_js_set_toMutableSet` の @_cdecl 実装。`Tests/RuntimeTests/RuntimeJsReferenceTests.swift` も同一 PR で削除）
+- [ ] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` / `kk_js_date_to_kotlin_instant` の計 16 シンボル。各 stub 削除タスクの完了に合わせて段階的に外す）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換
 - `kotlin.jvm` / `kotlin.js` / `kotlin.wasm*` / `java.nio.file` 系・`kotlin.streams`
