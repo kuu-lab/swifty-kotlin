@@ -29,26 +29,6 @@ public extension RuntimeABISpec {
             section: "Network"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_http_client_setDefaultHeader",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "nameRaw", type: .intptr),
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_setBasicAuth",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "usernameRaw", type: .intptr),
-                RuntimeABIParameter(name: "passwordRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_http_client_setBearerToken",
             parameters: [
                 RuntimeABIParameter(name: "clientRaw", type: .intptr),
@@ -58,36 +38,10 @@ public extension RuntimeABISpec {
             section: "Network"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_http_client_clearAuthentication",
-            parameters: [RuntimeABIParameter(name: "clientRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_http_client_get",
             parameters: [
                 RuntimeABIParameter(name: "clientRaw", type: .intptr),
                 RuntimeABIParameter(name: "urlRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_post",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "urlRaw", type: .intptr),
-                RuntimeABIParameter(name: "bodyRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_client_get_async",
-            parameters: [
-                RuntimeABIParameter(name: "clientRaw", type: .intptr),
-                RuntimeABIParameter(name: "urlRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
             section: "Network"
@@ -117,12 +71,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_http_response_url",
-            parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
-            returnType: .intptr,
-            section: "Network"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_http_response_contentType",
             parameters: [RuntimeABIParameter(name: "responseRaw", type: .intptr)],
             returnType: .intptr,
             section: "Network"

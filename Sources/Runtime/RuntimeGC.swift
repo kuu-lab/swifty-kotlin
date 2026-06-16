@@ -201,13 +201,6 @@ public func kk_gc_max_heap_bytes() -> Int {
     runtimeGCTuningState.currentMaxHeapBytes()
 }
 
-@_cdecl("kk_write_barrier")
-public func kk_write_barrier(_ owner: UnsafeMutableRawPointer, _ fieldAddr: UnsafeMutablePointer<UnsafeMutableRawPointer?>) {
-    // Non-moving mark-sweep does not require a write barrier for correctness.
-    _ = owner
-    _ = fieldAddr
-}
-
 @_cdecl("kk_register_global_root")
 public func kk_register_global_root(_ slot: UnsafeMutablePointer<UnsafeMutableRawPointer?>?) {
     guard let slot else {

@@ -71,26 +71,6 @@ final class FileFingerprintTests: XCTestCase {
         XCTAssertFalse(fp1.contentChanged(from: fp2))
     }
 
-    // MARK: - mtimeUnchanged
-
-    func testMtimeUnchangedReturnsTrueForSamePathAndMtime() {
-        let fp1 = FileFingerprint(path: "/a.kt", contentHash: "x", mtimeNanos: 100)
-        let fp2 = FileFingerprint(path: "/a.kt", contentHash: "y", mtimeNanos: 100)
-        XCTAssertTrue(fp1.mtimeUnchanged(from: fp2))
-    }
-
-    func testMtimeUnchangedReturnsFalseForDifferentMtime() {
-        let fp1 = FileFingerprint(path: "/a.kt", contentHash: "x", mtimeNanos: 100)
-        let fp2 = FileFingerprint(path: "/a.kt", contentHash: "x", mtimeNanos: 200)
-        XCTAssertFalse(fp1.mtimeUnchanged(from: fp2))
-    }
-
-    func testMtimeUnchangedReturnsFalseForDifferentPath() {
-        let fp1 = FileFingerprint(path: "/a.kt", contentHash: "x", mtimeNanos: 100)
-        let fp2 = FileFingerprint(path: "/b.kt", contentHash: "x", mtimeNanos: 100)
-        XCTAssertFalse(fp1.mtimeUnchanged(from: fp2))
-    }
-
     // MARK: - Equatable
 
     func testEquatable() {
