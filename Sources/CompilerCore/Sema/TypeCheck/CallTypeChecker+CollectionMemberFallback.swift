@@ -192,6 +192,14 @@ extension CallTypeChecker {
                 expectedType: expectation.expectedType
             )
         }
+        if (memberName == "add" || memberName == "remove"), args.count == 1 {
+            _ = driver.inferExpr(
+                args[0].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: receiverElementType
+            )
+        }
         if memberName == "addAll", args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
         }
