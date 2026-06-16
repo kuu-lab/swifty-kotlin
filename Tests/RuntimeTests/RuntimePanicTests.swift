@@ -10,4 +10,12 @@ final class RuntimePanicTests: XCTestCase {
         XCTAssertTrue(rendered.contains(runtimePanicDiagnosticCode))
         XCTAssertTrue(rendered.contains(message))
     }
+
+    func testRuntimeStructuredPanicMessageIncludesDiagnosticCodeAndPayload() {
+        let payload = "structured panic payload"
+        let rendered = runtimeStructuredPanicMessage(payload)
+        XCTAssertTrue(rendered.contains(runtimePanicDiagnosticCode))
+        XCTAssertTrue(rendered.contains(payload))
+        XCTAssertTrue(rendered.hasPrefix("KSwiftK panic ["))
+    }
 }

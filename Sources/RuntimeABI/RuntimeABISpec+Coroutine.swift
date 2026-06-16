@@ -2,7 +2,7 @@
 
 /// `RuntimeABISpec.coroutineFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
-    public static let coroutineFunctions: [RuntimeABIFunctionSpec] = [
+    static let coroutineFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_suspended",
             parameters: [],
@@ -239,16 +239,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Coroutine"
         ),
-        // CORO-071: async exception handling, cancellation, dispatcher support
-        RuntimeABIFunctionSpec(
-            name: "kk_kxmini_async_await_throwing",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
         // Dispatcher-aware launch (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_dispatcher",
@@ -259,26 +249,7 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_async_task_cancel",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_kxmini_async_with_dispatcher",
-            parameters: [
-                RuntimeABIParameter(name: "dispatcherTag", type: .intptr),
-                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
-                RuntimeABIParameter(name: "continuation", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
+        ),        RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_dispatcher_and_cont",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
@@ -635,14 +606,6 @@ public extension RuntimeABISpec {
             section: "Coroutine"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_context_get_exception_handler",
-            parameters: [
-                RuntimeABIParameter(name: "contextRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_context_release",
             parameters: [
                 RuntimeABIParameter(name: "contextRaw", type: .intptr),
@@ -701,16 +664,6 @@ public extension RuntimeABISpec {
             name: "kk_channel_is_closed_token",
             parameters: [
                 RuntimeABIParameter(name: "status", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        // Deferred / awaitAll (P5-135)
-        RuntimeABIFunctionSpec(
-            name: "kk_await_all",
-            parameters: [
-                RuntimeABIParameter(name: "handlesArray", type: .intptr),
-                RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
@@ -818,23 +771,6 @@ public extension RuntimeABISpec {
             name: "kk_coroutine_scope_is_cancelled",
             parameters: [
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_get_parent",
-            parameters: [
-                RuntimeABIParameter(name: "scopeHandle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Coroutine"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_coroutine_scope_cancel_propagate",
-            parameters: [
-                RuntimeABIParameter(name: "parentHandle", type: .intptr),
-                RuntimeABIParameter(name: "childHandle", type: .intptr),
             ],
             returnType: .intptr,
             section: "Coroutine"
