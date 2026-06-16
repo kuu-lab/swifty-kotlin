@@ -5,6 +5,7 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 permissions:
   contents: read
@@ -23,6 +24,10 @@ jobs:
         run: npm install -g jscpd@4.0.8
       - name: Run jscpd
         run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
+      # RF-GUARD-002: Tests/ の重複監視（2026-06-10 実測 4.21% に対し閾値 5.0、
+      # 段階的引き下げは RF-GOV-001）
+      - name: Run jscpd (Tests)
+        run: jscpd --threshold 5.0 --min-lines 15 --format swift Tests/
       - name: jscpd reproduce hint on failure
         if: failure()
         run: |
@@ -31,6 +36,7 @@ jobs:
             echo '```bash'
             echo 'npm install -g jscpd@4.0.8'
             echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
+            echo 'jscpd --threshold 5.0 --min-lines 15 --format swift Tests/'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -99,6 +105,10 @@ jobs:
             test-filter: '^KSwiftKCLITests\\.'
             workers: "4"
             build-jobs: "4"
+          - test-target: LSPServerTests
+            test-filter: '^LSPServerTests\\.'
+            workers: "4"
+            build-jobs: "4"
     steps:
       - uses: actions/checkout@v4
       - name: Free disk space
@@ -153,7 +163,7 @@ jobs:
         # shard values MUST be a contiguous 0..N-1 range. DIFF_SHARD_COUNT is
         # derived from strategy.job-total below, so just editing this list
         # resizes the split — the divisor can never drift out of sync.
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"

@@ -210,6 +210,148 @@ final class InheritanceModifierTests: XCTestCase {
         XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
     }
 
+    func testInternalOverrideOfPublicInSameModule() throws {
+        let source = """
+        open class Shape {
+            open fun describe(): String = "Shape"
+        }
+
+        class Circle : Shape() {
+            internal override fun describe(): String = "Circle"
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: ctx)
+        assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
+        XCTAssertFalse(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error }))
+    }
+
+    func testInternalOverrideOfPublicFromOtherModule() throws {
+        let source = """
+        open class Shape {
+            open fun describe(): String = "Shape"
+        }
+
+        class Circle : Shape() {
+            internal override fun describe(): String = "Circle"
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
+
+        let phase = DataFlowSemaPhase()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        types.symbolTable = symbols
+        let bindings = BindingTable()
+        let fileScopes = phase.buildFileScopes(
+            ast: try XCTUnwrap(ctx.ast),
+            symbols: symbols,
+            interner: ctx.interner
+        )
+        phase.collectAllHeaders(
+            ast: try XCTUnwrap(ctx.ast),
+            fileScopes: fileScopes,
+            symbols: symbols,
+            types: types,
+            bindings: bindings,
+            ctx: ctx
+        )
+        phase.assignCompilationModuleFQNames(
+            symbols: symbols,
+            moduleName: ctx.options.moduleName,
+            interner: ctx.interner
+        )
+        phase.bindInheritanceEdges(
+            ast: try XCTUnwrap(ctx.ast),
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            interner: ctx.interner
+        )
+
+        guard let shapeSymbol = symbols.allSymbols().first(where: {
+            ctx.interner.resolve($0.name) == "Shape" && $0.kind == .class
+        }) else {
+            XCTFail("Shape symbol not found")
+            return
+        }
+        let otherModule = ctx.interner.intern("OtherModule")
+        symbols.setModuleFQN(otherModule, for: shapeSymbol.id)
+        if let describeSymbol = symbols.children(ofFQName: shapeSymbol.fqName).compactMap({ symbols.symbol($0) }).first(where: {
+            ctx.interner.resolve($0.name) == "describe" && $0.kind == .function
+        }) {
+            symbols.setModuleFQN(otherModule, for: describeSymbol.id)
+        }
+
+        phase.validateOpenFinalOverride(
+            ast: try XCTUnwrap(ctx.ast),
+            symbols: symbols,
+            bindings: bindings,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner,
+            compilationModuleName: ctx.options.moduleName
+        )
+
+        assertHasDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: ctx)
+    }
+
+    func testImportedLibrarySymbolsReceiveModuleFQN() throws {
+        let fm = FileManager.default
+        let libDir = fm.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "BaseLib",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=1
+        class _kk_Base fq=base.Base schema=v1 fields=0 layoutWords=2 vtable=0 itable=0
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "DerivedLib",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+
+            let symbols = SymbolTable()
+            let types = TypeSystem()
+            let diagnostics = DiagnosticEngine()
+            var inlineFns: [SymbolID: KIRFunction] = [:]
+            DataFlowSemaPhase().loadImportedLibrarySymbols(
+                options: ctx.options,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: ctx.interner,
+                importedInlineFunctions: &inlineFns
+            )
+
+            let baseSymbol = symbols.allSymbols().first {
+                ctx.interner.resolve($0.name) == "Base" && $0.kind == .class
+            }
+            XCTAssertNotNil(baseSymbol)
+            XCTAssertEqual(
+                ctx.interner.resolve(symbols.moduleFQN(for: baseSymbol!.id)!),
+                "BaseLib"
+            )
+        }
+    }
+
     func testOverrideWithCovariantReturnType() throws {
         let source = """
         open class Animal

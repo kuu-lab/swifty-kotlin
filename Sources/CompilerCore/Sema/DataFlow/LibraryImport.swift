@@ -4,6 +4,7 @@ extension DataFlowSemaPhase {
     struct LibraryManifestInfo {
         let metadataPath: String
         let inlineKIRDir: String?
+        let moduleName: String?
         let isValid: Bool
     }
 
@@ -36,6 +37,7 @@ extension DataFlowSemaPhase {
                 continue
             }
             let metadataPath = manifestInfo.metadataPath
+            let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
             let records: [ImportedLibrarySymbolRecord]
             if let cached = cache?.cachedMetadataRecords(metadataPath: metadataPath, interner: interner) {
                 records = cached
@@ -86,6 +88,9 @@ extension DataFlowSemaPhase {
                     visibility: .public,
                     flags: flags
                 )
+                if let libraryModuleFQN {
+                    symbols.setModuleFQN(libraryModuleFQN, for: symbol)
+                }
                 importedBindings.append(ImportedLibraryBinding(
                     record: record,
                     symbol: symbol,
@@ -109,11 +114,16 @@ extension DataFlowSemaPhase {
         }
 
         var syntheticPackagePaths: Set<[InternedString]> = []
+        var syntheticPackageModules: [[InternedString]: InternedString] = [:]
         for binding in importedBindings where binding.record.kind != .package {
             let fq = binding.record.fqName
+            let moduleFQN = symbols.moduleFQN(for: binding.symbol)
             for length in 1 ..< fq.count {
                 let prefix = Array(fq.prefix(length))
                 syntheticPackagePaths.insert(prefix)
+                if let moduleFQN {
+                    syntheticPackageModules[prefix] = moduleFQN
+                }
             }
         }
         for packagePath in syntheticPackagePaths {
@@ -123,7 +133,7 @@ extension DataFlowSemaPhase {
             }
             if !alreadyHasPackage {
                 let name = packagePath.last ?? interner.intern("_")
-                _ = symbols.define(
+                let packageSymbol = symbols.define(
                     kind: .package,
                     name: name,
                     fqName: packagePath,
@@ -131,6 +141,9 @@ extension DataFlowSemaPhase {
                     visibility: .public,
                     flags: [.synthetic]
                 )
+                if let moduleFQN = syntheticPackageModules[packagePath] {
+                    symbols.setModuleFQN(moduleFQN, for: packageSymbol)
+                }
             }
         }
 

@@ -95,43 +95,196 @@ extension TypeCheckHelpers {
         }
     }
 
-    /// Validate that alias expansion does not violate variance constraints.
-    /// Checks that the type arguments respect the declared variance of the
-    /// typealias's type parameters.
+    /// Variance position when walking a type for use-site projection checks.
+    private enum AliasVariancePosition {
+        case out
+        case contravariant
+
+        var flipped: AliasVariancePosition {
+            switch self {
+            case .out: .contravariant
+            case .contravariant: .out
+            }
+        }
+    }
+
+    /// Validate that use-site variance projections on a typealias instantiation are
+    /// sound with respect to occurrences of the alias type parameters in the
+    /// underlying type.
+    ///
+    /// Kotlin: typealias type parameters are always invariant (declaration-site
+    /// `out`/`in` are not permitted on the alias itself), but callers may apply
+    /// use-site projections (`out T`, `in T`, `*`). A projection is rejected when
+    /// the substituted parameter occurs in the expanded underlying type at an
+    /// incompatible variance position — the same rule as for class/interface type
+    /// parameters, except the effective variance comes from the use-site projection
+    /// rather than a declaration-site modifier.
     func validateVarianceAfterExpansion(
         _: TypeID,
         aliasSymbol: SymbolID,
         typeArgs: [TypeArg],
         sema: SemaModule,
-        diagnostics _: DiagnosticEngine? = nil
+        diagnostics: DiagnosticEngine? = nil
     ) {
         let typeParamSymbols = sema.symbols.typeAliasTypeParameters(for: aliasSymbol)
         guard !typeParamSymbols.isEmpty, typeArgs.count == typeParamSymbols.count else {
             return
         }
-        // Check each type argument against the variance of the underlying type's usage.
-        // For now, verify that use-site projections don't conflict with declaration-site variance.
+        guard let underlying = sema.symbols.typeAliasUnderlyingType(for: aliasSymbol) else {
+            return
+        }
+
+        var projectionMap: [SymbolID: TypeVariance] = [:]
         for (index, paramSymbol) in typeParamSymbols.enumerated() {
             guard index < typeArgs.count else { break }
-            guard let paramSym = sema.symbols.symbol(paramSymbol) else { continue }
-            let declaredVariance = paramSym.flags.contains(.reifiedTypeParameter) ? TypeVariance.invariant : .invariant
-            let argVariance: TypeVariance
             switch typeArgs[index] {
-            case .invariant:
-                argVariance = .invariant
             case .out:
-                argVariance = .out
+                projectionMap[paramSymbol] = .out
             case .in:
-                argVariance = .in
-            case .star:
-                continue // Star projection is always valid
+                projectionMap[paramSymbol] = .in
+            case .invariant, .star:
+                break
             }
-            // If declared variance is invariant but use-site provides a projection,
-            // that's valid in Kotlin (use-site variance). No error here.
-            // If we had declaration-site variance on the alias type params,
-            // we'd check for conflicts. For now, invariant aliases accept any use-site.
-            _ = (declaredVariance, argVariance)
         }
+        guard !projectionMap.isEmpty else { return }
+
+        let declSite = sema.symbols.symbol(aliasSymbol)?.declSite
+        checkAliasUnderlyingTypeVariance(
+            underlying,
+            projectionMap: projectionMap,
+            position: .out,
+            sema: sema,
+            diagnostics: diagnostics,
+            range: declSite
+        )
+    }
+
+    private func checkAliasUnderlyingTypeVariance(
+        _ typeID: TypeID,
+        projectionMap: [SymbolID: TypeVariance],
+        position: AliasVariancePosition,
+        sema: SemaModule,
+        diagnostics: DiagnosticEngine?,
+        range: SourceRange?
+    ) {
+        switch sema.types.kind(of: typeID) {
+        case let .typeParam(typeParam):
+            guard let projection = projectionMap[typeParam.symbol] else { return }
+            emitAliasUseSiteVarianceViolation(
+                projection: projection,
+                position: position,
+                diagnostics: diagnostics,
+                range: range
+            )
+        case let .classType(classType):
+            for arg in classType.args {
+                let (innerType, innerPosition) = projectedAliasTypeArg(arg, position: position)
+                guard let innerType else { continue }
+                checkAliasUnderlyingTypeVariance(
+                    innerType,
+                    projectionMap: projectionMap,
+                    position: innerPosition,
+                    sema: sema,
+                    diagnostics: diagnostics,
+                    range: range
+                )
+            }
+        case let .functionType(functionType):
+            for contextReceiver in functionType.contextReceivers {
+                checkAliasUnderlyingTypeVariance(
+                    contextReceiver,
+                    projectionMap: projectionMap,
+                    position: position.flipped,
+                    sema: sema,
+                    diagnostics: diagnostics,
+                    range: range
+                )
+            }
+            if let receiver = functionType.receiver {
+                checkAliasUnderlyingTypeVariance(
+                    receiver,
+                    projectionMap: projectionMap,
+                    position: position.flipped,
+                    sema: sema,
+                    diagnostics: diagnostics,
+                    range: range
+                )
+            }
+            for param in functionType.params {
+                checkAliasUnderlyingTypeVariance(
+                    param,
+                    projectionMap: projectionMap,
+                    position: position.flipped,
+                    sema: sema,
+                    diagnostics: diagnostics,
+                    range: range
+                )
+            }
+            checkAliasUnderlyingTypeVariance(
+                functionType.returnType,
+                projectionMap: projectionMap,
+                position: position,
+                sema: sema,
+                diagnostics: diagnostics,
+                range: range
+            )
+        case let .kClassType(kClassType):
+            checkAliasUnderlyingTypeVariance(
+                kClassType.argument,
+                projectionMap: projectionMap,
+                position: position,
+                sema: sema,
+                diagnostics: diagnostics,
+                range: range
+            )
+        case let .intersection(parts):
+            for part in parts {
+                checkAliasUnderlyingTypeVariance(
+                    part,
+                    projectionMap: projectionMap,
+                    position: position,
+                    sema: sema,
+                    diagnostics: diagnostics,
+                    range: range
+                )
+            }
+        case .error, .unit, .nothing, .any, .primitive:
+            break
+        }
+    }
+
+    private func projectedAliasTypeArg(
+        _ arg: TypeArg,
+        position: AliasVariancePosition
+    ) -> (TypeID?, AliasVariancePosition) {
+        switch arg {
+        case let .invariant(type):
+            (type, position)
+        case let .out(type):
+            (type, position)
+        case let .in(type):
+            (type, position.flipped)
+        case .star:
+            (nil, position)
+        }
+    }
+
+    private func emitAliasUseSiteVarianceViolation(
+        projection: TypeVariance,
+        position: AliasVariancePosition,
+        diagnostics: DiagnosticEngine?,
+        range: SourceRange?
+    ) {
+        let violation: (code: String, message: String)? = switch (projection, position) {
+        case (.out, .contravariant):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'out' but occurs in 'in' position")
+        case (.in, .out):
+            ("KSWIFTK-SEMA-VARIANCE", "Type parameter is projected as 'in' but occurs in 'out' position")
+        default:
+            nil
+        }
+        guard let violation else { return }
+        diagnostics?.error(violation.code, violation.message, range: range)
     }
 
     func resolveExplicitTypeArgs(
@@ -167,63 +320,6 @@ extension TypeCheckHelpers {
         case .timesAssign: .multiply
         case .divAssign: .divide
         case .modAssign: .modulo
-        }
-    }
-
-    func smartCastTypeForWhenSubjectCase(
-        conditionID: ExprID,
-        subjectType: TypeID,
-        ast: ASTModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        guard let conditionExpr = ast.arena.expr(conditionID) else { return nil }
-        switch conditionExpr {
-        case .boolLiteral:
-            return smartCastTypeForBoolLiteral(subjectType: subjectType, sema: sema)
-        case let .nameRef(name, _):
-            return smartCastTypeForNameRef(
-                name: name, conditionID: conditionID,
-                subjectType: subjectType, sema: sema, interner: interner
-            )
-        default:
-            return nil
-        }
-    }
-
-    private func smartCastTypeForBoolLiteral(subjectType: TypeID, sema: SemaModule) -> TypeID? {
-        switch sema.types.kind(of: subjectType) {
-        case .primitive(.boolean, _):
-            sema.types.booleanType
-        default:
-            nil
-        }
-    }
-
-    private func smartCastTypeForNameRef(
-        name: InternedString,
-        conditionID: ExprID,
-        subjectType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        if name == KnownCompilerNames(interner: interner).null { return nil }
-        guard let conditionSymbolID = sema.bindings.identifierSymbols[conditionID],
-              let conditionSymbol = sema.symbols.symbol(conditionSymbolID)
-        else { return nil }
-        switch conditionSymbol.kind {
-        case .field:
-            guard let enumOwner = enumOwnerSymbol(for: conditionSymbol, symbols: sema.symbols),
-                  nominalSymbol(of: subjectType, types: sema.types) == enumOwner
-            else { return nil }
-            return sema.types.make(.classType(ClassType(classSymbol: enumOwner, args: [], nullability: .nonNull)))
-        case .class, .interface, .object, .enumClass, .annotationClass, .typeAlias:
-            guard let subjectNominal = nominalSymbol(of: subjectType, types: sema.types),
-                  isNominalSubtype(conditionSymbolID, of: subjectNominal, symbols: sema.symbols)
-            else { return nil }
-            return sema.types.make(.classType(ClassType(classSymbol: conditionSymbolID, args: [], nullability: .nonNull)))
-        default:
-            return nil
         }
     }
 

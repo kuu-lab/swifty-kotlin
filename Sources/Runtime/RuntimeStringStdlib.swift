@@ -2703,10 +2703,22 @@ public func kk_string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
 }
 
 @_cdecl("kk_string_replaceIndentByMargin")
-public func kk_string_replaceIndentByMargin(_ strRaw: Int, _ newIndentRaw: Int, _ marginPrefixRaw: Int) -> Int {
+public func kk_string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let newIndent = runtimeStringFromRaw(newIndentRaw) ?? ""
     let marginPrefix = runtimeStringFromRaw(marginPrefixRaw) ?? "|"
+    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
+            message: "marginPrefix must be non-blank string."
+        )
+        return runtimeMakeStringRaw("")
+    }
     return runtimeMakeStringRaw(
         runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
     )
@@ -2733,8 +2745,19 @@ public func kk_string_chunked(_ strRaw: Int, _ size: Int) -> Int {
 
 @_cdecl("kk_string_chunked_sequence")
 public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
-    let chunksRaw = kk_string_chunked(strRaw, size)
-    return kk_list_asSequence(chunksRaw)
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    guard size > 0 else {
+        return kk_list_asSequence(runtimeMakeStringListRaw([]))
+    }
+    let scalars = Array(source.unicodeScalars)
+    var chunks: [String] = []
+    var i = 0
+    while i < scalars.count {
+        let end = Swift.min(i + size, scalars.count)
+        chunks.append(runtimeStringFromScalars(scalars[i ..< end]))
+        i = end
+    }
+    return kk_list_asSequence(runtimeMakeStringListRaw(chunks))
 }
 
 @_cdecl("kk_string_chunked_sequence_transform")
@@ -2778,12 +2801,7 @@ public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
 
 @_cdecl("kk_string_windowed")
 public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
-    // Validate handle before any early return so invalid handles always trap
-    // consistently with other string runtime entry points.
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    // Return an empty list for non-positive size/step to preserve the
-    // original 2-arg overload semantics (Kotlin throws IllegalArgumentException,
-    // but this runtime returns empty for resilience).
     guard size > 0, step > 0 else {
         return runtimeMakeStringListRaw([])
     }
@@ -2800,15 +2818,14 @@ public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
 @_cdecl("kk_string_windowed_partial")
 public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
-    // Clamp non-positive size/step to 1, matching list windowed_partial behaviour (kk_list_windowed_partial).
-    let clampedSize = max(1, size)
-    let clampedStep = max(1, step)
+    let clampedSize = Swift.max(1, size)
+    let clampedStep = Swift.max(1, step)
     let scalars = Array(source.unicodeScalars)
     let partial = partialWindows != 0
     var windows: [String] = []
     var i = 0
     while i < scalars.count {
-        let end = min(i + clampedSize, scalars.count)
+        let end = Swift.min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
         windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
@@ -3366,9 +3383,6 @@ private func runtimeReplaceIndentByMargin(
     newIndent: String,
     marginPrefix: String
 ) -> String {
-    if marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty {
-        fatalError("IllegalArgumentException: marginPrefix must be non-blank string.")
-    }
     let lines = Array(runtimeTrimBlankEdges(runtimeNormalizedMultilineString(source)))
     guard !lines.isEmpty else {
         return ""
@@ -4508,68 +4522,6 @@ public func kk_string_partition(
     return kk_pair_new(first, second)
 }
 
-// MARK: - Internal bridge functions for Kotlin stdlib migration (MIGRATION-TEXT-002)
-
-@_cdecl("__string_replace")
-public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replace(strRaw, oldRaw, newRaw)
-}
-
-@_cdecl("__string_replace_ignoreCase")
-public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_ignoreCase(strRaw, oldRaw, newRaw, ignoreCaseRaw)
-}
-
-@_cdecl("__string_replace_char")
-public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    return kk_string_replace_char(strRaw, oldCharRaw, newCharRaw)
-}
-
-@_cdecl("__string_replace_char_ignoreCase")
-public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    return kk_string_replace_char_ignoreCase(strRaw, oldCharRaw, newCharRaw, ignoreCaseRaw)
-}
-
-@_cdecl("__string_replaceFirst")
-public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
-}
-
-@_cdecl("__string_replaceRange")
-public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
-}
-
-@_cdecl("__string_removeRange")
-public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
-}
-
-@_cdecl("__string_removeRange_range")
-public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
-}
-
-@_cdecl("__string_removePrefix")
-public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    return kk_string_removePrefix(strRaw, prefixRaw)
-}
-
-@_cdecl("__string_removeSuffix")
-public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSuffix(strRaw, suffixRaw)
-}
-
-@_cdecl("__string_removeSurrounding")
-public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
-    return kk_string_removeSurrounding(strRaw, delimiterRaw)
-}
-
-@_cdecl("__string_removeSurrounding_pair")
-public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
-    return kk_string_removeSurrounding_pair(strRaw, prefixRaw, suffixRaw)
-}
-
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
 @_cdecl("__string_trimIndent")
@@ -4593,8 +4545,13 @@ public func __string_replaceIndent(_ strRaw: Int, _ newIndentRaw: Int) -> Int {
 }
 
 @_cdecl("__string_replaceIndentByMargin")
-public func __string_replaceIndentByMargin(_ strRaw: Int, _ newIndentRaw: Int, _ marginPrefixRaw: Int) -> Int {
-    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw)
+public func __string_replaceIndentByMargin(
+    _ strRaw: Int,
+    _ newIndentRaw: Int,
+    _ marginPrefixRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    return kk_string_replaceIndentByMargin(strRaw, newIndentRaw, marginPrefixRaw, outThrown)
 }
 
 @_cdecl("__string_format")

@@ -22,6 +22,13 @@ private let runtimeReplaceFirstCharThrowing: RuntimeStringUnaryEntry = { _, _, o
     return 0
 }
 
+private func throwableBox(from handle: Int) -> RuntimeThrowableBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
+        return nil
+    }
+    return tryCast(ptr, to: RuntimeThrowableBox.self)
+}
+
 final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -476,6 +483,20 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         var thrown2 = 0
         _ = kk_string_dropLast(rawFromRuntimeString("hello"), -1, &thrown2)
         XCTAssertNotEqual(thrown2, 0, "kk_string_dropLast(-1) should set outThrown")
+    }
+
+    func testStringReplaceIndentByMarginBlankMarginPrefixThrowsIllegalArgumentException() throws {
+        var thrown = 0
+        _ = kk_string_replaceIndentByMargin(
+            rawFromRuntimeString("|line"),
+            rawFromRuntimeString(">"),
+            rawFromRuntimeString("   "),
+            &thrown
+        )
+        XCTAssertNotEqual(thrown, 0, "blank marginPrefix should set outThrown")
+        let box = try XCTUnwrap(throwableBox(from: thrown))
+        XCTAssertEqual(box.exceptionFQName, "kotlin.IllegalArgumentException")
+        XCTAssertTrue(box.renderedMessage.contains("marginPrefix must be non-blank string."))
     }
 
     func testStringReplaceSupportsLiteralReplacement() {

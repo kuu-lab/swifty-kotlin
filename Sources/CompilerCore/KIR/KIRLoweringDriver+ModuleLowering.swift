@@ -39,6 +39,13 @@ extension KIRLoweringDriver {
         var delegateStorageSymbolByPropertySymbol: [SymbolID: SymbolID] = [:]
 
         for file in ast.sortedFiles {
+            // Bundled stdlib is re-injected on every compilation; omit it from .kklib KIR
+            // so library objects do not duplicate bundled symbols at link time.
+            if compilationCtx.options.emit == .library,
+               compilationCtx.sourceManager.path(of: file.fileID).hasPrefix("__bundled_")
+            {
+                continue
+            }
             let declIDs = lowerTopLevelDecls(
                 file: file,
                 shared: shared,

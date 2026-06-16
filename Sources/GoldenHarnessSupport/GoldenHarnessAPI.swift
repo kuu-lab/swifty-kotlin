@@ -68,8 +68,6 @@ public enum GoldenHarness {
         let stdout = Pipe(), stderr = Pipe()
         let stdoutAccumulator = DataAccumulator()
         let stderrAccumulator = DataAccumulator()
-        let stdoutGroup = DispatchGroup()
-        let stderrGroup = DispatchGroup()
         let stdoutHandle = stdout.fileHandleForReading
         let stderrHandle = stderr.fileHandleForReading
 
@@ -79,8 +77,8 @@ public enum GoldenHarness {
         process.standardOutput = stdout
         process.standardError = stderr
 
-        drain(pipe: stdout, into: stdoutAccumulator, group: stdoutGroup)
-        drain(pipe: stderr, into: stderrAccumulator, group: stderrGroup)
+        drain(pipe: stdout, into: stdoutAccumulator)
+        drain(pipe: stderr, into: stderrAccumulator)
         defer {
             stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
@@ -180,31 +178,33 @@ public enum GoldenHarness {
     /// Normalizes suite output before comparison so the checked-in golden can stay
     /// stable even when a platform injects extra synthetic symbols into the dump.
     public static func normalizedForComparison(suiteName: String, output: String) -> String {
-        switch suiteName {
-        case "Sema":
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
+            return output
+        }
+        return normalizedForComparison(suite: suite, output: output)
+    }
+
+    static func normalizedForComparison(suite: GoldenHarnessGoldenSuite, output: String) -> String {
+        switch suite {
+        case .sema:
             GoldenHarnessSemaComparisonNormalizer.normalize(output)
-        default:
+        case .lexer, .parser, .diagnostics:
             output
         }
     }
 
     static func stableOutputForPersistence(suiteName: String, output: String) -> String {
-        normalizedForComparison(suiteName: suiteName, output: output)
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
+            return output
+        }
+        return normalizedForComparison(suite: suite, output: output)
     }
 
     private static func suite(named suiteName: String) throws -> GoldenHarnessGoldenSuite {
-        switch suiteName {
-        case "Lexer":
-            .lexer
-        case "Parser":
-            .parser
-        case "Sema":
-            .sema
-        case "Diagnostics":
-            .diagnostics
-        default:
+        guard let suite = GoldenHarnessGoldenSuite(rawValue: suiteName) else {
             throw GoldenHarnessAPIError.unknownSuite(suiteName)
         }
+        return suite
     }
 
     private static func caseFile(sourcePath: String) -> GoldenHarnessCaseFile {
@@ -274,16 +274,13 @@ public enum GoldenHarness {
 
     private static func drain(
         pipe: Pipe,
-        into accumulator: DataAccumulator,
-        group: DispatchGroup
+        into accumulator: DataAccumulator
     ) {
         let handle = pipe.fileHandleForReading
-        group.enter()
         handle.readabilityHandler = { readableHandle in
             let data = readableHandle.availableData
             if data.isEmpty {
                 readableHandle.readabilityHandler = nil
-                group.leave()
                 return
             }
             accumulator.append(data)

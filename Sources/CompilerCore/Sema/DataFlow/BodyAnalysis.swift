@@ -571,14 +571,21 @@ extension DataFlowSemaPhase {
         guard !argSubstitution.isEmpty else {
             return typeID
         }
-        return applySubstitution(typeID, argSubstitution: argSubstitution, types: types, symbols: symbols)
+        return applySubstitution(
+            typeID,
+            argSubstitution: argSubstitution,
+            types: types,
+            symbols: symbols,
+            diagnostics: diagnostics
+        )
     }
 
     private func applySubstitution(
         _ typeID: TypeID,
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine? = nil
     ) -> TypeID {
         switch types.kind(of: typeID) {
         case let .typeParam(tp):
@@ -600,23 +607,49 @@ extension DataFlowSemaPhase {
             return typeID
         case let .classType(ct):
             let newArgs = ct.args.map { arg -> TypeArg in
-                substituteArg(arg, argSubstitution: argSubstitution, types: types, symbols: symbols)
+                substituteArg(
+                    arg,
+                    argSubstitution: argSubstitution,
+                    types: types,
+                    symbols: symbols,
+                    diagnostics: diagnostics
+                )
             }
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: newArgs, nullability: ct.nullability)))
         case let .functionType(ft):
-            let newContextReceivers = ft.contextReceivers.map { applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols) }
-            let newReceiver = ft.receiver.map { applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols) }
-            let newParams = ft.params.map { applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols) }
-            let newReturn = applySubstitution(ft.returnType, argSubstitution: argSubstitution, types: types, symbols: symbols)
+            let newContextReceivers = ft.contextReceivers.map {
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+            }
+            let newReceiver = ft.receiver.map {
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+            }
+            let newParams = ft.params.map {
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+            }
+            let newReturn = applySubstitution(
+                ft.returnType,
+                argSubstitution: argSubstitution,
+                types: types,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             return types.make(.functionType(FunctionType(contextReceivers: newContextReceivers, receiver: newReceiver, params: newParams, returnType: newReturn, isSuspend: ft.isSuspend, nullability: ft.nullability)))
         case let .kClassType(kc):
-            let newArg = applySubstitution(kc.argument, argSubstitution: argSubstitution, types: types, symbols: symbols)
+            let newArg = applySubstitution(
+                kc.argument,
+                argSubstitution: argSubstitution,
+                types: types,
+                symbols: symbols,
+                diagnostics: diagnostics
+            )
             if newArg == kc.argument { return typeID }
             return types.make(.kClassType(KClassType(argument: newArg, nullability: kc.nullability)))
         case .primitive, .any, .unit, .nothing, .error:
             return typeID
         case let .intersection(parts):
-            let newParts = parts.map { applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols) }
+            let newParts = parts.map {
+                applySubstitution($0, argSubstitution: argSubstitution, types: types, symbols: symbols, diagnostics: diagnostics)
+            }
             return types.make(.intersection(newParts))
         }
     }
@@ -631,7 +664,8 @@ extension DataFlowSemaPhase {
         _ arg: TypeArg,
         argSubstitution: [SymbolID: TypeArg],
         types: TypeSystem,
-        symbols: SymbolTable
+        symbols: SymbolTable,
+        diagnostics: DiagnosticEngine? = nil
     ) -> TypeArg {
         switch arg {
         case let .invariant(inner):
@@ -645,28 +679,46 @@ extension DataFlowSemaPhase {
                 }
                 return replacement
             }
-            return .invariant(applySubstitution(inner, argSubstitution: argSubstitution, types: types, symbols: symbols))
+            return .invariant(applySubstitution(
+                inner,
+                argSubstitution: argSubstitution,
+                types: types,
+                symbols: symbols,
+                diagnostics: diagnostics
+            ))
         case let .out(inner):
             if case let .typeParam(tp) = types.kind(of: inner),
                let replacement = argSubstitution[tp.symbol]
             {
                 // Declaration-site has `.out`; if use-site is `.star`, star wins.
                 if case .star = replacement { return .star }
-                let innerType = typeArgInnerType(replacement)
+                let innerType = typeArgInnerType(replacement, types: types, diagnostics: diagnostics)
                 let resolved = tp.nullability == .nullable ? applyNullability(innerType, types: types) : innerType
                 return .out(resolved)
             }
-            return .out(applySubstitution(inner, argSubstitution: argSubstitution, types: types, symbols: symbols))
+            return .out(applySubstitution(
+                inner,
+                argSubstitution: argSubstitution,
+                types: types,
+                symbols: symbols,
+                diagnostics: diagnostics
+            ))
         case let .in(inner):
             if case let .typeParam(tp) = types.kind(of: inner),
                let replacement = argSubstitution[tp.symbol]
             {
                 if case .star = replacement { return .star }
-                let innerType = typeArgInnerType(replacement)
+                let innerType = typeArgInnerType(replacement, types: types, diagnostics: diagnostics)
                 let resolved = tp.nullability == .nullable ? applyNullability(innerType, types: types) : innerType
                 return .in(resolved)
             }
-            return .in(applySubstitution(inner, argSubstitution: argSubstitution, types: types, symbols: symbols))
+            return .in(applySubstitution(
+                inner,
+                argSubstitution: argSubstitution,
+                types: types,
+                symbols: symbols,
+                diagnostics: diagnostics
+            ))
         case .star:
             return .star
         }
@@ -685,12 +737,21 @@ extension DataFlowSemaPhase {
         }
     }
 
-    private func typeArgInnerType(_ arg: TypeArg) -> TypeID {
+    private func typeArgInnerType(
+        _ arg: TypeArg,
+        types: TypeSystem,
+        diagnostics: DiagnosticEngine? = nil
+    ) -> TypeID {
         switch arg {
         case let .invariant(inner), let .out(inner), let .in(inner):
-            inner
+            return inner
         case .star:
-            fatalError("typeArgInnerType called on .star")
+            diagnostics?.error(
+                "KSWIFTK-SEMA-0063",
+                "Cannot extract inner type from star projection '<*>'.",
+                range: nil
+            )
+            return types.errorType
         }
     }
 

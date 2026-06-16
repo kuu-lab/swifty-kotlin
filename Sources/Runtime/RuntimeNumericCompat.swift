@@ -1667,33 +1667,6 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Char operations
 
-@_cdecl("kk_char_plus")
-public func kk_char_plus(_ charValue: Int, _ stringRaw: Int) -> UnsafeMutableRawPointer {
-    let unboxedChar = kk_unbox_char(charValue)
-    let fallbackScalar = UnicodeScalar(0xFFFD)!
-    let charString = String(Character(UnicodeScalar(unboxedChar) ?? fallbackScalar))
-
-    if let stringPtr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-       let stringBox = tryCast(stringPtr, to: RuntimeStringBox.self)
-    {
-        let combined = charString + stringBox.value
-        return runtimeMakeStringPointer(combined)
-    }
-
-    return runtimeMakeStringPointer(charString)
-}
-
-@_cdecl("kk_char_get")
-public func kk_char_get(_ charValue: Int, _ index: Int) -> Int {
-    // Char.get is not a standard Kotlin operation
-    // This might be used for accessing characters in a string, not for single Char
-    // For now, return the character itself if index is 0, otherwise return replacement char
-    if index == 0 {
-        return charValue
-    }
-    return kk_box_char(0xFFFD) // Replacement character for invalid index
-}
-
 @_cdecl("kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)

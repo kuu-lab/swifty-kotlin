@@ -398,6 +398,15 @@ public final class TypeSystem {
         }
     }
 
+    /// Substitutes a nominal owner's class type parameters in `type` using `ownerArgs`.
+    public func substituteNominalTypeParameters(
+        in type: TypeID,
+        owner: SymbolID,
+        ownerArgs: [TypeArg]
+    ) -> TypeID {
+        substituteNominalType(type, owner: owner, ownerArgs: ownerArgs)
+    }
+
     private func substituteNominalType(
         _ type: TypeID,
         owner: SymbolID,

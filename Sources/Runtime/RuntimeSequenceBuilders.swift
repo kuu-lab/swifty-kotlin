@@ -93,31 +93,6 @@ public func kk_sequence_builder_yieldAll(_ builderRaw: Int, _ collectionRaw: Int
     return 0
 }
 
-// MARK: - yieldAll(iterator) (STDLIB-553)
-
-/// Drain a raw iterator handle into a sequence/coroutine builder.
-/// Unlike `kk_sequence_builder_yieldAll`, which accepts List/Array/Set/Sequence,
-/// this variant accepts a RuntimeIteratorBuilderBox or RuntimeListIteratorBox.
-@_cdecl("kk_sequence_builder_yieldAll_iterator")
-public func kk_sequence_builder_yieldAll_iterator(_ builderRaw: Int, _ iteratorRaw: Int) -> Int {
-    guard runtimeIteratorBuilderBox(from: iteratorRaw) != nil || runtimeListIteratorBox(from: iteratorRaw) != nil else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yieldAll_iterator received invalid iterator handle")
-    }
-    if let proxy = runtimeCoroutineBuilderProxy(from: builderRaw) {
-        while kk_iterator_builder_hasNext(iteratorRaw) != 0 {
-            proxy.coroutine.yieldValue(kk_iterator_builder_next(iteratorRaw))
-        }
-        return 0
-    }
-    guard let builder = runtimeSequenceBuilderBox(from: builderRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_builder_yieldAll_iterator received invalid builder handle")
-    }
-    while kk_iterator_builder_hasNext(iteratorRaw) != 0 {
-        builder.elements.append(kk_iterator_builder_next(iteratorRaw))
-    }
-    return 0
-}
-
 @_cdecl("kk_sequence_builder_build")
 public func kk_sequence_builder_build(_ fnPtr: Int, _ closureRaw: Int = 0) -> Int {
     // STDLIB-563: Use continuation-based lazy evaluation.
@@ -139,27 +114,9 @@ private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBui
 
 @_cdecl("kk_iterator_builder_build")
 public func kk_iterator_builder_build(_ fnPtr: Int) -> Int {
-    let builder = RuntimeIteratorBuilderBox()
+    let builder = RuntimeIteratorBuilderBox(fnPtr: fnPtr)
     let builderHandle = registerRuntimeObject(builder)
-
-    // Spawn the producer on a background thread.  It blocks on producerGate
-    // before invoking the lambda, so no work happens until the first
-    // hasNext() call from the consumer.
-    let thread = Thread {
-        // Wait for the consumer to kick off the first advance.
-        builder.producerGate.wait()
-        var thrown = 0
-        _ = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: builderHandle, outThrown: &thrown)
-        // Producer finished (or threw): mark done and wake the consumer.
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: iterator lambda threw an exception")
-        }
-        builder.state = .done
-        builder.consumerGate.signal()
-    }
-    thread.qualityOfService = .userInitiated
-    thread.start()
-
+    builder.bindRegisteredHandle(builderHandle)
     return builderHandle
 }
 
@@ -174,11 +131,7 @@ public func kk_iterator_builder_yield(_ builderRaw: Int, _ value: Int) -> Int {
         }
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_iterator_builder_yield received invalid builder handle")
     }
-    // Store the value and suspend the producer until the consumer calls next().
-    builder.yieldedValue = value
-    builder.state = .hasValue
-    builder.consumerGate.signal()   // wake consumer (hasNext is waiting)
-    builder.producerGate.wait()     // block until consumer calls next hasNext()
+    builder.yieldValue(value)
     return 0
 }
 
@@ -187,18 +140,7 @@ public func kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
     // Support both RuntimeIteratorBuilderBox and RuntimeListIteratorBox
     // for backwards compatibility with older lowering paths.
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
-        switch iter.state {
-        case .hasValue:
-            // Value already prefetched by a prior hasNext; still available.
-            return 1
-        case .done:
-            return 0
-        case .initial:
-            // Advance the producer to get the first (or next) value.
-            iter.producerGate.signal()  // let producer run
-            iter.consumerGate.wait()    // wait for yield or completion
-            return iter.state == .hasValue ? 1 : 0
-        }
+        return iter.probeHasNext() ? 1 : 0
     }
     if let iter = runtimeListIteratorBox(from: iterRaw) {
         return iter.index < iter.elements.count ? 1 : 0
@@ -209,18 +151,7 @@ public func kk_iterator_builder_hasNext(_ iterRaw: Int) -> Int {
 @_cdecl("kk_iterator_builder_next")
 public func kk_iterator_builder_next(_ iterRaw: Int) -> Int {
     if let iter = runtimeIteratorBuilderBox(from: iterRaw) {
-        // If hasNext was not called first, advance the producer now.
-        if iter.state == .initial {
-            iter.producerGate.signal()
-            iter.consumerGate.wait()
-        }
-        guard iter.state == .hasValue else {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: NoSuchElementException: Iterator has no more elements.")
-        }
-        let value = iter.yieldedValue
-        // Reset state to initial so the next hasNext() will advance the producer.
-        iter.state = .initial
-        return value
+        return iter.consumeNext()
     }
     // Backwards compatibility: older lowering paths may pass a RuntimeListIteratorBox.
     if let iter = runtimeListIteratorBox(from: iterRaw) {

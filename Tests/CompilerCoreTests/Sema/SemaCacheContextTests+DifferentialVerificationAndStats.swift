@@ -13,7 +13,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -39,7 +39,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -63,7 +63,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -88,7 +88,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -111,7 +111,7 @@ extension SemaCacheContextTests {
         }
         """
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diags = ctxCached.diagnostics.diagnostics
 
@@ -154,7 +154,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -179,7 +179,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 
@@ -243,7 +243,7 @@ extension SemaCacheContextTests {
         try runSema(ctxNoCache)
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 

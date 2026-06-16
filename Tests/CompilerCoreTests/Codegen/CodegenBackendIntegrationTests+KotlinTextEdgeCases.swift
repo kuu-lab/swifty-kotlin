@@ -78,9 +78,36 @@ extension CodegenBackendIntegrationTests {
     }
 
     func testKotlinTextSplitWithLimitEdgeCases() throws {
-        // split(delimiter, limit) is not yet implemented as a separate overload;
-        // the runtime only provides split(String) without a limit parameter.
-        throw XCTSkip("split with limit parameter not yet implemented")
+        let source = """
+        fun main() {
+            println("a,b,c,d".split(",", limit = 2))
+            println("a,b,c".split(",", limit = 0))
+            println("a,b,c".split(",", limit = -1))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextSplitWithLimitEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                [a, b,c,d]
+                [a, b, c]
+                [a, b, c]
+                """
+                + "\n"
+            )
+        }
     }
 
     func testKotlinTextSplitToSequenceEdgeCases() throws {
@@ -1115,11 +1142,38 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase (positional 3-arg API)
     func testKotlinTextIndexOfIgnoreCaseEdgeCases() throws {
-        // indexOf(String, ignoreCase = true) and lastIndexOf(String, ignoreCase = true)
-        // are not yet implemented in the runtime (they fall back to case-sensitive search).
-        // This test documents the current behavior and can be upgraded when implemented.
-        throw XCTSkip("indexOf/lastIndexOf with ignoreCase not yet implemented")
+        let source = """
+        fun main() {
+            println("Hello".indexOf("hello", 0, true))
+            println("Hello".lastIndexOf("LO", 4, true))
+            println("Hello".indexOf("xyz", 0, true))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextIndexOfIgnoreCaseEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                0
+                3
+                -1
+                """
+                + "\n"
+            )
+        }
     }
 
     // MARK: - indexOfFirst / indexOfLast (predicate) — STDLIB-TEXT-FN-022 / STDLIB-TEXT-FN-023

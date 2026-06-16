@@ -63,6 +63,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -73,6 +74,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "start", type: .intptr),
                 RuntimeABIParameter(name: "end", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -83,6 +85,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -108,6 +111,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -117,6 +121,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -126,6 +131,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -149,6 +155,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "csqRaw", type: .intptr),
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -160,6 +167,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "startIndex", type: .intptr),
                 RuntimeABIParameter(name: "endIndex", type: .intptr),
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -172,6 +180,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "start", type: .intptr),
                 RuntimeABIParameter(name: "end", type: .intptr),
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"
@@ -182,6 +191,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sbRaw", type: .intptr),
                 RuntimeABIParameter(name: "index", type: .intptr),
                 RuntimeABIParameter(name: "charValue", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "StringBuilder"

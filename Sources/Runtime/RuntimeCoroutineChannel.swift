@@ -1,26 +1,24 @@
 import Dispatch
 import Foundation
 
-// Channel runtime (CORO-001), Channel iterator (CORO-075),
-// BroadcastChannel runtime (CORO-076), and the Channel pipeline runtime.
+// Channel runtime (CORO-001) and Channel iterator (CORO-075).
 //
 // Split out from `RuntimeCoroutine.swift`.
 
 // MARK: - Channel Runtime (CORO-001)
 
-/// Sentinel returned by `receive()` when the channel is closed and the buffer
-/// is drained.  Callers can compare against this to detect the end-of-channel
-/// condition without confusing it with a legitimate `0` value.
-///
-/// **ABI restriction**: `Int.min` is reserved as the closed-channel sentinel.
-/// Sending `Int.min` (`Long.MIN_VALUE` in Kotlin) through a channel will cause
-/// receivers / codegen to misidentify it as the closed token.  This is an
-/// intentional trade-off for the current in-band signaling design.
-///
-/// TODO(CORO-001): Migrate to an out-of-band signaling mechanism (e.g., a
-/// status+value return pair via pointer parameter, matching the pattern used by
-/// `kk_coroutine_check_cancellation`) so that every `Int` value is sendable.
-let kChannelClosedSentinel: Int = Int.min
+/// Out-of-band status codes returned by `kk_channel_send` / `kk_channel_receive`.
+/// The actual payload (when present) is written to an `outValue` pointer on receive,
+/// matching the status+out-pointer pattern used by `kk_coroutine_check_cancellation`.
+enum ChannelOperationStatus: Int {
+    case success = 0
+    case closed = 1
+    case cancelled = 2
+}
+
+let kChannelResultSuccess: Int = ChannelOperationStatus.success.rawValue
+let kChannelResultClosed: Int = ChannelOperationStatus.closed.rawValue
+let kChannelResultCancelled: Int = ChannelOperationStatus.cancelled.rawValue
 
 /// Buffer overflow strategies for Channel send operations (CORO-001)
 enum ChannelBufferOverflow {
@@ -123,21 +121,21 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// is returned if the coroutine has been cancelled (matching Kotlin's behavior
     /// of throwing `CancellationException` from `send`).
     ///
-    /// Returns the sent `value` on success, or `kChannelClosedSentinel` if the
-    /// channel was closed before or during the send, or the coroutine was cancelled.
-    func send(_ value: Int, continuation: Int = 0) -> Int {
+    /// Returns `.success` when the value is delivered, or `.closed` / `.cancelled`
+    /// when the channel is closed or the calling coroutine is cancelled.
+    func send(_ value: Int, continuation: Int = 0) -> ChannelOperationStatus {
         lock.lock()
 
         // 0. Check cancellation before any blocking (Kotlin suspend semantics).
         if isCancelled(continuation: continuation) {
             lock.unlock()
-            return kChannelClosedSentinel
+            return .cancelled
         }
 
         // 1. Closed channel -- fail immediately.
         if closed {
             lock.unlock()
-            return kChannelClosedSentinel
+            return .closed
         }
 
         // 2. If there is a waiting receiver, hand the value off directly
@@ -149,14 +147,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             // Preserve rendezvous handoff ordering: let the sender resume and
             // return from `send` before the waiting receiver continues.
             resumeReceiverAsync(receiver)
-            return value
+            return .success
         }
 
         // 3. Buffered channel with space -- enqueue and return immediately.
         if capacity > 0, buffer.count < capacity {
             buffer.append(value)
             lock.unlock()
-            return value
+            return .success
         }
 
         // 3a. Handle buffer overflow based on strategy (CORO-001)
@@ -170,11 +168,11 @@ final class RuntimeChannelHandle: @unchecked Sendable {
                 _ = buffer.removeFirst()
                 buffer.append(value)
                 lock.unlock()
-                return value
+                return .success
             case .dropLatest:
                 // Drop the element being sent
                 lock.unlock()
-                return value
+                return .success
             }
         }
 
@@ -199,9 +197,9 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // Cancellation only aborts the send if delivery did not already complete.
         if wasCancelled || (!wasDelivered && isCancelled(continuation: continuation)) {
-            return kChannelClosedSentinel
+            return wasCancelled ? .cancelled : .closed
         }
-        return wasDelivered ? value : kChannelClosedSentinel
+        return wasDelivered ? .success : .closed
     }
 
     /// Receive a value from the channel, suspending (blocking) the caller when
@@ -211,15 +209,16 @@ final class RuntimeChannelHandle: @unchecked Sendable {
     /// When non-zero, cancellation is checked before suspending (Kotlin suspend
     /// semantics: `receive` throws `CancellationException` if cancelled).
     ///
-    /// Returns the received value, or `kChannelClosedSentinel` when the channel
-    /// is closed and fully drained, or the coroutine was cancelled.
-    func receive(continuation: Int = 0) -> Int {
+    /// On `.success`, writes the received value to `outValue`.  Returns `.closed`
+    /// when the channel is closed and fully drained, or `.cancelled` when the
+    /// coroutine was cancelled.
+    func receive(continuation: Int = 0, outValue: UnsafeMutablePointer<Int>) -> ChannelOperationStatus {
         lock.lock()
 
         // 0. Check cancellation before any blocking (Kotlin suspend semantics).
         if isCancelled(continuation: continuation) {
             lock.unlock()
-            return kChannelClosedSentinel
+            return .cancelled
         }
 
         // 1. Try to take from the buffer.
@@ -237,7 +236,8 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             } else {
                 lock.unlock()
             }
-            return value
+            outValue.pointee = value
+            return .success
         }
 
         // 2. Buffer is empty -- try to pair directly with a waiting sender
@@ -250,13 +250,14 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             lock.unlock()
             // CORO-004: Use continuation-based resume if available
             resumeSender(sender)
-            return value
+            outValue.pointee = value
+            return .success
         }
 
-        // 3. Nothing available -- if closed, return the sentinel.
+        // 3. Nothing available -- if closed, report closed status.
         if closed {
             lock.unlock()
-            return kChannelClosedSentinel
+            return .closed
         }
 
         // 4. Suspend the receiver.
@@ -279,18 +280,26 @@ final class RuntimeChannelHandle: @unchecked Sendable {
 
         // Cancellation only aborts the receive if no sender delivered a value.
         if wasCancelled || (value == nil && isCancelled(continuation: continuation)) {
-            return kChannelClosedSentinel
+            return wasCancelled ? .cancelled : .closed
         }
         if let value {
-            return value
+            outValue.pointee = value
+            return .success
         }
         // Woken by close() with no value -- channel is done.
-        return kChannelClosedSentinel
+        return .closed
+    }
+
+    /// Convenience wrapper used by in-process runtime tests.
+    func receive(continuation: Int = 0) -> (status: ChannelOperationStatus, value: Int) {
+        var value = 0
+        let status = receive(continuation: continuation, outValue: &value)
+        return (status, value)
     }
 
     /// `true` when the channel is closed AND its buffer is fully drained.
     /// Once `isClosedForReceive` is `true`, any subsequent `receive()` call will
-    /// immediately return `kChannelClosedSentinel` without blocking.
+    /// immediately return `.closed` without blocking.
     /// Matches Kotlin's `ReceiveChannel.isClosedForReceive` contract.
     var isClosedForReceive: Bool {
         lock.lock()
@@ -329,41 +338,6 @@ final class RuntimeChannelHandle: @unchecked Sendable {
             resumeReceiver(receiver)
         }
         return true
-    }
-
-    /// Non-blocking receive: returns a buffered value immediately, or `nil`
-    /// when the buffer is empty (regardless of closed state).  Does NOT
-    /// suspend the caller or pair with a waiting sender.
-    ///
-    /// This is used by `kk_channel_pipeline_drain` to avoid blocking the
-    /// thread when the source channel is empty but not yet closed.
-    func tryReceive() -> Int? {
-        lock.lock()
-        if !buffer.isEmpty {
-            let value = buffer.removeFirst()
-            // Wake a waiting sender to fill the slot we just freed.
-            if let sender = senderQueue.first {
-                senderQueue.removeFirst()
-                buffer.append(sender.value)
-                sender.delivered = true
-                lock.unlock()
-                resumeSender(sender)
-            } else {
-                lock.unlock()
-            }
-            return value
-        }
-        // No buffered value; try to pair with a suspended sender directly.
-        if let sender = senderQueue.first {
-            senderQueue.removeFirst()
-            let value = sender.value
-            sender.delivered = true
-            lock.unlock()
-            resumeSender(sender)
-            return value
-        }
-        lock.unlock()
-        return nil
     }
 
     /// Cancel all suspended senders and receivers.  This is called when a
@@ -500,16 +474,24 @@ public func kk_channel_send(_ handle: Int, _ value: Int, _ continuation: Int) ->
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
-    return channel.send(resolvedValue, continuation: continuation)
+    return channel.send(resolvedValue, continuation: continuation).rawValue
 }
 
 @_cdecl("kk_channel_receive")
-public func kk_channel_receive(_ handle: Int, _ continuation: Int) -> Int {
+public func kk_channel_receive(
+    _ handle: Int,
+    _ continuation: Int,
+    _ outValue: UnsafeMutablePointer<Int>?
+) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_receive received invalid channel handle")
     }
     let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    return channel.receive(continuation: continuation)
+    if let outValue {
+        return channel.receive(continuation: continuation, outValue: outValue).rawValue
+    }
+    var scratch = 0
+    return channel.receive(continuation: continuation, outValue: &scratch).rawValue
 }
 
 @_cdecl("kk_channel_close")
@@ -521,17 +503,11 @@ public func kk_channel_close(_ handle: Int) -> Int {
     return channel.close() ? 1 : 0
 }
 
-/// Returns 1 if `value` equals the closed-channel sentinel, 0 otherwise.
-/// Codegen calls this after `kk_channel_receive` / `kk_channel_send` to detect
-/// end-of-channel.
-///
-/// **ABI note**: Because the sentinel is currently the in-band value `Int.min`,
-/// this function will also return 1 for a legitimately-sent `Int.min`.  See the
-/// `kChannelClosedSentinel` documentation for the planned migration to
-/// out-of-band signaling.
+/// Returns 1 when `status` indicates a closed or cancelled channel operation,
+/// 0 when `status` is `kChannelResultSuccess`.
 @_cdecl("kk_channel_is_closed_token")
-public func kk_channel_is_closed_token(_ value: Int) -> Int {
-    return value == kChannelClosedSentinel ? 1 : 0
+public func kk_channel_is_closed_token(_ status: Int) -> Int {
+    return status == kChannelResultSuccess ? 0 : 1
 }
 
 /// Returns 1 if the channel is closed for receiving (i.e., it is closed AND the buffer
@@ -597,10 +573,11 @@ private final class RuntimeChannelIterator: @unchecked Sendable {
         }
         lock.unlock()
 
-        let value = channel.receive(continuation: continuation)
+        var value = 0
+        let status = channel.receive(continuation: continuation, outValue: &value)
         lock.lock()
         defer { lock.unlock() }
-        if value == kChannelClosedSentinel {
+        if status != .success {
             done = true
             peekedValue = nil
             return false
@@ -656,200 +633,6 @@ public func kk_channel_iterator_next(_ iterHandle: Int) -> Int {
     }
     let iter = Unmanaged<RuntimeChannelIterator>.fromOpaque(ptr).takeUnretainedValue()
     return iter.takeValue()
-}
-
-// MARK: - BroadcastChannel Runtime (CORO-076)
-
-/// BroadcastChannel: a channel that delivers each sent value to all currently
-/// subscribed receivers simultaneously (fan-out / multicast semantics).
-///
-/// Each subscriber gets its own receive queue backed by an individual
-/// `RuntimeChannelHandle`.  `send` atomically enqueues the value into every
-/// subscriber's channel so ordering is preserved per-subscriber.
-///
-/// **Lifecycle**:
-/// - Call `subscribe()` to obtain a per-subscriber handle before receiving.
-/// - Call `unsubscribe(handle:)` when the subscriber is done.
-/// - Call `close()` to close the broadcast channel and all subscriber channels.
-final class RuntimeBroadcastChannelHandle: @unchecked Sendable {
-    private let lock = NSLock()
-    private var subscribers: [RuntimeChannelHandle] = []
-    private var closed = false
-    private let subscriberCapacity: Int
-
-    init(subscriberCapacity: Int) {
-        self.subscriberCapacity = subscriberCapacity
-    }
-
-    /// Create a new subscriber channel and register it.  Returns the channel handle.
-    /// If the broadcast channel is already closed, the returned channel is immediately
-    /// closed so that downstream receivers will not block forever.
-    func subscribe() -> RuntimeChannelHandle {
-        let ch = RuntimeChannelHandle(capacity: subscriberCapacity)
-        lock.lock()
-        if !closed {
-            subscribers.append(ch)
-            lock.unlock()
-        } else {
-            lock.unlock()
-            _ = ch.close()
-        }
-        return ch
-    }
-
-    /// Remove a subscriber channel.  Closes the channel to unblock waiting receivers.
-    func unsubscribe(_ channel: RuntimeChannelHandle) {
-        lock.lock()
-        subscribers.removeAll { $0 === channel }
-        lock.unlock()
-        _ = channel.close()
-    }
-
-    /// Send a value to all subscribers.  Returns the value on success, or
-    /// `kChannelClosedSentinel` when the broadcast channel is closed.
-    @discardableResult
-    func send(_ value: Int) -> Int {
-        lock.lock()
-        if closed {
-            lock.unlock()
-            return kChannelClosedSentinel
-        }
-        let snapshot = subscribers
-        lock.unlock()
-        for ch in snapshot {
-            _ = ch.send(value)
-        }
-        return value
-    }
-
-    /// Close the broadcast channel and every subscriber channel.
-    func close() {
-        lock.lock()
-        if closed {
-            lock.unlock()
-            return
-        }
-        closed = true
-        let snapshot = subscribers
-        subscribers.removeAll()
-        lock.unlock()
-        for ch in snapshot {
-            _ = ch.close()
-        }
-    }
-}
-
-@_cdecl("kk_broadcast_channel_create")
-public func kk_broadcast_channel_create(_ subscriberCapacity: Int) -> Int {
-    let bc = RuntimeBroadcastChannelHandle(subscriberCapacity: subscriberCapacity)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(bc).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
-}
-
-@_cdecl("kk_broadcast_channel_subscribe")
-public func kk_broadcast_channel_subscribe(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_broadcast_channel_subscribe received invalid handle")
-    }
-    let bc = Unmanaged<RuntimeBroadcastChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    let sub = bc.subscribe()
-    let subPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(sub).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: subPtr))
-    }
-    return Int(bitPattern: subPtr)
-}
-
-@_cdecl("kk_broadcast_channel_unsubscribe")
-public func kk_broadcast_channel_unsubscribe(_ broadcastHandle: Int, _ subscriberHandle: Int) -> Int {
-    guard let bcPtr = UnsafeMutableRawPointer(bitPattern: broadcastHandle),
-          let subPtr = UnsafeMutableRawPointer(bitPattern: subscriberHandle) else {
-        return 0
-    }
-    let bc = Unmanaged<RuntimeBroadcastChannelHandle>.fromOpaque(bcPtr).takeUnretainedValue()
-    let sub = Unmanaged<RuntimeChannelHandle>.fromOpaque(subPtr).takeUnretainedValue()
-    bc.unsubscribe(sub)
-    return 0
-}
-
-@_cdecl("kk_broadcast_channel_send")
-public func kk_broadcast_channel_send(_ handle: Int, _ value: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_broadcast_channel_send received invalid handle")
-    }
-    let bc = Unmanaged<RuntimeBroadcastChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    return bc.send(value)
-}
-
-@_cdecl("kk_broadcast_channel_close")
-public func kk_broadcast_channel_close(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_broadcast_channel_close received invalid handle")
-    }
-    let bc = Unmanaged<RuntimeBroadcastChannelHandle>.fromOpaque(ptr).takeUnretainedValue()
-    bc.close()
-    return 0
-}
-
-// MARK: - Channel Pipeline Runtime (CORO-076)
-
-/// Creates a pipeline stage: reads from `sourceHandle`, applies an identity
-/// transform (the actual transform is done in Kotlin coroutine code via the
-/// stdlib `produce` / channel pipeline pattern), and writes to `destHandle`.
-/// This ABI entry exists so codegen can link against it for future lowering.
-/// In the current implementation the pipeline logic is handled in the Kotlin
-/// stdlib layer backed by the existing `kk_channel_send` / `kk_channel_receive`
-/// primitives; this function provides a synchronous drain helper for testing.
-///
-/// Reads all available (non-blocking) values from `sourceHandle` and forwards
-/// them to `destHandle`.  Stops at the first closed-sentinel or empty drain.
-/// Returns the number of values forwarded.
-@_cdecl("kk_channel_pipeline_drain")
-public func kk_channel_pipeline_drain(_ sourceHandle: Int, _ destHandle: Int) -> Int {
-    guard let srcPtr = UnsafeMutableRawPointer(bitPattern: sourceHandle),
-          let dstPtr = UnsafeMutableRawPointer(bitPattern: destHandle) else {
-        return 0
-    }
-    let src = Unmanaged<RuntimeChannelHandle>.fromOpaque(srcPtr).takeUnretainedValue()
-    let dst = Unmanaged<RuntimeChannelHandle>.fromOpaque(dstPtr).takeUnretainedValue()
-    var count = 0
-    while true {
-        // Use non-blocking tryReceive to avoid blocking when the source channel
-        // is empty but not yet closed (fixes indefinite thread stall).
-        guard let v = src.tryReceive() else { break }
-        if v == kChannelClosedSentinel { break }
-        let sent = dst.send(v)
-        if sent == kChannelClosedSentinel { break }
-        count += 1
-    }
-    return count
-}
-
-// MARK: - Deferred / awaitAll Runtime Stub (P5-135)
-
-@_cdecl("kk_await_all")
-public func kk_await_all(_ handlesArray: Int, _ count: Int) -> Int {
-    // Await each handle sequentially and return the result of the last one.
-    // handlesArray points to a KKArray of async task handles.
-    guard count > 0 else {
-        return 0
-    }
-    var lastResult = 0
-    for i in 0 ..< count {
-        // Read handle from array using kk_array_get pattern
-        let handleValue = runtimeReadArrayElement(arrayRaw: handlesArray, index: i)
-        if handleValue != 0 {
-            guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handleValue) else {
-                continue
-            }
-            let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
-            lastResult = task.awaitResult()
-        }
-    }
-    return lastResult
 }
 
 /// Read an element from a runtime array by index (mirrors kk_array_get without throw).

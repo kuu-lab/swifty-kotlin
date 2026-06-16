@@ -101,6 +101,10 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        suspend points and injects the caller continuation.  The blocking
 //        awaitResult()/join() paths remain only as the continuation==0 fallback
 //        used by non-suspend contexts (e.g. structured-concurrency child joins).
+//        RuntimeAsyncTask no longer uses a task-level `ready` semaphore;
+//        completion is delivered exclusively through completionResumers, and
+//        sync awaitResult() blocks on a per-waiter gate registered via
+//        addCompletionResumer.
 //
 // [TODO] runtimeFlowDeliverValue (RuntimeCoroutineFlow.swift): the suspend
 //        collector path still blocks via waitForResumeSignal().  Full
@@ -126,16 +130,77 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        which may be a coroutine or a raw thread, plus post-wakeup state
 //        inspection (delivered / result / cancelledWakeup).
 //
-// [TODO] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
+// [IN PROGRESS] RuntimeTypes.swift / RuntimeSequenceBuilders.swift —
 //        sequence/iterator builder coroutines:
-//        producerSemaphore/consumerSemaphore and producerGate/consumerGate
-//        implement a cooperative ping-pong protocol.  Migration: model
-//        yield() as a suspend point in the producer coroutine and
-//        next()/hasNext() as suspend points in the consumer, using the
-//        continuation model to avoid blocking either side.
+//        `RuntimeCoroutineSyncGate` replaces raw DispatchSemaphore ping-pong
+//        and supports continuation-based wakeups.  Remaining work: CPS-transform
+//        builder lambdas so `yield()` / `hasNext()` / `next()` can install
+//        resume continuations instead of using the semaphore fallback.
 //
 // Priority order (remaining): Channel > withContext > sequence builders > flow
 // (await/join were completed in Phase 2.)
+
+// MARK: - CORO-004: Cooperative Sync Gate
+
+/// One-shot gate for cooperative producer/consumer synchronization.
+///
+/// Used by lazy sequence/iterator builders during the CORO-004 migration.
+/// Supports non-blocking resume via a continuation closure (for suspend-point
+/// wiring) with a `DispatchSemaphore` fallback for legacy synchronous callers.
+final class RuntimeCoroutineSyncGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumeContinuation: RuntimeResumeContinuationBox?
+    private var fallbackSemaphore: DispatchSemaphore?
+    private var signalPending = false
+
+    /// Wake a waiter. Prefer an installed continuation (async dispatch) over a
+    /// fallback semaphore signal.
+    func signal() {
+        lock.lock()
+        if let cont = resumeContinuation {
+            resumeContinuation = nil
+            lock.unlock()
+            DispatchQueue.global(qos: .userInitiated).async {
+                cont.invoke()
+            }
+            return
+        }
+        if let sem = fallbackSemaphore {
+            lock.unlock()
+            sem.signal()
+            return
+        }
+        signalPending = true
+        lock.unlock()
+    }
+
+    /// Wait until `signal()`.
+    ///
+    /// When `resumeContinuation` is provided, installs it instead of blocking
+    /// the current thread and returns `true`. Returns `false` when the wait was
+    /// satisfied synchronously (pending signal or semaphore wakeup).
+    @discardableResult
+    func wait(resumeContinuation continuation: (@Sendable () -> Void)? = nil) -> Bool {
+        lock.lock()
+        if signalPending {
+            signalPending = false
+            lock.unlock()
+            return false
+        }
+        if let continuation {
+            resumeContinuation = RuntimeResumeContinuationBox(continuation)
+            lock.unlock()
+            return true
+        }
+        if fallbackSemaphore == nil {
+            fallbackSemaphore = DispatchSemaphore(value: 0)
+        }
+        let sem = fallbackSemaphore!
+        lock.unlock()
+        sem.wait()
+        return false
+    }
+}
 
 final class RuntimeContinuationState: @unchecked Sendable {
     var functionID: Int64
@@ -474,14 +539,21 @@ final class RuntimeContinuationState: @unchecked Sendable {
     }
 }
 
+/// Heap box for synchronous `awaitResult()` waiters (CORO-004).
+/// Each blocking waiter owns its own gate so concurrent callers do not contend.
+private final class RuntimeAsyncTaskAwaitBox: @unchecked Sendable {
+    var result: Int = 0
+    var thrown: Int = 0
+    let gate = DispatchSemaphore(value: 0)
+}
+
 final class RuntimeAsyncTask: @unchecked Sendable {
     private let lock = NSLock()
-    private let ready = DispatchSemaphore(value: 0)
     private var isCompleted = false
     private(set) var isCancelled = false
     private var result: Int = 0
     /// Stores a thrown exception (as a raw pointer Int) when the async body fails.
-    /// Zero means no exception was thrown. Used by kk_kxmini_async_await_throwing.
+    /// Zero means no exception was thrown.
     private(set) var thrownException: Int = 0
     /// Set to true when user code consumes this handle's passRetained
     /// (via kk_kxmini_async_await or kk_job_join). Checked by scope's waitForChildren
@@ -491,9 +563,9 @@ final class RuntimeAsyncTask: @unchecked Sendable {
     /// Keeps `kk_job_is_active` aligned with `RuntimeJobHandle` (inactive until `markStarted`).
     private var isBodyStarted = false
     /// CORO-004: Resumers invoked with (result, thrownException) when the task completes
-    /// (normally, exceptionally, or via cancel). Lets a suspend-aware awaiter
-    /// (`Deferred.await`) resume via its continuation instead of blocking a GCD thread
-    /// on `ready`.
+    /// (normally, exceptionally, or via cancel). Suspend-aware awaiters
+    /// (`kk_kxmini_async_await`) and the synchronous `awaitResult()` fallback both
+    /// register here so completion never blocks on a task-level semaphore.
     private var completionResumers: [@Sendable (Int, Int) -> Void] = []
 
     /// CORO-004: Register a resumer invoked when this task completes. If the task is
@@ -568,7 +640,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
-        ready.signal()
         for resumer in resumers {
             resumer(result, 0)
         }
@@ -586,7 +657,6 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let resumers = completionResumers
         completionResumers = []
         lock.unlock()
-        ready.signal()
         for resumer in resumers {
             resumer(0, exception)
         }
@@ -607,16 +677,18 @@ final class RuntimeAsyncTask: @unchecked Sendable {
         let snapshotThrown = thrownException
         lock.unlock()
         if !wasCompleted {
-            ready.signal()
             for resumer in resumers {
                 resumer(snapshotResult, snapshotThrown)
             }
         }
     }
 
-    // CORO-004 [TODO]: blocks on a semaphore; convert to a suspend point so the
-    // caller installs a continuation that complete() dispatches. See the
-    // migration plan at the top of this file.
+    /// CORO-004: synchronous fallback for non-suspend contexts (`continuation == 0`).
+    /// Suspend-aware callers use `kk_kxmini_async_await`, which registers a
+    /// completion resumer and returns the coroutine-suspended sentinel instead of
+    /// calling this method. Each blocking waiter installs its own one-shot gate via
+    /// `addCompletionResumer`, so concurrent `awaitResult()` callers do not contend
+    /// on a shared task semaphore.
     func awaitResult() -> Int {
         lock.lock()
         if isCompleted {
@@ -625,13 +697,7 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return value
         }
         lock.unlock()
-        ready.wait()
-        // Re-signal so other concurrent awaitResult() callers also wake up
-        ready.signal()
-        lock.lock()
-        let value = result
-        lock.unlock()
-        return value
+        return waitForCompletionSynchronously()
     }
 
     /// Await the result and propagate any exception (CORO-071: exception-aware await).
@@ -650,17 +716,23 @@ final class RuntimeAsyncTask: @unchecked Sendable {
             return value
         }
         lock.unlock()
-        ready.wait()
-        ready.signal()
-        lock.lock()
-        let exc = thrownException
-        let value = result
-        lock.unlock()
-        if exc != 0 {
-            outThrown?.pointee = exc
+        return waitForCompletionSynchronously(outThrown: outThrown)
+    }
+
+    /// Block until completion via a per-waiter resumer (CORO-004 sync fallback).
+    private func waitForCompletionSynchronously(outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+        let awaitBox = RuntimeAsyncTaskAwaitBox()
+        addCompletionResumer { result, thrown in
+            awaitBox.result = result
+            awaitBox.thrown = thrown
+            awaitBox.gate.signal()
+        }
+        awaitBox.gate.wait()
+        if let outThrown, awaitBox.thrown != 0 {
+            outThrown.pointee = awaitBox.thrown
             return 0
         }
-        return value
+        return awaitBox.result
     }
 
 }
@@ -1118,8 +1190,7 @@ final class RuntimeCoroutineScope: @unchecked Sendable {
         self.isSupervisor = isSupervisor
     }
 
-    /// Sets the parent scope link. Used by kk_coroutine_scope_cancel_propagate to
-    /// wire child scopes into the parent's cancellation hierarchy at runtime.
+    /// Sets the parent scope link.
     func setParent(_ newParent: RuntimeCoroutineScope) {
         lock.lock()
         parent = newParent
@@ -2126,68 +2197,6 @@ public func kk_kxmini_async_await(_ handle: Int, _ continuation: Int) -> Int {
     return consumed.awaitResult()
 }
 
-/// CORO-071: Exception-aware await for async tasks.
-/// Waits for the task to complete. If the task threw an exception, writes the
-/// exception pointer to `outThrown` and returns 0. Otherwise returns the result.
-/// Also propagates CancellationException when the task was cancelled.
-@_cdecl("kk_kxmini_async_await_throwing")
-public func kk_kxmini_async_await_throwing(_ handle: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
-    task.markConsumedByUserCode()
-    let consumed = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeRetainedValue()
-
-    // If the task was cancelled, synthesize a CancellationException
-    if consumed.isCancelled && consumed.thrownException == 0 {
-        let cancellation = runtimeAllocateCancellationException()
-        outThrown?.pointee = cancellation
-        return 0
-    }
-
-    return consumed.awaitResultThrowing(outThrown: outThrown)
-}
-
-/// CORO-071: Cancel an async task (Deferred.cancel()).
-/// Safe to call even after the task has completed (no-op in that case).
-@_cdecl("kk_async_task_cancel")
-public func kk_async_task_cancel(_ handle: Int) -> Int {
-    guard let handlePtr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let task = Unmanaged<RuntimeAsyncTask>.fromOpaque(handlePtr).takeUnretainedValue()
-    task.cancel()
-    return 0
-}
-
-/// CORO-071: Async builder with dispatcher specification — async(dispatcher) { body }.
-/// Launches the coroutine on the given dispatcher's queue rather than the default queue.
-@_cdecl("kk_kxmini_async_with_dispatcher")
-public func kk_kxmini_async_with_dispatcher(_ dispatcherTag: Int, _ entryPointRaw: Int, _ continuation: Int) -> Int {
-    let task = RuntimeAsyncTask()
-    let taskPtr = UnsafeMutableRawPointer(Unmanaged.passRetained(task).toOpaque())
-
-    let callerScope = RuntimeCoroutineScope.current
-    if let callerScope {
-        callerScope.registerChild(Int(bitPattern: taskPtr))
-    }
-    if let contState = runtimeContinuationState(from: continuation) {
-        contState.scope = callerScope
-    }
-
-    let queue = dispatchQueue(for: dispatcherTag)
-
-    queue.async {
-        task.markStarted()
-        RuntimeCoroutineScope.current = callerScope
-        let result = runSuspendEntryLoopWithContinuation(entryPointRaw: entryPointRaw, continuation: continuation)
-        RuntimeCoroutineScope.current = nil
-        task.complete(with: result)
-    }
-    return Int(bitPattern: taskPtr)
-}
-
 @_cdecl("kk_kxmini_delay")
 public func kk_kxmini_delay(_ milliseconds: Int, _ continuation: Int) -> Int {
     guard let state = runtimeContinuationState(from: continuation) else {
@@ -2282,41 +2291,6 @@ public func kk_coroutine_scope_is_cancelled(_ scopeHandle: Int) -> Int {
     }
     let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).takeUnretainedValue()
     return scope.isCancelled ? 1 : 0
-}
-
-/// Returns the parent scope handle, or 0 if there is no parent.
-/// Supports scope hierarchy traversal: child scope → parent scope.
-@_cdecl("kk_coroutine_scope_get_parent")
-public func kk_coroutine_scope_get_parent(_ scopeHandle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
-        return 0
-    }
-    let scope = Unmanaged<RuntimeCoroutineScope>.fromOpaque(ptr).takeUnretainedValue()
-    guard let parent = scope.parent else {
-        return 0
-    }
-    // Return an unretained pointer — the parent is kept alive by the scope hierarchy
-    // (the child holds a strong reference to its parent via the `parent` property).
-    return Int(bitPattern: Unmanaged.passUnretained(parent).toOpaque())
-}
-
-/// Propagates cancellation from a parent scope handle to a child scope handle.
-/// Call this to link a newly created child scope into the parent's cancellation chain.
-/// Returns 0 on success, -1 if either handle is invalid.
-@_cdecl("kk_coroutine_scope_cancel_propagate")
-public func kk_coroutine_scope_cancel_propagate(_ parentHandle: Int, _ childHandle: Int) -> Int {
-    guard let parentPtr = UnsafeMutableRawPointer(bitPattern: parentHandle),
-          let childPtr = UnsafeMutableRawPointer(bitPattern: childHandle) else {
-        return -1
-    }
-    let parent = Unmanaged<RuntimeCoroutineScope>.fromOpaque(parentPtr).takeUnretainedValue()
-    let child = Unmanaged<RuntimeCoroutineScope>.fromOpaque(childPtr).takeUnretainedValue()
-    // Set the parent link so cancel() on the parent propagates to the child via registerChild.
-    child.setParent(parent)
-    if parent.isCancelled {
-        child.cancel()
-    }
-    return 0
 }
 
 /// Registers a child job/deferred handle with the given scope.
@@ -2545,7 +2519,7 @@ public func kk_with_timeout(_ timeoutMillis: Int, _ entryPointRaw: Int, _ contin
         workItem.cancel()
         scope.cancel()
         _ = kk_coroutine_scope_wait(scopeHandle)
-        fatalError("KSwiftK panic: withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
+        runtimeStructuredPanic("withTimeout timed out after \(timeoutMillis)ms (CancellationException)")
     }
     _ = kk_coroutine_scope_wait(scopeHandle)
     return result
@@ -3117,28 +3091,3 @@ public func kk_suspend_function_invoke(
     return Int(continuationState.completion)
 }
 
-@_cdecl("kk_channel_send_suspending")
-public func kk_channel_send_suspending(_ handle: Int, _ value: Int, _ continuation: Int) -> Int {
-    func isRegisteredChannelHandle(_ raw: Int) -> Bool {
-        guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return false }
-        let isRegistered = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        guard isRegistered else { return false }
-        return tryCast(ptr, to: RuntimeChannelHandle.self) != nil
-    }
-    let resolvedHandle: Int
-    let resolvedValue: Int
-    if !isRegisteredChannelHandle(handle), isRegisteredChannelHandle(value) {
-        resolvedHandle = value
-        resolvedValue = handle
-    } else {
-        resolvedHandle = handle
-        resolvedValue = value
-    }
-    guard let resolvedPtr = UnsafeMutableRawPointer(bitPattern: resolvedHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_channel_send_suspending received invalid channel handle")
-    }
-    let channel = Unmanaged<RuntimeChannelHandle>.fromOpaque(resolvedPtr).takeUnretainedValue()
-    return channel.send(resolvedValue, continuation: continuation)
-}

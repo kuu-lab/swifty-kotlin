@@ -4,7 +4,7 @@ import XCTest
 
 extension CodegenBackendIntegrationTests {
     func testCodegenCompilesCoroutineCancellationEdgeCases() throws {
-        throw XCTSkip("Coroutine cancellation not yet implemented")
+        throw XCTSkip("withTimeoutOrNull null semantics and coroutineScope exception propagation not yet correct (STDLIB-CORO-001, DEBT-CORO-003)")
         let source = """
         import kotlinx.coroutines.*
 

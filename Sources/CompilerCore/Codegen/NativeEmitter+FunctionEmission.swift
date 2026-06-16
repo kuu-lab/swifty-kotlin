@@ -328,30 +328,6 @@ extension NativeEmitter {
             return block
         }
 
-        func buildBoolCondition(
-            from value: LLVMCAPIBindings.LLVMValueRef,
-            name: String
-        ) -> LLVMCAPIBindings.LLVMValueRef? {
-            let normalizedValue: LLVMCAPIBindings.LLVMValueRef = if let unboxBool = declareExternalFunction(
-                named: "kk_unbox_bool",
-                argumentCount: 1,
-                appendThrownChannel: false
-            ),
-                let unboxed = bindings.buildCall(
-                    builder,
-                    functionType: unboxBool.type,
-                    callee: unboxBool.value,
-                    arguments: [value],
-                    name: "\(name)_unboxed"
-                )
-            {
-                unboxed
-            } else {
-                value
-            }
-            return bindings.buildICmpNotEqual(builder, lhs: normalizedValue, rhs: zeroValue, name: name)
-        }
-
         /// Builds a condition for exception-thrown slot checks. Does NOT call kk_unbox_bool;
         /// thrown slots hold raw integers (0 = no exception, non-zero = exception).
         func buildThrownSlotCondition(
@@ -865,6 +841,48 @@ extension NativeEmitter {
                     result: result,
                     instructionIndex: instructionIndex
                 ) {
+                    continue
+                }
+
+                // CORO-001: kk_channel_receive returns status out-of-band; payload via outValue.
+                if calleeName == "kk_channel_receive" {
+                    let outValueSlot = bindings.buildAlloca(
+                        builder,
+                        type: int64Type,
+                        name: "channel_out_value_\(instructionIndex)"
+                    )
+                    if let outValueSlot {
+                        _ = bindings.buildStore(builder, value: zeroValue, pointer: outValueSlot)
+                    }
+                    if let receiveFunction = declareExternalFunction(
+                        named: "kk_channel_receive",
+                        argumentCount: 3,
+                        appendThrownChannel: false
+                    ) {
+                        var receiveArgs = argumentValues
+                        receiveArgs.append(outValueSlot ?? nullThrownPointer)
+                        _ = bindings.buildCall(
+                            builder,
+                            functionType: receiveFunction.type,
+                            callee: receiveFunction.value,
+                            arguments: receiveArgs,
+                            name: "channel_receive_\(instructionIndex)"
+                        )
+                        if let outValueSlot,
+                           let loadedValue = bindings.buildLoad(
+                               builder,
+                               type: int64Type,
+                               pointer: outValueSlot,
+                               name: "channel_recv_val_\(instructionIndex)"
+                           )
+                        {
+                            storeResult(result, loadedValue)
+                        } else {
+                            storeResult(result, zeroValue)
+                        }
+                    } else {
+                        storeResult(result, zeroValue)
+                    }
                     continue
                 }
 

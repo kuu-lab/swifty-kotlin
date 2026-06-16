@@ -169,7 +169,7 @@ public func kk_native_processUnhandledException(
 @_cdecl("kk_native_terminateWithUnhandledException")
 public func kk_native_terminateWithUnhandledException(_ throwableRaw: Int) -> Int {
     _ = kk_native_processUnhandledException(throwableRaw, nil)
-    fatalError("Unhandled Kotlin exception: \(throwableRaw)")
+    runtimeStructuredPanic("Unhandled Kotlin exception: \(throwableRaw)")
 }
 
 // MARK: - Native ByteArray accessors
@@ -498,82 +498,6 @@ public func kk_native_heap_free(_ handle: Int) -> Int {
     runtimeStorage.withGCLock { state in
         state.objectPointers.remove(UInt(bitPattern: ptr))
     }
-    return 0
-}
-
-@_cdecl("kk_native_alloc_bytes")
-public func kk_native_alloc_bytes(_ byteCount: Int) -> Int {
-    kk_native_heap_alloc(byteCount)
-}
-
-// MARK: - memScoped { } block
-
-/// Tracks allocations tied to a `memScoped` lifetime region.
-///
-/// On scope exit (`kk_mem_scope_exit`) all allocations registered within
-/// the scope are released together.
-final class RuntimeMemScopeBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var allocations: [UInt] = []
-
-    func register(raw: Int) {
-        guard raw != 0 else { return }
-        lock.lock()
-        defer { lock.unlock() }
-        allocations.append(UInt(bitPattern: raw))
-    }
-
-    func freeAll() {
-        lock.lock()
-        let keys = allocations
-        allocations.removeAll(keepingCapacity: false)
-        lock.unlock()
-
-        runtimeStorage.withGCLock { state in
-            for key in keys {
-                guard state.objectPointers.remove(key) != nil,
-                      let ptr = UnsafeMutableRawPointer(bitPattern: key)
-                else {
-                    continue
-                }
-                Unmanaged<RuntimeNativeHeapAllocationBox>.fromOpaque(ptr).release()
-            }
-        }
-    }
-}
-
-@_cdecl("kk_mem_scope_enter")
-public func kk_mem_scope_enter() -> Int {
-    registerRuntimeObject(RuntimeMemScopeBox())
-}
-
-@_cdecl("kk_mem_scope_alloc")
-public func kk_mem_scope_alloc(_ scopeHandle: Int, _ byteCount: Int) -> Int {
-    guard byteCount > 0 else {
-        return 0
-    }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: scopeHandle) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_mem_scope_alloc received invalid scope handle")
-    }
-    let box = Unmanaged<RuntimeMemScopeBox>.fromOpaque(ptr).takeUnretainedValue()
-    let allocation = RuntimeNativeHeapAllocationBox(byteCount: byteCount)
-    let raw = registerRuntimeObject(allocation)
-    box.register(raw: raw)
-    return raw
-}
-
-@_cdecl("kk_mem_scope_exit")
-public func kk_mem_scope_exit(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    let unmanaged = Unmanaged<RuntimeMemScopeBox>.fromOpaque(ptr)
-    let box = unmanaged.takeUnretainedValue()
-    box.freeAll()
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.remove(UInt(bitPattern: ptr))
-    }
-    unmanaged.release()
     return 0
 }
 

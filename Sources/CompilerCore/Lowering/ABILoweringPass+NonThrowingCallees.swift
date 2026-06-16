@@ -187,7 +187,6 @@ extension ABILoweringPass {
             interner.intern("kk_string_prependIndent"),
             interner.intern("kk_string_replaceIndent_default"),
             interner.intern("kk_string_replaceIndent"),
-            interner.intern("kk_string_replaceIndentByMargin"),
             interner.intern("kk_string_equalsIgnoreCase"),
             interner.intern("kk_string_iterable_toList"),
             interner.intern("kk_string_iterable_iterator"),
@@ -348,6 +347,7 @@ extension ABILoweringPass {
             interner.intern("kk_op_downTo"),
             // kk_op_step is intentionally NOT in this list — it throws
             // IllegalArgumentException for step<=0 (STDLIB-022).
+            interner.intern("kk_range_contains"),
             interner.intern("kk_range_first"),
             interner.intern("kk_range_last"),
             interner.intern("kk_range_endExclusive"),
@@ -474,6 +474,17 @@ extension ABILoweringPass {
             interner.intern("kk_job_is_completed"),
             interner.intern("kk_job_is_cancelled"),
             interner.intern("kk_job_is_failed"),
+            // Channel (CORO-001): out-of-band status; no thrown channel.
+            interner.intern("kk_channel_create"),
+            interner.intern("kk_channel_send"),
+            interner.intern("kk_channel_receive"),
+            interner.intern("kk_channel_close"),
+            interner.intern("kk_channel_is_closed_token"),
+            interner.intern("kk_channel_is_closed_for_receive"),
+            interner.intern("kk_channel_is_closed_for_send"),
+            interner.intern("kk_channel_iterator"),
+            interner.intern("kk_channel_iterator_hasNext"),
+            interner.intern("kk_channel_iterator_next"),
             interner.intern("kk_atomic_int_create"),
             interner.intern("kk_atomic_int_load"),
             interner.intern("kk_atomic_int_store"),
@@ -520,7 +531,6 @@ extension ABILoweringPass {
             interner.intern("kk_atomic_bool_compareAndExchange"),
             interner.intern("kk_atomic_bool_asJavaAtomic"),
             interner.intern("kk_atomic_int_array_asJavaAtomicArray"),
-            interner.intern("kk_java_atomic_bool_asKotlinAtomic"),
             interner.intern("kk_atomic_ref_array_asJavaAtomicArray"),
             interner.intern("kk_atomic_long_array_asJavaAtomicArray"),
             interner.intern("kk_java_atomic_int_array_asKotlinAtomicArray"),
@@ -620,11 +630,7 @@ extension ABILoweringPass {
             interner.intern("kk_list_of"),
             interner.intern("kk_list_size"),
             interner.intern("kk_list_get"),
-            interner.intern("kk_list_component1"),
-            interner.intern("kk_list_component2"),
-            interner.intern("kk_list_component3"),
-            interner.intern("kk_list_component4"),
-            interner.intern("kk_list_component5"),
+        ] + (1...5).map { interner.intern("kk_list_component\($0)") } + [
             interner.intern("kk_list_contains"),
             interner.intern("kk_list_containsAll"),
             interner.intern("kk_list_is_empty"),
@@ -1073,6 +1079,7 @@ extension ABILoweringPass {
             interner.intern("kk_string_builder_append"),
             interner.intern("kk_string_builder_append_line"),
             interner.intern("kk_string_builder_append_line_noarg"),
+            // buildString DSL insert/delete clamp out-of-range indices instead of throwing.
             interner.intern("kk_string_builder_insert"),
             interner.intern("kk_string_builder_delete"),
             interner.intern("kk_string_builder_length"),
@@ -1182,18 +1189,10 @@ extension ABILoweringPass {
             interner.intern("kk_string_builder_length_prop"),
             interner.intern("kk_string_builder_append_line_obj"),
             interner.intern("kk_string_builder_append_line_noarg_obj"),
-            interner.intern("kk_string_builder_insert_obj"),
-            interner.intern("kk_string_builder_delete_obj"),
-            interner.intern("kk_string_builder_deleteRange"),
+            // Bounds-checking StringBuilder members throw via outThrown (DEBT-RT-001).
             interner.intern("kk_string_builder_clear"),
             interner.intern("kk_string_builder_reverse"),
-            interner.intern("kk_string_builder_deleteCharAt"),
-            interner.intern("kk_string_builder_deleteAt"),
-            interner.intern("kk_string_builder_get"),
-            interner.intern("kk_string_builder_setCharAt"), // STDLIB-TEXT-FN-064: operator fun set(index, value)
             interner.intern("kk_string_builder_appendRange_obj"),
-            interner.intern("kk_string_builder_insertRange_obj"),
-            interner.intern("kk_string_builder_setRange"),
             // REFL-003: Callable reference type identity tagging — pure metadata
             // annotation that cannot throw.
             interner.intern("kk_callable_ref_tag_kfunction"),

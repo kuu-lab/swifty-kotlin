@@ -2,32 +2,6 @@
 import XCTest
 
 final class SemaCacheContextTests: XCTestCase {
-    // MARK: - Helpers
-
-    /// Creates a ``CompilationContext`` from source with the `sema-cache` frontend flag enabled.
-    func makeContextFromSourceWithCache(_ source: String) throws -> CompilationContext {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let options = CompilerOptions(
-            moduleName: "TestModule",
-            inputs: [fakePath],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            searchPaths: [],
-            target: defaultTargetTriple(),
-            frontendFlags: ["sema-cache"]
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        return ctx
-    }
-
     // MARK: - Scope Lookup Cache
 
     func testScopeLookupCacheReturnsSameResultAsUncached() {
@@ -65,31 +39,6 @@ final class SemaCacheContextTests: XCTestCase {
 
         let result = cache.lookupInScope(interner.intern("nonexistent"), scope: scope)
         XCTAssertTrue(result.isEmpty)
-    }
-
-    func testScopeLookupCacheInvalidation() {
-        let setup = makeSemaModule()
-        let interner = setup.interner
-        let symbols = setup.symbols
-
-        let name = interner.intern("bar")
-        let scope = BaseScope(parent: nil, symbols: symbols)
-
-        let cache = SemaCacheContext()
-        let before = cache.lookupInScope(name, scope: scope)
-        XCTAssertTrue(before.isEmpty)
-
-        let sym = symbols.define(
-            kind: .function, name: name,
-            fqName: [interner.intern("test"), interner.intern("bar")],
-            declSite: nil, visibility: .public, flags: []
-        )
-        scope.insert(sym)
-
-        // Invalidate and re-lookup
-        cache.invalidateScope(scope)
-        let after = cache.lookupInScope(name, scope: scope)
-        XCTAssertEqual(after, [sym])
     }
 
     // MARK: - Symbol Lookup Cache
@@ -254,7 +203,7 @@ final class SemaCacheContextTests: XCTestCase {
         let diagsNoCache = ctxNoCache.diagnostics.diagnostics
 
         // With cache
-        let ctxCached = try makeContextFromSourceWithCache(source)
+        let ctxCached = makeContextFromSource(source, frontendFlags: ["sema-cache"])
         try runSema(ctxCached)
         let diagsCached = ctxCached.diagnostics.diagnostics
 

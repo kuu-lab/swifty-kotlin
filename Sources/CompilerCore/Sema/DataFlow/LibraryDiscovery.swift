@@ -78,6 +78,7 @@ extension DataFlowSemaPhase {
             return LibraryManifestInfo(
                 metadataPath: URL(fileURLWithPath: libraryDir).appendingPathComponent("metadata.bin").path,
                 inlineKIRDir: nil,
+                moduleName: nil,
                 isValid: false
             )
         }
@@ -94,6 +95,7 @@ extension DataFlowSemaPhase {
             return LibraryManifestInfo(
                 metadataPath: URL(fileURLWithPath: libraryDir).appendingPathComponent("metadata.bin").path,
                 inlineKIRDir: nil,
+                moduleName: nil,
                 isValid: false
             )
         }
@@ -132,7 +134,12 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics
         ) && isValid
 
-        return LibraryManifestInfo(metadataPath: metadataPath, inlineKIRDir: inlineKIRDir, isValid: isValid)
+        return LibraryManifestInfo(
+            metadataPath: metadataPath,
+            inlineKIRDir: inlineKIRDir,
+            moduleName: manifest.moduleName,
+            isValid: isValid
+        )
     }
 
     private func validateManifestSchema(

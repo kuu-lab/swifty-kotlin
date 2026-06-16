@@ -366,7 +366,6 @@ final class ClassMemberScope: BaseScope {
 }
 
 final class FunctionScope: BaseScope {}
-final class BlockScope: BaseScope {}
 
 import Foundation
 
@@ -398,6 +397,7 @@ public final class SymbolTable {
     private var extensionPropertySetterAccessors: [SymbolID: SymbolID] = [:]
     private var typeParameterUpperBoundsMap: [SymbolID: [TypeID]] = [:]
     private var sourceFileIDs: [SymbolID: FileID] = [:]
+    private var moduleFQNames: [SymbolID: InternedString] = [:]
     private var annotationsStorage: [SymbolID: [MetadataAnnotationRecord]] = [:]
     private var companionObjectSymbols: [SymbolID: SymbolID] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
@@ -891,6 +891,14 @@ public final class SymbolTable {
         sourceFileIDs[symbol]
     }
 
+    public func setModuleFQN(_ moduleFQN: InternedString, for symbol: SymbolID) {
+        moduleFQNames[symbol] = moduleFQN
+    }
+
+    public func moduleFQN(for symbol: SymbolID) -> InternedString? {
+        moduleFQNames[symbol]
+    }
+
     public func setAnnotations(_ annotations: [MetadataAnnotationRecord], for symbol: SymbolID) {
         annotationsStorage[symbol] = annotations
     }
@@ -955,44 +963,6 @@ public final class SymbolTable {
         return expectActualLinks[expect]
     }
 
-    /// Validate the consistency of expect/actual links for debugging purposes
-    public func validateExpectActualLinks() -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
-
-        var issues: [String] = []
-
-        for (expectId, actualId) in expectActualLinks {
-            guard let expectSymbol = symbol(expectId) else {
-                issues.append("Expect symbol \(expectId) not found in symbol table")
-                continue
-            }
-
-            guard let actualSymbol = symbol(actualId) else {
-                issues.append("Actual symbol \(actualId) not found in symbol table")
-                continue
-            }
-
-            if !expectSymbol.flags.contains(.expectDeclaration) {
-                issues.append("Symbol \(expectId) lacks expect declaration flag")
-            }
-
-            if !actualSymbol.flags.contains(.actualDeclaration) {
-                issues.append("Symbol \(actualId) lacks actual declaration flag")
-            }
-
-            // Check if FQ names match (for same-package expect/actual)
-            if expectSymbol.fqName == actualSymbol.fqName {
-                // Same package expect/actual should have compatible kinds
-                if !areKindsCompatibleForExpectActual(expect: expectSymbol.kind, actual: actualSymbol.kind) {
-                    issues.append("Incompatible kinds: expect=\(expectSymbol.kind), actual=\(actualSymbol.kind)")
-                }
-            }
-        }
-
-        return issues
-    }
-
     /// Check if two symbol kinds are compatible for expect/actual relationship
     private func areKindsCompatibleForExpectActual(expect: SymbolKind, actual: SymbolKind) -> Bool {
         switch (expect, actual) {
@@ -1040,11 +1010,6 @@ public final class SymbolTable {
     /// STDLIB-593: Record that a function has a `returnsNotNull` contract effect.
     public func setContractReturnsNotNull(for function: SymbolID) {
         contractReturnsNotNullEffects.insert(function)
-    }
-
-    /// STDLIB-593: Returns whether a function has a `returnsNotNull` contract effect.
-    public func hasContractReturnsNotNull(for function: SymbolID) -> Bool {
-        contractReturnsNotNullEffects.contains(function)
     }
 
     /// STDLIB-591: Record a `returns() implies condition` effect where the

@@ -25,13 +25,18 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
+        assignCompilationModuleFQNames(
+            symbols: symbols,
+            moduleName: ctx.options.moduleName,
+            interner: ctx.interner
+        )
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
         runBodyAnalysis(ast: ast, symbols: symbols, types: types, bindings: bindings, ctx: ctx)
 
         ctx.storeSema(sema)
     }
 
-    private func buildFileScopes(
+    func buildFileScopes(
         ast: ASTModule, symbols: SymbolTable, interner: StringInterner
     ) -> [Int32: FileScope] {
         let rootScope = PackageScope(parent: nil, symbols: symbols)
@@ -58,7 +63,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         return importedInlineFunctions
     }
 
-    private func collectAllHeaders(
+    func collectAllHeaders(
         ast: ASTModule, fileScopes: [Int32: FileScope],
         symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
         ctx: CompilationContext
@@ -108,7 +113,8 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         validateOpenFinalOverride(
             ast: ast, symbols: symbols, bindings: bindings, types: types,
-            diagnostics: ctx.diagnostics, interner: ctx.interner
+            diagnostics: ctx.diagnostics, interner: ctx.interner,
+            compilationModuleName: ctx.options.moduleName
         )
         validateExpectActualMatching(
             ast: ast,

@@ -211,6 +211,21 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Assigns the compilation module FQN to every source symbol that has a source file but no
+    /// explicit module (library imports set their own module FQN during `loadImportedLibrarySymbols`).
+    func assignCompilationModuleFQNames(
+        symbols: SymbolTable,
+        moduleName: String,
+        interner: StringInterner
+    ) {
+        let moduleFQN = interner.intern(moduleName)
+        for symbol in symbols.allSymbols() where symbols.moduleFQN(for: symbol.id) == nil {
+            if symbols.sourceFileID(for: symbol.id) != nil {
+                symbols.setModuleFQN(moduleFQN, for: symbol.id)
+            }
+        }
+    }
+
     func classSymbolKind(for classDecl: ClassDecl) -> SymbolKind {
         if classDecl.modifiers.contains(.annotationClass) {
             return .annotationClass
@@ -1015,7 +1030,6 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticJsExceptionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPreconditionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
@@ -1028,7 +1042,6 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsDefinedExternallyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsParseIntStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsParseIntRadixStubs(symbols: symbols, types: types, interner: interner)
