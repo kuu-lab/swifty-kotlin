@@ -269,6 +269,13 @@ public func kk_random_asJavaRandom(_ receiver: Int) -> Int {
     receiver
 }
 
+@_cdecl("kk_java_util_random_create_seeded")
+public func kk_java_util_random_create_seeded(_ seed: Int) -> Int {
+    // Java Random uses the same seeding mechanism as Kotlin Random
+    // We can reuse the same implementation
+    kk_random_create_seeded(seed)
+}
+
 @_cdecl("kk_random_nextInt")
 public func kk_random_nextInt(_ receiver: Int) -> Int {
     if let box = seededBox(from: receiver) {
