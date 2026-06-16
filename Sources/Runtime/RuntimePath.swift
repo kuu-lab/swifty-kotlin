@@ -1375,18 +1375,19 @@ public func kk_path_getLastModifiedTime(_ pathRaw: Int, _ optionsRaw: Int, _ out
 
 // MARK: - STDLIB-IO-PATH-FN-032: Path.setAttribute
 
-/// Path.setAttribute(attribute: String, value: String, vararg options: LinkOption): Path
+/// Path.setAttribute(attribute: String, value: Any?, vararg options: LinkOption): Path
 ///
-/// Sets a named file attribute using the `"view:name"` format (e.g.
-/// `"basic:lastModifiedTime"`). The view prefix is optional — bare names are
-/// accepted too. Supported attributes via Foundation:
-///   - `lastModifiedTime`: epoch-milliseconds string → `.modificationDate`
-///   - `creationTime`:     epoch-milliseconds string → `.creationDate`
-///   - `posixPermissions`: octal integer string      → `.posixPermissions`
-/// Unknown attribute names are silently ignored to match JVM lenience.
-/// The `optionsRaw` vararg is accepted for ABI symmetry; link-option handling
-/// has no effect on the macOS Foundation-backed runtime.
-/// Throws an IOException-wrapped throwable when the attribute cannot be applied.
+/// Sets a file attribute identified by `attribute`. The attribute string may include a
+/// view-name prefix (e.g. `"basic:lastModifiedTime"`); the prefix is stripped before
+/// dispatching. Supported attributes on the macOS Foundation-backed runtime:
+///   - `lastModifiedTime` — sets the modification date.
+///   - `lastAccessTime` — silently accepted; access time cannot be set via Foundation.
+///   - `creationTime` — sets the creation date.
+///   - All other attribute names cause an `UnsupportedOperationException` throwable.
+/// `valueRaw` is resolved as a `RuntimeFileTimeBox` handle if possible; otherwise the
+/// string is parsed as milliseconds since the Unix epoch. The `optionsRaw` vararg is
+/// accepted for ABI symmetry; link options have no effect on this runtime.
+/// Throws an `IOException` if the attribute cannot be applied (e.g. file not found).
 @_cdecl("kk_path_setAttribute")
 public func kk_path_setAttribute(
     _ pathRaw: Int,
@@ -1400,46 +1401,70 @@ public func kk_path_setAttribute(
     guard let path = runtimePathBox(from: pathRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid Path handle")
     }
-    guard let attributeFull = pathStringValue(from: attributeRaw) else {
+    guard let attribute = pathStringValue(from: attributeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid attribute handle")
     }
-    let valueString = pathStringValue(from: valueRaw) ?? ""
-    let attrName: String
-    if let colonIndex = attributeFull.firstIndex(of: ":") {
-        attrName = String(attributeFull[attributeFull.index(after: colonIndex)...])
+
+    // Strip optional "view:" prefix (e.g. "basic:lastModifiedTime" → "lastModifiedTime")
+    let name: String
+    if let colonIndex = attribute.firstIndex(of: ":") {
+        name = String(attribute[attribute.index(after: colonIndex)...])
     } else {
-        attrName = attributeFull
+        name = attribute
     }
+
+    // Resolve valueRaw as milliseconds since epoch:
+    // prefer RuntimeFileTimeBox (for FileTime values), fall back to string-encoded integer.
+    // Returns nil if the value cannot be decoded (neither a FileTimeBox nor a parseable integer).
+    func resolveMillis() -> Int? {
+        if let ptr = UnsafeMutableRawPointer(bitPattern: valueRaw),
+           let fileTime = tryCast(ptr, to: RuntimeFileTimeBox.self)
+        {
+            return fileTime.milliseconds
+        }
+        guard let str = pathStringValue(from: valueRaw), let parsed = Int(str) else { return nil }
+        return parsed
+    }
+
     do {
-        switch attrName {
+        switch name {
         case "lastModifiedTime":
-            guard let millis = Int(valueString) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid lastModifiedTime value: \(valueString)"]
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
+                return pathRaw
             }
-            let modDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-            try FileManager.default.setAttributes([.modificationDate: modDate], ofItemAtPath: path.pathString)
+            let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
+        case "lastAccessTime":
+            // macOS Foundation has no direct setter for access time; verify the path exists
+            // so that callers do not silently succeed on missing files.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
+            }
         case "creationTime":
-            guard let millis = Int(valueString) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid creationTime value: \(valueString)"]
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
+                return pathRaw
             }
-            let createDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-            try FileManager.default.setAttributes([.creationDate: createDate], ofItemAtPath: path.pathString)
-        case "posixPermissions":
-            guard let octal = Int(valueString, radix: 8) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid posixPermissions value: \(valueString)"]
-                )
+            let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+            #if canImport(Darwin)
+            try FileManager.default.setAttributes([.creationDate: date], ofItemAtPath: path.pathString)
+            #else
+            // Linux filesystems do not expose a settable creation time; verify path exists.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
             }
-            try FileManager.default.setAttributes([.posixPermissions: octal], ofItemAtPath: path.pathString)
+            #endif
         default:
-            break
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "UnsupportedOperationException: setAttribute does not support attribute '\(attribute)'"
+            )
         }
     } catch {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")

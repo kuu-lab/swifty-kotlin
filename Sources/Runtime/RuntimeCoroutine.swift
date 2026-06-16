@@ -3067,7 +3067,6 @@ public func kk_suspend_function_invoke_0(
 
     return Int(continuationState.completion)
 }
-
 /// Invoke a suspend function with 1 argument using continuation-passing style.
 /// This is the runtime implementation for `kk_suspend_function_invoke`.
 @_silgen_name("kk_suspend_function_invoke")
