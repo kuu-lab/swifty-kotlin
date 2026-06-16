@@ -482,7 +482,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現が `java.lang.*.toString` と異なる（Kotlin: `4.9E-324`/`1.4E-45`、kswiftk: `5.0E-324`/`1.0E-45`）。Swift の最短表現と Java の FloatingDecimal の差。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`（SKIP-DIFF）。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
 
-## 全体リファクタリング計画（RF0–RF8）
+## 全体リファクタリング計画（RF0–RF9）
 
 > 調査日: 2026-06-10。実測: CompilerCore ~229k 行（うち Sema/DataFlow ~104k、合成スタブ約100ファイル/~9万行）、
 > Runtime ~63k 行、Tests ~214k 行、`interner.resolve == "名前"` 特例 104 箇所（TypeCheck）、`"kk_` リテラル 6,738 箇所（CompilerCore）。
@@ -665,3 +665,14 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### 未監査領域（フォローアップ）
 - [ ] DEADCODE-014: 今回未監査の領域を同手法で監査する — Runtime の C コード（GC 等の .c/.h）、診断コード `KSWIFTK-*` の未発行コード、stored property / global 定数、Tests 内ヘルパ、`Scripts/diff_cases` の SKIP-DIFF ケースの実行可否。以降は RF-GOV-004 の四半期運用に乗せる
+
+### Phase RF9: デッドコード削除（dead-code audit 2026-06-12 検出分）
+
+> 検出手法・全インベントリ・再現コマンドは `docs/dead-code-audit.md` を参照。
+> 注意: `RuntimeABISpec`（`+ABIParity` / `+RuntimeOnlyBridge`）への登録は exported シンボルの必須ミラーであり「使用」の証拠ではない。
+> 削除時は Runtime 実装と spec エントリをセットで消し、孤立する private ヘルパー・Box 型も同時に削除する。
+
+- [ ] RF-DEAD-001: 完全到達不能の `kk_*` ランタイム関数 102 個を削除する（CompilerCore から静的にも動的（文字列補間 25 プレフィックス・`StdlibSurfaceSpec` 表駆動）にも emit されず、Tests・Runtime 内部・`Stdlib/*.kt` からの参照もゼロ）。内訳: SLF4J 互換ロギング 28 / リフレクション（`kk_kclass_*` / `kk_kconstructor_*` / `kk_kproperty_*` / `kk_callable_ref_*`）32 / coroutines・Flow 19 / 配列 HOF 取り残し 8 / java.time・JS Date ブリッジ 5 / HTTP 2 / その他（`kk_math_pi` / `kk_char_plus` 等）8。カテゴリ単位の分割 PR 推奨
+- [ ] RF-DEAD-002: テストのみが延命させている `kk_*` 関数 128 個をトリアージする（コンパイラが emit できないため Kotlin プログラムから到達不能だが RuntimeTests が直接呼出。`kk_atomic_*_array_*` / `kk_parallel_stream_*` / `kk_flow_fold` / `kk_write_barrier` / `kk_panic` 等）。各関数を (a) 配線予定 → 対応 STDLIB タスクへ紐付け、(b) テスト支援 API（`kk_assertions_reset` / `kk_runtime_force_reset` 等）→ その旨をコメント明記、(c) 配線計画なし → 関数 + テスト + spec エントリをセットで削除、に分類する（`kk_set_*` HOF 群は TEST-COL-012 と重複するため配線が正解の可能性あり）
+- [ ] RF-DEAD-003: 参照ゼロの Swift 関数 6 個を削除する（`buildBoolCondition`〔`NativeEmitter+FunctionEmission.swift` 内ローカル関数〕、`StdlibSurfaceSpec.collectionHOFRuntimeLinkNames`〔複数形・単数形のみ使用〕、LSPServer の `DocumentStore.allURIs` / `PositionResolver.enclosingDecl`、Runtime の `runtimeRetainObjectHandle` / `runtimeParallelStreamElements`）。小粒・即着手可
+- [ ] RF-DEAD-004: dead-code 検出を `Scripts/dead_code_audit.sh` としてスクリプト化する（`docs/dead-code-audit.md` の再現コマンドを移植。動的補間プレフィックス・`StdlibSurfaceSpec` 表駆動経路・テスト参照の除外を含む。RF-GOV-004 の四半期 audit で再利用）
