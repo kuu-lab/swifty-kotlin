@@ -131,6 +131,7 @@ extension ABIMismatchTests {
             "kk_result_flatMap",
             "kk_result_flatMapCatching",
             "kk_result_mapCatching",
+            "kk_string_toJsString",
             "kk_toJsReference",
             "kk_uri_toPath",
         ]
