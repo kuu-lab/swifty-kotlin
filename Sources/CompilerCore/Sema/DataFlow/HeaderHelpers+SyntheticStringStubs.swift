@@ -1308,62 +1308,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
-        registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padStart",
-            externalLinkName: "kk_string_padStart",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd_default",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "padEnd",
-            externalLinkName: "kk_string_padEnd",
-            receiverType: stringType,
-            parameters: [
-                ("length", intType, false, false),
-                ("padChar", charType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         // --- STDLIB-185: removePrefix / removeSuffix / removeSurrounding ---
 
         registerSyntheticStringExtensionFunction(
