@@ -575,7 +575,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
 - [x] DEBT-CORO-001: `Sources/Runtime/RuntimeCoroutineChannel.swift:20` — closed sentinel が `Int.min` の in-band 設計のため `Long.MIN_VALUE` を Channel 送信できない（コード内 TODO(CORO-001)）。`kk_coroutine_check_cancellation` と同じ status+value のポインタ渡し（out-of-band）へ移行する
 - [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift:490,708` — `RuntimeSequenceCoroutine` / `RuntimeMapCoroutine` の producer/consumer セマフォ ping-pong が GCD スレッド 2 本をイテレーション中ずっとブロック（コード内 TODO(CORO-004)）。yield() を suspend ポイントとしてモデル化する移行をこの 2 型から着手する
-- [ ] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift:691` — `withContext` が continuation 移行途中でセマフォ fallback のまま。continuation ベースへ完了させる
+- [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift:691` — `withContext` が continuation 移行途中でセマフォ fallback のまま。continuation ベースへ完了させる
 - [x] DEBT-CORO-004: `Sources/Runtime/RuntimeCoroutine.swift:617` — `awaitResult()` のセマフォブロッキングを suspend ポイント化する（ファイル冒頭 105-135 行の移行計画の残件）
 
 ### Sema 近似実装・既知クラッシュ
