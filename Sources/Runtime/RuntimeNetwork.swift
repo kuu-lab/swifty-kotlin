@@ -943,45 +943,12 @@ public func kk_http_client_setFollowRedirects(_ clientRaw: Int, _ enabled: Int) 
     return 0
 }
 
-@_cdecl("kk_http_client_setDefaultHeader")
-public func kk_http_client_setDefaultHeader(_ clientRaw: Int, _ nameRaw: Int, _ valueRaw: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setDefaultHeader received invalid client handle")
-    }
-    client.setDefaultHeader(
-        name: networkString(from: nameRaw, caller: #function),
-        value: networkString(from: valueRaw, caller: #function)
-    )
-    return 0
-}
-
-@_cdecl("kk_http_client_setBasicAuth")
-public func kk_http_client_setBasicAuth(_ clientRaw: Int, _ usernameRaw: Int, _ passwordRaw: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setBasicAuth received invalid client handle")
-    }
-    client.setBasicAuth(
-        username: networkString(from: usernameRaw, caller: #function),
-        password: networkString(from: passwordRaw, caller: #function)
-    )
-    return 0
-}
-
 @_cdecl("kk_http_client_setBearerToken")
 public func kk_http_client_setBearerToken(_ clientRaw: Int, _ tokenRaw: Int) -> Int {
     guard let client = runtimeHTTPClientBox(from: clientRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_setBearerToken received invalid client handle")
     }
     client.setBearerToken(networkString(from: tokenRaw, caller: #function))
-    return 0
-}
-
-@_cdecl("kk_http_client_clearAuthentication")
-public func kk_http_client_clearAuthentication(_ clientRaw: Int) -> Int {
-    guard let client = runtimeHTTPClientBox(from: clientRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_client_clearAuthentication received invalid client handle")
-    }
-    client.clearAuthentication()
     return 0
 }
 
@@ -992,27 +959,6 @@ public func kk_http_client_get(_ clientRaw: Int, _ urlRaw: Int) -> Int {
         method: "GET",
         urlString: networkString(from: urlRaw, caller: #function),
         body: nil
-    )
-}
-
-@_cdecl("kk_http_client_post")
-public func kk_http_client_post(_ clientRaw: Int, _ urlRaw: Int, _ bodyRaw: Int) -> Int {
-    runtimeHTTPPerformBlockingRequest(
-        clientRaw: clientRaw,
-        method: "POST",
-        urlString: networkString(from: urlRaw, caller: #function),
-        body: networkString(from: bodyRaw, caller: #function)
-    )
-}
-
-@_cdecl("kk_http_client_get_async")
-public func kk_http_client_get_async(_ clientRaw: Int, _ urlRaw: Int, _ continuation: Int) -> Int {
-    runtimeHTTPSuspendRequest(
-        clientRaw: clientRaw,
-        method: "GET",
-        urlRaw: urlRaw,
-        bodyRaw: nil,
-        continuation: continuation
     )
 }
 
@@ -1033,15 +979,6 @@ public func kk_http_response_url(_ responseRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_url received invalid response handle")
     }
     return networkStringRaw(response.url)
-}
-
-@_cdecl("kk_http_response_contentType")
-public func kk_http_response_contentType(_ responseRaw: Int) -> Int {
-    guard let response = runtimeHttpResponseBox(from: responseRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_http_response_contentType received invalid response handle")
-    }
-    guard let contentType = response.contentType else { return runtimeNullSentinelInt }
-    return networkStringRaw(contentType)
 }
 
 @_cdecl("kk_http_response_errorMessage")

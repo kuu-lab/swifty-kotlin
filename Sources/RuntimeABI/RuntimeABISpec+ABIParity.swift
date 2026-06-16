@@ -893,10 +893,6 @@ public extension RuntimeABISpec {
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_range_contains", parameters: [
-            p("rangeRaw", .intptr),
-            p("value", .intptr),
-        ]),
         abiParitySpec("kk_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),

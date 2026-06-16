@@ -367,21 +367,6 @@ public func kk_context_get_name(_ contextRaw: Int) -> Int {
     return runtimeRegisterObject(resultBox)
 }
 
-/// Extract the CoroutineExceptionHandler from a CoroutineContext.
-/// Returns handler handle (or 0 if none).
-@_cdecl("kk_context_get_exception_handler")
-public func kk_context_get_exception_handler(_ contextRaw: Int) -> Int {
-    guard contextRaw != 0,
-          isRegisteredRuntimeObjectPointer(contextRaw),
-          let ptr = UnsafeMutableRawPointer(bitPattern: contextRaw),
-          let ctx = tryCast(ptr, to: RuntimeCoroutineContext.self),
-          let handler = ctx.exceptionHandler
-    else {
-        return 0
-    }
-    let handlerPtr = UnsafeMutableRawPointer(Unmanaged.passUnretained(handler).toOpaque())
-    return Int(bitPattern: handlerPtr)
-}
 
 /// Release a CoroutineContext (decrement reference count).
 @_cdecl("kk_context_release")

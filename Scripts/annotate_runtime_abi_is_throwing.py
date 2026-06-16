@@ -9,12 +9,24 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 LEGACY_FILE = REPO / "Sources/CompilerCore/Lowering/ABILoweringPass+NonThrowingCallees.swift"
+LEGACY_TEST_FILE = REPO / "Tests/RuntimeTests/ABIMismatchTests+NonThrowingParity.swift"
 RUNTIME_ABI_DIR = REPO / "Sources/RuntimeABI"
 
 
 def load_non_throwing_names() -> set[str]:
     text = LEGACY_FILE.read_text()
     names = set(re.findall(r'interner\.intern\("([^"]+)"\)', text))
+    if len(names) < 10 and LEGACY_TEST_FILE.exists():
+        # DEBT-KIR-003 removes the handwritten lowering list; use the frozen parity
+        # snapshot when rerunning the annotator after that migration.
+        test_text = LEGACY_TEST_FILE.read_text()
+        match = re.search(
+            r"legacyNonThrowingCalleeNames:\s*Set<String>\s*=\s*\[(.*?)\n\s*\]",
+            test_text,
+            re.DOTALL,
+        )
+        if match:
+            names.update(re.findall(r'"([^"]+)"', match.group(1)))
     names.update(
         {
             "kk_kproperty_stub_create",

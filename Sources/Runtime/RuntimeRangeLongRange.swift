@@ -417,11 +417,6 @@ public func kk_itable_lookup(_ receiver: Int, _ ifaceSlot: Int, _ methodSlot: In
     return Int(bitPattern: functionPointer)
 }
 
-@_cdecl("kk_kxmini_run_loop")
-public func kk_kxmini_run_loop(_ entryPointRaw: Int, _ functionID: Int) -> Int {
-    runSuspendEntryLoop(entryPointRaw: entryPointRaw, functionID: functionID)
-}
-
 func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
     guard let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
@@ -463,7 +458,7 @@ private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBui
 
 @_cdecl("kk_dispatch_error")
 public func kk_dispatch_error() -> Int {
-    fatalError("KSWIFTK-RT-0001: Virtual dispatch failed: method not found in vtable/itable")
+    runtimeStructuredPanic("Virtual dispatch failed: method not found in vtable/itable")
 }
 
 private func runtimeTypeInfo(from receiver: Int) -> UnsafePointer<KTypeInfo>? {

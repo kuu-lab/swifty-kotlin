@@ -414,8 +414,6 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_java_duration_to_string", section: "Duration", params: ["durationRaw"]),
             // STDLIB-TIME-181: JS Date accessors
             bridgeSpec("kk_js_date_epoch_millis", section: "System", params: ["dateRaw"]),
-            bridgeSpec("kk_js_date_from_epoch_millis", section: "System", params: ["epochMillis"]),
-            bridgeSpec("kk_js_date_to_string", section: "System", params: ["dateRaw"]),
             // STDLIB-TIME-181: Native Foundation Date bridge
             bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),
