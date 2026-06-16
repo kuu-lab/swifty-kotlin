@@ -7,7 +7,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minor", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_new_patch",
@@ -17,13 +18,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "patch", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_current",
             parameters: [],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_major",
@@ -31,7 +34,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "versionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_minor",
@@ -39,7 +43,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "versionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_patch",
@@ -47,7 +52,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "versionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_compareTo",
@@ -56,7 +62,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_isAtLeast",
@@ -66,7 +73,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "minor", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kotlin_version_isAtLeast_patch",
@@ -77,7 +85,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "patch", type: .intptr),
             ],
             returnType: .intptr,
-            section: "KotlinVersion"
+            section: "KotlinVersion",
+            isThrowing: false
         ),
     ]
 }
