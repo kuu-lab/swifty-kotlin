@@ -106,10 +106,16 @@ final class RandomAsKotlinRandomFunctionTests: XCTestCase {
         let ctors = sema.symbols.lookupAll(fqName: initFQ)
         XCTAssertFalse(ctors.isEmpty, "java.util.Random must expose synthetic constructors")
 
-        let arities = ctors.compactMap { id -> Int? in
-            sema.symbols.functionSignature(for: id).map { $0.parameterTypes.count }
+        let constructorParameterTypes = ctors.compactMap { id in
+            sema.symbols.functionSignature(for: id)?.parameterTypes
         }
-        XCTAssertTrue(arities.contains(1),
-                      "java.util.Random must expose a seeded constructor")
+        XCTAssertTrue(
+            constructorParameterTypes.contains([sema.types.intType]),
+            "java.util.Random must expose an Int seeded constructor for integer literals"
+        )
+        XCTAssertTrue(
+            constructorParameterTypes.contains([sema.types.longType]),
+            "java.util.Random must expose a Long seeded constructor"
+        )
     }
 }
