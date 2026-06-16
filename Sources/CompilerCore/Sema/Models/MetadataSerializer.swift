@@ -131,7 +131,8 @@ final class MetadataEncoder {
         moduleName: String,
         interner: StringInterner,
         functionLinkNames: [SymbolID: String],
-        includeNonPublic: Bool = false
+        includeNonPublic: Bool = false,
+        excludedFileIDs: Set<Int32> = []
     ) -> [MetadataRecord] {
         let exported = symbols.allSymbols()
             .filter { symbol in
@@ -140,6 +141,17 @@ final class MetadataEncoder {
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
+                }
+                // Exclude symbols declared in bundled stdlib virtual files (e.g. __bundled_*.kt).
+                // These are compiler internals and are always re-injected on every compilation.
+                if let declSite = symbol.declSite, excludedFileIDs.contains(declSite.start.file.rawValue) {
+                    return false
+                }
+                // Library metadata exports user module symbols only. Stdlib synthetic stubs
+                // (also/apply/charArrayOf/…) are re-registered on every compilation and must
+                // not be serialized into .kklib metadata.
+                if !excludedFileIDs.isEmpty, symbol.flags.contains(.synthetic) {
+                    return false
                 }
                 return true
             }
