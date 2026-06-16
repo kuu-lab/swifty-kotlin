@@ -21,12 +21,10 @@ extension CollectionLiteralLoweringPass {
             )
 
             for entry in entries {
-                if let symbol = exprSymbolMap[entry.argID] {
-                    let lambdaName = interner.intern("kk_lambda_\(entry.argID)")
-                    builderLambdaKinds[lambdaName] = entry.callee
-                    if let funcName = symbolToFuncName[symbol] {
-                        builderLambdaKinds[funcName] = entry.callee
-                    }
+                if let symbol = exprSymbolMap[entry.argID],
+                   let funcName = symbolToFuncName[symbol]
+                {
+                    builderLambdaKinds[funcName] = entry.callee
                 }
             }
         }
