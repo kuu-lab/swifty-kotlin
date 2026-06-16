@@ -1667,22 +1667,6 @@ public func kk_op_lfloor_mod(_ lhs: Int, _ rhs: Int) -> Int {
 
 // MARK: - Char operations
 
-@_cdecl("kk_char_plus")
-public func kk_char_plus(_ charValue: Int, _ stringRaw: Int) -> UnsafeMutableRawPointer {
-    let unboxedChar = kk_unbox_char(charValue)
-    let fallbackScalar = UnicodeScalar(0xFFFD)!
-    let charString = String(Character(UnicodeScalar(unboxedChar) ?? fallbackScalar))
-
-    if let stringPtr = UnsafeMutableRawPointer(bitPattern: stringRaw),
-       let stringBox = tryCast(stringPtr, to: RuntimeStringBox.self)
-    {
-        let combined = charString + stringBox.value
-        return runtimeMakeStringPointer(combined)
-    }
-
-    return runtimeMakeStringPointer(charString)
-}
-
 @_cdecl("kk_char_rangeTo")
 public func kk_char_rangeTo(_ startValue: Int, _ endValue: Int) -> Int {
     let startChar = kk_unbox_char(startValue)

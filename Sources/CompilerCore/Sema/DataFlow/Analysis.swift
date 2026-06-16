@@ -560,36 +560,6 @@ final class DataFlowAnalyzer {
         })
     }
 
-    /// Narrow a variable to non-null in the given flow state.
-    /// Infrastructure for future smart cast call sites (e.g., property narrowing, when-subject exhaustive narrowing).
-    func narrowToNonNull(
-        symbol: SymbolID,
-        type: TypeID,
-        base: DataFlowState,
-        types: TypeSystem
-    ) -> DataFlowState {
-        let nonNullType = makeTypeNonNullable(type, types: types)
-        var vars = base.variables
-        vars[symbol] = VariableFlowState(
-            possibleTypes: [nonNullType],
-            nullability: .nonNull,
-            isStable: true
-        )
-        return DataFlowState(variables: vars)
-    }
-
-    /// Invalidate (remove) smart cast information for a variable after reassignment.
-    /// Infrastructure for future DataFlowState-level invalidation (locals-level invalidation is already handled
-    /// by `inferLocalAssignExpr` resetting `locals[name]` to the declared type).
-    func invalidateVariable(
-        symbol: SymbolID,
-        base: DataFlowState
-    ) -> DataFlowState {
-        var vars = base.variables
-        vars.removeValue(forKey: symbol)
-        return DataFlowState(variables: vars)
-    }
-
     func merge(_ lhs: DataFlowState, _ rhs: DataFlowState) -> DataFlowState {
         var merged: [SymbolID: VariableFlowState] = [:]
         for (symbol, lhsState) in lhs.variables {

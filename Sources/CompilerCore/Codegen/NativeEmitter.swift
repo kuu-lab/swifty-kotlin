@@ -39,6 +39,9 @@ struct NativeEmitter {
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
     let reflectionMetadataRecords: [MetadataRecord]
     let reflectionMetadataSymbolPrefix: String?
+    /// Symbols that should use linkonce_odr linkage (e.g. bundled stdlib functions compiled into
+    /// multiple compilation units). The linker deduplicates linkonce_odr definitions automatically.
+    let linkOnceODRSymbols: Set<SymbolID>
 
     init(
         target: TargetTriple,
@@ -50,7 +53,8 @@ struct NativeEmitter {
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
-        reflectionMetadataSymbolPrefix: String? = nil
+        reflectionMetadataSymbolPrefix: String? = nil,
+        linkOnceODRSymbols: Set<SymbolID> = []
     ) {
         self.target = target
         self.optLevel = optLevel
@@ -62,6 +66,7 @@ struct NativeEmitter {
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
+        self.linkOnceODRSymbols = linkOnceODRSymbols
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -192,6 +197,9 @@ guard case let .function(function) = declaration,
                 bindings.disposeModule(llvmModule)
                 bindings.disposeContext(context)
                 throw LLVMBackendError.nativeEmissionFailed("failed to declare function '\(functionName)'")
+            }
+            if linkOnceODRSymbols.contains(function.symbol) {
+                bindings.setLinkOnceODRLinkage(functionValue)
             }
             internalFunctions[function.symbol] = LLVMFunction(value: functionValue, type: functionType)
         }
