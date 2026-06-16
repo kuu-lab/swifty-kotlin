@@ -398,7 +398,7 @@ expr e206 name(element) type=T#64 ref=s133
 expr e207 call callee=e205 args=[_:e206] type=Boolean
 expr e208 name(result) type=Class#10<T#64> ref=s132
 expr e209 name(element) type=T#64 ref=s133
-expr e210 memberCall recv=e208 callee=add args=[_:e209] type=Boolean call=s12 map=[0->0] targs=[T#64]
+expr e210 memberCall recv=e208 callee=add args=[_:e209] type=Boolean call=s12 map=[0->0] targs=[]
 expr e211 if cond=e207 then=e210 else=_ type=Unit
 expr e212 blockExpr stmts=[] trailing=e211 type=Unit
 expr e213 for var=element iterable=e204 body=e212 type=Unit ref=s133
@@ -412,7 +412,7 @@ expr e220 name(result) type=Class#10<T#68> ref=s134
 expr e221 name(transform) type=(T#67) -> T#68 ref=s69
 expr e222 name(element) type=T#67 ref=s135
 expr e223 call callee=e221 args=[_:e222] type=T#68
-expr e224 memberCall recv=e220 callee=add args=[_:e223] type=Boolean call=s12 map=[0->0] targs=[T#68]
+expr e224 memberCall recv=e220 callee=add args=[_:e223] type=Boolean call=s12 map=[0->0] targs=[]
 expr e225 blockExpr stmts=[] trailing=e224 type=Boolean
 expr e226 for var=element iterable=e219 body=e225 type=Unit ref=s135
 expr e227 name(result) type=Class#10<T#68> ref=s134
@@ -426,7 +426,7 @@ expr e234 name(element) type=T#71 ref=s137
 expr e235 call callee=e233 args=[_:e234] type=Class#0<T#72>
 expr e236 name(result) type=Class#10<T#72> ref=s136
 expr e237 name(subElement) type=T#72 ref=s138
-expr e238 memberCall recv=e236 callee=add args=[_:e237] type=Boolean call=s12 map=[0->0] targs=[T#72]
+expr e238 memberCall recv=e236 callee=add args=[_:e237] type=Boolean call=s12 map=[0->0] targs=[]
 expr e239 blockExpr stmts=[] trailing=e238 type=Boolean
 expr e240 for var=subElement iterable=e235 body=e239 type=Unit ref=s138
 expr e241 blockExpr stmts=[] trailing=e240 type=Unit
@@ -651,7 +651,7 @@ expr e459 memberCall recv=e458 callee=toMutableList args=[] type=Class#10<Int> c
 expr e460 localDecl mutableList mutable=0 type=t148 init=e459 type=Unit ref=s157
 expr e461 name(mutableList) type=Class#10<Int> ref=s157
 expr e462 int(99) type=Int
-expr e463 memberCall recv=e461 callee=add args=[_:e462] type=Boolean call=s12 map=[0->0] targs=[Int]
+expr e463 memberCall recv=e461 callee=add args=[_:e462] type=Boolean call=s12 map=[0->0] targs=[]
 expr e464 name(println) type=_
 expr e465 name(mutableList) type=Class#10<Int> ref=s157
 expr e466 call callee=e464 args=[_:e465] type=Unit call=s34 map=[0->0] targs=[]
@@ -666,7 +666,7 @@ expr e474 memberCall recv=e473 callee=toMutableSet args=[] type=Class#14<Int> ca
 expr e475 localDecl mutableSet mutable=0 type=t150 init=e474 type=Unit ref=s158
 expr e476 name(mutableSet) type=Class#14<Int> ref=s158
 expr e477 int(42) type=Int
-expr e478 memberCall recv=e476 callee=add args=[_:e477] type=Boolean call=s16 map=[0->0] targs=[Int]
+expr e478 memberCall recv=e476 callee=add args=[_:e477] type=Boolean call=s16 map=[0->0] targs=[]
 expr e479 name(println) type=_
 expr e480 name(mutableSet) type=Class#14<Int> ref=s158
 expr e481 call callee=e479 args=[_:e480] type=Unit call=s34 map=[0->0] targs=[]
@@ -681,7 +681,7 @@ expr e489 memberCall recv=e488 callee=toHashSet args=[] type=Class#14<Int> call=
 expr e490 localDecl hashSet mutable=0 type=t152 init=e489 type=Unit ref=s159
 expr e491 name(hashSet) type=Class#14<Int> ref=s159
 expr e492 int(77) type=Int
-expr e493 memberCall recv=e491 callee=add args=[_:e492] type=Boolean call=s16 map=[0->0] targs=[Int]
+expr e493 memberCall recv=e491 callee=add args=[_:e492] type=Boolean call=s16 map=[0->0] targs=[]
 expr e494 name(println) type=_
 expr e495 name(hashSet) type=Class#14<Int> ref=s159
 expr e496 call callee=e494 args=[_:e495] type=Unit call=s34 map=[0->0] targs=[]

@@ -862,9 +862,12 @@ extension CallTypeChecker {
             interner.intern("sortByDescending"),
         ]
         let mutableCollectionMembers: Set = [
+            interner.intern("add"),
             interner.intern("addAll"),
+            interner.intern("remove"),
             interner.intern("removeAll"),
             interner.intern("retainAll"),
+            interner.intern("clear"),
         ]
         let mapOnlyMembers: Set = [
             interner.intern("containsKey"),
@@ -1052,7 +1055,8 @@ extension CallTypeChecker {
             return argCount == 2
         case knownNames.getOrPut:
             return isMutableMapReceiver && argCount == 2
-        case interner.intern("addAll"), interner.intern("removeAll"), interner.intern("retainAll"):
+        case interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
+             interner.intern("retainAll"):
             return (
                 isMutableListReceiver
                     || isMutableSetReceiver
@@ -1062,6 +1066,8 @@ extension CallTypeChecker {
                             && (isAddAllArrayArgument || isAddAllSequenceArgument || isAddAllIterableArgument)
                     )
             ) && argCount == 1
+        case interner.intern("clear"):
+            return (isMutableListReceiver || isMutableSetReceiver) && argCount == 0
         case knownNames.putAll:
             return isMutableMapReceiver && argCount == 1
         case interner.intern("plus"), interner.intern("minus"):
@@ -1353,7 +1359,8 @@ extension CallTypeChecker {
         let boolReturningMembers: Set = [
             knownNames.isEmpty, interner.intern("contains"), interner.intern("containsAll"),
             interner.intern("containsKey"),
-            interner.intern("addAll"), interner.intern("removeAll"), interner.intern("retainAll"),
+            interner.intern("add"), interner.intern("addAll"), interner.intern("remove"), interner.intern("removeAll"),
+            interner.intern("retainAll"),
         ]
         if boolReturningMembers.contains(memberName) {
             return sema.types.make(.primitive(.boolean, .nonNull))
@@ -1361,7 +1368,8 @@ extension CallTypeChecker {
 
         if memberName == interner.intern("sort") ||
             memberName == interner.intern("sortBy") ||
-            memberName == interner.intern("sortByDescending")
+            memberName == interner.intern("sortByDescending") ||
+            memberName == interner.intern("clear")
         {
             return sema.types.unitType
         }
