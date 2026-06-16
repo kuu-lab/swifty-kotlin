@@ -124,7 +124,4 @@ public struct StdlibSurfaceSpec: Equatable, Hashable, Sendable {
         collectionHOFMember(ownerKind: ownerKind, memberName: memberName, arity: arity)?.runtimeLinkName ?? fallback
     }
 
-    public static func collectionHOFRuntimeLinkNames(ownerKind: StdlibSurfaceOwnerKind) -> Set<String> {
-        Set(collectionHOFMembers.lazy.filter { $0.ownerKind == ownerKind }.map(\.runtimeLinkName))
-    }
 }
