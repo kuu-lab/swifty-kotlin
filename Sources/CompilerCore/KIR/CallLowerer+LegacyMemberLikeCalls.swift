@@ -1124,6 +1124,36 @@ extension CallLowerer {
             }
         }
 
+        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
+        if args.count <= 1 {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if nonNullReceiverType == sema.types.intType, interner.resolve(calleeName) == "digitToChar" {
+                if args.isEmpty {
+                    let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
+                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, radixExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                } else {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+                return result
+            }
+        }
+
         // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
         if args.isEmpty, interner.resolve(calleeName) == "filterIsInstance" {
             let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
