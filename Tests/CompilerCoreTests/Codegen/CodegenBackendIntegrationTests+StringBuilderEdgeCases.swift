@@ -300,6 +300,36 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenCompilesAppendableAppendOverloads() throws {
+        let source = """
+        import kotlin.text.Appendable
+
+        fun main() {
+            val sb = StringBuilder()
+            val target: Appendable = sb
+            target.append('a')
+            target.append("bc")
+            target.append("def", 1, 3)
+            println(sb.toString())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "AppendableAppendOverloads",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "abcef\n")
+        }
+    }
+
     // DEBT-RT-001: StringBuilder bounds checks throw catchable IndexOutOfBoundsException.
     func testCodegenStringBuilderInsertOutOfBoundsThrowsIndexOutOfBoundsException() throws {
         let source = """

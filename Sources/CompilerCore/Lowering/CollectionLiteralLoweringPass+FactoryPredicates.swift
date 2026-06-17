@@ -28,6 +28,38 @@ extension CollectionLiteralLoweringPass {
         }
     }
 
+    func boxedBuildStringTextArgumentIfNeeded(
+        _ argument: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let sema = ctx.sema,
+              let argumentType = module.arena.exprType(argument),
+              case .primitive(_, .nonNull) = sema.types.kind(of: argumentType),
+              let boxCallee = primitiveBoxCalleeName(
+                  for: argumentType,
+                  types: sema.types,
+                  interner: ctx.interner
+              )
+        else {
+            return argument
+        }
+        let boxedArgument = module.arena.appendExpr(
+            .temporary(Int32(module.arena.expressions.count)),
+            type: sema.types.anyType
+        )
+        loweredBody.append(.call(
+            symbol: nil,
+            callee: boxCallee,
+            arguments: [argument],
+            result: boxedArgument,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return boxedArgument
+    }
+
     /// Returns true when the resolved symbol's FQN matches one of the known
     /// `kotlin.collections.*` factory FQNs.  When the symbol is nil (unresolved)
     /// we conservatively allow the rewrite – the name check already passed and

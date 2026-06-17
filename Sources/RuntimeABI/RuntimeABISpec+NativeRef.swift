@@ -6,7 +6,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_weak_ref_get",
@@ -14,7 +15,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "weakRefRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_weak_ref_clear",
@@ -22,7 +24,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "weakRefRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_cleaner_create",
@@ -31,7 +34,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "blockRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_cleaner_clean",
@@ -48,55 +52,64 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "cleanerRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_schedule",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_target_heap_bytes",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_target_heap_utilization",
             parameters: [],
             returnType: .double,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_max_heap_bytes",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_debugging_is_thread_state_runnable",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_debugging_gc_suspend_count",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_debugging_thread_count",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_debugging_global_object_count",
             parameters: [],
             returnType: .intptr,
-            section: "NativeRef"
+            section: "NativeRef",
+            isThrowing: false,
         ),
     ]
 }
