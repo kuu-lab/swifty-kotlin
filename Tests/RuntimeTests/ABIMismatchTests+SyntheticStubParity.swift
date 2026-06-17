@@ -136,6 +136,12 @@ extension ABIMismatchTests {
         "kk_string_toUShortOrNull_radix",
     ]
 
+    // MARK: Char radix conversion
+    private static let charRadixStubLinkNames: Set<String> = [
+        "kk_char_digitToInt_radix",
+        "kk_char_digitToIntOrNull_radix",
+    ]
+
     // MARK: System / timing / Stream toList
     private static let systemStubLinkNames: Set<String> = [
         "kk_synchronized",
@@ -469,6 +475,7 @@ extension ABIMismatchTests {
         result.formUnion(collectionStubLinkNames)
         result.formUnion(binarySearchByStubLinkNames)
         result.formUnion(stringRadixStubLinkNames)
+        result.formUnion(charRadixStubLinkNames)
         result.formUnion(systemStubLinkNames)
         result.formUnion(uuidStubLinkNames)
         result.formUnion(instantStubLinkNames)
