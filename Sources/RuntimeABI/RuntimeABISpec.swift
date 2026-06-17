@@ -443,14 +443,6 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_date_to_kotlin_instant",
-            parameters: [
-                RuntimeABIParameter(name: "dateRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_js_array_toList",
             parameters: [
                 RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),

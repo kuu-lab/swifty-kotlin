@@ -398,8 +398,20 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
             isThrowing: false),
-            // STDLIB-TIME-181: JS Date accessors
-            bridgeSpec("kk_js_date_epoch_millis", section: "System", params: ["dateRaw"]),
+            // STDLIB-TIME-181: java.time.Instant accessors
+            bridgeSpec("kk_java_instant_epoch_seconds", section: "System", params: ["instantRaw"]),
+            bridgeSpec("kk_java_instant_nano_of_second", section: "System", params: ["instantRaw"]),
+            bridgeSpec("kk_java_instant_to_epoch_milli", section: "System", params: ["instantRaw"]),
+            bridgeSpec("kk_java_instant_of_epoch_second", section: "System", params: ["epochSeconds", "nanoOfSecond"]),
+            bridgeSpec("kk_java_instant_of_epoch_milli", section: "System", params: ["epochMillis"]),
+            bridgeSpec("kk_java_instant_to_string", section: "System", params: ["instantRaw"]),
+            // STDLIB-TIME-181: java.time.Duration accessors
+            bridgeSpec("kk_java_duration_seconds", section: "Duration", params: ["durationRaw"]),
+            bridgeSpec("kk_java_duration_nano", section: "Duration", params: ["durationRaw"]),
+            bridgeSpec("kk_java_duration_to_millis", section: "Duration", params: ["durationRaw"]),
+            bridgeSpec("kk_java_duration_of_seconds", section: "Duration", params: ["seconds", "nanoAdjustment"]),
+            bridgeSpec("kk_java_duration_of_millis", section: "Duration", params: ["millis"]),
+            bridgeSpec("kk_java_duration_to_string", section: "Duration", params: ["durationRaw"]),
             // STDLIB-TIME-181: Native Foundation Date bridge
             bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),

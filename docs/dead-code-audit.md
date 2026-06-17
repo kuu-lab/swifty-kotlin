@@ -104,7 +104,6 @@ kk_array_mapIndexed
 
 ```
 kk_java_instant_of_epoch_milli kk_java_instant_of_epoch_second
-kk_js_date_from_epoch_millis
 ```
 
 ### HTTP クライアント — 2 個
