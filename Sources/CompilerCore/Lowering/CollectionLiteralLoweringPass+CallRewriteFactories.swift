@@ -603,7 +603,7 @@ extension CollectionLiteralLoweringPass {
         }
 
         // --- Rewrite buildString/buildList/buildMap → kk_build_* (STDLIB-002) ---
-        if symbol == nil, lookup.builderDSLNames.contains(callee) {
+        if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let kkCallee: InternedString = switch callee {
             case lookup.buildStringName:
                 arguments.count == 2 ? lookup.kkBuildStringWithCapacityName : lookup.kkBuildStringName
@@ -673,10 +673,26 @@ extension CollectionLiteralLoweringPass {
                 rewrittenCallee = lookup.kkBuilderMapPutName
             }
             if let target = rewrittenCallee {
+                let runtimeArguments: [KIRExprID]
+                if builderCallee == lookup.buildStringName,
+                   (callee == lookup.appendName || callee == lookup.appendLineName),
+                   arguments.count == 1
+                {
+                    runtimeArguments = [
+                        boxedBuildStringTextArgumentIfNeeded(
+                            arguments[0],
+                            module: module,
+                            ctx: ctx,
+                            loweredBody: &loweredBody
+                        ),
+                    ]
+                } else {
+                    runtimeArguments = arguments
+                }
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: target,
-                    arguments: arguments,
+                    arguments: runtimeArguments,
                     result: result,
                     canThrow: canThrow,
                     thrownResult: thrownResult
