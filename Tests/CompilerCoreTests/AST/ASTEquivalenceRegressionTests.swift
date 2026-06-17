@@ -44,8 +44,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 20, "Expected 20 top-level declarations (2 user + 18 bundled stdlib)")
+        // 2 user declarations + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 26, "Expected 26 top-level declarations (2 user + 24 bundled stdlib)")
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 2, "Expected at least 2 expressions")
 
         for decl in ast.arena.declarations() {
@@ -72,8 +72,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 20)
+        // 2 user declarations + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 26)
         // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
 
@@ -96,8 +96,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // classDecl + funDecl(main) + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 20)
+        // classDecl + funDecl(main) + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 26)
 
         let classDecls = ast.arena.declarations().compactMap { decl -> ClassDecl? in
             guard case let .classDecl(c) = decl else { return nil }
@@ -131,8 +131,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 20)
+        // 2 user declarations + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 26)
         // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 8)
 
@@ -162,8 +162,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 3 user declarations + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 21)
+        // 3 user declarations + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 27)
         XCTAssertGreaterThanOrEqual(ast.arena.exprs.count, 6)
 
         for i in ast.arena.exprs.indices {
@@ -186,8 +186,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // interface + class + fun(main) + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 21)
+        // interface + class + fun(main) + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 27)
 
         let interfaceDecls = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
             guard case let .interfaceDecl(i) = decl else { return nil }
@@ -209,8 +209,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 20)
+        // 2 user declarations + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 26)
 
         for i in ast.arena.exprs.indices {
             let id = ExprID(rawValue: Int32(i))
@@ -242,8 +242,8 @@ final class ASTEquivalenceRegressionTests: XCTestCase {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // class + factorial + main + 18 bundled stdlib functions (7 collections + 11 text)
-        XCTAssertEqual(ast.declarationCount, 21)
+        // class + factorial + main + 24 bundled stdlib functions (13 collections + 11 text)
+        XCTAssertEqual(ast.declarationCount, 27)
 
         // Verify ALL decl ranges are valid
         for decl in ast.arena.declarations() {
