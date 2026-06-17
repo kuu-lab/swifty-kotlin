@@ -4,6 +4,111 @@
 /// so these functions go through the full Lex → Parse → Sema → KIR → Codegen
 /// pipeline and are available as internal LLVM functions at link time.
 enum BundledKotlinStdlib {
+    // MIGRATION-COL-013: Set HOF / terminal helpers.
+    //
+    // Some Set calls are still rewritten through synthetic member fallbacks and
+    // ABI lowering, but these Kotlin definitions are injected into every
+    // frontend run so the source implementation is available for the migration
+    // cleanup path.
+    static let kotlinCollectionsSetHOFSource = """
+package kotlin.collections
+
+public fun <T> Set<T>.filter(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (predicate(element)) {
+            result.add(element)
+        }
+    }
+    return result
+}
+
+public fun <T, R> Set<T>.map(transform: (T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        result.add(transform(element))
+    }
+    return result
+}
+
+public fun <T, R> Set<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        for (item in transform(element)) {
+            result.add(item)
+        }
+    }
+    return result
+}
+
+public fun <T> Set<T>.forEach(action: (T) -> Unit) {
+    for (element in this) {
+        action(element)
+    }
+}
+
+public fun <T : Comparable<T>> Set<T>.sorted(): List<T> {
+    return this.toList().sorted()
+}
+
+public fun <T> Set<T>.first(): T {
+    val iter = this.iterator()
+    if (!iter.hasNext()) {
+        throw NoSuchElementException("Collection is empty.")
+    }
+    return iter.next()
+}
+
+public fun <T> Set<T>.last(): T {
+    val iter = this.iterator()
+    if (!iter.hasNext()) {
+        throw NoSuchElementException("Collection is empty.")
+    }
+    var result = iter.next()
+    while (iter.hasNext()) {
+        result = iter.next()
+    }
+    return result
+}
+
+public fun <T> Set<T>.count(predicate: (T) -> Boolean): Int {
+    var count = 0
+    for (element in this) {
+        if (predicate(element)) {
+            count++
+        }
+    }
+    return count
+}
+
+public fun <T> Set<T>.any(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) {
+            return true
+        }
+    }
+    return false
+}
+
+public fun <T> Set<T>.all(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (!predicate(element)) {
+            return false
+        }
+    }
+    return true
+}
+
+public fun <T> Set<T>.none(predicate: (T) -> Boolean): Boolean {
+    for (element in this) {
+        if (predicate(element)) {
+            return false
+        }
+    }
+    return true
+}
+"""
+
     // MIGRATION-COL-008: List 集計 HOF
     // count / any / all / none — currently Sema-unresolved (no synthetic stub), so these
     // extension functions are the first resolved definitions and will be called directly.
