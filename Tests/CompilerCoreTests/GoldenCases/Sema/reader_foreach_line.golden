@@ -141,6 +141,7 @@ expr e1 localDecl count mutable=1 type=_ init=e0 type=Unit ref=s84
 expr e2 int(0) type=Int
 expr e3 localDecl i mutable=1 type=_ init=e2 type=Unit ref=s85
 expr e4 name(i) type=Int ref=s85
+
 expr e5 name(size) type=Int
 expr e6 binary(lessThan) lhs=e4 rhs=e5 type=Boolean
 expr e7 name(predicate) type=_
@@ -176,6 +177,7 @@ expr e36 name(predicate) type=(T#36) -> Boolean ref=s37
 expr e37 this type=Class#0<T#36>
 expr e38 name(i) type=Int ref=s86
 expr e39 indexedAccess receiver=e37 indices=[e38] type=T#36 call=s2 map=[0->0] targs=[T#36]
+
 expr e40 call callee=e36 args=[_:e39] type=Boolean
 expr e41 bool(true) type=Boolean
 expr e42 return value=e41 type=Nothing
@@ -183,6 +185,7 @@ expr e43 if cond=e40 then=e42 else=_ type=Unit
 expr e44 name(i) type=_
 expr e45 int(1) type=Int
 expr e46 compoundAssign(plusAssign) name=i value=e45 type=Unit ref=s86
+
 expr e47 blockExpr stmts=[e43,e46] trailing=_ type=Unit
 expr e48 while cond=e35 body=e47 type=Unit
 expr e49 bool(false) type=Boolean
@@ -196,6 +199,7 @@ expr e56 name(predicate) type=(T#39) -> Boolean ref=s40
 expr e57 this type=Class#0<T#39>
 expr e58 name(i) type=Int ref=s87
 expr e59 indexedAccess receiver=e57 indices=[e58] type=T#39 call=s2 map=[0->0] targs=[T#39]
+
 expr e60 call callee=e56 args=[_:e59] type=Boolean
 expr e61 unary(not) operand=e60 type=Boolean
 expr e62 bool(false) type=Boolean
@@ -204,6 +208,7 @@ expr e64 if cond=e61 then=e63 else=_ type=Unit
 expr e65 name(i) type=_
 expr e66 int(1) type=Int
 expr e67 compoundAssign(plusAssign) name=i value=e66 type=Unit ref=s87
+
 expr e68 blockExpr stmts=[e64,e67] trailing=_ type=Unit
 expr e69 while cond=e55 body=e68 type=Unit
 expr e70 bool(true) type=Boolean
@@ -217,6 +222,7 @@ expr e77 name(predicate) type=(T#42) -> Boolean ref=s43
 expr e78 this type=Class#0<T#42>
 expr e79 name(i) type=Int ref=s88
 expr e80 indexedAccess receiver=e78 indices=[e79] type=T#42 call=s2 map=[0->0] targs=[T#42]
+
 expr e81 call callee=e77 args=[_:e80] type=Boolean
 expr e82 bool(false) type=Boolean
 expr e83 return value=e82 type=Nothing
@@ -224,6 +230,7 @@ expr e84 if cond=e81 then=e83 else=_ type=Unit
 expr e85 name(i) type=_
 expr e86 int(1) type=Int
 expr e87 compoundAssign(plusAssign) name=i value=e86 type=Unit ref=s88
+
 expr e88 blockExpr stmts=[e84,e87] trailing=_ type=Unit
 expr e89 while cond=e76 body=e88 type=Unit
 expr e90 bool(true) type=Boolean
@@ -284,6 +291,7 @@ expr e144 localAssign bestElem value=e143 type=Unit ref=s91
 expr e145 name(bestKey) type=_
 expr e146 name(key) type=T#49 ref=s95
 expr e147 localAssign bestKey value=e146 type=Unit ref=s92
+
 expr e148 blockExpr stmts=[e144,e147] trailing=_ type=Unit
 expr e149 if cond=e141 then=e148 else=_ type=Unit
 expr e150 name(i) type=_
@@ -328,6 +336,7 @@ expr e188 localAssign bestElem value=e187 type=Unit ref=s96
 expr e189 name(bestKey) type=_
 expr e190 name(key) type=T#53 ref=s100
 expr e191 localAssign bestKey value=e190 type=Unit ref=s97
+
 expr e192 blockExpr stmts=[e188,e191] trailing=_ type=Unit
 expr e193 if cond=e185 then=e192 else=_ type=Unit
 expr e194 name(i) type=_
@@ -526,3 +535,4 @@ expr e386 lambda params=[reader] body=e385 label=use type=(Class#30) -> Any
 expr e387 memberCall recv=e367 callee=use args=[_:e386] type=Unit
 expr e388 name(result) type=Class#7<String> ref=s113
 expr e389 return value=e388 type=Nothing
+
