@@ -52,4 +52,66 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    func testCodegenCompilesNaNRelationalOperators() throws {
+        let source = """
+        fun main() {
+            val doubleNaN = Double.NaN
+            println(doubleNaN < 1.0)
+            println(1.0 < doubleNaN)
+            println(doubleNaN > 1.0)
+            println(1.0 > doubleNaN)
+            println(doubleNaN <= 1.0)
+            println(doubleNaN >= 1.0)
+            println(doubleNaN == doubleNaN)
+            println(doubleNaN != doubleNaN)
+
+            val floatNaN = Float.NaN
+            println(floatNaN < 1.0f)
+            println(1.0f < floatNaN)
+            println(floatNaN > 1.0f)
+            println(1.0f > floatNaN)
+            println(floatNaN <= 1.0f)
+            println(floatNaN >= 1.0f)
+            println(floatNaN == floatNaN)
+            println(floatNaN != floatNaN)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "NaNRelationalOperators",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                false
+                false
+                false
+                false
+                false
+                false
+                false
+                true
+                false
+                false
+                false
+                false
+                false
+                false
+                false
+                true
+                """
+                + "\n"
+            )
+        }
+    }
 }
