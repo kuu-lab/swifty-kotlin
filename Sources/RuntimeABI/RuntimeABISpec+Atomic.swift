@@ -9,7 +9,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "initial", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_load",
@@ -17,7 +18,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_store",
@@ -26,7 +28,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_exchange",
@@ -35,7 +38,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "new", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_compareAndSet",
@@ -45,7 +49,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_compareAndExchange",
@@ -55,7 +60,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_asJavaAtomic",
@@ -63,7 +69,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_java_atomic_int_asKotlinAtomic",
@@ -71,7 +78,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndAdd",
@@ -80,7 +88,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delta", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_addAndFetch",
@@ -89,7 +98,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delta", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndIncrement",
@@ -97,7 +107,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_fetchAndDecrement",
@@ -105,7 +116,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_incrementAndFetch",
@@ -113,7 +125,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_decrementAndFetch",
@@ -121,7 +134,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicInt getAndUpdate / updateAndGet
         RuntimeABIFunctionSpec(
@@ -151,7 +165,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "initial", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_load",
@@ -159,7 +174,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_store",
@@ -168,7 +184,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_exchange",
@@ -177,7 +194,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "new", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_compareAndSet",
@@ -187,7 +205,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_compareAndExchange",
@@ -197,7 +216,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_java_atomic_long_asKotlinAtomic",
@@ -205,7 +225,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_asJavaAtomic",
@@ -213,7 +234,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_fetchAndAdd",
@@ -222,7 +244,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delta", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_addAndFetch",
@@ -231,7 +254,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delta", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_fetchAndIncrement",
@@ -239,7 +263,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_fetchAndDecrement",
@@ -247,7 +272,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_incrementAndFetch",
@@ -255,7 +281,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_decrementAndFetch",
@@ -263,7 +290,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicLong getAndUpdate / updateAndGet
         RuntimeABIFunctionSpec(
@@ -365,7 +393,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_java_atomic_int_array_asKotlinAtomicArray",
@@ -373,7 +402,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_int_array_fetchAndUpdateAt",
@@ -527,7 +557,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_long_array_fetchAndUpdateAt",
@@ -611,7 +642,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicArray
         RuntimeABIFunctionSpec(
@@ -620,7 +652,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_java_atomic_ref_array_asKotlinAtomicArray",
@@ -628,7 +661,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicBoolean
         RuntimeABIFunctionSpec(
@@ -637,7 +671,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "initial", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_load",
@@ -645,7 +680,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_store",
@@ -654,7 +690,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_exchange",
@@ -663,7 +700,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "new", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_compareAndSet",
@@ -673,7 +711,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_compareAndExchange",
@@ -683,7 +722,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_asJavaAtomic",
@@ -691,7 +731,17 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_java_atomic_bool_asKotlinAtomic",
+            parameters: [
+                RuntimeABIParameter(name: "receiver", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_getAndUpdate",
@@ -740,7 +790,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "elements", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicReference
         RuntimeABIFunctionSpec(
@@ -749,7 +800,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "initial", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_load",
@@ -757,7 +809,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_store",
@@ -766,7 +819,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_exchange",
@@ -775,7 +829,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "new", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_compareAndSet",
@@ -785,7 +840,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_compareAndExchange",
@@ -795,7 +851,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "update", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_atomic_ref_asJavaAtomic",
@@ -803,7 +860,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Atomic"
+            section: "Atomic",
+            isThrowing: false
         ),
         // AtomicArray<T>
         RuntimeABIFunctionSpec(
