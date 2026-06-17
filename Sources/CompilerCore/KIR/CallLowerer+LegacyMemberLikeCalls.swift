@@ -1830,14 +1830,6 @@ extension CallLowerer {
                     ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
                 case "trimEnd":
                     ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
-                case "take":
-                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
-                case "drop":
-                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
-                case "takeLast":
-                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
-                case "dropLast":
-                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }

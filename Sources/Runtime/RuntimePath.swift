@@ -129,6 +129,138 @@ private enum PathRecursiveCopyControl: Error {
     case thrown(Int)
 }
 
+private struct PathWalkRuntimeOptions {
+    var breadthFirst = false
+    var followLinks = false
+}
+
+private let pathWalkOptionBreadthFirstOrdinal = 0
+private let pathWalkOptionFollowLinksOrdinal = 1
+
+private func pathWalkOptionOrdinals(from raw: Int) -> [Int] {
+    guard raw != 0, raw != runtimeNullSentinelInt else {
+        return []
+    }
+    if let array = runtimeArrayBox(from: raw) {
+        return array.elements.map { kk_unbox_int($0) }
+    }
+    if let list = runtimeListBox(from: raw) {
+        return list.elements.map { kk_unbox_int($0) }
+    }
+    if let set = runtimeSetBox(from: raw) {
+        return set.elements.map { kk_unbox_int($0) }
+    }
+    return [kk_unbox_int(raw)]
+}
+
+private func pathWalkOptions(from raw: Int) -> PathWalkRuntimeOptions {
+    var options = PathWalkRuntimeOptions()
+    for ordinal in pathWalkOptionOrdinals(from: raw) {
+        switch ordinal {
+        case pathWalkOptionBreadthFirstOrdinal:
+            options.breadthFirst = true
+        case pathWalkOptionFollowLinksOrdinal:
+            options.followLinks = true
+        default:
+            continue
+        }
+    }
+    return options
+}
+
+private func pathIsSymbolicLink(_ path: String, fileManager: FileManager = .default) -> Bool {
+    let type = (try? fileManager.attributesOfItem(atPath: path)[.type]) as? FileAttributeType
+    return type == .typeSymbolicLink
+}
+
+private func pathWalkDirectoryKey(_ path: String, followLinks: Bool) -> String {
+    let url = URL(fileURLWithPath: path)
+    return (followLinks ? url.resolvingSymlinksInPath() : url)
+        .standardizedFileURL
+        .path
+}
+
+private func pathWalkIsTraversableDirectory(
+    _ path: String,
+    followLinks: Bool,
+    fileManager: FileManager = .default
+) -> Bool {
+    if pathIsSymbolicLink(path, fileManager: fileManager), !followLinks {
+        return false
+    }
+    var isDirectory: ObjCBool = false
+    let exists = fileManager.fileExists(atPath: path, isDirectory: &isDirectory)
+    return exists && isDirectory.boolValue
+}
+
+private func pathWalkChildren(
+    of path: String,
+    fileManager: FileManager = .default
+) -> [String] {
+    guard let entries = try? fileManager.contentsOfDirectory(atPath: path) else {
+        return []
+    }
+    return entries
+        .sorted()
+        .map { (path as NSString).appendingPathComponent($0) }
+}
+
+private func pathWalkAppendDepthFirst(
+    path: String,
+    options: PathWalkRuntimeOptions,
+    visitedDirectories: inout Set<String>,
+    results: inout [Int],
+    fileManager: FileManager = .default
+) {
+    results.append(registerRuntimeObject(RuntimePathBox(path)))
+
+    guard pathWalkIsTraversableDirectory(path, followLinks: options.followLinks, fileManager: fileManager) else {
+        return
+    }
+    let directoryKey = pathWalkDirectoryKey(path, followLinks: options.followLinks)
+    guard visitedDirectories.insert(directoryKey).inserted else {
+        return
+    }
+
+    for child in pathWalkChildren(of: path, fileManager: fileManager) {
+        pathWalkAppendDepthFirst(
+            path: child,
+            options: options,
+            visitedDirectories: &visitedDirectories,
+            results: &results,
+            fileManager: fileManager
+        )
+    }
+}
+
+private func pathWalkBreadthFirst(
+    root: String,
+    options: PathWalkRuntimeOptions,
+    fileManager: FileManager = .default
+) -> [Int] {
+    var results: [Int] = []
+    var visitedDirectories: Set<String> = []
+    var queue = [root]
+    var index = 0
+
+    while index < queue.count {
+        let path = queue[index]
+        index += 1
+        results.append(registerRuntimeObject(RuntimePathBox(path)))
+
+        guard pathWalkIsTraversableDirectory(path, followLinks: options.followLinks, fileManager: fileManager) else {
+            continue
+        }
+        let directoryKey = pathWalkDirectoryKey(path, followLinks: options.followLinks)
+        guard visitedDirectories.insert(directoryKey).inserted else {
+            continue
+        }
+        queue.append(contentsOf: pathWalkChildren(of: path, fileManager: fileManager))
+    }
+
+    return results
+}
+
 private func pathDefaultCopyAction(sourceURL: URL, targetURL: URL) throws {
     let fileManager = FileManager.default
     var isSourceDirectory: ObjCBool = false
@@ -989,6 +1121,33 @@ public func kk_path_listDirectoryEntries(_ pathRaw: Int, _ outThrown: UnsafeMuta
     }
 }
 
+/// Path.walk(vararg options: PathWalkOption): Sequence<Path>
+///
+/// The runtime materialises the walk as a list, which is accepted by the
+/// Sequence terminal operations through `runtimeSequenceSourceElements`.
+@_cdecl("kk_path_walk")
+public func kk_path_walk(_ pathRaw: Int, _ optionsRaw: Int) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_walk received invalid Path handle")
+    }
+    let options = pathWalkOptions(from: optionsRaw)
+    let elements: [Int]
+    if options.breadthFirst {
+        elements = pathWalkBreadthFirst(root: path.pathString, options: options)
+    } else {
+        var visitedDirectories: Set<String> = []
+        var depthFirstElements: [Int] = []
+        pathWalkAppendDepthFirst(
+            path: path.pathString,
+            options: options,
+            visitedDirectories: &visitedDirectories,
+            results: &depthFirstElements
+        )
+        elements = depthFirstElements
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements))
+}
+
 // MARK: - Path.relativize(other: Path)
 
 @_cdecl("kk_path_relativize")
@@ -1375,18 +1534,19 @@ public func kk_path_getLastModifiedTime(_ pathRaw: Int, _ optionsRaw: Int, _ out
 
 // MARK: - STDLIB-IO-PATH-FN-032: Path.setAttribute
 
-/// Path.setAttribute(attribute: String, value: String, vararg options: LinkOption): Path
+/// Path.setAttribute(attribute: String, value: Any?, vararg options: LinkOption): Path
 ///
-/// Sets a named file attribute using the `"view:name"` format (e.g.
-/// `"basic:lastModifiedTime"`). The view prefix is optional — bare names are
-/// accepted too. Supported attributes via Foundation:
-///   - `lastModifiedTime`: epoch-milliseconds string → `.modificationDate`
-///   - `creationTime`:     epoch-milliseconds string → `.creationDate`
-///   - `posixPermissions`: octal integer string      → `.posixPermissions`
-/// Unknown attribute names are silently ignored to match JVM lenience.
-/// The `optionsRaw` vararg is accepted for ABI symmetry; link-option handling
-/// has no effect on the macOS Foundation-backed runtime.
-/// Throws an IOException-wrapped throwable when the attribute cannot be applied.
+/// Sets a file attribute identified by `attribute`. The attribute string may include a
+/// view-name prefix (e.g. `"basic:lastModifiedTime"`); the prefix is stripped before
+/// dispatching. Supported attributes on the macOS Foundation-backed runtime:
+///   - `lastModifiedTime` — sets the modification date.
+///   - `lastAccessTime` — silently accepted; access time cannot be set via Foundation.
+///   - `creationTime` — sets the creation date.
+///   - All other attribute names cause an `UnsupportedOperationException` throwable.
+/// `valueRaw` is resolved as a `RuntimeFileTimeBox` handle if possible; otherwise the
+/// string is parsed as milliseconds since the Unix epoch. The `optionsRaw` vararg is
+/// accepted for ABI symmetry; link options have no effect on this runtime.
+/// Throws an `IOException` if the attribute cannot be applied (e.g. file not found).
 @_cdecl("kk_path_setAttribute")
 public func kk_path_setAttribute(
     _ pathRaw: Int,
@@ -1400,46 +1560,70 @@ public func kk_path_setAttribute(
     guard let path = runtimePathBox(from: pathRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid Path handle")
     }
-    guard let attributeFull = pathStringValue(from: attributeRaw) else {
+    guard let attribute = pathStringValue(from: attributeRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_setAttribute received invalid attribute handle")
     }
-    let valueString = pathStringValue(from: valueRaw) ?? ""
-    let attrName: String
-    if let colonIndex = attributeFull.firstIndex(of: ":") {
-        attrName = String(attributeFull[attributeFull.index(after: colonIndex)...])
+
+    // Strip optional "view:" prefix (e.g. "basic:lastModifiedTime" → "lastModifiedTime")
+    let name: String
+    if let colonIndex = attribute.firstIndex(of: ":") {
+        name = String(attribute[attribute.index(after: colonIndex)...])
     } else {
-        attrName = attributeFull
+        name = attribute
     }
+
+    // Resolve valueRaw as milliseconds since epoch:
+    // prefer RuntimeFileTimeBox (for FileTime values), fall back to string-encoded integer.
+    // Returns nil if the value cannot be decoded (neither a FileTimeBox nor a parseable integer).
+    func resolveMillis() -> Int? {
+        if let ptr = UnsafeMutableRawPointer(bitPattern: valueRaw),
+           let fileTime = tryCast(ptr, to: RuntimeFileTimeBox.self)
+        {
+            return fileTime.milliseconds
+        }
+        guard let str = pathStringValue(from: valueRaw), let parsed = Int(str) else { return nil }
+        return parsed
+    }
+
     do {
-        switch attrName {
+        switch name {
         case "lastModifiedTime":
-            guard let millis = Int(valueString) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid lastModifiedTime value: \(valueString)"]
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
+                return pathRaw
             }
-            let modDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-            try FileManager.default.setAttributes([.modificationDate: modDate], ofItemAtPath: path.pathString)
+            let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: path.pathString)
+        case "lastAccessTime":
+            // macOS Foundation has no direct setter for access time; verify the path exists
+            // so that callers do not silently succeed on missing files.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
+            }
         case "creationTime":
-            guard let millis = Int(valueString) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid creationTime value: \(valueString)"]
+            guard let millis = resolveMillis() else {
+                outThrown?.pointee = runtimeAllocateThrowable(
+                    message: "IllegalArgumentException: setAttribute('\(attribute)'): value is not a valid FileTime or integer milliseconds"
                 )
+                return pathRaw
             }
-            let createDate = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-            try FileManager.default.setAttributes([.creationDate: createDate], ofItemAtPath: path.pathString)
-        case "posixPermissions":
-            guard let octal = Int(valueString, radix: 8) else {
-                throw NSError(
-                    domain: "KSwiftKRuntimePath", code: 3,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid posixPermissions value: \(valueString)"]
-                )
+            let date = Date(timeIntervalSince1970: TimeInterval(millis) / 1000.0)
+            #if canImport(Darwin)
+            try FileManager.default.setAttributes([.creationDate: date], ofItemAtPath: path.pathString)
+            #else
+            // Linux filesystems do not expose a settable creation time; verify path exists.
+            guard FileManager.default.fileExists(atPath: path.pathString) else {
+                throw NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                              userInfo: [NSFilePathErrorKey: path.pathString])
             }
-            try FileManager.default.setAttributes([.posixPermissions: octal], ofItemAtPath: path.pathString)
+            #endif
         default:
-            break
+            outThrown?.pointee = runtimeAllocateThrowable(
+                message: "UnsupportedOperationException: setAttribute does not support attribute '\(attribute)'"
+            )
         }
     } catch {
         outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")

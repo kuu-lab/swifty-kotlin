@@ -6,7 +6,8 @@ public extension RuntimeABISpec {
             name: "kk_thread_local_new",
             parameters: [],
             returnType: .intptr,
-            section: "ThreadLocal"
+            section: "ThreadLocal",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_thread_local_getOrSet",

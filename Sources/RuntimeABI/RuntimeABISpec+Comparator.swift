@@ -505,7 +505,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "kindRaw", type: .int32),
             ],
             returnType: .intptr,
-            section: "Comparator"
+            section: "Comparator",
+            isThrowing: false
         ),
     ]
 }
