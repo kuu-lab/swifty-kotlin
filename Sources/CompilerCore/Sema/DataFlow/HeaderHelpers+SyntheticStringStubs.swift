@@ -189,49 +189,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticStringExtensionFunction(
-            named: "lowercase",
-            externalLinkName: "kk_string_lowercase",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "uppercase",
-            externalLinkName: "kk_string_uppercase",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // capitalize() — deprecated in Kotlin 1.5+ but still callable (STDLIB-GAP-PH1)
-        registerSyntheticStringExtensionFunction(
-            named: "capitalize",
-            externalLinkName: "kk_string_capitalize",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use replaceFirstChar instead.\"",
-                        "replaceWith = ReplaceWith(\"replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }\")",
-                    ]
-                ),
-            ],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,
@@ -261,8 +218,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // MIGRATION-TEXT-005: private primitives called from bundled Kotlin wrappers.
         registerSyntheticStringExtensionFunction(
-            named: "lowercase",
+            named: "__kk_lowercase_locale",
             externalLinkName: "kk_string_lowercase_locale",
             receiverType: stringType,
             parameters: [
@@ -275,7 +233,7 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "uppercase",
+            named: "__kk_uppercase_locale",
             externalLinkName: "kk_string_uppercase_locale",
             receiverType: stringType,
             parameters: [
@@ -2128,14 +2086,6 @@ extension DataFlowSemaPhase {
             isSuspend: false,
             nullability: .nonNull
         )))
-
-
-        let charToCharType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: charType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let charToAnyType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: types.anyType,
@@ -2678,18 +2628,6 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- STDLIB-315: String.replaceFirstChar ---
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirstChar",
-            externalLinkName: "kk_string_replaceFirstChar",
-            receiverType: stringType,
-            parameters: [("transform", charToCharType, false, false)],
-            returnType: stringType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

@@ -18,6 +18,17 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         return Set(sema.symbols.lookupAll(fqName: fq).compactMap { sema.symbols.externalLinkName(for: $0) })
     }
 
+    private func stringExtensionSymbols(
+        for member: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let fq = ["kotlin", "text", member].map { interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: fq).filter { symbolID in
+            sema.symbols.functionSignature(for: symbolID)?.receiverType == sema.types.stringType
+        }
+    }
+
     private func makeSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -160,35 +171,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "lowercase", sema: sema, interner: interner),
-            "kk_string_lowercase",
-            "String.lowercase should link to kk_string_lowercase"
-        )
-        XCTAssertEqual(
-            externalLink(for: "uppercase", sema: sema, interner: interner),
-            "kk_string_uppercase",
-            "String.uppercase should link to kk_string_uppercase"
-        )
-        XCTAssertEqual(
-            externalLink(for: "capitalize", sema: sema, interner: interner),
-            "kk_string_capitalize",
-            "String.capitalize should link to kk_string_capitalize"
-        )
+        // MIGRATION-TEXT-005: public case conversion APIs are bundled Kotlin functions.
+        for member in ["lowercase", "uppercase", "capitalize", "replaceFirstChar"] {
+            let symbols = stringExtensionSymbols(for: member, sema: sema, interner: interner)
+            XCTAssertFalse(symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
+            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
+            XCTAssertTrue(links.isEmpty, "String.\(member) must not have C external links after migration")
+        }
 
-        let lowercaseFQ = ["kotlin", "text", "lowercase"].map { interner.intern($0) }
-        let lowercaseLinks = Set(
-            sema.symbols.lookupAll(fqName: lowercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
+        XCTAssertEqual(
+            externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner),
+            "kk_string_lowercase_locale",
+            "String.lowercase(Locale) wrapper should call the private locale primitive"
         )
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase"))
-        XCTAssertTrue(lowercaseLinks.contains("kk_string_lowercase_locale"))
-
-        let uppercaseFQ = ["kotlin", "text", "uppercase"].map { interner.intern($0) }
-        let uppercaseLinks = Set(
-            sema.symbols.lookupAll(fqName: uppercaseFQ).compactMap { sema.symbols.externalLinkName(for: $0) }
+        XCTAssertEqual(
+            externalLink(for: "__kk_uppercase_locale", sema: sema, interner: interner),
+            "kk_string_uppercase_locale",
+            "String.uppercase(Locale) wrapper should call the private locale primitive"
         )
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase"))
-        XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale"))
     }
 
     func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
@@ -545,9 +545,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             val lower = s.lowercase()
             val upper = s.uppercase()
             val cap = s.capitalize()
+            val first = s.replaceFirstChar { 'X' }
             val rep = s.repeat(3)
             val rev = s.reversed()
-            return lower + upper + cap + rep + rev
+            return lower + upper + cap + first + rep + rev
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -557,25 +558,20 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            // lowercase/uppercase/capitalize still have C external links.
-            let expectedLinks: [String: String] = [
-                "lowercase": "kk_string_lowercase",
-                "uppercase": "kk_string_uppercase",
-                "capitalize": "kk_string_capitalize",
-            ]
-            for (memberName, externalLinkName) in expectedLinks {
+            // These members are now bundled Kotlin functions — they must resolve but have no C link.
+            for memberName in ["lowercase", "uppercase", "capitalize", "replaceFirstChar"] {
                 let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    guard case let .memberCall(receiver, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
+                        && sema.bindings.exprTypes[receiver] == sema.types.stringType
                 }, "Expected member call to \(memberName) in AST")
                 let chosenCallee = try XCTUnwrap(
                     sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                     "Expected call binding for \(memberName)"
                 )
-                XCTAssertEqual(
+                XCTAssertNil(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
+                    "Expected \(memberName) to be a bundled Kotlin function with no C external link"
                 )
             }
 

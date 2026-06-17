@@ -1277,28 +1277,6 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "lowercase" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_lowercase"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "uppercase" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_uppercase"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1754,8 +1732,6 @@ extension CallLowerer {
                     ("kk_string_compareTo_member", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
-                case "replaceFirstChar":
-                    ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
                     ("kk_string_mapIndexed", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
@@ -1834,8 +1810,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "replaceFirstChar"
-                        || calleeStr == "indexOfFirst"
+                    let stringHOFCanThrow = calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
