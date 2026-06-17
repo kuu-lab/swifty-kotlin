@@ -52,6 +52,7 @@ public struct LoopIterationBinding {
 /// Identifies the kind of builder DSL function (STDLIB-002).
 public enum BuilderDSLKind: Equatable {
     case buildString
+    case buildStringBuilder
     case buildList
     case buildSet
     case buildMap

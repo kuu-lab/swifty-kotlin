@@ -1951,6 +1951,25 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_build_string_builder",
+            parameters: [
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_build_string_builder_with_capacity",
+            parameters: [
+                RuntimeABIParameter(name: "capacity", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Collection"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_build_list",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

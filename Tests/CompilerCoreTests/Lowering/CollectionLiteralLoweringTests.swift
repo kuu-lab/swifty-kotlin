@@ -751,6 +751,62 @@ final class CollectionLiteralLoweringTests: XCTestCase {
         )
     }
 
+    func testBuildStringBuilderRewrittenToKkBuildStringBuilder() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let callee = interner.intern("buildStringBuilder")
+        let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        XCTAssertFalse(callees.contains("buildStringBuilder"), "buildStringBuilder should be rewritten")
+        XCTAssertTrue(
+            callees.contains("kk_build_string_builder"),
+            "buildStringBuilder should become kk_build_string_builder"
+        )
+    }
+
+    func testBuildStringBuilderCapacityRewrittenToKkBuildStringBuilderWithCapacity() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let arg0 = arena.appendExpr(.temporary(0))
+        let arg1 = arena.appendExpr(.temporary(1))
+        let result = arena.appendExpr(.temporary(2))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("buildStringBuilder"),
+                    arguments: [arg0, arg1],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        XCTAssertFalse(callees.contains("buildStringBuilder"), "buildStringBuilder(capacity) should be rewritten")
+        XCTAssertTrue(
+            callees.contains("kk_build_string_builder_with_capacity"),
+            "buildStringBuilder(capacity) should become kk_build_string_builder_with_capacity"
+        )
+    }
+
     // MARK: - buildMap rewriting (STDLIB-071)
 
     func testBuildMapRewrittenToKkBuildMap() throws {

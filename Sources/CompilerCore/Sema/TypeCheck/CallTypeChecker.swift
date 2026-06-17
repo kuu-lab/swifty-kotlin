@@ -153,7 +153,7 @@ final class CallTypeChecker {
                shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
             {
                 let lambdaArgumentIndex: Int? = switch builderKind {
-                case .buildString:
+                case .buildString, .buildStringBuilder:
                     switch args.count {
                     case 1: 0
                     case 2: 1
@@ -177,7 +177,11 @@ final class CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                if builderKind == .buildList || builderKind == .buildString, args.count == 2 {
+                if builderKind == .buildList
+                    || builderKind == .buildString
+                    || builderKind == .buildStringBuilder,
+                    args.count == 2
+                {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
                 }
                 let argumentExprID = args[lambdaArgumentIndex].expr
@@ -203,6 +207,8 @@ final class CallTypeChecker {
                 let returnType: TypeID = switch builderKind {
                 case .buildString:
                     sema.types.stringType
+                case .buildStringBuilder:
+                    receiverType
                 case .buildList:
                     builderDSLBuildListReturnType(receiverType: receiverType, sema: sema, interner: interner)
                 case .buildSet:
@@ -3013,7 +3019,7 @@ final class CallTypeChecker {
         if let calleeName, ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString:
+            case .buildString, .buildStringBuilder:
                 (name == "append" && args.count == 1)
                     || (name == "appendLine" && args.count <= 1)
                     || (name == "appendRange" && args.count == 3)

@@ -120,6 +120,8 @@ extension CallTypeChecker {
         switch name {
         case knownNames.buildString:
             return .buildString
+        case knownNames.buildStringBuilder:
+            return .buildStringBuilder
         case knownNames.buildList:
             return .buildList
         case knownNames.buildSet:
@@ -182,7 +184,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> TypeID {
         switch kind {
-        case .buildString:
+        case .buildString, .buildStringBuilder:
             return ensureSyntheticStringBuilderType(sema: sema, interner: interner)
         case .buildList:
             let elementType = builderDSLListElementType(
@@ -452,7 +454,7 @@ extension CallTypeChecker {
 
         var previewLocals = locals
         switch kind {
-        case .buildString:
+        case .buildString, .buildStringBuilder:
             return .unary([])
         case .buildList, .buildSet:
             let argumentTypes = unaryArgumentExprs.compactMap { exprID -> TypeID? in
@@ -834,7 +836,7 @@ extension CallTypeChecker {
 
     private func isMatchingBuilderDSLFunctionName(_ name: String, kind: BuilderDSLKind) -> Bool {
         switch kind {
-        case .buildString:
+        case .buildString, .buildStringBuilder:
             name == "append" || name == "appendLine" || name == "appendRange"
         case .buildList, .buildSet:
             name == "add"

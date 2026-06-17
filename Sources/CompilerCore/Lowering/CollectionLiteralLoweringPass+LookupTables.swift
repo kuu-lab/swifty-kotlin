@@ -681,11 +681,14 @@ struct CollectionLiteralLookupTables {
 
     // Builder DSL names (STDLIB-002)
     let buildStringName: InternedString
+    let buildStringBuilderName: InternedString
     let buildListName: InternedString
     let buildSetName: InternedString
     let buildMapName: InternedString
     let kkBuildStringName: InternedString
     let kkBuildStringWithCapacityName: InternedString
+    let kkBuildStringBuilderName: InternedString
+    let kkBuildStringBuilderWithCapacityName: InternedString
     let kkBuildListName: InternedString
     let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
@@ -1477,11 +1480,14 @@ struct CollectionLiteralLookupTables {
         kkTripleNewName = interner.intern("kk_triple_new")
 
         buildStringName = interner.intern("buildString")
+        buildStringBuilderName = interner.intern("buildStringBuilder")
         buildListName = interner.intern("buildList")
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
         kkBuildStringName = interner.intern("kk_build_string")
         kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
+        kkBuildStringBuilderName = interner.intern("kk_build_string_builder")
+        kkBuildStringBuilderWithCapacityName = interner.intern("kk_build_string_builder_with_capacity")
         kkBuildListName = interner.intern("kk_build_list")
         kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("kk_build_set")
@@ -1616,7 +1622,13 @@ struct CollectionLiteralLookupTables {
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
         arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
-        builderDSLNames = [buildStringName, buildListName, buildSetName, buildMapName]
+        builderDSLNames = [
+            buildStringName,
+            buildStringBuilderName,
+            buildListName,
+            buildSetName,
+            buildMapName,
+        ]
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
             (spec.arity.minimum ... spec.arity.maximum).map { arity in
                 (

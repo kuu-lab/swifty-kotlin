@@ -107,6 +107,40 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenBuildStringBuilderProducesMutableBuilder() throws {
+        let source = """
+        fun main() {
+            val sb = buildStringBuilder {
+                append("hello")
+                appendLine()
+                appendRange("world!", 0, 5)
+            }
+            sb.append("!")
+            println(sb.toString())
+            try {
+                println(buildStringBuilder(-1) { append("bad") }.toString())
+            } catch (e: Throwable) {
+                println("caught")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "BuildStringBuilderRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "hello\nworld!\ncaught\n")
+        }
+    }
+
     func testCodegenPrintlnNoArgUsesRuntimeNewlineHelper() throws {
         let source = """
         fun main() {
