@@ -325,6 +325,16 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         XCTAssertTrue(boolValue(kk_char_isWhitespace(0x00A0)))
     }
 
+    func testUnitSeparatorIsWhitespace() {
+        // U+001F is in Kotlin's CONTROL whitespace range.
+        XCTAssertTrue(boolValue(kk_char_isWhitespace(0x001F)))
+    }
+
+    func testNextLineIsNotWhitespace() {
+        // U+0085 is whitespace in Unicode, but not in Kotlin's Char.isWhitespace().
+        XCTAssertFalse(boolValue(kk_char_isWhitespace(0x0085)))
+    }
+
     func testLetterIsNotWhitespace() {
         XCTAssertFalse(boolValue(kk_char_isWhitespace(Int(("A" as UnicodeScalar).value))))
     }

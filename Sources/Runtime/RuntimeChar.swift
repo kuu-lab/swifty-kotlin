@@ -16,6 +16,29 @@ private func runtimeSingleUnicodeScalarValue(_ string: String) -> Int? {
     return Int(first.value)
 }
 
+private func charScalarIsIdentifierIgnorable(_ scalar: UnicodeScalar) -> Bool {
+    let value = scalar.value
+    if (0x0000 ... 0x0008).contains(value) ||
+        (0x000E ... 0x001B).contains(value) ||
+        (0x007F ... 0x009F).contains(value)
+    {
+        return true
+    }
+    return scalar.properties.generalCategory == .format
+}
+
+private func charScalarIsWhitespace(_ scalar: UnicodeScalar) -> Bool {
+    switch scalar.properties.generalCategory {
+    case .spaceSeparator, .lineSeparator, .paragraphSeparator:
+        return true
+    case .control:
+        let value = scalar.value
+        return (0x0009 ... 0x000D).contains(value) || (0x001C ... 0x001F).contains(value)
+    default:
+        return false
+    }
+}
+
 @_cdecl("kk_char_isDigit")
 public func kk_char_isDigit(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {
@@ -87,7 +110,7 @@ public func kk_char_isWhitespace(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else {
         return kk_box_bool(0)
     }
-    return kk_box_bool(scalar.properties.isWhitespace ? 1 : 0)
+    return kk_box_bool(charScalarIsWhitespace(scalar) ? 1 : 0)
 }
 
 @_cdecl("kk_char_isDefined")
@@ -340,13 +363,11 @@ public func kk_char_isTitleCase(_ value: Int) -> Int {
 
 /// Returns true if this character may be part of a Java/Kotlin identifier as other than the first character.
 /// Matches java.lang.Character.isJavaIdentifierPart: letters, digits, currency symbols,
-/// connecting punctuation (e.g. '_'), combining marks, non-spacing marks, and numeric letters.
+/// connecting punctuation (e.g. '_'), combining marks, non-spacing marks, numeric letters,
+/// and identifier-ignorable control/format characters.
 @_cdecl("kk_char_isJavaIdentifierPart")
 public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
-    // Surrogate code units are considered identifier parts in Java
-    if value >= 0xD800 && value <= 0xDFFF {
-        return kk_box_bool(1)
-    }
+    // Surrogate code units are not identifier parts in Java.
     guard let scalar = runtimeUnicodeScalar(value) else {
         return kk_box_bool(0)
     }
@@ -366,15 +387,7 @@ public func kk_char_isJavaIdentifierPart(_ value: Int) -> Int {
          .currencySymbol:       // Sc
         return kk_box_bool(1)
     default:
-        // isIdentifierIgnorable: ISO control chars in certain ranges, format chars
-        let v = scalar.value
-        if (v >= 0x0000 && v <= 0x0008) || (v >= 0x000E && v <= 0x001B) || (v >= 0x007F && v <= 0x009F) {
-            return kk_box_bool(1)
-        }
-        if category == .format {
-            return kk_box_bool(1)
-        }
-        return kk_box_bool(0)
+        return kk_box_bool(charScalarIsIdentifierIgnorable(scalar) ? 1 : 0)
     }
 }
 
@@ -386,23 +399,17 @@ public func kk_char_isIdentifierIgnorable(_ value: Int) -> Int {
     // Returns true for:
     //   - ISO control characters that are not whitespace: U+0000..U+0008, U+000E..U+001B, U+007F..U+009F
     //   - Unicode format characters (general category Cf)
-    let isISOControlIgnorable =
-        (value >= 0x0000 && value <= 0x0008) ||
-        (value >= 0x000E && value <= 0x001B) ||
-        (value >= 0x007F && value <= 0x009F)
-    if isISOControlIgnorable {
-        return kk_box_bool(1)
-    }
     guard let scalar = runtimeUnicodeScalar(value) else {
         return kk_box_bool(0)
     }
-    return kk_box_bool(scalar.properties.generalCategory == .format ? 1 : 0)
+    return kk_box_bool(charScalarIsIdentifierIgnorable(scalar) ? 1 : 0)
 }
 
 // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
 // Mirrors Java's Character.isUnicodeIdentifierPart semantics:
 // letters, combining marks, digits, connecting punctuation, non-spacing marks,
-// and numeric letters are all valid identifier-part characters.
+// numeric letters, identifier-ignorable code points, and Unicode Other_ID_*
+// characters are all valid identifier-part characters.
 @_cdecl("kk_char_isUnicodeIdentifierPart")
 public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
     guard let scalar = runtimeUnicodeScalar(value) else { return kk_box_bool(0) }
@@ -422,7 +429,8 @@ public func kk_char_isUnicodeIdentifierPart(_ value: Int) -> Int {
          .format:
         return kk_box_bool(1)
     default:
-        return kk_box_bool(0)
+        // UAX31 adds Other_ID_Start / Other_ID_Continue and ignorable code points.
+        return kk_box_bool((props.isIDContinue || charScalarIsIdentifierIgnorable(scalar)) ? 1 : 0)
     }
 }
 
