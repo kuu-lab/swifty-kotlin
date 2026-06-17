@@ -482,6 +482,57 @@ final class ListSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    func testListSearchHOFsHaveBundledSourceDefinitions() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let bundledPath = "__bundled_kotlin_collections_stdlib.kt"
+            let expectedArities: [String: Set<Int>] = [
+                "first": [0, 1],
+                "firstOrNull": [0, 1],
+                "last": [0, 1],
+                "lastOrNull": [0, 1],
+                "single": [0, 1],
+                "singleOrNull": [0, 1],
+                "find": [1],
+                "findLast": [1],
+                "indexOf": [1],
+                "indexOfFirst": [1],
+                "indexOfLast": [1],
+            ]
+
+            for (name, arities) in expectedArities {
+                let fqName = packageFQName + [ctx.interner.intern(name)]
+                let sourceSymbols = sema.symbols.lookupAll(fqName: fqName).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID)
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID) == bundledPath
+                }
+                let registeredArities = Set(sourceSymbols.compactMap { symbolID in
+                    sema.symbols.functionSignature(for: symbolID)?.parameterTypes.count
+                })
+                XCTAssertTrue(
+                    arities.isSubset(of: registeredArities),
+                    "Expected \(name) bundled source overloads \(arities), got \(registeredArities)"
+                )
+                XCTAssertTrue(
+                    sourceSymbols.allSatisfy { symbolID in
+                        sema.symbols.functionSignature(for: symbolID)?.receiverType != nil
+                    },
+                    "Expected \(name) bundled source definitions to be List extension functions"
+                )
+            }
+        }
+    }
+
     func testListFilterIsInstanceToUsesRuntimeExternalLink() throws {
         let source = """
         fun collect(values: List<Any>, dest: MutableList<String>) {
