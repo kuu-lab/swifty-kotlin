@@ -86,6 +86,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_append_char",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -95,6 +96,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_append_obj",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", nullableCharSequenceType, false, false)],
@@ -104,6 +106,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_appendRange_obj",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -4396,6 +4399,7 @@ extension DataFlowSemaPhase {
 
     private func registerAppendableMemberFunction(
         named name: String,
+        externalLinkName: String,
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
@@ -4408,13 +4412,14 @@ extension DataFlowSemaPhase {
         }
         let functionName = interner.intern(name)
         let functionFQName = ownerInfo.fqName + [functionName]
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
+        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
             guard let existingSignature = symbols.functionSignature(for: symbolID) else {
                 return false
             }
             return existingSignature.receiverType == ownerType
                 && existingSignature.parameterTypes == parameters.map(\.type)
         }) {
+            symbols.setExternalLinkName(externalLinkName, for: existing)
             return
         }
 
@@ -4427,6 +4432,7 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
+        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
 
         var parameterTypes: [TypeID] = []
         var parameterSymbols: [SymbolID] = []
