@@ -431,16 +431,10 @@ final class LoweringPassRegressionTests: XCTestCase {
         _ = arena.appendDecl(.function(suspendOneArg))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "CoroutineOverloadRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: "CoroutineOverloadRewrite",
+            emit: .kirDump,
             interner: interner
         )
         ctx.kir = module
@@ -504,17 +498,10 @@ final class LoweringPassRegressionTests: XCTestCase {
 
         let suspendID = arena.appendDecl(.function(suspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [suspendID])], arena: arena)
-        let options = CompilerOptions(
-            moduleName: "CoroutineCFG",
+        let ctx = makeCompilationContext(
             inputs: [],
-            outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+            moduleName: "CoroutineCFG",
             emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
             interner: interner
         )
         ctx.kir = module
@@ -545,27 +532,6 @@ final class LoweringPassRegressionTests: XCTestCase {
 
     // MARK: - Private Helpers
 
-    private func makeContext(
-        interner: StringInterner,
-        moduleName: String,
-        emit: EmitMode = .kirDump,
-        diagnostics: DiagnosticEngine = DiagnosticEngine()
-    ) -> CompilationContext {
-        let options = CompilerOptions(
-            moduleName: moduleName,
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-            emit: emit,
-            target: defaultTargetTriple()
-        )
-        return CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-    }
-
     @discardableResult
     private func runLowering(
         module: KIRModule,
@@ -575,7 +541,13 @@ final class LoweringPassRegressionTests: XCTestCase {
         sema: SemaModule? = nil,
         diagnostics: DiagnosticEngine = DiagnosticEngine()
     ) throws -> CompilationContext {
-        let ctx = makeContext(interner: interner, moduleName: moduleName, emit: emit, diagnostics: diagnostics)
+        let ctx = makeCompilationContext(
+            inputs: [],
+            moduleName: moduleName,
+            emit: emit,
+            interner: interner,
+            diagnostics: diagnostics
+        )
         ctx.kir = module
         ctx.sema = sema
         try LoweringPhase().run(ctx)

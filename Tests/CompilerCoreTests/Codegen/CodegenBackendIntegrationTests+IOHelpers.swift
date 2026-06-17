@@ -68,6 +68,45 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenBuildStringAppendTypedValuesProducesCorrectly() throws {
+        let source = """
+        fun main() {
+            val text = buildString {
+                append("value=")
+                append('A')
+                append(" ")
+                append(true)
+                append(" ")
+                append(42)
+                append(" ")
+                append(100L)
+                append(" ")
+                append(3.5f)
+                append(" ")
+                append(2.25)
+                append(" ")
+                append(null)
+            }
+            println(text)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "BuildStringAppendTypedValuesRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "value=A true 42 100 3.5 2.25 null\n")
+        }
+    }
+
     func testCodegenPrintlnNoArgUsesRuntimeNewlineHelper() throws {
         let source = """
         fun main() {
