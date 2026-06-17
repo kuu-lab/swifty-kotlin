@@ -1,4 +1,4 @@
-// PEC-NUM-0002: integer division/remainder by zero now throws ArithmeticException.
+// SPEC-NUM-0002: integer division/remainder by zero throws ArithmeticException.
 // Floating-point division by zero produces Infinity/NaN (IEEE 754).
 fun main() {
     val n = 1
