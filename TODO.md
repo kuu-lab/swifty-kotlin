@@ -212,7 +212,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-COL-010: List 部分取得 HOF を Kotlin source に移行する（`take`, `takeLast`, `takeWhile`, `takeLastWhile`, `drop`, `dropLast`, `dropWhile`, `dropLastWhile`, `distinct`, `distinctBy`）
 - [x] MIGRATION-COL-011: List ビルダー関数を Kotlin source に移行する（`buildList`, `buildSet`, `buildMap`）
 - [x] MIGRATION-COL-012: Map HOF を Kotlin source に移行する（`map.filter`, `filterKeys`, `filterValues`, `mapKeys`, `mapValues`, `mapNotNull`, `flatMap`, `forEach`, `getOrElse`, `getOrDefault`）
->>>>>>> master
 - [ ] MIGRATION-COL-013: Set HOF を Kotlin source に移行する（`set.filter`, `map`, `flatMap`, `forEach`, `sorted`, `first`, `last`, `count`, `any`, `all`, `none`）
 
 ### Phase M4: kotlin.sequences
@@ -448,7 +447,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] TEST-COL-013: `kotlin.collections` の `Map` 高階関数 `getOrDefault` / `flatMap` / `mapNotNull` / `maxByOrNull` / `minByOrNull` の Codegen 統合テストを追加する（`RuntimeSetAndMap.swift` 等に実装ありだが実行テストなし）。カバー対象: 空 Map・キー不在時の `getOrDefault` デフォルト返却・全エントリ変換・`maxByOrNull`/`minByOrNull` の空 Map で `null`
 - [ ] TEST-MATH-022: `kotlin.math` の `pow` IEEE 特殊ケースの実行テストを追加する。`pow(負, 非整数)`=NaN / `pow(0.0, 負)`=+Inf / `pow(-0.0, 負の奇数整数)`=-Inf / `pow(-1.0, ±Inf)`=1.0 / `pow(+Inf, 負)`=+0.0 が未テスト（`RuntimeMathEdgeCaseTests` は `Inf^-1`/`NaN^0`/`1^NaN` のみで負底・分数指数の特殊表が欠落）。Double/Float/Int 各 overload（`kk_math_pow`/`pow_float`/`pow_int`/`pow_float_int`）でカバー
 - [x] TEST-MATH-023: `kotlin.math` の 2引数 `log(x, base)` と `log2`/`log10` のドメイン端の実行テストを追加する。`log(x, base)` の `base≤0`/`base==1`→NaN、`x<0`→NaN、`x=0`→-Inf、`x`/`base` が `+Inf` の組合せ。`log2`/`log10` の `0`→-Inf・`負`→NaN・`+Inf`→+Inf（既存は `1→0` と NaN のみ）
-- [ ] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある
+- [x] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある
 - [x] TEST-MATH-025: `roundToInt`/`roundToLong` の NaN 挙動を Kotlin 仕様と照合・是正済み。`kk_double_roundToInt`/`kk_double_roundToLong`/`kk_float_*` は NaN で `IllegalArgumentException` を投げ、±Inf→`Int.MAX/MIN` 飽和は維持する。`Scripts/diff_kotlinc.sh` と `RuntimeMathTests.swift` で確認済み。
 
 ## 公式ドキュメント整合性チェック（Kotlin docs parity）
@@ -481,7 +480,6 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### 数値・プリミティブ型（第1バッチ）
 - [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
-<<<<<<< HEAD
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
