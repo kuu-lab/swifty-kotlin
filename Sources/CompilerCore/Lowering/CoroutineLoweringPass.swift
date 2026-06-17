@@ -10,105 +10,87 @@ final class CoroutineLoweringPass: LoweringPass {
         let arity: Int
     }
 
-    private struct CachedSets {
-        let callCallees: Set<InternedString>
-        let virtualCallees: Set<InternedString>
-    }
-
-    private nonisolated(unsafe) static var cache: [ObjectIdentifier: CachedSets] = [:]
-
-    private static func getCachedSets(interner: StringInterner) -> CachedSets {
-        let key = ObjectIdentifier(interner)
-        if let cached = cache[key] {
-            return cached
-        }
+    func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         let callCallees: Set<InternedString> = [
-            interner.intern("runBlocking"),
-            interner.intern("launch"),
-            interner.intern("async"),
-            interner.intern("produce"),
-            interner.intern("startCoroutine"),
-            interner.intern("createCoroutineUnintercepted"),
-            interner.intern("withContext"),
-            interner.intern("withTimeout"),
-            interner.intern("withTimeoutOrNull"),
-            interner.intern("coroutineScope"),
-            interner.intern("supervisorScope"),
-            interner.intern("suspendCoroutineUninterceptedOrReturn"),
-            interner.intern("flow"),
-            interner.intern("channelFlow"),
-            interner.intern("callbackFlow"),
-            interner.intern("flowOf"),
-            interner.intern("emptyFlow"),
-            interner.intern("emit"),
-            interner.intern("asFlow"),
-            interner.intern("collect"),
-            interner.intern("map"),
-            interner.intern("filter"),
-            interner.intern("take"),
-            interner.intern("transform"),
-            interner.intern("single"),
-            interner.intern("takeWhile"),
-            interner.intern("dropWhile"),
-            interner.intern("flatMapConcat"),
-            interner.intern("flatMapMerge"),
-            interner.intern("flatMapLatest"),
-            interner.intern("combine"),
-            interner.intern("zip"),
-            interner.intern("merge"),
-            interner.intern("buffer"),
-            interner.intern("conflate"),
-            interner.intern("flowOn"),
-            interner.intern("debounce"),
-            interner.intern("sample"),
-            interner.intern("delayEach"),
-            interner.intern("kk_suspend_function_invoke_0"),
-            interner.intern("kk_suspend_function_invoke"),
-            interner.intern("kk_flow_create"),
-            interner.intern("kk_flow_emit"),
-            interner.intern("kk_flow_collect"),
-            interner.intern("kk_flow_of"),
-            interner.intern("kk_flow_empty"),
-            interner.intern("kk_flow_as_flow"),
+            ctx.interner.intern("runBlocking"),
+            ctx.interner.intern("launch"),
+            ctx.interner.intern("async"),
+            ctx.interner.intern("produce"),
+            ctx.interner.intern("startCoroutine"),
+            ctx.interner.intern("createCoroutineUnintercepted"),
+            ctx.interner.intern("withContext"),
+            ctx.interner.intern("withTimeout"),
+            ctx.interner.intern("withTimeoutOrNull"),
+            ctx.interner.intern("coroutineScope"),
+            ctx.interner.intern("supervisorScope"),
+            ctx.interner.intern("suspendCoroutineUninterceptedOrReturn"),
+            ctx.interner.intern("flow"),
+            ctx.interner.intern("channelFlow"),
+            ctx.interner.intern("callbackFlow"),
+            ctx.interner.intern("flowOf"),
+            ctx.interner.intern("emptyFlow"),
+            ctx.interner.intern("emit"),
+            ctx.interner.intern("asFlow"),
+            ctx.interner.intern("collect"),
+            ctx.interner.intern("map"),
+            ctx.interner.intern("filter"),
+            ctx.interner.intern("take"),
+            ctx.interner.intern("transform"),
+            ctx.interner.intern("single"),
+            ctx.interner.intern("takeWhile"),
+            ctx.interner.intern("dropWhile"),
+            ctx.interner.intern("flatMapConcat"),
+            ctx.interner.intern("flatMapMerge"),
+            ctx.interner.intern("flatMapLatest"),
+            ctx.interner.intern("combine"),
+            ctx.interner.intern("zip"),
+            ctx.interner.intern("merge"),
+            ctx.interner.intern("buffer"),
+            ctx.interner.intern("conflate"),
+            ctx.interner.intern("flowOn"),
+            ctx.interner.intern("debounce"),
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("delayEach"),
+            ctx.interner.intern("kk_suspend_function_invoke_0"),
+            ctx.interner.intern("kk_suspend_function_invoke"),
+            ctx.interner.intern("kk_flow_create"),
+            ctx.interner.intern("kk_flow_emit"),
+            ctx.interner.intern("kk_flow_collect"),
+            ctx.interner.intern("kk_flow_of"),
+            ctx.interner.intern("kk_flow_empty"),
+            ctx.interner.intern("kk_flow_as_flow"),
         ]
         let virtualCallees: Set<InternedString> = [
-            interner.intern("collect"),
-            interner.intern("map"),
-            interner.intern("filter"),
-            interner.intern("take"),
-            interner.intern("transform"),
-            interner.intern("single"),
-            interner.intern("takeWhile"),
-            interner.intern("dropWhile"),
-            interner.intern("flatMapConcat"),
-            interner.intern("flatMapMerge"),
-            interner.intern("flatMapLatest"),
-            interner.intern("buffer"),
-            interner.intern("conflate"),
-            interner.intern("flowOn"),
-            interner.intern("debounce"),
-            interner.intern("sample"),
-            interner.intern("delayEach"),
-            interner.intern("asFlow"),
+            ctx.interner.intern("collect"),
+            ctx.interner.intern("map"),
+            ctx.interner.intern("filter"),
+            ctx.interner.intern("take"),
+            ctx.interner.intern("transform"),
+            ctx.interner.intern("single"),
+            ctx.interner.intern("takeWhile"),
+            ctx.interner.intern("dropWhile"),
+            ctx.interner.intern("flatMapConcat"),
+            ctx.interner.intern("flatMapMerge"),
+            ctx.interner.intern("flatMapLatest"),
+            ctx.interner.intern("buffer"),
+            ctx.interner.intern("conflate"),
+            ctx.interner.intern("flowOn"),
+            ctx.interner.intern("debounce"),
+            ctx.interner.intern("sample"),
+            ctx.interner.intern("delayEach"),
+            ctx.interner.intern("asFlow"),
         ]
-        let cached = CachedSets(callCallees: callCallees, virtualCallees: virtualCallees)
-        cache[key] = cached
-        return cached
-    }
-
-    func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        let cached = Self.getCachedSets(interner: ctx.interner)
         for decl in module.arena.declarations {
             if case let .function(function) = decl {
                 if function.isSuspend { return true }
                 for instruction in function.body {
                     switch instruction {
                     case let .call(_, callee, _, _, _, _, _, _):
-                        if cached.callCallees.contains(callee) {
+                        if callCallees.contains(callee) {
                             return true
                         }
                     case let .virtualCall(_, callee, _, _, _, _, _, _):
-                        if cached.virtualCallees.contains(callee) {
+                        if virtualCallees.contains(callee) {
                             return true
                         }
                     default:

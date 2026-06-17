@@ -17,41 +17,29 @@ final class FlowLoweringPass: LoweringPass {
         case transform = 11
     }
 
-    private nonisolated(unsafe) static var cache: [ObjectIdentifier: Set<InternedString>] = [:]
-
-    private static func getCachedCalleeNames(interner: StringInterner) -> Set<InternedString> {
-        let key = ObjectIdentifier(interner)
-        if let cached = cache[key] {
-            return cached
-        }
-        let calleeNames: Set<InternedString> = [
-            interner.intern("flow"),
-            interner.intern("channelFlow"),
-            interner.intern("callbackFlow"),
-            interner.intern("flowOf"),
-            interner.intern("emptyFlow"),
-            interner.intern("asFlow"),
-            interner.intern("emit"),
-            interner.intern("map"),
-            interner.intern("filter"),
-            interner.intern("take"),
-            interner.intern("transform"),
-            interner.intern("single"),
-            interner.intern("catch"),
-            interner.intern("retry"),
-            interner.intern("retryWhen"),
-            interner.intern("onErrorReturn"),
-            interner.intern("onErrorResume"),
-            interner.intern("collect"),
-            interner.intern("toList"),
-            interner.intern("first"),
-        ]
-        cache[key] = calleeNames
-        return calleeNames
-    }
-
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        let calleeNames = Self.getCachedCalleeNames(interner: ctx.interner)
+        let calleeNames: Set<InternedString> = [
+            ctx.interner.intern("flow"),
+            ctx.interner.intern("channelFlow"),
+            ctx.interner.intern("callbackFlow"),
+            ctx.interner.intern("flowOf"),
+            ctx.interner.intern("emptyFlow"),
+            ctx.interner.intern("asFlow"),
+            ctx.interner.intern("emit"),
+            ctx.interner.intern("map"),
+            ctx.interner.intern("filter"),
+            ctx.interner.intern("take"),
+            ctx.interner.intern("transform"),
+            ctx.interner.intern("single"),
+            ctx.interner.intern("catch"),
+            ctx.interner.intern("retry"),
+            ctx.interner.intern("retryWhen"),
+            ctx.interner.intern("onErrorReturn"),
+            ctx.interner.intern("onErrorResume"),
+            ctx.interner.intern("collect"),
+            ctx.interner.intern("toList"),
+            ctx.interner.intern("first"),
+        ]
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else {
                 continue
