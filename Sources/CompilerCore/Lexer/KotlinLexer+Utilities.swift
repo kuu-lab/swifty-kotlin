@@ -1,4 +1,24 @@
 extension KotlinLexer {
+    func byteCount() -> Int {
+        bytes.count
+    }
+
+    func byte(at index: Int) -> UInt8 {
+        bytes.withUnsafeBytes { buffer in
+            guard index >= 0, index < buffer.count else { return 0 }
+            return buffer[index]
+        }
+    }
+
+    func byteSlice(_ range: Range<Int>) -> [UInt8] {
+        bytes.withUnsafeBytes { buffer in
+            let start = max(0, min(range.lowerBound, buffer.count))
+            let end = max(start, min(range.upperBound, buffer.count))
+            guard start < end else { return [] }
+            return Array(buffer[start ..< end])
+        }
+    }
+
     func isIdentifierStart(_ ch: UInt8) -> Bool {
         ch == 0x5F || (0x41 ... 0x5A).contains(ch) || (0x61 ... 0x7A).contains(ch) || ch == 0x24 || ch >= 0x80
     }
@@ -24,8 +44,9 @@ extension KotlinLexer {
     }
 
     func makeRange(start: Int, end: Int) -> SourceRange {
-        let safeStart = max(0, min(start, bytes.count))
-        let safeEnd = max(safeStart, min(end, bytes.count))
+        let count = byteCount()
+        let safeStart = max(0, min(start, count))
+        let safeEnd = max(safeStart, min(end, count))
         return SourceRange(
             start: SourceLocation(file: file, offset: safeStart),
             end: SourceLocation(file: file, offset: safeEnd)
@@ -38,10 +59,10 @@ extension KotlinLexer {
 
     func starts(with literal: String, at position: Int) -> Bool {
         let utf8 = Array(literal.utf8)
-        guard position + utf8.count <= bytes.count else {
+        guard position + utf8.count <= byteCount() else {
             return false
         }
-        for index in 0 ..< utf8.count where bytes[position + index] != utf8[index] {
+        for index in 0 ..< utf8.count where byte(at: position + index) != utf8[index] {
             return false
         }
         return true
@@ -50,7 +71,7 @@ extension KotlinLexer {
     func text(from range: Range<Int>) -> String {
         guard range.lowerBound >= 0,
               range.upperBound >= range.lowerBound,
-              range.upperBound <= bytes.count
+              range.upperBound <= byteCount()
         else {
             return ""
         }
@@ -72,13 +93,13 @@ extension KotlinLexer {
     }
 
     func scanUnicodeEscape(escapeStart: Int) -> (scalar: UInt32, length: Int)? {
-        guard escapeStart < bytes.count, bytes[escapeStart] == 0x75 else {
+        guard escapeStart < byteCount(), byte(at: escapeStart) == 0x75 else {
             return nil
         }
-        guard escapeStart + 4 < bytes.count else {
+        guard escapeStart + 4 < byteCount() else {
             return nil
         }
-        let raw = Array(bytes[(escapeStart + 1) ... (escapeStart + 4)])
+        let raw = byteSlice((escapeStart + 1) ..< (escapeStart + 5))
         let hex = raw.compactMap { hexValue(of: $0) }
         guard hex.count == 4 else {
             return nil
@@ -91,7 +112,7 @@ extension KotlinLexer {
     func countConsecutiveDollars(at position: Int) -> Int {
         var count = 0
         var cursor = position
-        while cursor < bytes.count, bytes[cursor] == 0x24 {
+        while cursor < byteCount(), byte(at: cursor) == 0x24 {
             count += 1
             cursor += 1
         }

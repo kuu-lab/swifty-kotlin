@@ -6,8 +6,8 @@ extension KotlinLexer {
             return sym
         }
         // Single-character symbols: check by byte
-        guard offset < bytes.count else { return nil }
-        let ch = bytes[offset]
+        guard offset < byteCount() else { return nil }
+        let ch = byte(at: offset)
         if let sym = Self.singleCharSymbols[ch] {
             offset += 1
             return sym

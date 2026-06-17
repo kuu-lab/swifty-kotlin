@@ -537,6 +537,35 @@ extension CollectionLiteralLoweringPass {
 
     // MARK: - Static type based collection classification (LOWERING-001)
 
+    /// Collect expression IDs referenced in a function's body that participate
+    /// in collection-type propagation. This covers instruction kinds that
+    /// produce or consume collection-typed operands (call, virtualCall, copy,
+    /// constValue, returnValue).
+    private func collectReferencedExprIDs(function: KIRFunction) -> Set<Int32> {
+        var referencedExprIDs: Set<Int32> = []
+        for instruction in function.body {
+            switch instruction {
+            case let .call(_, _, arguments, result, _, _, _, _):
+                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
+                if let result { referencedExprIDs.insert(result.rawValue) }
+            case let .virtualCall(_, _, receiver, arguments, result, _, _, _):
+                referencedExprIDs.insert(receiver.rawValue)
+                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
+                if let result { referencedExprIDs.insert(result.rawValue) }
+            case let .copy(from, to):
+                referencedExprIDs.insert(from.rawValue)
+                referencedExprIDs.insert(to.rawValue)
+            case let .constValue(result, _):
+                referencedExprIDs.insert(result.rawValue)
+            case let .returnValue(expr):
+                referencedExprIDs.insert(expr.rawValue)
+            default:
+                break
+            }
+        }
+        return referencedExprIDs
+    }
+
     /// Seed the collection tracking sets using the static type information
     /// stored in the KIR arena's `exprTypes` map.  This handles expressions
     /// whose concrete collection kind cannot be determined from factory/call
@@ -561,34 +590,7 @@ extension CollectionLiteralLoweringPass {
         // For each expression referenced in this function's body that has
         // a TypeID in the arena, resolve the TypeKind.  If it is a classType,
         // check the classSymbol's simple name against known collection names.
-
-        // Collect expression IDs relevant to call/virtual-call rewriting
-        // from this function's body so we only classify relevant expressions.
-        // NOTE: This intentionally covers a subset of instruction kinds
-        // (call, virtualCall, copy, constValue, returnValue) that participate
-        // in collection-type propagation.  Other instruction kinds do not
-        // produce or consume collection-typed operands today.
-        var referencedExprIDs: Set<Int32> = []
-        for instruction in function.body {
-            switch instruction {
-            case let .call(_, _, arguments, result, _, _, _, _):
-                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
-                if let result { referencedExprIDs.insert(result.rawValue) }
-            case let .virtualCall(_, _, receiver, arguments, result, _, _, _):
-                referencedExprIDs.insert(receiver.rawValue)
-                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
-                if let result { referencedExprIDs.insert(result.rawValue) }
-            case let .copy(from, to):
-                referencedExprIDs.insert(from.rawValue)
-                referencedExprIDs.insert(to.rawValue)
-            case let .constValue(result, _):
-                referencedExprIDs.insert(result.rawValue)
-            case let .returnValue(expr):
-                referencedExprIDs.insert(expr.rawValue)
-            default:
-                break
-            }
-        }
+        let referencedExprIDs = collectReferencedExprIDs(function: function)
 
         for rawID in referencedExprIDs {
             let exprID = KIRExprID(rawValue: rawID)
@@ -617,27 +619,7 @@ extension CollectionLiteralLoweringPass {
         sema: SemaModule,
         ulongValuedExprIDs: inout Set<Int32>
     ) {
-        var referencedExprIDs: Set<Int32> = []
-        for instruction in function.body {
-            switch instruction {
-            case let .call(_, _, arguments, result, _, _, _, _):
-                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
-                if let result { referencedExprIDs.insert(result.rawValue) }
-            case let .virtualCall(_, _, receiver, arguments, result, _, _, _):
-                referencedExprIDs.insert(receiver.rawValue)
-                for arg in arguments { referencedExprIDs.insert(arg.rawValue) }
-                if let result { referencedExprIDs.insert(result.rawValue) }
-            case let .copy(from, to):
-                referencedExprIDs.insert(from.rawValue)
-                referencedExprIDs.insert(to.rawValue)
-            case let .constValue(result, _):
-                referencedExprIDs.insert(result.rawValue)
-            case let .returnValue(expr):
-                referencedExprIDs.insert(expr.rawValue)
-            default:
-                break
-            }
-        }
+        let referencedExprIDs = collectReferencedExprIDs(function: function)
 
         for rawID in referencedExprIDs {
             let exprID = KIRExprID(rawValue: rawID)
