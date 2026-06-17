@@ -22,7 +22,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .nullableOpaquePointer),
             ],
             returnType: .opaquePointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_compareTo",
@@ -40,7 +41,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_length",
@@ -48,7 +50,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trim",
@@ -56,7 +59,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trim_predicate",
@@ -75,7 +79,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_uppercase",
@@ -83,7 +88,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_capitalize",
@@ -99,7 +105,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "identifierRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_locale_new_language_country",
@@ -191,7 +198,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_uppercase_locale",
@@ -200,7 +208,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_compareTo_locale",
@@ -210,7 +219,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trimIndent",
@@ -255,7 +265,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "argsArrayRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_format_locale",
@@ -273,7 +284,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isNullOrBlank",
@@ -281,7 +293,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_startsWith",
@@ -290,7 +303,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "prefixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_endsWith",
@@ -299,7 +313,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "suffixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_contains_str",
@@ -308,7 +323,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase)
         RuntimeABIFunctionSpec(
@@ -319,7 +335,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replace",
@@ -329,7 +346,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "newRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replace_char",
@@ -339,7 +357,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "newCharRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replace_ignoreCase",
@@ -350,7 +369,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replace_char_ignoreCase",
@@ -361,7 +381,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceFirst",
@@ -371,7 +392,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "newRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceAfter",
@@ -382,7 +404,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceAfter_char",
@@ -393,7 +416,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceAfterLast",
@@ -404,7 +428,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceAfterLast_char",
@@ -415,7 +440,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceBefore",
@@ -426,7 +452,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceBefore_char",
@@ -437,7 +464,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceBeforeLast",
@@ -448,7 +476,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceBeforeLast_char",
@@ -459,7 +488,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_to_string",
@@ -468,7 +498,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "tag", type: .intptr),
             ],
             returnType: .opaquePointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_hashCode",
@@ -477,7 +508,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "tag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_equals",
@@ -488,7 +520,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhsTag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_member_to_string",
@@ -496,7 +529,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "raw", type: .intptr),
             ],
             returnType: .opaquePointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_member_hashCode",
@@ -504,7 +538,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "raw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_any_member_equals",
@@ -513,7 +548,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_structural_eq",
@@ -522,7 +558,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Collections"
+            section: "Collections",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceRange",
@@ -575,7 +612,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delimRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_split_limit",
@@ -586,7 +624,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "limitRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toInt",
@@ -632,7 +671,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toUShortOrNull",
@@ -640,7 +680,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toUIntOrNull",
@@ -648,7 +689,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toULongOrNull",
@@ -656,7 +698,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toUByteOrNull_radix",
@@ -777,7 +820,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-EDGE-003: indexOf / lastIndexOf with ignoreCase
         RuntimeABIFunctionSpec(
@@ -789,7 +833,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_lastIndexOf_ignoreCase",
@@ -800,7 +845,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-034: CharSequence.lastIndexOf(Char, startIndex, ignoreCase)
         RuntimeABIFunctionSpec(
@@ -812,7 +858,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_indexOf_from",
@@ -833,7 +880,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_indexOfAny_strings",
@@ -844,7 +892,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_lastIndexOfAny_chars",
@@ -855,7 +904,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_lastIndexOfAny_strings",
@@ -866,7 +916,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_findAnyOf",
@@ -877,7 +928,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_findLastAnyOf",
@@ -888,7 +940,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCase", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_indexOfFirst",
@@ -931,7 +984,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_compareToIgnoreCase",
@@ -941,7 +995,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_equals",
@@ -950,7 +1005,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "bRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_enum_valueOf_throw",
@@ -969,7 +1025,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Enum"
+            section: "Enum",
+            isThrowing: false
         ),
         // ENUM-002: T.entries — returns EnumEntries<T> (List)
         RuntimeABIFunctionSpec(
@@ -979,7 +1036,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "count", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Enum"
+            section: "Enum",
+            isThrowing: false
         ),
         // STDLIB-142: String.toBoolean
         RuntimeABIFunctionSpec(
@@ -988,7 +1046,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toBooleanStrict",
@@ -1006,7 +1065,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-666: String.lineSequence
         RuntimeABIFunctionSpec(
@@ -1015,7 +1075,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-144: String.trimStart/trimEnd
         RuntimeABIFunctionSpec(
@@ -1024,7 +1085,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trimStart_predicate",
@@ -1043,7 +1105,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_trimEnd_predicate",
@@ -1063,7 +1126,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-581: String.toByteArray(charset: Charset)
         RuntimeABIFunctionSpec(
@@ -1073,61 +1137,71 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "charsetTag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_8",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_iso_8859_1",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_us_ascii",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_16",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_16be",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_16le",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_32",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_32be",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_charset_utf_32le",
             parameters: [],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false,
         ),
         // STDLIB-573: String.encodeToByteArray
         RuntimeABIFunctionSpec(
@@ -1323,7 +1397,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "localeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_char_lowercase",
@@ -1452,7 +1527,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-640: CharArray.concatToString()
         RuntimeABIFunctionSpec(
@@ -1461,7 +1537,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arrRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-317: String.asIterable() — lazy Iterable<Char>
         RuntimeABIFunctionSpec(
@@ -1470,7 +1547,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
         RuntimeABIFunctionSpec(
@@ -1479,7 +1557,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_iterable_toList",
@@ -1487,7 +1566,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_iterable_iterator",
@@ -1495,7 +1575,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_iterator",
@@ -1646,7 +1727,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "prefixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSuffix",
@@ -1655,7 +1737,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "suffixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSurrounding",
@@ -1664,7 +1747,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "delimiterRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_removeSurrounding_pair",
@@ -1674,7 +1758,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "suffixRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-191
         RuntimeABIFunctionSpec(
@@ -1683,7 +1768,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_prependIndent",
@@ -1692,7 +1778,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "indentRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceIndent_default",
@@ -1700,7 +1787,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replaceIndent",
@@ -1709,7 +1797,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "newIndentRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-192
         RuntimeABIFunctionSpec(
@@ -1720,7 +1809,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "ignoreCaseRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-190
         RuntimeABIFunctionSpec(
@@ -1756,7 +1846,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_lastOrNull",
@@ -1764,7 +1855,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-187
         RuntimeABIFunctionSpec(
@@ -1773,7 +1865,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isNotEmpty",
@@ -1781,7 +1874,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isBlank",
@@ -1789,7 +1883,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_isNotBlank",
@@ -1797,7 +1892,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_ifBlank",
@@ -1830,7 +1926,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toBigDecimal",
@@ -2066,7 +2163,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-075: String.substringAfterLast(delimiter, missingDelimiterValue)
         RuntimeABIFunctionSpec(
@@ -2077,7 +2175,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "missingDelimiterValueRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-PROP-017: Char.isUnicodeIdentifierPart
         RuntimeABIFunctionSpec(
@@ -2095,7 +2194,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform)
         RuntimeABIFunctionSpec(
@@ -2105,7 +2205,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "otherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_zipTransform",
