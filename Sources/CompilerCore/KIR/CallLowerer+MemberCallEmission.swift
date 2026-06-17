@@ -487,6 +487,25 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
+        let stringReduceRightHOFCallees: Set<InternedString> = [
+            interner.intern("kk_string_reduceRightIndexed"),
+            interner.intern("kk_string_reduceRightIndexedOrNull"),
+            interner.intern("kk_string_reduceRightOrNull"),
+        ]
+        if stringReduceRightHOFCallees.contains(loweredCallee),
+           finalArguments.count == 2
+        {
+            // normalizedCallArguments can drop the closure arg added by addCollectionHOFClosureArguments.
+            // Re-split the operation function pointer to restore the runtime (fnPtr, closureRaw) ABI.
+            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
+                finalArguments[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
+        }
         if loweredCallee == interner.intern("kk_sequence_firstNotNullOf")
             || loweredCallee == interner.intern("kk_sequence_firstNotNullOfOrNull")
             || loweredCallee == interner.intern("kk_sequence_indexOfFirst")
@@ -1102,7 +1121,18 @@ extension CallLowerer {
     ) -> (fnPtrExpr: KIRExprID, envPtrExpr: KIRExprID) {
         let fnPtrExpr: KIRExprID
         let envPtrExpr: KIRExprID
-        if let callableInfo = driver.ctx.callableValueInfo(for: lambdaID) {
+        let callableInfo = driver.ctx.callableValueInfo(for: lambdaID) ?? {
+            guard case let .symbolRef(symbol)? = arena.expr(lambdaID) else {
+                return nil
+            }
+            return KIRCallableValueInfo(
+                symbol: symbol,
+                callee: interner.intern(""),
+                captureArguments: arena.lambdaCaptureArgsBySymbol[symbol] ?? [],
+                hasClosureParam: true
+            )
+        }()
+        if let callableInfo {
             fnPtrExpr = arena.appendExpr(
                 .symbolRef(callableInfo.symbol),
                 type: sema.types.anyType

@@ -104,10 +104,15 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         let interner = ctx.interner
         let plusFQName = ["kotlinx", "cinterop", "plus"].map { interner.intern($0) }
         let plusCandidates = Set(sema.symbols.lookupAll(fqName: plusFQName))
+        let userFileIDs = Set(ctx.sourceManager.fileIDs().filter {
+            !ctx.sourceManager.path(of: $0).hasPrefix("__bundled_")
+        })
         let plusExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
-                  case .binary(.add, _, _, _) = expr
+                  case .binary(.add, _, _, _) = expr,
+                  let file = ast.arena.exprRange(exprID)?.start.file,
+                  userFileIDs.contains(file)
             else {
                 return nil
             }

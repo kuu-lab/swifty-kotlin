@@ -2345,7 +2345,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("operation", charIndexedReduceRightType, false, false)],
             returnType: charType,
-            flags: [.synthetic, .inlineFunction],
+            flags: [.synthetic, .inlineFunction, .throwingFunction],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2356,7 +2356,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("operation", charIndexedReduceRightType, false, false)],
             returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
+            flags: [.synthetic, .inlineFunction, .throwingFunction],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2367,7 +2367,7 @@ extension DataFlowSemaPhase {
             receiverType: charSequenceType,
             parameters: [("operation", charReduceRightType, false, false)],
             returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
+            flags: [.synthetic, .inlineFunction, .throwingFunction],
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
