@@ -100,10 +100,9 @@ kk_array_mapIndexed
 
 主な実装場所: `Sources/Runtime/RuntimeCollectionHOFArray.swift`（spec ミラーは `RuntimeABISpec+RuntimeOnlyBridge.swift` の `arrayHOFBridgeNames`）
 
-### java.time / JS Date ブリッジ（JVM/JS 専用でターゲット外）— 5 個
+### java.time / JS Date ブリッジ（JVM/JS 専用でターゲット外）— 3 個
 
 ```
-kk_java_duration_of_millis kk_java_duration_of_seconds
 kk_java_instant_of_epoch_milli kk_java_instant_of_epoch_second
 kk_js_date_from_epoch_millis
 ```
