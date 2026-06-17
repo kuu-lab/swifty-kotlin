@@ -177,6 +177,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-004: Typed appendLine overloads for StringBuilder.
+        // String?, Int, Long delegate to kk_string_builder_append_line_obj.
+        // Boolean, Char, Float, Double use dedicated runtime functions for correct type-specific conversion.
+
         // appendLine(Any?): StringBuilder
         registerStringBuilderMemberFunction(
             named: "appendLine",
@@ -184,6 +188,90 @@ extension DataFlowSemaPhase {
             ownerSymbol: sbSymbol,
             ownerType: sbType,
             parameters: [("value", nullableAnyType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: String?): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", nullableStringType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Char): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_char_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", charType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Boolean): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_bool_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", booleanType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Int): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", intType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Long): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", longType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Float): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_float_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", floatType, false, false)],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // appendLine(value: Double): StringBuilder
+        registerStringBuilderMemberFunction(
+            named: "appendLine",
+            externalLinkName: "kk_string_builder_append_line_double_obj",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("value", doubleType, false, false)],
             returnType: sbType,
             symbols: symbols,
             interner: interner

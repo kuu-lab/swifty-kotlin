@@ -1078,6 +1078,10 @@ extension ABILoweringPass {
             // StringBuilder enhancements (STDLIB-311) — buildString DSL helpers
             interner.intern("kk_string_builder_append"),
             interner.intern("kk_string_builder_append_line"),
+            interner.intern("kk_string_builder_append_line_bool"),
+            interner.intern("kk_string_builder_append_line_char"),
+            interner.intern("kk_string_builder_append_line_double"),
+            interner.intern("kk_string_builder_append_line_float"),
             interner.intern("kk_string_builder_append_line_noarg"),
             // buildString DSL insert/delete clamp out-of-range indices instead of throwing.
             interner.intern("kk_string_builder_insert"),
@@ -1188,6 +1192,10 @@ extension ABILoweringPass {
             interner.intern("kk_string_builder_toString"),
             interner.intern("kk_string_builder_length_prop"),
             interner.intern("kk_string_builder_append_line_obj"),
+            interner.intern("kk_string_builder_append_line_bool_obj"),
+            interner.intern("kk_string_builder_append_line_char_obj"),
+            interner.intern("kk_string_builder_append_line_double_obj"),
+            interner.intern("kk_string_builder_append_line_float_obj"),
             interner.intern("kk_string_builder_append_line_noarg_obj"),
             // Bounds-checking StringBuilder members throw via outThrown (DEBT-RT-001).
             interner.intern("kk_string_builder_clear"),

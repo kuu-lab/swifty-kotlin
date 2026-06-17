@@ -655,17 +655,23 @@ final class CallLowerer {
             return result
         }
         if sema.bindings.builderDSLKind(for: exprID) == .buildString {
-            let builderRuntimeCallee: String? = switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
+            let builderRuntimeCallee: String?
+            switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
             case ("append", 1):
-                "kk_string_builder_append"
+                builderRuntimeCallee = "kk_string_builder_append"
             case ("appendLine", 0):
-                "kk_string_builder_append_line_noarg"
+                builderRuntimeCallee = "kk_string_builder_append_line_noarg"
             case ("appendLine", 1):
-                "kk_string_builder_append_line"
+                builderRuntimeCallee = stringBuilderAppendLineRuntimeCallee(
+                    argument: loweredArgIDs[0],
+                    objectReceiver: false,
+                    sema: sema,
+                    arena: arena
+                )
             case ("appendRange", 3):
-                "kk_string_builder_append_range"
+                builderRuntimeCallee = "kk_string_builder_append_range"
             default:
-                nil
+                builderRuntimeCallee = nil
             }
             if let builderRuntimeCallee {
                 let result = arena.appendExpr(
@@ -1142,6 +1148,38 @@ final class CallLowerer {
         }
     }
 
+    private func stringBuilderAppendLineRuntimeCallee(
+        argument: KIRExprID,
+        objectReceiver: Bool,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> String {
+        if let argType = arena.exprType(argument) {
+            let nonNull = sema.types.makeNonNullable(argType)
+            if nonNull == sema.types.booleanType {
+                return objectReceiver
+                    ? "kk_string_builder_append_line_bool_obj"
+                    : "kk_string_builder_append_line_bool"
+            }
+            if nonNull == sema.types.charType {
+                return objectReceiver
+                    ? "kk_string_builder_append_line_char_obj"
+                    : "kk_string_builder_append_line_char"
+            }
+            if nonNull == sema.types.floatType {
+                return objectReceiver
+                    ? "kk_string_builder_append_line_float_obj"
+                    : "kk_string_builder_append_line_float"
+            }
+            if nonNull == sema.types.doubleType {
+                return objectReceiver
+                    ? "kk_string_builder_append_line_double_obj"
+                    : "kk_string_builder_append_line_double"
+            }
+        }
+        return objectReceiver ? "kk_string_builder_append_line_obj" : "kk_string_builder_append_line"
+    }
+
     private func implicitReceiverStringBuilderRuntimeCallee(
         sourceCalleeName: InternedString,
         loweredArguments: [KIRExprID],
@@ -1188,7 +1226,12 @@ final class CallLowerer {
         case ("appendLine", 0):
             "kk_string_builder_append_line_noarg_obj"
         case ("appendLine", 1):
-            "kk_string_builder_append_line_obj"
+            stringBuilderAppendLineRuntimeCallee(
+                argument: loweredArguments[0],
+                objectReceiver: true,
+                sema: sema,
+                arena: arena
+            )
         case ("appendRange", 3):
             "kk_string_builder_appendRange_obj"
         case ("toString", 0):

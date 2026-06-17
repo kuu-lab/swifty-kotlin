@@ -650,7 +650,12 @@ extension CollectionLiteralLoweringPass {
             if builderCallee == lookup.buildStringName, callee == lookup.appendName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkStringBuilderAppendName
             } else if builderCallee == lookup.buildStringName, callee == lookup.appendLineName, arguments.count == 1 {
-                rewrittenCallee = lookup.kkStringBuilderAppendLineName
+                rewrittenCallee = buildStringAppendLineRuntimeCallee(
+                    argument: arguments[0],
+                    module: module,
+                    ctx: ctx,
+                    lookup: lookup
+                )
             } else if builderCallee == lookup.buildStringName, callee == lookup.appendLineName, arguments.count == 0 {
                 rewrittenCallee = lookup.kkStringBuilderAppendLineNoargName
             } else if builderCallee == lookup.buildStringName, callee == lookup.insertName, arguments.count == 2 {
@@ -720,5 +725,33 @@ extension CollectionLiteralLoweringPass {
         }
 
         return false
+    }
+
+    private func buildStringAppendLineRuntimeCallee(
+        argument: KIRExprID,
+        module: KIRModule,
+        ctx: KIRContext,
+        lookup: CollectionLiteralLookupTables
+    ) -> InternedString {
+        guard let sema = ctx.sema,
+              let argType = module.arena.exprType(argument)
+        else {
+            return lookup.kkStringBuilderAppendLineName
+        }
+
+        let nonNull = sema.types.makeNonNullable(argType)
+        if nonNull == sema.types.booleanType {
+            return lookup.kkStringBuilderAppendLineBoolName
+        }
+        if nonNull == sema.types.charType {
+            return lookup.kkStringBuilderAppendLineCharName
+        }
+        if nonNull == sema.types.floatType {
+            return lookup.kkStringBuilderAppendLineFloatName
+        }
+        if nonNull == sema.types.doubleType {
+            return lookup.kkStringBuilderAppendLineDoubleName
+        }
+        return lookup.kkStringBuilderAppendLineName
     }
 }

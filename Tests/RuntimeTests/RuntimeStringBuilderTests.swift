@@ -12,6 +12,37 @@ final class RuntimeStringBuilderTests: XCTestCase {
         super.tearDown()
     }
 
+    // STDLIB-TEXT-FN-004: appendLine
+    func testAppendLineObjAppendsValueAndNewlineAndReturnsReceiver() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("prefix:"))
+        let value = makeRuntimeString("hello")
+
+        let returned = kk_string_builder_append_line_obj(builder, value)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "prefix:hello\n")
+    }
+
+    func testAppendLineNoArgAppendsNewlineAndReturnsReceiver() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
+
+        let returned = kk_string_builder_append_line_noarg_obj(builder)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "hello\n")
+    }
+
+    func testAppendLineTypedPrimitiveOverloadsAppendRenderedValueAndNewline() {
+        let builder = kk_string_builder_new()
+
+        _ = kk_string_builder_append_line_bool_obj(builder, 1)
+        _ = kk_string_builder_append_line_char_obj(builder, Int(Unicode.Scalar("A").value))
+        _ = kk_string_builder_append_line_float_obj(builder, kk_float_to_bits(1.5))
+        _ = kk_string_builder_append_line_double_obj(builder, kk_double_to_bits(2.25))
+
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "true\nA\n1.5\n2.25\n")
+    }
+
     // STDLIB-TEXT-FN-024: insert
     func testInsertObjInsertsValueAtIndexAndReturnsReceiver() {
         let builder = kk_string_builder_new_from_string(makeRuntimeString("ac"))

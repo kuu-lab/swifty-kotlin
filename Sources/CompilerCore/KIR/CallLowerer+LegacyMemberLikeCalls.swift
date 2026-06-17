@@ -3312,7 +3312,15 @@ extension CallLowerer {
                         return "kk_string_builder_append_obj"
                     }()
                 } else if calleeName == sbNames.appendLine {
-                    "kk_string_builder_append_line_obj"
+                    {
+                        let argType = normalizedArgIDs.first.flatMap { arena.exprType($0) }
+                        let nonNull = argType.map { sema.types.makeNonNullable($0) }
+                        if nonNull == sema.types.booleanType { return "kk_string_builder_append_line_bool_obj" }
+                        if nonNull == sema.types.charType { return "kk_string_builder_append_line_char_obj" }
+                        if nonNull == sema.types.floatType { return "kk_string_builder_append_line_float_obj" }
+                        if nonNull == sema.types.doubleType { return "kk_string_builder_append_line_double_obj" }
+                        return "kk_string_builder_append_line_obj"
+                    }()
                 } else if calleeName == sbNames.deleteCharAt {
                     "kk_string_builder_deleteCharAt"
                 } else if calleeName == sbNames.deleteAt {

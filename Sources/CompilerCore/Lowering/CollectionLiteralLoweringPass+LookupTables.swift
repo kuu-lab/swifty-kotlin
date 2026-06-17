@@ -711,6 +711,10 @@ struct CollectionLiteralLookupTables {
     let lengthName: InternedString
     let appendRangeName: InternedString
     let kkStringBuilderAppendLineName: InternedString
+    let kkStringBuilderAppendLineBoolName: InternedString
+    let kkStringBuilderAppendLineCharName: InternedString
+    let kkStringBuilderAppendLineFloatName: InternedString
+    let kkStringBuilderAppendLineDoubleName: InternedString
     let kkStringBuilderAppendLineNoargName: InternedString
     let kkStringBuilderInsertName: InternedString
     let kkStringBuilderDeleteName: InternedString
@@ -1506,6 +1510,10 @@ struct CollectionLiteralLookupTables {
         lengthName = interner.intern("length")
         appendRangeName = interner.intern("appendRange")
         kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
+        kkStringBuilderAppendLineBoolName = interner.intern("kk_string_builder_append_line_bool")
+        kkStringBuilderAppendLineCharName = interner.intern("kk_string_builder_append_line_char")
+        kkStringBuilderAppendLineFloatName = interner.intern("kk_string_builder_append_line_float")
+        kkStringBuilderAppendLineDoubleName = interner.intern("kk_string_builder_append_line_double")
         kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
         kkStringBuilderInsertName = interner.intern("kk_string_builder_insert")
         kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")

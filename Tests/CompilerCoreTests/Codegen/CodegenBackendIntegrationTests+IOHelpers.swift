@@ -68,6 +68,42 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testCodegenAppendLinePrimitiveOverloadsProduceCorrectText() throws {
+        let source = """
+        fun main() {
+            val sb = StringBuilder()
+            sb.appendLine('A')
+            sb.appendLine(true)
+            sb.appendLine(1.5f)
+            sb.appendLine(2.25)
+            print(sb.toString())
+            print("---\\n")
+            val built = buildString {
+                appendLine('B')
+                appendLine(false)
+                appendLine(3.5f)
+                appendLine(4.75)
+            }
+            print(built)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "AppendLinePrimitiveRuntime",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(normalizedStdout, "A\ntrue\n1.5\n2.25\n---\nB\nfalse\n3.5\n4.75\n")
+        }
+    }
+
     func testCodegenPrintlnNoArgUsesRuntimeNewlineHelper() throws {
         let source = """
         fun main() {

@@ -240,12 +240,35 @@ public func kk_string_builder_append(_ strRaw: Int) -> Int {
 // the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
 @_cdecl("kk_string_builder_append_line")
 public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
-          let string = extractString(from: pointer)
-    else {
-        return 0
-    }
-    runtimeBuilderState.appendString(string)
+    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
+    runtimeBuilderState.appendString("\n")
+    return 0
+}
+
+@_cdecl("kk_string_builder_append_line_bool")
+public func kk_string_builder_append_line_bool(_ value: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeRenderBoolArgument(value))
+    runtimeBuilderState.appendString("\n")
+    return 0
+}
+
+@_cdecl("kk_string_builder_append_line_char")
+public func kk_string_builder_append_line_char(_ value: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeRenderCharArgument(value))
+    runtimeBuilderState.appendString("\n")
+    return 0
+}
+
+@_cdecl("kk_string_builder_append_line_float")
+public func kk_string_builder_append_line_float(_ value: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeRenderFloatArgument(value))
+    runtimeBuilderState.appendString("\n")
+    return 0
+}
+
+@_cdecl("kk_string_builder_append_line_double")
+public func kk_string_builder_append_line_double(_ value: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeRenderDoubleArgument(value))
     runtimeBuilderState.appendString("\n")
     return 0
 }

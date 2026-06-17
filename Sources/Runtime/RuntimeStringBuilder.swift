@@ -25,6 +25,52 @@ private func sbMakeStringRaw(_ value: String) -> Int {
     })
 }
 
+func runtimeRenderBoolArgument(_ value: Int) -> String {
+    value != 0 ? "true" : "false"
+}
+
+func runtimeRenderCharArgument(_ value: Int) -> String {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
+            return UnicodeScalar(charBox.value).map(String.init) ?? "?"
+        }
+    }
+    return UnicodeScalar(value).map(String.init) ?? "?"
+}
+
+func runtimeRenderFloatArgument(_ value: Int) -> String {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
+            return runtimeFormatFloatingPoint(floatBox.value)
+        }
+    }
+    return runtimeFormatFloatingPoint(kk_bits_to_float(value))
+}
+
+func runtimeRenderDoubleArgument(_ value: Int) -> String {
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer, let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
+            return runtimeFormatFloatingPoint(doubleBox.value)
+        }
+    }
+    return runtimeFormatFloatingPoint(kk_bits_to_double(value))
+}
+
+private func runtimeAppendLineSuffix(to sbRaw: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.value.append("\n")
+    return sbRaw
+}
+
 private func runtimeThrowStringIndexOutOfBounds(
     _ outThrown: UnsafeMutablePointer<Int>?,
     message: String
@@ -83,8 +129,37 @@ public func kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
 // no pre-existing compiled artifacts that reference the old names.
 @_cdecl("kk_string_builder_append_line_obj")
 public func kk_string_builder_append_line_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int {
+    runtimeAppendLineSuffix(to: kk_string_builder_append_obj(sbRaw, valueRaw))
+}
+
+@_cdecl("kk_string_builder_append_line_bool_obj")
+public func kk_string_builder_append_line_bool_obj(_ sbRaw: Int, _ value: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(runtimeElementToString(valueRaw))
+    sb.value.append(runtimeRenderBoolArgument(value))
+    sb.value.append("\n")
+    return sbRaw
+}
+
+@_cdecl("kk_string_builder_append_line_char_obj")
+public func kk_string_builder_append_line_char_obj(_ sbRaw: Int, _ value: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.value.append(runtimeRenderCharArgument(value))
+    sb.value.append("\n")
+    return sbRaw
+}
+
+@_cdecl("kk_string_builder_append_line_float_obj")
+public func kk_string_builder_append_line_float_obj(_ sbRaw: Int, _ value: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.value.append(runtimeRenderFloatArgument(value))
+    sb.value.append("\n")
+    return sbRaw
+}
+
+@_cdecl("kk_string_builder_append_line_double_obj")
+public func kk_string_builder_append_line_double_obj(_ sbRaw: Int, _ value: Int) -> Int {
+    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
+    sb.value.append(runtimeRenderDoubleArgument(value))
     sb.value.append("\n")
     return sbRaw
 }
@@ -92,9 +167,7 @@ public func kk_string_builder_append_line_obj(_ sbRaw: Int, _ valueRaw: Int) -> 
 // ABI note: Same as above — old camelCase symbol never shipped; rename is safe.
 @_cdecl("kk_string_builder_append_line_noarg_obj")
 public func kk_string_builder_append_line_noarg_obj(_ sbRaw: Int) -> Int {
-    guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append("\n")
-    return sbRaw
+    runtimeAppendLineSuffix(to: sbRaw)
 }
 
 @_cdecl("kk_string_builder_insert_obj")
@@ -362,7 +435,7 @@ public func kk_string_builder_get(
 @_cdecl("kk_string_builder_append_bool")
 public func kk_string_builder_append_bool(_ sbRaw: Int, _ value: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    sb.value.append(value != 0 ? "true" : "false")
+    sb.value.append(runtimeRenderBoolArgument(value))
     return sbRaw
 }
 
@@ -371,19 +444,7 @@ public func kk_string_builder_append_bool(_ sbRaw: Int, _ value: Int) -> Int {
 @_cdecl("kk_string_builder_append_char")
 public func kk_string_builder_append_char(_ sbRaw: Int, _ value: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    // The value may be either a boxed RuntimeCharBox or a raw unicode scalar.
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
-            let rendered = UnicodeScalar(charBox.value).map(String.init) ?? "?"
-            sb.value.append(rendered)
-            return sbRaw
-        }
-    }
-    let rendered = UnicodeScalar(value).map(String.init) ?? "?"
-    sb.value.append(rendered)
+    sb.value.append(runtimeRenderCharArgument(value))
     return sbRaw
 }
 
@@ -392,16 +453,7 @@ public func kk_string_builder_append_char(_ sbRaw: Int, _ value: Int) -> Int {
 @_cdecl("kk_string_builder_append_float")
 public func kk_string_builder_append_float(_ sbRaw: Int, _ value: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let floatBox = tryCast(ptr, to: RuntimeFloatBox.self) {
-            sb.value.append(runtimeFormatFloatingPoint(floatBox.value))
-            return sbRaw
-        }
-    }
-    sb.value.append(runtimeFormatFloatingPoint(kk_bits_to_float(value)))
+    sb.value.append(runtimeRenderFloatArgument(value))
     return sbRaw
 }
 
@@ -410,16 +462,7 @@ public func kk_string_builder_append_float(_ sbRaw: Int, _ value: Int) -> Int {
 @_cdecl("kk_string_builder_append_double")
 public func kk_string_builder_append_double(_ sbRaw: Int, _ value: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return sbRaw }
-    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-        let isObjectPointer = runtimeStorage.withGCLock { state in
-            state.objectPointers.contains(UInt(bitPattern: ptr))
-        }
-        if isObjectPointer, let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self) {
-            sb.value.append(runtimeFormatFloatingPoint(doubleBox.value))
-            return sbRaw
-        }
-    }
-    sb.value.append(runtimeFormatFloatingPoint(kk_bits_to_double(value)))
+    sb.value.append(runtimeRenderDoubleArgument(value))
     return sbRaw
 }
 
