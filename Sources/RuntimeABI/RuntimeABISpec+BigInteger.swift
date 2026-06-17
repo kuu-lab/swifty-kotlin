@@ -8,7 +8,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "longValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_fromString",
@@ -26,7 +27,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "other", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_subtract",
@@ -35,7 +37,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "other", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_multiply",
@@ -44,7 +47,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "other", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_divide",
@@ -63,7 +67,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "other", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_abs",
@@ -71,7 +76,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "self", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_pow",
@@ -90,7 +96,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "other", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_toInt",
@@ -98,7 +105,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "self", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_toLong",
@@ -106,7 +114,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "self", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_biginteger_toString",
@@ -114,7 +123,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "self", type: .intptr),
             ],
             returnType: .intptr,
-            section: "BigInteger"
+            section: "BigInteger",
+            isThrowing: false
         ),
     ]
 }
