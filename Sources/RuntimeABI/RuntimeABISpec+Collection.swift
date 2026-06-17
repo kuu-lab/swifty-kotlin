@@ -1862,7 +1862,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_string_builder_append",
             parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "valueRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection"

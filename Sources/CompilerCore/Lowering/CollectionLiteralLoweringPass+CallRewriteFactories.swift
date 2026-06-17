@@ -673,10 +673,26 @@ extension CollectionLiteralLoweringPass {
                 rewrittenCallee = lookup.kkBuilderMapPutName
             }
             if let target = rewrittenCallee {
+                let runtimeArguments: [KIRExprID]
+                if builderCallee == lookup.buildStringName,
+                   (callee == lookup.appendName || callee == lookup.appendLineName),
+                   arguments.count == 1
+                {
+                    runtimeArguments = [
+                        boxedBuildStringTextArgumentIfNeeded(
+                            arguments[0],
+                            module: module,
+                            ctx: ctx,
+                            loweredBody: &loweredBody
+                        ),
+                    ]
+                } else {
+                    runtimeArguments = arguments
+                }
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: target,
-                    arguments: arguments,
+                    arguments: runtimeArguments,
                     result: result,
                     canThrow: canThrow,
                     thrownResult: thrownResult
