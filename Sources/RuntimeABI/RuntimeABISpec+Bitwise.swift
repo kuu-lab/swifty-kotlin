@@ -11,7 +11,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_bitwise_or",
@@ -20,7 +21,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_bitwise_xor",
@@ -29,7 +31,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_inv",
@@ -37,7 +40,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "a", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_shl",
@@ -46,7 +50,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_shr",
@@ -55,7 +60,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_ushr",
@@ -64,7 +70,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_dmul",
@@ -73,7 +80,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_toString_radix",
@@ -82,7 +90,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "radix", type: .intptr),
             ],
             returnType: .opaquePointer,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_countOneBits",
@@ -90,7 +99,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_countLeadingZeroBits",
@@ -98,7 +108,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_countTrailingZeroBits",
@@ -106,7 +117,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         // STDLIB-BIT-007: Additional bit manipulation functions
         RuntimeABIFunctionSpec(
@@ -116,7 +128,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "distance", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_rotateRight",
@@ -125,7 +138,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "distance", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_highestOneBit",
@@ -133,7 +147,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_lowestOneBit",
@@ -141,7 +156,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_takeHighestOneBit",
@@ -149,7 +165,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_int_takeLowestOneBit",
@@ -157,7 +174,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         // Long bit manipulation functions
         RuntimeABIFunctionSpec(
@@ -167,7 +185,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "distance", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_rotateRight",
@@ -176,7 +195,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "distance", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_highestOneBit",
@@ -184,7 +204,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_lowestOneBit",
@@ -192,7 +213,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_takeHighestOneBit",
@@ -200,7 +222,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_takeLowestOneBit",
@@ -208,7 +231,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         // Int/Long comparison operators
         RuntimeABIFunctionSpec(
@@ -218,7 +242,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_ne",
@@ -284,7 +309,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_lfloor_div",
@@ -293,7 +319,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "rhs", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Bitwise"
+            section: "Bitwise",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_op_mod",
