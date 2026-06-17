@@ -51,15 +51,33 @@ final class IntegerNarrowingPass: LoweringPass {
         "kk_op_ushr": "kk_op_lushr",
     ]
 
+    private struct CachedSets {
+        let narrowingIDs: Set<InternedString>
+        let shiftIDs: Set<InternedString>
+    }
+
+    private nonisolated(unsafe) static var cache: [ObjectIdentifier: CachedSets] = [:]
+
+    private static func getCachedSets(interner: StringInterner) -> CachedSets {
+        let key = ObjectIdentifier(interner)
+        if let cached = cache[key] {
+            return cached
+        }
+        let narrowingIDs = Set(Self.narrowingCalleeNames.map { interner.intern($0) })
+        let shiftIDs = Set(Self.intShiftRenameNames.keys.map { interner.intern($0) })
+        let cached = CachedSets(narrowingIDs: narrowingIDs, shiftIDs: shiftIDs)
+        cache[key] = cached
+        return cached
+    }
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
         guard ctx.sema != nil else { return false }
-        let narrowingIDs = Set(Self.narrowingCalleeNames.map { ctx.interner.intern($0) })
-        let shiftIDs = Set(Self.intShiftRenameNames.keys.map { ctx.interner.intern($0) })
+        let cached = Self.getCachedSets(interner: ctx.interner)
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
             for instruction in function.body {
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
-                if narrowingIDs.contains(callee) || shiftIDs.contains(callee) {
+                if cached.narrowingIDs.contains(callee) || cached.shiftIDs.contains(callee) {
                     return true
                 }
             }

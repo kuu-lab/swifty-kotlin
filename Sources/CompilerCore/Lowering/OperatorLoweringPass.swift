@@ -10,9 +10,27 @@ final class OperatorLoweringPass: LoweringPass {
         let rangeCallees: Set<InternedString>
     }
 
+    private struct CachedCallees {
+        let printlnCallee: InternedString
+        let kkPrintlnAnyCallee: InternedString
+    }
+
+    private nonisolated(unsafe) static var cache: [ObjectIdentifier: CachedCallees] = [:]
+
+    private static func getCachedCallees(interner: StringInterner) -> CachedCallees {
+        let key = ObjectIdentifier(interner)
+        if let cached = cache[key] {
+            return cached
+        }
+        let printlnCallee = interner.intern("println")
+        let kkPrintlnAnyCallee = interner.intern("kk_println_any")
+        let cached = CachedCallees(printlnCallee: printlnCallee, kkPrintlnAnyCallee: kkPrintlnAnyCallee)
+        cache[key] = cached
+        return cached
+    }
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        let printlnCallee = ctx.interner.intern("println")
-        let kkPrintlnAnyCallee = ctx.interner.intern("kk_println_any")
+        let cached = Self.getCachedCallees(interner: ctx.interner)
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
             for instruction in function.body {
@@ -20,7 +38,7 @@ final class OperatorLoweringPass: LoweringPass {
                 case .binary, .unary, .nullAssert:
                     return true
                 case let .call(_, callee, _, _, _, _, _, _):
-                    if callee == printlnCallee || callee == kkPrintlnAnyCallee {
+                    if callee == cached.printlnCallee || callee == cached.kkPrintlnAnyCallee {
                         return true
                     }
                 default:
