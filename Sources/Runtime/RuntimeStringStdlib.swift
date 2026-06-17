@@ -987,6 +987,46 @@ public func kk_string_toULongOrNull_radix(
     return Int(bitPattern: UInt(truncatingIfNeeded: value))
 }
 
+private let runtimeDecimalFloatingLiteralPattern =
+    #"^[+-]?((([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+))[fFdD]?$"#
+private let runtimeHexFloatingLiteralPattern =
+    #"^[+-]?0[xX](([0-9A-Fa-f]+(\.[0-9A-Fa-f]*)?)|(\.[0-9A-Fa-f]+))[pP][+-]?[0-9]+[fFdD]?$"#
+
+private func runtimeMatchesEntireRegex(_ source: String, pattern: String) -> Bool {
+    guard let range = source.range(of: pattern, options: .regularExpression) else {
+        return false
+    }
+    return range == source.startIndex ..< source.endIndex
+}
+
+private func runtimeDroppingFloatingTypeSuffix(_ source: String) -> String {
+    guard let last = source.unicodeScalars.last, "fFdD".unicodeScalars.contains(last) else {
+        return source
+    }
+    return String(source.dropLast())
+}
+
+/// Parse Kotlin/Java-style floating literals without accepting Swift-only spellings.
+private func runtimeParseDouble(_ trimmed: String) -> Double? {
+    switch trimmed {
+    case "NaN":
+        return .nan
+    case "Infinity", "+Infinity":
+        return .infinity
+    case "-Infinity":
+        return -.infinity
+    default:
+        break
+    }
+
+    guard runtimeMatchesEntireRegex(trimmed, pattern: runtimeDecimalFloatingLiteralPattern)
+        || runtimeMatchesEntireRegex(trimmed, pattern: runtimeHexFloatingLiteralPattern)
+    else {
+        return nil
+    }
+    return Double(runtimeDroppingFloatingTypeSuffix(trimmed))
+}
+
 @_cdecl("kk_string_toDouble")
 public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -997,17 +1037,7 @@ public func kk_string_toDouble(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<
         return 0
     }
 
-    let value: Double? = switch trimmed {
-    case "NaN":
-        .nan
-    case "Infinity", "+Infinity":
-        .infinity
-    case "-Infinity":
-        -.infinity
-    default:
-        Double(trimmed)
-    }
-    guard let parsed = value else {
+    guard let parsed = runtimeParseDouble(trimmed) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(
             message: "For input string: \"\(trimmed)\""
         )
@@ -1024,17 +1054,7 @@ public func kk_string_toDoubleOrNull(_ strRaw: Int) -> Int {
         return runtimeNullSentinelInt
     }
 
-    let value: Double? = switch trimmed {
-    case "NaN":
-        .nan
-    case "Infinity", "+Infinity":
-        .infinity
-    case "-Infinity":
-        -.infinity
-    default:
-        Double(trimmed)
-    }
-    guard let parsed = value else {
+    guard let parsed = runtimeParseDouble(trimmed) else {
         return runtimeNullSentinelInt
     }
     return Int(bitPattern: UInt(truncatingIfNeeded: parsed.bitPattern))
