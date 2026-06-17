@@ -183,6 +183,35 @@ extension CodegenBackendIntegrationTests {
         )
     }
 
+    func testNumericBoundaryUnsignedNarrowingConversions() throws {
+        let source = """
+        fun main() {
+            println(UInt.MAX_VALUE.toByte())
+            println(UInt.MAX_VALUE.toShort())
+            println(ULong.MAX_VALUE.toByte())
+            println(ULong.MAX_VALUE.toShort())
+            println(UByte.MAX_VALUE.toByte())
+            println(UByte.MAX_VALUE.toShort())
+            println(UShort.MAX_VALUE.toByte())
+            println(UShort.MAX_VALUE.toShort())
+        }
+        """
+        try assertProgramStdout(
+            source,
+            moduleName: "NumericBoundaryUnsignedNarrowingConversions",
+            expected: """
+            -1
+            -1
+            -1
+            -1
+            -1
+            255
+            -1
+            -1
+            """ + "\n"
+        )
+    }
+
     func testNumericBoundaryIntToCharTruncates() throws {
         let source = """
         fun main() {
