@@ -18,7 +18,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_result_isFailure",
@@ -26,7 +27,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
         // STDLIB-282: Result member functions
         RuntimeABIFunctionSpec(
@@ -35,7 +37,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_result_getOrDefault",
@@ -44,7 +47,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "defaultValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_result_getOrElse",
@@ -72,7 +76,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Result"
+            section: "Result",
+            isThrowing: false
         ),
         // STDLIB-283: Result HOF functions
         RuntimeABIFunctionSpec(

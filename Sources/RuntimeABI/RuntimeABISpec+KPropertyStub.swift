@@ -10,7 +10,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "returnTypeStr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         // STDLIB-REFLECT-062: full create with visibility/isLateinit/isConst
         RuntimeABIFunctionSpec(
@@ -31,7 +32,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kproperty_stub_return_type",
@@ -39,7 +41,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         // STDLIB-REFLECT-062: visibility, isLateinit, isConst
         RuntimeABIFunctionSpec(

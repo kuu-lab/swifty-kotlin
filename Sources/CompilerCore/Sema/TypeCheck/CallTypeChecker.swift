@@ -1023,7 +1023,7 @@ final class CallTypeChecker {
             return longType
         }
 
-        // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-007) ---
+        // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMicros",
            args.count == 1,

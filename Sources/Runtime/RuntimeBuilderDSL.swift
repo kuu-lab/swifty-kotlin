@@ -225,13 +225,8 @@ private final class RuntimeBuilderState: @unchecked Sendable {
 private let runtimeBuilderState = RuntimeBuilderState()
 
 @_cdecl("kk_string_builder_append")
-public func kk_string_builder_append(_ strRaw: Int) -> Int {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: strRaw),
-          let string = extractString(from: pointer)
-    else {
-        return 0
-    }
-    runtimeBuilderState.appendString(string)
+public func kk_string_builder_append(_ valueRaw: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
     return 0
 }
 
@@ -240,12 +235,7 @@ public func kk_string_builder_append(_ strRaw: Int) -> Int {
 // the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
 @_cdecl("kk_string_builder_append_line")
 public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
-    guard let pointer = UnsafeMutableRawPointer(bitPattern: valueRaw),
-          let string = extractString(from: pointer)
-    else {
-        return 0
-    }
-    runtimeBuilderState.appendString(string)
+    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
     runtimeBuilderState.appendString("\n")
     return 0
 }
