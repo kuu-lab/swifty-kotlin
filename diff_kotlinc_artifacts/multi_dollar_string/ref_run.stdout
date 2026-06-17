@@ -1,0 +1,6 @@
+Hello $name, value = World
+Price is $$100, name = World
+Result: 43
+Dollar sign: $
+Interpolated: World
+literal $x and $name

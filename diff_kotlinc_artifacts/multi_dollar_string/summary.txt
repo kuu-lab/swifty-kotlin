@@ -1,0 +1,14 @@
+case: Scripts/diff_cases/multi_dollar_string.kt
+result: FAIL
+artifact_dir: /home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string
+compile_timeout_seconds: 180
+run_timeout_seconds: 30
+ref_compile_exit: 0
+candidate_compile_exit: 0
+ref_run_exit: 0
+candidate_run_exit: 139
+kswiftc: /home/runner/work/swifty-kotlin/swifty-kotlin/.build/debug/kswiftc
+kotlinc: kotlinc
+java: java
+force_run_skipped: 0
+clean_runtime_cache: 0

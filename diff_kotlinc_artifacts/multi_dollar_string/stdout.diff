@@ -1,0 +1,9 @@
+--- /home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string/ref_run_stdout.norm	2026-06-15 20:55:39.394096812 +0000
++++ /home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string/cand_run_stdout.norm	2026-06-15 20:55:39.394096812 +0000
+@@ -1,6 +0,0 @@
+-Hello $name, value = World
+-Price is $$100, name = World
+-Result: 43
+-Dollar sign: $
+-Interpolated: World
+-literal $x and $name

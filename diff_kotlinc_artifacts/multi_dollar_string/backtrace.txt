@@ -1,0 +1,19 @@
+(lldb) target create "/home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string/candidate.out"
+Current executable set to '/home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string/candidate.out' (x86_64).
+(lldb) run
+Hello $name, value = World
+Price is $$100, name = World
+Result: 43
+Process 12185 launched: '/home/runner/work/_temp/diff_kotlinc_artifacts/multi_dollar_string/candidate.out' (x86_64)
+Process 12185 stopped
+* thread #1, name = 'candidate.out', stop reason = signal SIGSEGV: invalid address (fault address: 0x0)
+    frame #0: 0x0000000000701d29 candidate.out`kk_string_substring(strRaw=8846384, startRaw=0, endRaw=0, hasEndRaw=140737488342592, outThrown=0x91730eaae69b192f) at RuntimeStringStdlib.swift:268:24
+   265 	    _ hasEndRaw: Int,
+   266 	    _ outThrown: UnsafeMutablePointer<Int>?
+   267 	) -> Int {
+-> 268 	    outThrown?.pointee = 0
+    	                       ^
+   269 	    let scalars = runtimeStringScalars(strRaw)
+   270 	    let length = scalars.count
+   271 	    let start = startRaw
+Target 0: (candidate.out) stopped.

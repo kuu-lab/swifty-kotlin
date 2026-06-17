@@ -1,0 +1,1792 @@
+decl[0] function #6513 count params=2 suspend=false inline=true
+  const r0=symbolRef(CompilerCore.SymbolID(rawValue: -16513))
+  const r1=symbolRef(CompilerCore.SymbolID(rawValue: 6515))
+  const r2=intLiteral(0)
+  const r3=unit
+  const r4=intLiteral(0)
+  const r5=unit
+  label L10000
+  call kk_collection_size symbol=_ args=[r0] ret=r6 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r6] ret=r1145 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r4, r1145] ret=r7 thrown=true thrownResult=_
+  const r8=boolLiteral(false)
+  jumpIfEqual r7, r8 -> L10001
+  call kk_list_get symbol=get args=[r0, r4] ret=r9 thrown=false thrownResult=_
+  call kk_function_invoke symbol=predicate args=[r1, r9] ret=r10 thrown=true thrownResult=_
+  const r12=boolLiteral(false)
+  jumpIfEqual r10, r12 -> L10002
+  const r13=intLiteral(1)
+  call kk_op_add symbol=_ args=[r2, r13] ret=r1090 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1090] ret=r14 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r14] ret=r2 thrown=false thrownResult=_
+  const r15=unit
+  copy r15 -> r11
+  jump L10003
+  label L10002
+  const r16=unit
+  copy r16 -> r11
+  label L10003
+  const r17=intLiteral(1)
+  call kk_op_add symbol=_ args=[r4, r17] ret=r1091 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1091] ret=r18 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r18] ret=r4 thrown=false thrownResult=_
+  const r19=unit
+  const r20=unit
+  jump L10000
+  label L10001
+  const r21=unit
+  return r2
+decl[1] function #6516 any params=2 suspend=false inline=true
+  const r22=symbolRef(CompilerCore.SymbolID(rawValue: -16516))
+  const r23=symbolRef(CompilerCore.SymbolID(rawValue: 6518))
+  const r24=intLiteral(0)
+  const r25=unit
+  label L10000
+  call kk_collection_size symbol=_ args=[r22] ret=r26 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r26] ret=r1146 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r24, r1146] ret=r27 thrown=true thrownResult=_
+  const r28=boolLiteral(false)
+  jumpIfEqual r27, r28 -> L10001
+  call kk_list_get symbol=get args=[r22, r24] ret=r29 thrown=false thrownResult=_
+  call kk_function_invoke symbol=predicate args=[r23, r29] ret=r30 thrown=true thrownResult=_
+  const r32=boolLiteral(false)
+  jumpIfEqual r30, r32 -> L10002
+  const r33=boolLiteral(true)
+  return r33
+  const r34=unit
+  label L10002
+  const r35=unit
+  copy r35 -> r31
+  label L10003
+  const r36=intLiteral(1)
+  call kk_op_add symbol=_ args=[r24, r36] ret=r1092 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1092] ret=r37 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r37] ret=r24 thrown=false thrownResult=_
+  const r38=unit
+  const r39=unit
+  jump L10000
+  label L10001
+  const r40=unit
+  const r41=boolLiteral(false)
+  return r41
+decl[2] function #6519 all params=2 suspend=false inline=true
+  const r42=symbolRef(CompilerCore.SymbolID(rawValue: -16519))
+  const r43=symbolRef(CompilerCore.SymbolID(rawValue: 6521))
+  const r44=intLiteral(0)
+  const r45=unit
+  label L10000
+  call kk_collection_size symbol=_ args=[r42] ret=r46 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r46] ret=r1147 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r44, r1147] ret=r47 thrown=true thrownResult=_
+  const r48=boolLiteral(false)
+  jumpIfEqual r47, r48 -> L10001
+  call kk_list_get symbol=get args=[r42, r44] ret=r49 thrown=false thrownResult=_
+  call kk_function_invoke symbol=predicate args=[r43, r49] ret=r50 thrown=true thrownResult=_
+  const r51=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r50] ret=r1148 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1148, r51] ret=r52 thrown=false thrownResult=_
+  const r54=boolLiteral(false)
+  jumpIfEqual r52, r54 -> L10002
+  const r55=boolLiteral(false)
+  return r55
+  const r56=unit
+  label L10002
+  const r57=unit
+  copy r57 -> r53
+  label L10003
+  const r58=intLiteral(1)
+  call kk_op_add symbol=_ args=[r44, r58] ret=r1093 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1093] ret=r59 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r59] ret=r44 thrown=false thrownResult=_
+  const r60=unit
+  const r61=unit
+  jump L10000
+  label L10001
+  const r62=unit
+  const r63=boolLiteral(true)
+  return r63
+decl[3] function #6522 none params=2 suspend=false inline=true
+  const r64=symbolRef(CompilerCore.SymbolID(rawValue: -16522))
+  const r65=symbolRef(CompilerCore.SymbolID(rawValue: 6524))
+  const r66=intLiteral(0)
+  const r67=unit
+  label L10000
+  call kk_collection_size symbol=_ args=[r64] ret=r68 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r68] ret=r1149 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r66, r1149] ret=r69 thrown=true thrownResult=_
+  const r70=boolLiteral(false)
+  jumpIfEqual r69, r70 -> L10001
+  call kk_list_get symbol=get args=[r64, r66] ret=r71 thrown=false thrownResult=_
+  call kk_function_invoke symbol=predicate args=[r65, r71] ret=r72 thrown=true thrownResult=_
+  const r74=boolLiteral(false)
+  jumpIfEqual r72, r74 -> L10002
+  const r75=boolLiteral(false)
+  return r75
+  const r76=unit
+  label L10002
+  const r77=unit
+  copy r77 -> r73
+  label L10003
+  const r78=intLiteral(1)
+  call kk_op_add symbol=_ args=[r66, r78] ret=r1094 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1094] ret=r79 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r79] ret=r66 thrown=false thrownResult=_
+  const r80=unit
+  const r81=unit
+  jump L10000
+  label L10001
+  const r82=unit
+  const r83=boolLiteral(true)
+  return r83
+decl[4] function #6525 sumOf params=2 suspend=false inline=true
+  const r84=symbolRef(CompilerCore.SymbolID(rawValue: -16525))
+  const r85=symbolRef(CompilerCore.SymbolID(rawValue: 6527))
+  const r86=intLiteral(0)
+  const r87=unit
+  const r88=intLiteral(0)
+  const r89=unit
+  label L10000
+  call kk_collection_size symbol=_ args=[r84] ret=r90 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r90] ret=r1150 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r88, r1150] ret=r91 thrown=true thrownResult=_
+  const r92=boolLiteral(false)
+  jumpIfEqual r91, r92 -> L10001
+  call kk_list_get symbol=get args=[r84, r88] ret=r93 thrown=false thrownResult=_
+  call kk_function_invoke symbol=selector args=[r85, r93] ret=r94 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r94] ret=r1151 thrown=false thrownResult=_
+  call kk_op_add symbol=_ args=[r86, r1151] ret=r1095 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1095] ret=r95 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r95] ret=r86 thrown=false thrownResult=_
+  const r96=unit
+  const r97=intLiteral(1)
+  call kk_op_add symbol=_ args=[r88, r97] ret=r1096 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1096] ret=r98 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r98] ret=r88 thrown=false thrownResult=_
+  const r99=unit
+  const r100=unit
+  jump L10000
+  label L10001
+  const r101=unit
+  return r86
+decl[5] function #6528 maxByOrNull params=2 suspend=false inline=true
+  const r102=symbolRef(CompilerCore.SymbolID(rawValue: -16528))
+  const r103=symbolRef(CompilerCore.SymbolID(rawValue: 6531))
+  const r104=unit
+  call kk_list_is_empty symbol=isEmpty args=[r102] ret=r1152 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1152] ret=r105 thrown=false thrownResult=_
+  const r107=boolLiteral(false)
+  jumpIfEqual r105, r107 -> L10000
+  const r108=null
+  return r108
+  const r109=unit
+  label L10000
+  const r110=unit
+  copy r110 -> r106
+  label L10001
+  const r111=intLiteral(0)
+  call kk_list_get symbol=get args=[r102, r111] ret=r112 thrown=false thrownResult=_
+  const r113=unit
+  call kk_function_invoke symbol=selector args=[r103, r112] ret=r114 thrown=true thrownResult=_
+  const r115=unit
+  const r116=intLiteral(1)
+  const r117=unit
+  label L10002
+  call kk_collection_size symbol=_ args=[r102] ret=r118 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r118] ret=r1153 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r116, r1153] ret=r119 thrown=true thrownResult=_
+  const r120=boolLiteral(false)
+  jumpIfEqual r119, r120 -> L10003
+  call kk_list_get symbol=get args=[r102, r116] ret=r121 thrown=false thrownResult=_
+  const r122=unit
+  call kk_function_invoke symbol=selector args=[r103, r121] ret=r123 thrown=true thrownResult=_
+  const r124=unit
+  call kk_compare_any symbol=_ args=[r123, r114] ret=r126 thrown=false thrownResult=_
+  const r127=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r126] ret=r1154 thrown=false thrownResult=_
+  call kk_op_gt symbol=_ args=[r1154, r127] ret=r125 thrown=true thrownResult=_
+  const r129=boolLiteral(false)
+  jumpIfEqual r125, r129 -> L10004
+  copy r121 -> r112
+  const r130=unit
+  copy r123 -> r114
+  const r131=unit
+  const r132=unit
+  copy r132 -> r128
+  jump L10005
+  label L10004
+  const r133=unit
+  copy r133 -> r128
+  label L10005
+  const r134=intLiteral(1)
+  call kk_op_add symbol=_ args=[r116, r134] ret=r1097 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1097] ret=r135 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r135] ret=r116 thrown=false thrownResult=_
+  const r136=unit
+  const r137=unit
+  jump L10002
+  label L10003
+  const r138=unit
+  return r112
+decl[6] function #6532 minByOrNull params=2 suspend=false inline=true
+  const r139=symbolRef(CompilerCore.SymbolID(rawValue: -16532))
+  const r140=symbolRef(CompilerCore.SymbolID(rawValue: 6535))
+  const r141=unit
+  call kk_list_is_empty symbol=isEmpty args=[r139] ret=r1155 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1155] ret=r142 thrown=false thrownResult=_
+  const r144=boolLiteral(false)
+  jumpIfEqual r142, r144 -> L10000
+  const r145=null
+  return r145
+  const r146=unit
+  label L10000
+  const r147=unit
+  copy r147 -> r143
+  label L10001
+  const r148=intLiteral(0)
+  call kk_list_get symbol=get args=[r139, r148] ret=r149 thrown=false thrownResult=_
+  const r150=unit
+  call kk_function_invoke symbol=selector args=[r140, r149] ret=r151 thrown=true thrownResult=_
+  const r152=unit
+  const r153=intLiteral(1)
+  const r154=unit
+  label L10002
+  call kk_collection_size symbol=_ args=[r139] ret=r155 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r155] ret=r1156 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r153, r1156] ret=r156 thrown=true thrownResult=_
+  const r157=boolLiteral(false)
+  jumpIfEqual r156, r157 -> L10003
+  call kk_list_get symbol=get args=[r139, r153] ret=r158 thrown=false thrownResult=_
+  const r159=unit
+  call kk_function_invoke symbol=selector args=[r140, r158] ret=r160 thrown=true thrownResult=_
+  const r161=unit
+  call kk_compare_any symbol=_ args=[r160, r151] ret=r163 thrown=false thrownResult=_
+  const r164=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r163] ret=r1157 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1157, r164] ret=r162 thrown=true thrownResult=_
+  const r166=boolLiteral(false)
+  jumpIfEqual r162, r166 -> L10004
+  copy r158 -> r149
+  const r167=unit
+  copy r160 -> r151
+  const r168=unit
+  const r169=unit
+  copy r169 -> r165
+  jump L10005
+  label L10004
+  const r170=unit
+  copy r170 -> r165
+  label L10005
+  const r171=intLiteral(1)
+  call kk_op_add symbol=_ args=[r153, r171] ret=r1098 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1098] ret=r172 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r172] ret=r153 thrown=false thrownResult=_
+  const r173=unit
+  const r174=unit
+  jump L10002
+  label L10003
+  const r175=unit
+  return r149
+decl[7] function #6536 repeat params=2 suspend=false inline=false
+  const r176=symbolRef(CompilerCore.SymbolID(rawValue: -16536))
+  const r177=symbolRef(CompilerCore.SymbolID(rawValue: 6537))
+  const r178=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r177] ret=r1158 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1158, r178] ret=r179 thrown=true thrownResult=_
+  const r181=boolLiteral(false)
+  jumpIfEqual r179, r181 -> L10000
+  const r182=unit
+  const r183=stringLiteral("Count 'n' must be non-negative, but was ")
+  const r184=intLiteral(1)
+  call kk_any_to_string symbol=_ args=[r177, r184] ret=r185 thrown=false thrownResult=_
+  const r186=stringLiteral(".")
+  call kk_string_concat symbol=_ args=[r183, r185] ret=r187 thrown=false thrownResult=_
+  call kk_string_concat symbol=_ args=[r187, r186] ret=r188 thrown=false thrownResult=_
+  call kk_throwable_new symbol=<init> args=[r188] ret=r189 thrown=true thrownResult=_
+  rethrow r189
+  const r190=unit
+  label L10000
+  const r191=unit
+  copy r191 -> r180
+  label L10001
+  const r192=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r193 thrown=false thrownResult=_
+  const r194=unit
+  const r195=intLiteral(0)
+  const r196=unit
+  label L10002
+  call kk_unbox_int symbol=_ args=[r177] ret=r1159 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r195, r1159] ret=r197 thrown=true thrownResult=_
+  const r198=boolLiteral(false)
+  jumpIfEqual r197, r198 -> L10003
+  call kk_string_builder_append_obj symbol=_ args=[r193, r176] ret=r199 thrown=false thrownResult=_
+  const r200=intLiteral(1)
+  call kk_op_add symbol=_ args=[r195, r200] ret=r1099 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1099] ret=r201 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r201] ret=r195 thrown=false thrownResult=_
+  const r202=unit
+  const r203=unit
+  jump L10002
+  label L10003
+  const r204=unit
+  call kk_string_builder_toString symbol=_ args=[r193] ret=r205 thrown=false thrownResult=_
+  return r205
+decl[8] function #6538 reversed params=1 suspend=false inline=false
+  const r206=symbolRef(CompilerCore.SymbolID(rawValue: -16538))
+  call kk_string_length symbol=_ args=[r206] ret=r207 thrown=false thrownResult=_
+  const r208=unit
+  const r209=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r210 thrown=false thrownResult=_
+  const r211=unit
+  const r212=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r207] ret=r1160 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1160, r212] ret=r1100 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1100] ret=r213 thrown=false thrownResult=_
+  const r214=unit
+  label L10000
+  const r215=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r213] ret=r1161 thrown=false thrownResult=_
+  call kk_op_ge symbol=_ args=[r1161, r215] ret=r216 thrown=true thrownResult=_
+  const r217=boolLiteral(false)
+  jumpIfEqual r216, r217 -> L10001
+  const r218=intLiteral(0)
+  call kk_string_get symbol=_ args=[r206, r213, r218] ret=r219 thrown=true thrownResult=_
+  call kk_string_builder_append_char symbol=_ args=[r210, r219] ret=r220 thrown=true thrownResult=_
+  const r221=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r213] ret=r1162 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1162, r221] ret=r1101 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1101] ret=r222 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r222] ret=r213 thrown=false thrownResult=_
+  const r223=unit
+  const r224=unit
+  jump L10000
+  label L10001
+  const r225=unit
+  call kk_string_builder_toString symbol=_ args=[r210] ret=r226 thrown=false thrownResult=_
+  return r226
+decl[9] function #6539 padStart params=3 suspend=false inline=false
+  const r227=symbolRef(CompilerCore.SymbolID(rawValue: -16539))
+  const r228=symbolRef(CompilerCore.SymbolID(rawValue: 6540))
+  const r229=symbolRef(CompilerCore.SymbolID(rawValue: 6541))
+  call kk_string_length symbol=_ args=[r227] ret=r230 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r228] ret=r1163 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r230] ret=r1164 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1163, r1164] ret=r1102 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1102] ret=r231 thrown=false thrownResult=_
+  const r232=unit
+  const r233=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r231] ret=r1165 thrown=false thrownResult=_
+  call kk_op_le symbol=_ args=[r1165, r233] ret=r234 thrown=true thrownResult=_
+  const r236=boolLiteral(false)
+  jumpIfEqual r234, r236 -> L10000
+  return r227
+  const r237=unit
+  label L10000
+  const r238=unit
+  copy r238 -> r235
+  label L10001
+  const r239=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r240 thrown=false thrownResult=_
+  const r241=unit
+  const r242=intLiteral(0)
+  const r243=unit
+  label L10002
+  call kk_unbox_int symbol=_ args=[r231] ret=r1166 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r242, r1166] ret=r244 thrown=true thrownResult=_
+  const r245=boolLiteral(false)
+  jumpIfEqual r244, r245 -> L10003
+  call kk_string_builder_append_char symbol=_ args=[r240, r229] ret=r246 thrown=true thrownResult=_
+  const r247=intLiteral(1)
+  call kk_op_add symbol=_ args=[r242, r247] ret=r1103 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1103] ret=r248 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r248] ret=r242 thrown=false thrownResult=_
+  const r249=unit
+  const r250=unit
+  jump L10002
+  label L10003
+  const r251=unit
+  call kk_string_builder_append_obj symbol=_ args=[r240, r227] ret=r252 thrown=false thrownResult=_
+  call kk_string_builder_toString symbol=_ args=[r240] ret=r253 thrown=false thrownResult=_
+  return r253
+decl[10] function #-46539 padStart$default params=4 suspend=false inline=false
+  const r254=symbolRef(CompilerCore.SymbolID(rawValue: -16539))
+  const r255=symbolRef(CompilerCore.SymbolID(rawValue: -36539))
+  const r256=symbolRef(CompilerCore.SymbolID(rawValue: 6540))
+  const r257=symbolRef(CompilerCore.SymbolID(rawValue: 6541))
+  const r258=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r255] ret=r1167 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1167, r258] ret=r1104 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1104] ret=r259 thrown=false thrownResult=_
+  const r260=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r259] ret=r1168 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1168, r260] ret=r1105 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1105] ret=r261 thrown=false thrownResult=_
+  const r262=intLiteral(0)
+  jumpIfEqual r261, r262 -> L10000
+  const r263=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r263] ret=r264 thrown=false thrownResult=_
+  jump L10001
+  label L10000
+  call kk_unbox_char symbol=_ args=[r257] ret=r264 thrown=false thrownResult=_
+  label L10001
+  call padStart symbol=padStart args=[r254, r256, r264] ret=r265 thrown=true thrownResult=_
+  return r265
+decl[11] function #6542 padEnd params=3 suspend=false inline=false
+  const r266=symbolRef(CompilerCore.SymbolID(rawValue: -16542))
+  const r267=symbolRef(CompilerCore.SymbolID(rawValue: 6543))
+  const r268=symbolRef(CompilerCore.SymbolID(rawValue: 6544))
+  call kk_string_length symbol=_ args=[r266] ret=r269 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r267] ret=r1169 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r269] ret=r1170 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1169, r1170] ret=r1106 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1106] ret=r270 thrown=false thrownResult=_
+  const r271=unit
+  const r272=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r270] ret=r1171 thrown=false thrownResult=_
+  call kk_op_le symbol=_ args=[r1171, r272] ret=r273 thrown=true thrownResult=_
+  const r275=boolLiteral(false)
+  jumpIfEqual r273, r275 -> L10000
+  return r266
+  const r276=unit
+  label L10000
+  const r277=unit
+  copy r277 -> r274
+  label L10001
+  const r278=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r279 thrown=false thrownResult=_
+  const r280=unit
+  call kk_string_builder_append_obj symbol=_ args=[r279, r266] ret=r281 thrown=false thrownResult=_
+  const r282=intLiteral(0)
+  const r283=unit
+  label L10002
+  call kk_unbox_int symbol=_ args=[r270] ret=r1172 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r282, r1172] ret=r284 thrown=true thrownResult=_
+  const r285=boolLiteral(false)
+  jumpIfEqual r284, r285 -> L10003
+  call kk_string_builder_append_char symbol=_ args=[r279, r268] ret=r286 thrown=true thrownResult=_
+  const r287=intLiteral(1)
+  call kk_op_add symbol=_ args=[r282, r287] ret=r1107 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1107] ret=r288 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r288] ret=r282 thrown=false thrownResult=_
+  const r289=unit
+  const r290=unit
+  jump L10002
+  label L10003
+  const r291=unit
+  call kk_string_builder_toString symbol=_ args=[r279] ret=r292 thrown=false thrownResult=_
+  return r292
+decl[12] function #-46542 padEnd$default params=4 suspend=false inline=false
+  const r293=symbolRef(CompilerCore.SymbolID(rawValue: -16542))
+  const r294=symbolRef(CompilerCore.SymbolID(rawValue: -36542))
+  const r295=symbolRef(CompilerCore.SymbolID(rawValue: 6543))
+  const r296=symbolRef(CompilerCore.SymbolID(rawValue: 6544))
+  const r297=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r294] ret=r1173 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1173, r297] ret=r1108 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1108] ret=r298 thrown=false thrownResult=_
+  const r299=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r298] ret=r1174 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1174, r299] ret=r1109 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1109] ret=r300 thrown=false thrownResult=_
+  const r301=intLiteral(0)
+  jumpIfEqual r300, r301 -> L10000
+  const r302=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r302] ret=r303 thrown=false thrownResult=_
+  jump L10001
+  label L10000
+  call kk_unbox_char symbol=_ args=[r296] ret=r303 thrown=false thrownResult=_
+  label L10001
+  call padEnd symbol=padEnd args=[r293, r295, r303] ret=r304 thrown=true thrownResult=_
+  return r304
+decl[13] function #6545 encodeToByteArray params=1 suspend=false inline=false
+  const r305=symbolRef(CompilerCore.SymbolID(rawValue: -16545))
+  call kk_string_encodeToByteArray symbol=__kk_encodeToByteArray args=[r305] ret=r306 thrown=true thrownResult=_
+  return r306
+decl[14] function #6546 encodeToByteArray params=3 suspend=false inline=false
+  const r307=symbolRef(CompilerCore.SymbolID(rawValue: -16546))
+  const r308=symbolRef(CompilerCore.SymbolID(rawValue: 6547))
+  const r309=symbolRef(CompilerCore.SymbolID(rawValue: 6548))
+  call kk_string_encodeToByteArray_range symbol=__kk_encodeToByteArray_range args=[r307, r308, r309] ret=r310 thrown=true thrownResult=_
+  return r310
+decl[15] function #6549 encodeToByteArray params=2 suspend=false inline=false
+  const r311=symbolRef(CompilerCore.SymbolID(rawValue: -16549))
+  const r312=symbolRef(CompilerCore.SymbolID(rawValue: 6550))
+  call kk_string_encodeToByteArray_charset symbol=__kk_encodeToByteArray_charset args=[r311, r312] ret=r313 thrown=true thrownResult=_
+  return r313
+decl[16] function #6551 decodeToString params=1 suspend=false inline=false
+  const r314=symbolRef(CompilerCore.SymbolID(rawValue: -16551))
+  call kk_bytearray_decodeToString symbol=__kk_decodeToString args=[r314] ret=r315 thrown=true thrownResult=_
+  return r315
+decl[17] function #6552 decodeToString params=2 suspend=false inline=false
+  const r316=symbolRef(CompilerCore.SymbolID(rawValue: -16552))
+  const r317=symbolRef(CompilerCore.SymbolID(rawValue: 6553))
+  call kk_bytearray_decodeToString_charset symbol=__kk_decodeToString_charset args=[r316, r317] ret=r318 thrown=true thrownResult=_
+  return r318
+decl[18] function #6554 decodeToString params=3 suspend=false inline=false
+  const r319=symbolRef(CompilerCore.SymbolID(rawValue: -16554))
+  const r320=symbolRef(CompilerCore.SymbolID(rawValue: 6555))
+  const r321=symbolRef(CompilerCore.SymbolID(rawValue: 6556))
+  call kk_bytearray_decodeToString_range symbol=__kk_decodeToString_range args=[r319, r320, r321] ret=r322 thrown=true thrownResult=_
+  return r322
+decl[19] function #6557 decodeToString params=4 suspend=false inline=false
+  const r323=symbolRef(CompilerCore.SymbolID(rawValue: -16557))
+  const r324=symbolRef(CompilerCore.SymbolID(rawValue: 6558))
+  const r325=symbolRef(CompilerCore.SymbolID(rawValue: 6559))
+  const r326=symbolRef(CompilerCore.SymbolID(rawValue: 6560))
+  call kk_bytearray_decodeToString_range_throw symbol=__kk_decodeToString_range_throw args=[r323, r324, r325, r326] ret=r327 thrown=true thrownResult=_
+  return r327
+decl[20] function #6561 splitIntoLines params=1 suspend=false inline=false
+  const r328=symbolRef(CompilerCore.SymbolID(rawValue: -16561))
+  const r329=unit
+  const r1068=intLiteral(0)
+  const r1069=intLiteral(0)
+  call kk_list_of symbol=_ args=[r1069, r1068] ret=r330 thrown=false thrownResult=_
+  const r331=unit
+  const r332=intLiteral(0)
+  const r333=unit
+  const r334=intLiteral(0)
+  const r335=unit
+  label L10000
+  call kk_string_length symbol=_ args=[r328] ret=r336 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r336] ret=r1175 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r334, r1175] ret=r337 thrown=true thrownResult=_
+  const r338=boolLiteral(false)
+  jumpIfEqual r337, r338 -> L10001
+  const r339=intLiteral(0)
+  call kk_string_get symbol=_ args=[r328, r334, r339] ret=r340 thrown=true thrownResult=_
+  const r341=unit
+  const r342=charLiteral(13)
+  call kk_unbox_char symbol=_ args=[r340] ret=r1176 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1176, r342] ret=r343 thrown=false thrownResult=_
+  const r345=boolLiteral(false)
+  jumpIfEqual r343, r345 -> L10002
+  const r346=unit
+  call kk_string_substring symbol=substring args=[r328, r332, r334] ret=r347 thrown=true thrownResult=_
+  call kk_mutable_list_add symbol=add args=[r330, r347] ret=r1177 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1177] ret=r348 thrown=false thrownResult=_
+  const r349=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r349] ret=r1110 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1110] ret=r350 thrown=false thrownResult=_
+  call kk_string_length symbol=_ args=[r328] ret=r351 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r350] ret=r1178 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r351] ret=r1179 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1178, r1179] ret=r352 thrown=true thrownResult=_
+  const r353=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r353] ret=r1111 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1111] ret=r354 thrown=false thrownResult=_
+  const r355=intLiteral(0)
+  call kk_string_get symbol=_ args=[r328, r354, r355] ret=r356 thrown=true thrownResult=_
+  const r357=charLiteral(10)
+  call kk_unbox_char symbol=_ args=[r356] ret=r1180 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1180, r357] ret=r358 thrown=false thrownResult=_
+  call kk_op_and symbol=_ args=[r352, r358] ret=r359 thrown=true thrownResult=_
+  const r361=boolLiteral(false)
+  jumpIfEqual r359, r361 -> L10004
+  const r362=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r362] ret=r1112 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1112] ret=r363 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r363] ret=r334 thrown=false thrownResult=_
+  const r364=unit
+  const r365=unit
+  copy r365 -> r360
+  jump L10005
+  label L10004
+  const r366=unit
+  copy r366 -> r360
+  label L10005
+  const r367=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r367] ret=r1113 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1113] ret=r368 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r368] ret=r332 thrown=false thrownResult=_
+  const r369=unit
+  const r370=unit
+  copy r370 -> r344
+  jump L10003
+  label L10002
+  const r371=charLiteral(10)
+  call kk_unbox_char symbol=_ args=[r340] ret=r1181 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1181, r371] ret=r372 thrown=false thrownResult=_
+  const r374=boolLiteral(false)
+  jumpIfEqual r372, r374 -> L10006
+  const r375=unit
+  call kk_string_substring symbol=substring args=[r328, r332, r334] ret=r376 thrown=true thrownResult=_
+  call kk_mutable_list_add symbol=add args=[r330, r376] ret=r1182 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1182] ret=r377 thrown=false thrownResult=_
+  const r378=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r378] ret=r1114 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1114] ret=r379 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r379] ret=r332 thrown=false thrownResult=_
+  const r380=unit
+  const r381=unit
+  copy r381 -> r373
+  jump L10007
+  label L10006
+  const r382=unit
+  copy r382 -> r373
+  label L10007
+  copy r373 -> r344
+  label L10003
+  const r383=intLiteral(1)
+  call kk_op_add symbol=_ args=[r334, r383] ret=r1115 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1115] ret=r384 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r384] ret=r334 thrown=false thrownResult=_
+  const r385=unit
+  const r386=unit
+  jump L10000
+  label L10001
+  const r387=unit
+  const r388=unit
+  call kk_string_substring symbol=substring args=[r328, r332] ret=r389 thrown=true thrownResult=_
+  call kk_mutable_list_add symbol=add args=[r330, r389] ret=r1183 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1183] ret=r390 thrown=false thrownResult=_
+  return r330
+decl[21] function #6562 leadingWhitespaceCount params=1 suspend=false inline=false
+  const r391=symbolRef(CompilerCore.SymbolID(rawValue: -16562))
+  const r392=intLiteral(0)
+  const r393=unit
+  label L10000
+  call kk_string_length symbol=_ args=[r391] ret=r394 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r394] ret=r1184 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r392, r1184] ret=r395 thrown=true thrownResult=_
+  const r396=boolLiteral(false)
+  jumpIfEqual r395, r396 -> L10001
+  const r397=intLiteral(0)
+  call kk_string_get symbol=_ args=[r391, r392, r397] ret=r398 thrown=true thrownResult=_
+  const r399=unit
+  const r400=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r398] ret=r1185 thrown=false thrownResult=_
+  call kk_op_ne symbol=_ args=[r1185, r400] ret=r401 thrown=true thrownResult=_
+  const r402=charLiteral(9)
+  call kk_unbox_char symbol=_ args=[r398] ret=r1186 thrown=false thrownResult=_
+  call kk_op_ne symbol=_ args=[r1186, r402] ret=r403 thrown=true thrownResult=_
+  call kk_op_and symbol=_ args=[r401, r403] ret=r404 thrown=true thrownResult=_
+  const r406=boolLiteral(false)
+  jumpIfEqual r404, r406 -> L10002
+  jump L10001
+  const r407=unit
+  copy r407 -> r405
+  jump L10003
+  label L10002
+  const r408=unit
+  copy r408 -> r405
+  label L10003
+  const r409=intLiteral(1)
+  call kk_op_add symbol=_ args=[r392, r409] ret=r1116 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1116] ret=r410 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r410] ret=r392 thrown=false thrownResult=_
+  const r411=unit
+  const r412=unit
+  jump L10000
+  label L10001
+  const r413=unit
+  return r392
+decl[22] function #6563 isBlankLine params=1 suspend=false inline=false
+  const r414=symbolRef(CompilerCore.SymbolID(rawValue: -16563))
+  const r415=intLiteral(0)
+  const r416=unit
+  label L10000
+  call kk_string_length symbol=_ args=[r414] ret=r417 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r417] ret=r1187 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r415, r1187] ret=r418 thrown=true thrownResult=_
+  const r419=boolLiteral(false)
+  jumpIfEqual r418, r419 -> L10001
+  const r420=intLiteral(0)
+  call kk_string_get symbol=_ args=[r414, r415, r420] ret=r421 thrown=true thrownResult=_
+  const r422=unit
+  const r423=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r421] ret=r1188 thrown=false thrownResult=_
+  call kk_op_ne symbol=_ args=[r1188, r423] ret=r424 thrown=true thrownResult=_
+  const r425=charLiteral(9)
+  call kk_unbox_char symbol=_ args=[r421] ret=r1189 thrown=false thrownResult=_
+  call kk_op_ne symbol=_ args=[r1189, r425] ret=r426 thrown=true thrownResult=_
+  call kk_op_and symbol=_ args=[r424, r426] ret=r427 thrown=true thrownResult=_
+  const r429=boolLiteral(false)
+  jumpIfEqual r427, r429 -> L10002
+  const r430=boolLiteral(false)
+  return r430
+  const r431=unit
+  label L10002
+  const r432=unit
+  copy r432 -> r428
+  label L10003
+  const r433=intLiteral(1)
+  call kk_op_add symbol=_ args=[r415, r433] ret=r1117 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1117] ret=r434 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r434] ret=r415 thrown=false thrownResult=_
+  const r435=unit
+  const r436=unit
+  jump L10000
+  label L10001
+  const r437=unit
+  const r438=boolLiteral(true)
+  return r438
+decl[23] function #6564 trimBlankEdges params=1 suspend=false inline=false
+  const r439=symbolRef(CompilerCore.SymbolID(rawValue: 6565))
+  call kk_list_size symbol=_ args=[r439] ret=r440 thrown=false thrownResult=_
+  const r441=unit
+  const r442=intLiteral(0)
+  const r443=unit
+  const r444=unit
+  label L10000
+  call kk_unbox_int symbol=_ args=[r440] ret=r1190 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r442, r1190] ret=r445 thrown=true thrownResult=_
+  call kk_list_get symbol=get args=[r439, r442] ret=r446 thrown=false thrownResult=_
+  call isBlankLine symbol=isBlankLine args=[r446] ret=r1191 thrown=true thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1191] ret=r447 thrown=false thrownResult=_
+  call kk_op_and symbol=_ args=[r445, r447] ret=r448 thrown=true thrownResult=_
+  const r449=boolLiteral(false)
+  jumpIfEqual r448, r449 -> L10001
+  const r450=intLiteral(1)
+  call kk_op_add symbol=_ args=[r442, r450] ret=r1118 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1118] ret=r451 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r451] ret=r442 thrown=false thrownResult=_
+  const r452=unit
+  jump L10000
+  label L10001
+  const r453=unit
+  label L10002
+  call kk_unbox_int symbol=_ args=[r440] ret=r1192 thrown=false thrownResult=_
+  call kk_op_gt symbol=_ args=[r1192, r442] ret=r454 thrown=true thrownResult=_
+  const r455=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r440] ret=r1193 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1193, r455] ret=r1119 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1119] ret=r456 thrown=false thrownResult=_
+  call kk_list_get symbol=get args=[r439, r456] ret=r457 thrown=false thrownResult=_
+  call isBlankLine symbol=isBlankLine args=[r457] ret=r1194 thrown=true thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1194] ret=r458 thrown=false thrownResult=_
+  call kk_op_and symbol=_ args=[r454, r458] ret=r459 thrown=true thrownResult=_
+  const r460=boolLiteral(false)
+  jumpIfEqual r459, r460 -> L10003
+  const r461=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r440] ret=r1195 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1195, r461] ret=r1120 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1120] ret=r462 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r462] ret=r440 thrown=false thrownResult=_
+  const r463=unit
+  jump L10002
+  label L10003
+  const r464=unit
+  const r465=unit
+  const r1070=intLiteral(0)
+  const r1071=intLiteral(0)
+  call kk_list_of symbol=_ args=[r1071, r1070] ret=r466 thrown=false thrownResult=_
+  const r467=unit
+  const r468=unit
+  label L10004
+  call kk_unbox_int symbol=_ args=[r440] ret=r1196 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r442, r1196] ret=r469 thrown=true thrownResult=_
+  const r470=boolLiteral(false)
+  jumpIfEqual r469, r470 -> L10005
+  call kk_list_get symbol=get args=[r439, r442] ret=r471 thrown=false thrownResult=_
+  call kk_mutable_list_add symbol=add args=[r466, r471] ret=r1197 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1197] ret=r472 thrown=false thrownResult=_
+  const r473=intLiteral(1)
+  call kk_op_add symbol=_ args=[r442, r473] ret=r1121 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1121] ret=r474 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r474] ret=r442 thrown=false thrownResult=_
+  const r475=unit
+  const r476=unit
+  jump L10004
+  label L10005
+  const r477=unit
+  return r466
+decl[24] function #6566 trimIndent params=1 suspend=false inline=false
+  const r478=symbolRef(CompilerCore.SymbolID(rawValue: -16566))
+  const r479=unit
+  const r480=unit
+  call splitIntoLines symbol=splitIntoLines args=[r478] ret=r481 thrown=true thrownResult=_
+  call trimBlankEdges symbol=trimBlankEdges args=[r481] ret=r482 thrown=true thrownResult=_
+  const r483=unit
+  call kk_list_is_empty symbol=isEmpty args=[r482] ret=r1198 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1198] ret=r484 thrown=false thrownResult=_
+  const r486=boolLiteral(false)
+  jumpIfEqual r484, r486 -> L10000
+  const r487=stringLiteral("")
+  return r487
+  const r488=unit
+  label L10000
+  const r489=unit
+  copy r489 -> r485
+  label L10001
+  const r490=intLiteral(1)
+  const r491=intLiteral(0)
+  call kk_op_sub symbol=_ args=[r491, r490] ret=r1122 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1122] ret=r492 thrown=false thrownResult=_
+  const r493=unit
+  call kk_list_iterator symbol=_ args=[r482] ret=r494 thrown=false thrownResult=_
+  label L10002
+  call kk_list_iterator_hasNext symbol=_ args=[r494] ret=r495 thrown=false thrownResult=_
+  const r496=boolLiteral(false)
+  jumpIfEqual r495, r496 -> L10003
+  call kk_list_iterator_next symbol=_ args=[r494] ret=r497 thrown=false thrownResult=_
+  call kk_string_isBlank symbol=isBlank args=[r497] ret=r1199 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1199] ret=r498 thrown=false thrownResult=_
+  const r499=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r498] ret=r1200 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1200, r499] ret=r500 thrown=false thrownResult=_
+  const r502=boolLiteral(false)
+  jumpIfEqual r500, r502 -> L10004
+  call leadingWhitespaceCount symbol=leadingWhitespaceCount args=[r497] ret=r1201 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1201] ret=r503 thrown=false thrownResult=_
+  const r504=unit
+  const r505=intLiteral(1)
+  const r506=intLiteral(0)
+  call kk_op_sub symbol=_ args=[r506, r505] ret=r1123 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1123] ret=r507 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r492] ret=r1202 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r507] ret=r1203 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1202, r1203] ret=r508 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r503] ret=r1204 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r492] ret=r1205 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1204, r1205] ret=r509 thrown=true thrownResult=_
+  call kk_op_or symbol=_ args=[r508, r509] ret=r510 thrown=true thrownResult=_
+  const r512=boolLiteral(false)
+  jumpIfEqual r510, r512 -> L10006
+  call kk_unbox_int symbol=_ args=[r503] ret=r492 thrown=false thrownResult=_
+  const r513=unit
+  copy r513 -> r511
+  jump L10007
+  label L10006
+  const r514=unit
+  copy r514 -> r511
+  label L10007
+  copy r511 -> r501
+  jump L10005
+  label L10004
+  const r515=unit
+  copy r515 -> r501
+  label L10005
+  jump L10002
+  label L10003
+  const r516=unit
+  const r517=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r492] ret=r1206 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1206, r517] ret=r518 thrown=true thrownResult=_
+  const r520=boolLiteral(false)
+  jumpIfEqual r518, r520 -> L10008
+  const r521=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r521] ret=r492 thrown=false thrownResult=_
+  const r522=unit
+  copy r522 -> r519
+  jump L10009
+  label L10008
+  const r523=unit
+  copy r523 -> r519
+  label L10009
+  const r524=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r525 thrown=false thrownResult=_
+  const r526=unit
+  const r527=boolLiteral(true)
+  const r528=unit
+  call kk_list_iterator symbol=_ args=[r482] ret=r529 thrown=false thrownResult=_
+  label L10010
+  call kk_list_iterator_hasNext symbol=_ args=[r529] ret=r530 thrown=false thrownResult=_
+  const r531=boolLiteral(false)
+  jumpIfEqual r530, r531 -> L10011
+  call kk_list_iterator_next symbol=_ args=[r529] ret=r532 thrown=false thrownResult=_
+  const r533=boolLiteral(false)
+  call kk_op_eq symbol=_ args=[r527, r533] ret=r534 thrown=false thrownResult=_
+  const r536=boolLiteral(false)
+  jumpIfEqual r534, r536 -> L10012
+  const r537=charLiteral(10)
+  call kk_string_builder_append_char symbol=_ args=[r525, r537] ret=r538 thrown=true thrownResult=_
+  copy r538 -> r535
+  jump L10013
+  label L10012
+  const r539=unit
+  copy r539 -> r535
+  label L10013
+  call kk_string_isBlank symbol=isBlank args=[r532] ret=r1207 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1207] ret=r540 thrown=false thrownResult=_
+  const r542=boolLiteral(false)
+  jumpIfEqual r540, r542 -> L10014
+  const r543=stringLiteral("")
+  call kk_string_builder_append_obj symbol=_ args=[r525, r543] ret=r544 thrown=false thrownResult=_
+  copy r544 -> r541
+  jump L10015
+  label L10014
+  const r546=intLiteral(0)
+  const r547=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r532, r492, r547, r546] ret=r545 thrown=true thrownResult=_
+  call kk_string_builder_append_obj symbol=_ args=[r525, r545] ret=r548 thrown=false thrownResult=_
+  copy r548 -> r541
+  label L10015
+  const r549=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r549] ret=r527 thrown=false thrownResult=_
+  const r550=unit
+  const r551=unit
+  jump L10010
+  label L10011
+  const r552=unit
+  call kk_string_builder_toString symbol=_ args=[r525] ret=r553 thrown=false thrownResult=_
+  return r553
+decl[25] function #6567 trimMargin params=2 suspend=false inline=false
+  const r554=symbolRef(CompilerCore.SymbolID(rawValue: -16567))
+  const r555=symbolRef(CompilerCore.SymbolID(rawValue: 6568))
+  const r556=unit
+  const r557=unit
+  call splitIntoLines symbol=splitIntoLines args=[r554] ret=r558 thrown=true thrownResult=_
+  call trimBlankEdges symbol=trimBlankEdges args=[r558] ret=r559 thrown=true thrownResult=_
+  const r560=unit
+  call kk_list_is_empty symbol=isEmpty args=[r559] ret=r1208 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1208] ret=r561 thrown=false thrownResult=_
+  const r563=boolLiteral(false)
+  jumpIfEqual r561, r563 -> L10000
+  const r564=stringLiteral("")
+  return r564
+  const r565=unit
+  label L10000
+  const r566=unit
+  copy r566 -> r562
+  label L10001
+  const r567=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r568 thrown=false thrownResult=_
+  const r569=unit
+  const r570=boolLiteral(true)
+  const r571=unit
+  call kk_list_iterator symbol=_ args=[r559] ret=r572 thrown=false thrownResult=_
+  label L10002
+  call kk_list_iterator_hasNext symbol=_ args=[r572] ret=r573 thrown=false thrownResult=_
+  const r574=boolLiteral(false)
+  jumpIfEqual r573, r574 -> L10003
+  call kk_list_iterator_next symbol=_ args=[r572] ret=r575 thrown=false thrownResult=_
+  const r576=boolLiteral(false)
+  call kk_op_eq symbol=_ args=[r570, r576] ret=r577 thrown=false thrownResult=_
+  const r579=boolLiteral(false)
+  jumpIfEqual r577, r579 -> L10004
+  const r580=charLiteral(10)
+  call kk_string_builder_append_char symbol=_ args=[r568, r580] ret=r581 thrown=true thrownResult=_
+  copy r581 -> r578
+  jump L10005
+  label L10004
+  const r582=unit
+  copy r582 -> r578
+  label L10005
+  const r583=intLiteral(0)
+  const r584=unit
+  label L10006
+  call kk_string_length symbol=_ args=[r575] ret=r585 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r585] ret=r1209 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r583, r1209] ret=r586 thrown=true thrownResult=_
+  const r587=intLiteral(0)
+  call kk_string_get symbol=_ args=[r575, r583, r587] ret=r588 thrown=true thrownResult=_
+  const r589=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r588] ret=r1210 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1210, r589] ret=r590 thrown=false thrownResult=_
+  const r591=intLiteral(0)
+  call kk_string_get symbol=_ args=[r575, r583, r591] ret=r592 thrown=true thrownResult=_
+  const r593=charLiteral(9)
+  call kk_unbox_char symbol=_ args=[r592] ret=r1211 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1211, r593] ret=r594 thrown=false thrownResult=_
+  call kk_op_or symbol=_ args=[r590, r594] ret=r595 thrown=true thrownResult=_
+  call kk_op_and symbol=_ args=[r586, r595] ret=r596 thrown=true thrownResult=_
+  const r597=boolLiteral(false)
+  jumpIfEqual r596, r597 -> L10007
+  const r598=intLiteral(1)
+  call kk_op_add symbol=_ args=[r583, r598] ret=r1124 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1124] ret=r599 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r599] ret=r583 thrown=false thrownResult=_
+  const r600=unit
+  jump L10006
+  label L10007
+  const r601=unit
+  const r603=intLiteral(0)
+  const r604=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r575, r583, r604, r603] ret=r602 thrown=true thrownResult=_
+  const r605=unit
+  call kk_string_startsWith symbol=_ args=[r602, r555] ret=r606 thrown=false thrownResult=_
+  const r608=boolLiteral(false)
+  jumpIfEqual r606, r608 -> L10008
+  call kk_string_length symbol=_ args=[r555] ret=r609 thrown=false thrownResult=_
+  const r611=intLiteral(0)
+  const r612=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r602, r609, r612, r611] ret=r610 thrown=true thrownResult=_
+  call kk_string_builder_append_obj symbol=_ args=[r568, r610] ret=r613 thrown=false thrownResult=_
+  copy r613 -> r607
+  jump L10009
+  label L10008
+  call kk_string_builder_append_obj symbol=_ args=[r568, r575] ret=r614 thrown=false thrownResult=_
+  copy r614 -> r607
+  label L10009
+  const r615=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r615] ret=r570 thrown=false thrownResult=_
+  const r616=unit
+  const r617=unit
+  jump L10002
+  label L10003
+  const r618=unit
+  call kk_string_builder_toString symbol=_ args=[r568] ret=r619 thrown=false thrownResult=_
+  return r619
+decl[26] function #-46567 trimMargin$default params=3 suspend=false inline=false
+  const r620=symbolRef(CompilerCore.SymbolID(rawValue: -16567))
+  const r621=symbolRef(CompilerCore.SymbolID(rawValue: -36567))
+  const r622=symbolRef(CompilerCore.SymbolID(rawValue: 6568))
+  const r623=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r621] ret=r1212 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1212, r623] ret=r1125 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1125] ret=r624 thrown=false thrownResult=_
+  const r625=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r624] ret=r1213 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1213, r625] ret=r1126 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1126] ret=r626 thrown=false thrownResult=_
+  const r627=intLiteral(0)
+  jumpIfEqual r626, r627 -> L10000
+  const r628=stringLiteral("|")
+  copy r628 -> r629
+  jump L10001
+  label L10000
+  copy r622 -> r629
+  label L10001
+  call trimMargin symbol=trimMargin args=[r620, r629] ret=r630 thrown=true thrownResult=_
+  return r630
+decl[27] function #6569 prependIndent params=2 suspend=false inline=false
+  const r631=symbolRef(CompilerCore.SymbolID(rawValue: -16569))
+  const r632=symbolRef(CompilerCore.SymbolID(rawValue: 6570))
+  const r633=unit
+  call splitIntoLines symbol=splitIntoLines args=[r631] ret=r634 thrown=true thrownResult=_
+  const r635=unit
+  call kk_list_is_empty symbol=isEmpty args=[r634] ret=r1214 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1214] ret=r636 thrown=false thrownResult=_
+  const r638=boolLiteral(false)
+  jumpIfEqual r636, r638 -> L10000
+  return r631
+  const r639=unit
+  label L10000
+  const r640=unit
+  copy r640 -> r637
+  label L10001
+  const r641=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r642 thrown=false thrownResult=_
+  const r643=unit
+  const r644=boolLiteral(true)
+  const r645=unit
+  call kk_list_iterator symbol=_ args=[r634] ret=r646 thrown=false thrownResult=_
+  label L10002
+  call kk_list_iterator_hasNext symbol=_ args=[r646] ret=r647 thrown=false thrownResult=_
+  const r648=boolLiteral(false)
+  jumpIfEqual r647, r648 -> L10003
+  call kk_list_iterator_next symbol=_ args=[r646] ret=r649 thrown=false thrownResult=_
+  const r650=boolLiteral(false)
+  call kk_op_eq symbol=_ args=[r644, r650] ret=r651 thrown=false thrownResult=_
+  const r653=boolLiteral(false)
+  jumpIfEqual r651, r653 -> L10004
+  const r654=charLiteral(10)
+  call kk_string_builder_append_char symbol=_ args=[r642, r654] ret=r655 thrown=true thrownResult=_
+  copy r655 -> r652
+  jump L10005
+  label L10004
+  const r656=unit
+  copy r656 -> r652
+  label L10005
+  call kk_string_builder_append_obj symbol=_ args=[r642, r632] ret=r657 thrown=false thrownResult=_
+  call kk_string_builder_append_obj symbol=_ args=[r642, r649] ret=r658 thrown=false thrownResult=_
+  const r659=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r659] ret=r644 thrown=false thrownResult=_
+  const r660=unit
+  const r661=unit
+  jump L10002
+  label L10003
+  const r662=unit
+  call kk_string_builder_toString symbol=_ args=[r642] ret=r663 thrown=false thrownResult=_
+  return r663
+decl[28] function #-46569 prependIndent$default params=3 suspend=false inline=false
+  const r664=symbolRef(CompilerCore.SymbolID(rawValue: -16569))
+  const r665=symbolRef(CompilerCore.SymbolID(rawValue: -36569))
+  const r666=symbolRef(CompilerCore.SymbolID(rawValue: 6570))
+  const r667=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r665] ret=r1215 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1215, r667] ret=r1127 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1127] ret=r668 thrown=false thrownResult=_
+  const r669=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r668] ret=r1216 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1216, r669] ret=r1128 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1128] ret=r670 thrown=false thrownResult=_
+  const r671=intLiteral(0)
+  jumpIfEqual r670, r671 -> L10000
+  const r672=stringLiteral("    ")
+  copy r672 -> r673
+  jump L10001
+  label L10000
+  copy r666 -> r673
+  label L10001
+  call prependIndent symbol=prependIndent args=[r664, r673] ret=r674 thrown=true thrownResult=_
+  return r674
+decl[29] function #6571 replaceIndent params=2 suspend=false inline=false
+  const r675=symbolRef(CompilerCore.SymbolID(rawValue: -16571))
+  const r676=symbolRef(CompilerCore.SymbolID(rawValue: 6572))
+  const r677=unit
+  const r678=unit
+  call splitIntoLines symbol=splitIntoLines args=[r675] ret=r679 thrown=true thrownResult=_
+  call trimBlankEdges symbol=trimBlankEdges args=[r679] ret=r680 thrown=true thrownResult=_
+  const r681=unit
+  call kk_list_is_empty symbol=isEmpty args=[r680] ret=r1217 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1217] ret=r682 thrown=false thrownResult=_
+  const r684=boolLiteral(false)
+  jumpIfEqual r682, r684 -> L10000
+  const r685=stringLiteral("")
+  return r685
+  const r686=unit
+  label L10000
+  const r687=unit
+  copy r687 -> r683
+  label L10001
+  const r688=intLiteral(1)
+  const r689=intLiteral(0)
+  call kk_op_sub symbol=_ args=[r689, r688] ret=r1129 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1129] ret=r690 thrown=false thrownResult=_
+  const r691=unit
+  call kk_list_iterator symbol=_ args=[r680] ret=r692 thrown=false thrownResult=_
+  label L10002
+  call kk_list_iterator_hasNext symbol=_ args=[r692] ret=r693 thrown=false thrownResult=_
+  const r694=boolLiteral(false)
+  jumpIfEqual r693, r694 -> L10003
+  call kk_list_iterator_next symbol=_ args=[r692] ret=r695 thrown=false thrownResult=_
+  call kk_string_isBlank symbol=isBlank args=[r695] ret=r1218 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1218] ret=r696 thrown=false thrownResult=_
+  const r697=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r696] ret=r1219 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1219, r697] ret=r698 thrown=false thrownResult=_
+  const r700=boolLiteral(false)
+  jumpIfEqual r698, r700 -> L10004
+  call leadingWhitespaceCount symbol=leadingWhitespaceCount args=[r695] ret=r1220 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1220] ret=r701 thrown=false thrownResult=_
+  const r702=unit
+  const r703=intLiteral(1)
+  const r704=intLiteral(0)
+  call kk_op_sub symbol=_ args=[r704, r703] ret=r1130 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1130] ret=r705 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r690] ret=r1221 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r705] ret=r1222 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1221, r1222] ret=r706 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r701] ret=r1223 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r690] ret=r1224 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1223, r1224] ret=r707 thrown=true thrownResult=_
+  call kk_op_or symbol=_ args=[r706, r707] ret=r708 thrown=true thrownResult=_
+  const r710=boolLiteral(false)
+  jumpIfEqual r708, r710 -> L10006
+  call kk_unbox_int symbol=_ args=[r701] ret=r690 thrown=false thrownResult=_
+  const r711=unit
+  copy r711 -> r709
+  jump L10007
+  label L10006
+  const r712=unit
+  copy r712 -> r709
+  label L10007
+  copy r709 -> r699
+  jump L10005
+  label L10004
+  const r713=unit
+  copy r713 -> r699
+  label L10005
+  jump L10002
+  label L10003
+  const r714=unit
+  const r715=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r690] ret=r1225 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r1225, r715] ret=r716 thrown=true thrownResult=_
+  const r718=boolLiteral(false)
+  jumpIfEqual r716, r718 -> L10008
+  const r719=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r719] ret=r690 thrown=false thrownResult=_
+  const r720=unit
+  copy r720 -> r717
+  jump L10009
+  label L10008
+  const r721=unit
+  copy r721 -> r717
+  label L10009
+  const r722=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r723 thrown=false thrownResult=_
+  const r724=unit
+  const r725=boolLiteral(true)
+  const r726=unit
+  call kk_list_iterator symbol=_ args=[r680] ret=r727 thrown=false thrownResult=_
+  label L10010
+  call kk_list_iterator_hasNext symbol=_ args=[r727] ret=r728 thrown=false thrownResult=_
+  const r729=boolLiteral(false)
+  jumpIfEqual r728, r729 -> L10011
+  call kk_list_iterator_next symbol=_ args=[r727] ret=r730 thrown=false thrownResult=_
+  const r731=boolLiteral(false)
+  call kk_op_eq symbol=_ args=[r725, r731] ret=r732 thrown=false thrownResult=_
+  const r734=boolLiteral(false)
+  jumpIfEqual r732, r734 -> L10012
+  const r735=charLiteral(10)
+  call kk_string_builder_append_char symbol=_ args=[r723, r735] ret=r736 thrown=true thrownResult=_
+  copy r736 -> r733
+  jump L10013
+  label L10012
+  const r737=unit
+  copy r737 -> r733
+  label L10013
+  call kk_string_isBlank symbol=isBlank args=[r730] ret=r1226 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1226] ret=r738 thrown=false thrownResult=_
+  const r740=boolLiteral(false)
+  jumpIfEqual r738, r740 -> L10014
+  const r741=stringLiteral("")
+  call kk_string_builder_append_obj symbol=_ args=[r723, r741] ret=r742 thrown=false thrownResult=_
+  copy r742 -> r739
+  jump L10015
+  label L10014
+  call kk_string_builder_append_obj symbol=_ args=[r723, r676] ret=r743 thrown=false thrownResult=_
+  const r745=intLiteral(0)
+  const r746=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r730, r690, r746, r745] ret=r744 thrown=true thrownResult=_
+  call kk_string_builder_append_obj symbol=_ args=[r723, r744] ret=r747 thrown=false thrownResult=_
+  copy r747 -> r739
+  label L10015
+  const r748=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r748] ret=r725 thrown=false thrownResult=_
+  const r749=unit
+  const r750=unit
+  jump L10010
+  label L10011
+  const r751=unit
+  call kk_string_builder_toString symbol=_ args=[r723] ret=r752 thrown=false thrownResult=_
+  return r752
+decl[30] function #-46571 replaceIndent$default params=3 suspend=false inline=false
+  const r753=symbolRef(CompilerCore.SymbolID(rawValue: -16571))
+  const r754=symbolRef(CompilerCore.SymbolID(rawValue: -36571))
+  const r755=symbolRef(CompilerCore.SymbolID(rawValue: 6572))
+  const r756=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r754] ret=r1227 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1227, r756] ret=r1131 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1131] ret=r757 thrown=false thrownResult=_
+  const r758=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r757] ret=r1228 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1228, r758] ret=r1132 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1132] ret=r759 thrown=false thrownResult=_
+  const r760=intLiteral(0)
+  jumpIfEqual r759, r760 -> L10000
+  const r761=stringLiteral("")
+  copy r761 -> r762
+  jump L10001
+  label L10000
+  copy r755 -> r762
+  label L10001
+  call replaceIndent symbol=replaceIndent args=[r753, r762] ret=r763 thrown=true thrownResult=_
+  return r763
+decl[31] function #6573 replaceIndentByMargin params=3 suspend=false inline=false
+  const r764=symbolRef(CompilerCore.SymbolID(rawValue: -16573))
+  const r765=symbolRef(CompilerCore.SymbolID(rawValue: 6574))
+  const r766=symbolRef(CompilerCore.SymbolID(rawValue: 6575))
+  call kk_string_isBlank symbol=isBlank args=[r766] ret=r1229 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1229] ret=r767 thrown=false thrownResult=_
+  const r769=boolLiteral(false)
+  jumpIfEqual r767, r769 -> L10000
+  const r770=unit
+  const r771=stringLiteral("marginPrefix must be non-blank string.")
+  call kk_throwable_new symbol=<init> args=[r771] ret=r772 thrown=true thrownResult=_
+  rethrow r772
+  const r773=unit
+  label L10000
+  const r774=unit
+  copy r774 -> r768
+  label L10001
+  const r775=unit
+  const r776=unit
+  call splitIntoLines symbol=splitIntoLines args=[r764] ret=r777 thrown=true thrownResult=_
+  call trimBlankEdges symbol=trimBlankEdges args=[r777] ret=r778 thrown=true thrownResult=_
+  const r779=unit
+  call kk_list_is_empty symbol=isEmpty args=[r778] ret=r1230 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1230] ret=r780 thrown=false thrownResult=_
+  const r782=boolLiteral(false)
+  jumpIfEqual r780, r782 -> L10002
+  const r783=stringLiteral("")
+  return r783
+  const r784=unit
+  label L10002
+  const r785=unit
+  copy r785 -> r781
+  label L10003
+  const r786=symbolRef(CompilerCore.SymbolID(rawValue: 3074))
+  call kk_string_builder_new symbol=_ args=[] ret=r787 thrown=false thrownResult=_
+  const r788=unit
+  const r789=boolLiteral(true)
+  const r790=unit
+  call kk_list_iterator symbol=_ args=[r778] ret=r791 thrown=false thrownResult=_
+  label L10004
+  call kk_list_iterator_hasNext symbol=_ args=[r791] ret=r792 thrown=false thrownResult=_
+  const r793=boolLiteral(false)
+  jumpIfEqual r792, r793 -> L10005
+  call kk_list_iterator_next symbol=_ args=[r791] ret=r794 thrown=false thrownResult=_
+  const r795=boolLiteral(false)
+  call kk_op_eq symbol=_ args=[r789, r795] ret=r796 thrown=false thrownResult=_
+  const r798=boolLiteral(false)
+  jumpIfEqual r796, r798 -> L10006
+  const r799=charLiteral(10)
+  call kk_string_builder_append_char symbol=_ args=[r787, r799] ret=r800 thrown=true thrownResult=_
+  copy r800 -> r797
+  jump L10007
+  label L10006
+  const r801=unit
+  copy r801 -> r797
+  label L10007
+  const r802=intLiteral(0)
+  const r803=unit
+  label L10008
+  call kk_string_length symbol=_ args=[r794] ret=r804 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r804] ret=r1231 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r802, r1231] ret=r805 thrown=true thrownResult=_
+  const r806=intLiteral(0)
+  call kk_string_get symbol=_ args=[r794, r802, r806] ret=r807 thrown=true thrownResult=_
+  const r808=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r807] ret=r1232 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1232, r808] ret=r809 thrown=false thrownResult=_
+  const r810=intLiteral(0)
+  call kk_string_get symbol=_ args=[r794, r802, r810] ret=r811 thrown=true thrownResult=_
+  const r812=charLiteral(9)
+  call kk_unbox_char symbol=_ args=[r811] ret=r1233 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1233, r812] ret=r813 thrown=false thrownResult=_
+  call kk_op_or symbol=_ args=[r809, r813] ret=r814 thrown=true thrownResult=_
+  call kk_op_and symbol=_ args=[r805, r814] ret=r815 thrown=true thrownResult=_
+  const r816=boolLiteral(false)
+  jumpIfEqual r815, r816 -> L10009
+  const r817=intLiteral(1)
+  call kk_op_add symbol=_ args=[r802, r817] ret=r1133 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1133] ret=r818 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r818] ret=r802 thrown=false thrownResult=_
+  const r819=unit
+  jump L10008
+  label L10009
+  const r820=unit
+  const r822=intLiteral(0)
+  const r823=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r794, r802, r823, r822] ret=r821 thrown=true thrownResult=_
+  const r824=unit
+  call kk_string_startsWith symbol=_ args=[r821, r766] ret=r825 thrown=false thrownResult=_
+  const r827=boolLiteral(false)
+  jumpIfEqual r825, r827 -> L10010
+  call kk_string_builder_append_obj symbol=_ args=[r787, r765] ret=r828 thrown=false thrownResult=_
+  call kk_string_length symbol=_ args=[r766] ret=r829 thrown=false thrownResult=_
+  const r831=intLiteral(0)
+  const r832=intLiteral(0)
+  call kk_string_substring symbol=_ args=[r821, r829, r832, r831] ret=r830 thrown=true thrownResult=_
+  call kk_string_builder_append_obj symbol=_ args=[r787, r830] ret=r833 thrown=false thrownResult=_
+  copy r833 -> r826
+  jump L10011
+  label L10010
+  call kk_string_builder_append_obj symbol=_ args=[r787, r794] ret=r834 thrown=false thrownResult=_
+  copy r834 -> r826
+  label L10011
+  const r835=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r835] ret=r789 thrown=false thrownResult=_
+  const r836=unit
+  const r837=unit
+  jump L10004
+  label L10005
+  const r838=unit
+  call kk_string_builder_toString symbol=_ args=[r787] ret=r839 thrown=false thrownResult=_
+  return r839
+decl[32] function #-46573 replaceIndentByMargin$default params=4 suspend=false inline=false
+  const r840=symbolRef(CompilerCore.SymbolID(rawValue: -16573))
+  const r841=symbolRef(CompilerCore.SymbolID(rawValue: -36573))
+  const r842=symbolRef(CompilerCore.SymbolID(rawValue: 6574))
+  const r843=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r841] ret=r1234 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1234, r843] ret=r1134 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1134] ret=r844 thrown=false thrownResult=_
+  const r845=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r844] ret=r1235 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1235, r845] ret=r1135 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1135] ret=r846 thrown=false thrownResult=_
+  const r847=intLiteral(0)
+  jumpIfEqual r846, r847 -> L10000
+  const r848=stringLiteral("")
+  copy r848 -> r849
+  jump L10001
+  label L10000
+  copy r842 -> r849
+  label L10001
+  const r850=symbolRef(CompilerCore.SymbolID(rawValue: 6575))
+  const r851=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r841] ret=r1236 thrown=false thrownResult=_
+  call kk_op_div symbol=_ args=[r1236, r851] ret=r1136 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1136] ret=r852 thrown=false thrownResult=_
+  const r853=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r852] ret=r1237 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1237, r853] ret=r1137 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1137] ret=r854 thrown=false thrownResult=_
+  const r855=intLiteral(0)
+  jumpIfEqual r854, r855 -> L10002
+  const r856=stringLiteral("|")
+  copy r856 -> r857
+  jump L10003
+  label L10002
+  copy r850 -> r857
+  label L10003
+  call replaceIndentByMargin symbol=replaceIndentByMargin args=[r840, r849, r857] ret=r858 thrown=true thrownResult=_
+  return r858
+decl[33] function #6576 __digitValue params=1 suspend=false inline=false
+  const r859=symbolRef(CompilerCore.SymbolID(rawValue: 6577))
+  const r861=boolLiteral(false)
+  const r862=charLiteral(48)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1238 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1238, r862] ret=r863 thrown=false thrownResult=_
+  jumpIfEqual r863, r861 -> L10001
+  const r864=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r864] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10001
+  const r865=charLiteral(49)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1239 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1239, r865] ret=r866 thrown=false thrownResult=_
+  jumpIfEqual r866, r861 -> L10002
+  const r867=intLiteral(1)
+  call kk_unbox_int symbol=_ args=[r867] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10002
+  const r868=charLiteral(50)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1240 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1240, r868] ret=r869 thrown=false thrownResult=_
+  jumpIfEqual r869, r861 -> L10003
+  const r870=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r870] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10003
+  const r871=charLiteral(51)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1241 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1241, r871] ret=r872 thrown=false thrownResult=_
+  jumpIfEqual r872, r861 -> L10004
+  const r873=intLiteral(3)
+  call kk_unbox_int symbol=_ args=[r873] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10004
+  const r874=charLiteral(52)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1242 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1242, r874] ret=r875 thrown=false thrownResult=_
+  jumpIfEqual r875, r861 -> L10005
+  const r876=intLiteral(4)
+  call kk_unbox_int symbol=_ args=[r876] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10005
+  const r877=charLiteral(53)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1243 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1243, r877] ret=r878 thrown=false thrownResult=_
+  jumpIfEqual r878, r861 -> L10006
+  const r879=intLiteral(5)
+  call kk_unbox_int symbol=_ args=[r879] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10006
+  const r880=charLiteral(54)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1244 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1244, r880] ret=r881 thrown=false thrownResult=_
+  jumpIfEqual r881, r861 -> L10007
+  const r882=intLiteral(6)
+  call kk_unbox_int symbol=_ args=[r882] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10007
+  const r883=charLiteral(55)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1245 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1245, r883] ret=r884 thrown=false thrownResult=_
+  jumpIfEqual r884, r861 -> L10008
+  const r885=intLiteral(7)
+  call kk_unbox_int symbol=_ args=[r885] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10008
+  const r886=charLiteral(56)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1246 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1246, r886] ret=r887 thrown=false thrownResult=_
+  jumpIfEqual r887, r861 -> L10009
+  const r888=intLiteral(8)
+  call kk_unbox_int symbol=_ args=[r888] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10009
+  const r889=charLiteral(57)
+  call kk_unbox_char symbol=_ args=[r859] ret=r1247 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1247, r889] ret=r890 thrown=false thrownResult=_
+  jumpIfEqual r890, r861 -> L10010
+  const r891=intLiteral(9)
+  call kk_unbox_int symbol=_ args=[r891] ret=r860 thrown=false thrownResult=_
+  jump L10000
+  label L10010
+  const r892=intLiteral(1)
+  const r893=intLiteral(0)
+  call kk_op_sub symbol=_ args=[r893, r892] ret=r1138 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1138] ret=r894 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r894] ret=r860 thrown=false thrownResult=_
+  label L10000
+  return r860
+decl[34] function #6578 __appendPadded params=5 suspend=false inline=false
+  const r895=symbolRef(CompilerCore.SymbolID(rawValue: 6579))
+  const r896=symbolRef(CompilerCore.SymbolID(rawValue: 6580))
+  const r897=symbolRef(CompilerCore.SymbolID(rawValue: 6581))
+  const r898=symbolRef(CompilerCore.SymbolID(rawValue: 6582))
+  const r899=symbolRef(CompilerCore.SymbolID(rawValue: 6583))
+  call kk_string_length symbol=_ args=[r896] ret=r900 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r897] ret=r1248 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r900] ret=r1249 thrown=false thrownResult=_
+  call kk_op_sub symbol=_ args=[r1248, r1249] ret=r1139 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1139] ret=r901 thrown=false thrownResult=_
+  const r902=unit
+  const r903=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r901] ret=r1250 thrown=false thrownResult=_
+  call kk_op_le symbol=_ args=[r1250, r903] ret=r904 thrown=true thrownResult=_
+  const r906=boolLiteral(false)
+  jumpIfEqual r904, r906 -> L10000
+  call kk_string_builder_append_obj symbol=_ args=[r895, r896] ret=r907 thrown=false thrownResult=_
+  returnUnit
+  const r908=unit
+  label L10000
+  const r909=unit
+  copy r909 -> r905
+  label L10001
+  const r910=boolLiteral(false)
+  call kk_unbox_bool symbol=_ args=[r898] ret=r1251 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1251, r910] ret=r911 thrown=false thrownResult=_
+  call kk_op_and symbol=_ args=[r899, r911] ret=r912 thrown=true thrownResult=_
+  const r914=boolLiteral(false)
+  jumpIfEqual r912, r914 -> L10002
+  const r915=charLiteral(48)
+  call kk_unbox_char symbol=_ args=[r915] ret=r913 thrown=false thrownResult=_
+  jump L10003
+  label L10002
+  const r916=charLiteral(32)
+  call kk_unbox_char symbol=_ args=[r916] ret=r913 thrown=false thrownResult=_
+  label L10003
+  const r917=unit
+  const r919=boolLiteral(false)
+  jumpIfEqual r898, r919 -> L10004
+  call kk_string_builder_append_obj symbol=_ args=[r895, r896] ret=r920 thrown=false thrownResult=_
+  const r921=intLiteral(0)
+  const r922=unit
+  label L10006
+  call kk_unbox_int symbol=_ args=[r901] ret=r1252 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r921, r1252] ret=r923 thrown=true thrownResult=_
+  const r924=boolLiteral(false)
+  jumpIfEqual r923, r924 -> L10007
+  const r925=charLiteral(32)
+  call kk_string_builder_append_char symbol=_ args=[r895, r925] ret=r926 thrown=true thrownResult=_
+  const r927=intLiteral(1)
+  call kk_op_add symbol=_ args=[r921, r927] ret=r1140 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1140] ret=r928 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r928] ret=r921 thrown=false thrownResult=_
+  const r929=unit
+  const r930=unit
+  jump L10006
+  label L10007
+  const r931=unit
+  copy r931 -> r918
+  jump L10005
+  label L10004
+  const r932=intLiteral(0)
+  const r933=unit
+  label L10008
+  call kk_unbox_int symbol=_ args=[r901] ret=r1253 thrown=false thrownResult=_
+  call kk_op_lt symbol=_ args=[r932, r1253] ret=r934 thrown=true thrownResult=_
+  const r935=boolLiteral(false)
+  jumpIfEqual r934, r935 -> L10009
+  call kk_string_builder_append_char symbol=_ args=[r895, r913] ret=r936 thrown=true thrownResult=_
+  const r937=intLiteral(1)
+  call kk_op_add symbol=_ args=[r932, r937] ret=r1141 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1141] ret=r938 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r938] ret=r932 thrown=false thrownResult=_
+  const r939=unit
+  const r940=unit
+  jump L10008
+  label L10009
+  const r941=unit
+  call kk_string_builder_append_obj symbol=_ args=[r895, r896] ret=r942 thrown=false thrownResult=_
+  copy r942 -> r918
+  label L10005
+  returnUnit
+decl[35] function #6584 format params=2 suspend=false inline=false
+  const r943=symbolRef(CompilerCore.SymbolID(rawValue: -16584))
+  const r944=symbolRef(CompilerCore.SymbolID(rawValue: 6585))
+  call kk_string_format symbol=__kk_format args=[r943, r944] ret=r945 thrown=false thrownResult=_
+  return r945
+decl[36] function #-60000000 kk_lambda_1034 params=2 suspend=false inline=false
+  const r953=symbolRef(CompilerCore.SymbolID(rawValue: -1264703))
+  const r954=symbolRef(CompilerCore.SymbolID(rawValue: -1264704))
+  call kk_unbox_int symbol=_ args=[r954] ret=r955 thrown=false thrownResult=_
+  const r956=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r955] ret=r1254 thrown=false thrownResult=_
+  call kk_op_mul symbol=_ args=[r1254, r956] ret=r1142 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1142] ret=r957 thrown=false thrownResult=_
+  call kk_box_int symbol=_ args=[r957] ret=r1255 thrown=false thrownResult=_
+  return r1255
+decl[37] function #-60000001 kk_lambda_1042 params=2 suspend=false inline=false
+  const r962=symbolRef(CompilerCore.SymbolID(rawValue: -1266751))
+  const r963=symbolRef(CompilerCore.SymbolID(rawValue: -1266752))
+  call kk_unbox_int symbol=_ args=[r963] ret=r964 thrown=false thrownResult=_
+  const r965=intLiteral(4)
+  call kk_unbox_int symbol=_ args=[r964] ret=r1256 thrown=false thrownResult=_
+  call kk_op_gt symbol=_ args=[r1256, r965] ret=r966 thrown=true thrownResult=_
+  return r966
+decl[38] function #-60000002 kk_lambda_1068 params=2 suspend=false inline=false
+  const r983=symbolRef(CompilerCore.SymbolID(rawValue: -1273407))
+  const r984=symbolRef(CompilerCore.SymbolID(rawValue: -1273408))
+  call kk_unbox_int symbol=_ args=[r984] ret=r985 thrown=false thrownResult=_
+  const r986=intLiteral(2)
+  call kk_unbox_int symbol=_ args=[r985] ret=r1257 thrown=false thrownResult=_
+  call kk_op_mod symbol=_ args=[r1257, r986] ret=r1143 thrown=true thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1143] ret=r987 thrown=false thrownResult=_
+  const r988=intLiteral(0)
+  call kk_unbox_int symbol=_ args=[r987] ret=r1258 thrown=false thrownResult=_
+  call kk_op_eq symbol=_ args=[r1258, r988] ret=r989 thrown=false thrownResult=_
+  return r989
+decl[39] function #-60000003 kk_lambda_1077 params=3 suspend=false inline=false
+  const r995=symbolRef(CompilerCore.SymbolID(rawValue: -1275711))
+  const r996=symbolRef(CompilerCore.SymbolID(rawValue: -1275712))
+  call kk_unbox_int symbol=_ args=[r996] ret=r997 thrown=false thrownResult=_
+  const r998=symbolRef(CompilerCore.SymbolID(rawValue: -1275713))
+  call kk_unbox_int symbol=_ args=[r998] ret=r999 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r997] ret=r1259 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r999] ret=r1260 thrown=false thrownResult=_
+  call kk_op_add symbol=_ args=[r1259, r1260] ret=r1144 thrown=false thrownResult=_
+  call kk_int_narrow symbol=_ args=[r1144] ret=r1000 thrown=false thrownResult=_
+  return r1000
+decl[40] function #6586 main params=0 suspend=false inline=false
+  call kk_random_default symbol=_ args=[] ret=r1008 thrown=false thrownResult=_
+  copy r1008 -> r1009
+  call kk_string_case_insensitive_order symbol=_ args=[] ret=r1010 thrown=true thrownResult=_
+  copy r1010 -> r1011
+  call kk_math_PI symbol=_ args=[] ret=r1012 thrown=false thrownResult=_
+  copy r1012 -> r1013
+  call kk_math_E symbol=_ args=[] ret=r1014 thrown=false thrownResult=_
+  copy r1014 -> r1015
+  call kk_coroutine_current_context symbol=_ args=[] ret=r1016 thrown=false thrownResult=_
+  copy r1016 -> r1017
+  call kk_coroutine_suspended symbol=_ args=[] ret=r1018 thrown=false thrownResult=_
+  copy r1018 -> r1019
+  call kk_hexformat_default symbol=_ args=[] ret=r1020 thrown=true thrownResult=_
+  copy r1020 -> r1021
+  call kk_kotlin_version_current symbol=_ args=[] ret=r1022 thrown=false thrownResult=_
+  copy r1022 -> r1023
+  call kk_duration_zero symbol=_ args=[] ret=r1024 thrown=true thrownResult=_
+  copy r1024 -> r1025
+  call kk_duration_infinite symbol=_ args=[] ret=r1026 thrown=true thrownResult=_
+  copy r1026 -> r1027
+  call kk_io_default_buffer_size symbol=_ args=[] ret=r1028 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1028] ret=r1029 thrown=false thrownResult=_
+  call kk_platform_canAccessUnaligned symbol=_ args=[] ret=r1030 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1030] ret=r1031 thrown=false thrownResult=_
+  call kk_platform_isLittleEndian symbol=_ args=[] ret=r1032 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1032] ret=r1033 thrown=false thrownResult=_
+  call kk_platform_osFamily symbol=_ args=[] ret=r1034 thrown=false thrownResult=_
+  copy r1034 -> r1035
+  call kk_platform_cpuArchitecture symbol=_ args=[] ret=r1036 thrown=false thrownResult=_
+  copy r1036 -> r1037
+  call kk_platform_memoryModel symbol=_ args=[] ret=r1038 thrown=false thrownResult=_
+  copy r1038 -> r1039
+  call kk_uuid_nil symbol=_ args=[] ret=r1040 thrown=false thrownResult=_
+  copy r1040 -> r1041
+  call kk_uuid_lexicalOrder symbol=_ args=[] ret=r1042 thrown=false thrownResult=_
+  copy r1042 -> r1043
+  call kk_json_default symbol=_ args=[] ret=r1044 thrown=false thrownResult=_
+  copy r1044 -> r1045
+  call kk_gc_target_heap_bytes symbol=_ args=[] ret=r1046 thrown=false thrownResult=_
+  call kk_unbox_long symbol=_ args=[r1046] ret=r1047 thrown=false thrownResult=_
+  call kk_gc_target_heap_utilization symbol=_ args=[] ret=r1048 thrown=false thrownResult=_
+  copy r1048 -> r1049
+  call kk_gc_max_heap_bytes symbol=_ args=[] ret=r1050 thrown=false thrownResult=_
+  call kk_unbox_long symbol=_ args=[r1050] ret=r1051 thrown=false thrownResult=_
+  call kk_debugging_is_thread_state_runnable symbol=_ args=[] ret=r1052 thrown=false thrownResult=_
+  call kk_unbox_bool symbol=_ args=[r1052] ret=r1053 thrown=false thrownResult=_
+  call kk_debugging_gc_suspend_count symbol=_ args=[] ret=r1054 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1054] ret=r1055 thrown=false thrownResult=_
+  call kk_debugging_thread_count symbol=_ args=[] ret=r1056 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1056] ret=r1057 thrown=false thrownResult=_
+  call kk_debugging_global_object_count symbol=_ args=[] ret=r1058 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1058] ret=r1059 thrown=false thrownResult=_
+  call kk_base64_padding_present symbol=_ args=[] ret=r1060 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1060] ret=r1061 thrown=false thrownResult=_
+  call kk_base64_padding_absent symbol=_ args=[] ret=r1062 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1062] ret=r1063 thrown=false thrownResult=_
+  call kk_base64_padding_present_optional symbol=_ args=[] ret=r1064 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1064] ret=r1065 thrown=false thrownResult=_
+  call kk_base64_padding_absent_optional symbol=_ args=[] ret=r1066 thrown=true thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1066] ret=r1067 thrown=false thrownResult=_
+  const r946=unit
+  const r947=intLiteral(1)
+  const r948=intLiteral(2)
+  const r949=intLiteral(3)
+  const r950=intLiteral(4)
+  const r951=intLiteral(5)
+  const r1072=intLiteral(5)
+  call kk_array_new symbol=_ args=[r1072] ret=r1073 thrown=false thrownResult=_
+  const r1074=intLiteral(0)
+  call kk_box_int symbol=_ args=[r947] ret=r1075 thrown=false thrownResult=_
+  call kk_array_set symbol=_ args=[r1073, r1074, r1075] ret=r1076 thrown=true thrownResult=_
+  const r1077=intLiteral(1)
+  call kk_box_int symbol=_ args=[r948] ret=r1078 thrown=false thrownResult=_
+  call kk_array_set symbol=_ args=[r1073, r1077, r1078] ret=r1079 thrown=true thrownResult=_
+  const r1080=intLiteral(2)
+  call kk_box_int symbol=_ args=[r949] ret=r1081 thrown=false thrownResult=_
+  call kk_array_set symbol=_ args=[r1073, r1080, r1081] ret=r1082 thrown=true thrownResult=_
+  const r1083=intLiteral(3)
+  call kk_box_int symbol=_ args=[r950] ret=r1084 thrown=false thrownResult=_
+  call kk_array_set symbol=_ args=[r1073, r1083, r1084] ret=r1085 thrown=true thrownResult=_
+  const r1086=intLiteral(4)
+  call kk_box_int symbol=_ args=[r951] ret=r1087 thrown=false thrownResult=_
+  call kk_array_set symbol=_ args=[r1073, r1086, r1087] ret=r1088 thrown=true thrownResult=_
+  call kk_list_of symbol=_ args=[r1073, r1072] ret=r952 thrown=false thrownResult=_
+  const r958=symbolRef(CompilerCore.SymbolID(rawValue: -60000000))
+  const r959=symbolRef(CompilerCore.SymbolID(rawValue: -60000000))
+  const r960=intLiteral(0)
+  call kk_list_map symbol=_ args=[r952, r959, r960] ret=r961 thrown=true thrownResult=_
+  const r967=symbolRef(CompilerCore.SymbolID(rawValue: -60000001))
+  const r968=symbolRef(CompilerCore.SymbolID(rawValue: -60000001))
+  const r969=intLiteral(0)
+  call kk_list_filter symbol=_ args=[r961, r968, r969] ret=r970 thrown=true thrownResult=_
+  call kk_list_sum symbol=sum args=[r970] ret=r1261 thrown=false thrownResult=_
+  call kk_unbox_int symbol=_ args=[r1261] ret=r971 thrown=false thrownResult=_
+  const r972=unit
+  const r973=unit
+  call kk_box_int symbol=_ args=[r971] ret=r1262 thrown=false thrownResult=_
+  call kk_println_any symbol=println args=[r1262] ret=r974 thrown=false thrownResult=_
+  const r975=stringLiteral("
+    Hello
+    World
+")
+  call trimIndent symbol=trimIndent args=[r975] ret=r976 thrown=true thrownResult=_
+  const r977=unit
+  const r978=unit
+  call kk_println_any symbol=println args=[r976] ret=r979 thrown=false thrownResult=_
+  const r980=intLiteral(1)
+  const r981=intLiteral(10)
+  call kk_op_rangeTo symbol=_ args=[r980, r981] ret=r982 thrown=false thrownResult=_
+  const r990=symbolRef(CompilerCore.SymbolID(rawValue: -60000002))
+  const r991=symbolRef(CompilerCore.SymbolID(rawValue: -60000002))
+  const r992=intLiteral(0)
+  call kk_range_filter symbol=_ args=[r982, r991, r992] ret=r993 thrown=true thrownResult=_
+  const r994=intLiteral(0)
+  const r1001=symbolRef(CompilerCore.SymbolID(rawValue: -60000003))
+  const r1002=symbolRef(CompilerCore.SymbolID(rawValue: -60000003))
+  const r1003=intLiteral(0)
+  call kk_list_fold symbol=_ args=[r993, r994, r1002, r1003] ret=r1089 thrown=true thrownResult=_
+  copy r1089 -> r1004
+  const r1005=unit
+  const r1006=unit
+  call kk_box_int symbol=_ args=[r1004] ret=r1263 thrown=false thrownResult=_
+  call kk_println_any symbol=println args=[r1263] ret=r1007 thrown=false thrownResult=_
+  returnUnit
+decl[41] global
+decl[42] global
+decl[43] global
+decl[44] global
+decl[45] global
+decl[46] global
+decl[47] global
+decl[48] global
+decl[49] global
+decl[50] global
+decl[51] global
+decl[52] global
+decl[53] global
+decl[54] global
+decl[55] global
+decl[56] global
+decl[57] global
+decl[58] global
+decl[59] global
+decl[60] global
+decl[61] global
+decl[62] global
+decl[63] global
+decl[64] global
+decl[65] global
+decl[66] global
+decl[67] global
+decl[68] global
+decl[69] global
+decl[70] global
+lowerings: TailrecLowering, NormalizeBlocks, OperatorLowering, ForLowering, CollectionLiteralLowering, FlowLowering, ValueClassUnboxing, PropertyLowering, StdlibDelegateLowering, JvmStaticLowering, JvmOverloadsLowering, DataEnumSealedSynthesis, EnumEntriesLowering, EnumNameAccessLowering, LambdaClosureConversion, InlineLowering, CoroutineLowering, IntegerNarrowing, ABILowering

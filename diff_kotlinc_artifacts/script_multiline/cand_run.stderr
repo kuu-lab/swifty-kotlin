@@ -1,0 +1,53 @@
+warning: direct reference to protected function `$sSlsE7isEmptySbvg' in `/opt/hostedtoolcache/swift-Ubuntu/6.2.1/x64/usr/lib/swift/linux/libswiftCore.so' may break pointer equality
+
+*** Signal 11: Backtracing from 0x702329... done ***
+
+*** Program crashed: Bad pointer dereference at 0x0000000000000000 ***
+
+Platform: x86_64 Linux (Ubuntu 24.04.4 LTS)
+
+Thread 0 "candidate.out" crashed:
+
+  0               0x0000000000702329 kk_string_substring(_:_:_:_:_:) + 313 in candidate.out at /home/runner/work/swifty-kotlin/swifty-kotlin/Sources/Runtime/RuntimeStringStdlib.swift:268:24
+  1 [ra] [system] 0x00000000007021e9 kk_string_substring + 8 in candidate.out at //<compiler-generated>
+  2 [ra]          0x000000000042115a kk_fn_splitIntoLines_6561 + 1001 in candidate.out
+  3 [ra]          0x00000000004219f0 kk_fn_trimIndent_6566 + 495 in candidate.out
+  4 [ra]          0x0000000000424b39 kk_fn_main_6586 + 2280 in candidate.out
+  5 [ra]          0x0000000000424ce7 main + 22 in candidate.out
+  6 [ra]          0x00007f676402a28b <unknown> in libc.so.6
+...
+
+
+Registers:
+
+rax 0xf809f190ac83a6c1  17873082199868417729
+rdx 0x00007ffc9debeca8  b2 f9 eb 9d fc 7f 00 00 00 00 00 00 00 00 00 00  ²ùë·ü···········
+rcx 0x00007ffc9debe650  00 00 00 00 00 00 00 00 36 0e 42 00 00 00 00 00  ········6·B·····
+rbx 0x0000000000000000  0
+rsi 0x0000000004729280  f0 2f 83 00 00 00 00 00 03 00 00 00 00 00 00 00  ð/··············
+rdi 0x0000000000000000  0
+rbp 0x00007ffc9debe630  40 e6 eb 9d fc 7f 00 00 e9 21 70 00 00 00 00 00  @æë·ü···é!p·····
+rsp 0x00007ffc9debe490  a0 e4 eb 9d fc 7f 00 00 40 60 72 04 00 00 00 00   äë·ü···@`r·····
+ r8 0xf809f190ac83a6c1  17873082199868417729
+ r9 0x0000000000000000  0
+r10 0x0000000004729320  29 47 00 00 00 00 00 00 c6 43 32 f1 bf 8d 11 90  )G······ÆC2ñ¿···
+r11 0x90118dbff13243c6  10381234471590577094
+r12 0x0000000000000001  1
+r13 0x0000000000000000  0
+r14 0x0000000000805fe0  b4 9e bf 65 67 7f 00 00 f0 9e bf 65 67 7f 00 00  ´·¿eg···ð·¿eg···
+r15 0x00007f6765f13000  e0 42 f1 65 67 7f 00 00 34 00 00 00 00 00 00 00  àBñeg···4·······
+rip 0x0000000000702329  48 c7 00 00 00 00 00 48 8b bd 28 ff ff ff e8 d4  HÇ·····H·½(ÿÿÿèÔ
+
+rflags 0x0000000000010282  SF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images (49 omitted):
+
+0x0000000000400000–0x0000000000c04308 <no build ID>                            candidate.out /tmp/kswiftk-diff-H2fM4j/candidate.out
+0x00007f6764000000–0x00007f67641afd39 8e9fd827446c24067541ac5390e6f527fb5947bb libc.so.6     /usr/lib/x86_64-linux-gnu/libc.so.6
+
+Backtrace took 0.22s
+
+timeout: the monitored command dumped core

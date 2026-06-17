@@ -1,0 +1,7 @@
+--- /home/runner/work/_temp/diff_kotlinc_artifacts/script_multiline/ref_run_stdout.norm	2026-06-15 20:56:34.609003476 +0000
++++ /home/runner/work/_temp/diff_kotlinc_artifacts/script_multiline/cand_run_stdout.norm	2026-06-15 20:56:34.610003493 +0000
+@@ -1,4 +0,0 @@
+-24
+-Hello
+-World
+-30

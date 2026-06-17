@@ -1,0 +1,18 @@
+(lldb) target create "/home/runner/work/_temp/diff_kotlinc_artifacts/script_multiline/candidate.out"
+Current executable set to '/home/runner/work/_temp/diff_kotlinc_artifacts/script_multiline/candidate.out' (x86_64).
+(lldb) run
+warning: direct reference to protected function `$sSlsE7isEmptySbvg' in `/opt/hostedtoolcache/swift-Ubuntu/6.2.1/x64/usr/lib/swift/linux/libswiftCore.so' may break pointer equality
+24
+Process 14562 launched: '/home/runner/work/_temp/diff_kotlinc_artifacts/script_multiline/candidate.out' (x86_64)
+Process 14562 stopped
+* thread #1, name = 'candidate.out', stop reason = signal SIGSEGV: invalid address (fault address: 0x0)
+    frame #0: 0x0000000000702329 candidate.out`kk_string_substring(strRaw=8852128, startRaw=0, endRaw=0, hasEndRaw=140737488342336, outThrown=0x2d4657715460ada7) at RuntimeStringStdlib.swift:268:24
+   265 	    _ hasEndRaw: Int,
+   266 	    _ outThrown: UnsafeMutablePointer<Int>?
+   267 	) -> Int {
+-> 268 	    outThrown?.pointee = 0
+    	                       ^
+   269 	    let scalars = runtimeStringScalars(strRaw)
+   270 	    let length = scalars.count
+   271 	    let start = startRaw
+Target 0: (candidate.out) stopped.

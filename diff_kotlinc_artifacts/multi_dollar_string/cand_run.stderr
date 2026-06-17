@@ -1,0 +1,52 @@
+
+*** Signal 11: Backtracing from 0x701d29... done ***
+
+*** Program crashed: Bad pointer dereference at 0x0000000000000000 ***
+
+Platform: x86_64 Linux (Ubuntu 24.04.4 LTS)
+
+Thread 0 "candidate.out" crashed:
+
+  0               0x0000000000701d29 kk_string_substring(_:_:_:_:_:) + 313 in candidate.out at /home/runner/work/swifty-kotlin/swifty-kotlin/Sources/Runtime/RuntimeStringStdlib.swift:268:24
+  1 [ra] [system] 0x0000000000701be9 kk_string_substring + 8 in candidate.out at //<compiler-generated>
+  2 [ra]          0x000000000042115a kk_fn_splitIntoLines_6561 + 1001 in candidate.out
+  3 [ra]          0x00000000004219f0 kk_fn_trimIndent_6566 + 495 in candidate.out
+  4 [ra]          0x0000000000424636 kk_fn_main_6586 + 1621 in candidate.out
+  5 [ra]          0x00000000004246e7 main + 22 in candidate.out
+  6 [ra]          0x00007f1c2002a28b <unknown> in libc.so.6
+...
+
+
+Registers:
+
+rax 0xb0cf73c36d35a86f  12740529154042472559
+rdx 0x00007ffcd2bbcd08  b2 e9 bb d2 fc 7f 00 00 00 00 00 00 00 00 00 00  ²é»Òü···········
+rcx 0x00007ffcd2bbc7b0  00 00 00 00 00 00 00 00 36 0e 42 00 00 00 00 00  ········6·B·····
+rbx 0x0000000000000000  0
+rsi 0x00000000113a8c10  60 20 83 00 00 00 00 00 03 00 00 00 00 00 00 00  ` ··············
+rdi 0x0000000000000000  0
+rbp 0x00007ffcd2bbc790  a0 c7 bb d2 fc 7f 00 00 e9 1b 70 00 00 00 00 00   Ç»Òü···é·p·····
+rsp 0x00007ffcd2bbc5f0  00 c6 bb d2 fc 7f 00 00 40 60 3a 11 00 00 00 00  ·Æ»Òü···@`:·····
+ r8 0xb0cf73c36d35a86f  12740529154042472559
+ r9 0x0000000000000000  0
+r10 0x00000000113a9070  a9 13 01 00 00 00 00 00 ea cd 5f 25 6e 8d d6 05  ©·······êÍ_%n·Ö·
+r11 0x05d68d6e255fcdea  420679119418674666
+r12 0x0000000000000001  1
+r13 0x0000000000000000  0
+r14 0x0000000000804fe0  b4 9e bf 21 1c 7f 00 00 f0 9e bf 21 1c 7f 00 00  ´·¿!····ð·¿!····
+r15 0x00007f1c21dec000  e0 d2 de 21 1c 7f 00 00 34 00 00 00 00 00 00 00  àÒÞ!····4·······
+rip 0x0000000000701d29  48 c7 00 00 00 00 00 48 8b bd 28 ff ff ff e8 d4  HÇ·····H·½(ÿÿÿèÔ
+
+rflags 0x0000000000010286  SF PF
+
+cs 0x0033  fs 0x0000  gs 0x0000
+
+
+Images (49 omitted):
+
+0x0000000000400000–0x0000000000c03c28 <no build ID>                            candidate.out /tmp/kswiftk-diff-didCer/candidate.out
+0x00007f1c20000000–0x00007f1c201afd39 8e9fd827446c24067541ac5390e6f527fb5947bb libc.so.6     /usr/lib/x86_64-linux-gnu/libc.so.6
+
+Backtrace took 0.24s
+
+timeout: the monitored command dumped core
