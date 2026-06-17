@@ -1441,6 +1441,40 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         }
     }
 
+    // STDLIB-TEXT-FN-005: appendRange
+    func testStringBuilderAppendRangeResolvesInCallExpressions() throws {
+        let source = """
+        import kotlin.text.StringBuilder
+
+        fun appendMiddle(): StringBuilder {
+            return StringBuilder("ab").appendRange("WXYZ", 1, 3)
+        }
+
+        fun appendWithReceiver(): String {
+            return with(StringBuilder("ab")) {
+                appendRange("WXYZ", 0, 2)
+                toString()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected StringBuilder.appendRange surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let appendRangeBindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj"
+            }
+            XCTAssertEqual(appendRangeBindings.count, 2)
+        }
+    }
+
     // STDLIB-TEXT-FN-024: insert
     func testStringBuilderInsertResolvesInCallExpressions() throws {
         let source = """
