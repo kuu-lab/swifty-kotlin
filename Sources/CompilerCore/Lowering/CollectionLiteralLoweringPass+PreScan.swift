@@ -3,7 +3,7 @@ extension CollectionLiteralLoweringPass {
     func collectBuilderLambdaKinds(
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
-        interner: StringInterner
+        ctx: KIRContext
     ) -> [InternedString: InternedString] {
         var symbolToFuncName: [SymbolID: InternedString] = [:]
         for decl in module.arena.declarations {
@@ -17,23 +17,49 @@ extension CollectionLiteralLoweringPass {
             guard case let .function(function) = decl else { continue }
 
             let (exprSymbolMap, entries) = scanBuilderLambdaEntries(
-                body: function.body, lookup: lookup
+                body: function.body, lookup: lookup, ctx: ctx
             )
 
             for entry in entries {
-                if let symbol = exprSymbolMap[entry.argID],
-                   let funcName = symbolToFuncName[symbol]
-                {
-                    builderLambdaKinds[funcName] = entry.callee
+                if let symbol = exprSymbolMap[entry.argID] {
+                    let lambdaName = ctx.interner.intern("kk_lambda_\(entry.argID)")
+                    builderLambdaKinds[lambdaName] = entry.callee
+                    if let funcName = symbolToFuncName[symbol] {
+                        builderLambdaKinds[funcName] = entry.callee
+                    }
                 }
             }
         }
         return builderLambdaKinds
     }
 
+    func isStdlibBuilderDSLCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
+    ) -> Bool {
+        guard lookup.builderDSLNames.contains(callee) else {
+            return false
+        }
+        guard let symbol else {
+            return true
+        }
+        guard let sema = ctx.sema,
+              let semanticSymbol = sema.symbols.symbol(symbol)
+        else {
+            return false
+        }
+        if semanticSymbol.flags.contains(.synthetic) {
+            return true
+        }
+        return sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true
+    }
+
     private func scanBuilderLambdaEntries(
         body: [KIRInstruction],
-        lookup: CollectionLiteralLookupTables
+        lookup: CollectionLiteralLookupTables,
+        ctx: KIRContext
     ) -> (exprSymbolMap: [Int32: SymbolID], entries: [(argID: Int32, callee: InternedString)]) {
         var exprSymbolMap: [Int32: SymbolID] = [:]
         var entries: [(argID: Int32, callee: InternedString)] = []
@@ -42,7 +68,8 @@ extension CollectionLiteralLoweringPass {
             case let .constValue(result, .symbolRef(symbol)):
                 exprSymbolMap[result.rawValue] = symbol
             case let .call(symbol, callee, arguments, _, _, _, _, _):
-                if symbol == nil, lookup.builderDSLNames.contains(callee), !arguments.isEmpty {
+                if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx),
+                   !arguments.isEmpty {
                     entries.append((argID: arguments[0].rawValue, callee: callee))
                 }
             default:

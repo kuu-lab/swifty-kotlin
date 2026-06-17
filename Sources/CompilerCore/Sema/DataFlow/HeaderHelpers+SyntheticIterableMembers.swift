@@ -59,7 +59,7 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(iterableInterfaceSymbol, for: memberSymbol)
         // At runtime, use kk_iterable_asSequence which handles List, Set, and Array handles.
         // The corresponding ExternDecl is exposed via RuntimeABIExterns and
-        // it is registered as non-throwing in ABILoweringPass+NonThrowingCallees.swift.
+        // it is registered as non-throwing via `RuntimeABISpec.isThrowing` metadata.
         symbols.setExternalLinkName("kk_iterable_asSequence", for: memberSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
