@@ -5130,6 +5130,30 @@ private func runtimeStringChunkedSequenceTransform(
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
 }
 
+@_cdecl("kk_string_chunked_sequence")
+public func kk_string_chunked_sequence(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringChunkedSequence(source, size: size)
+}
+
+@_cdecl("kk_string_chunked_sequence_transform")
+public func kk_string_chunked_sequence_transform(
+    _ strRaw: Int,
+    _ size: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringChunkedSequenceTransform(
+        source,
+        size: size,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
+}
+
 private func runtimeStringWindowed(_ source: String, size: Int, step: Int) -> Int {
     // Return an empty list for non-positive size/step to preserve the
     // original 2-arg overload semantics (Kotlin throws IllegalArgumentException,
@@ -5147,6 +5171,18 @@ private func runtimeStringWindowed(_ source: String, size: Int, step: Int) -> In
     return runtimeMakeStringListValue(windows)
 }
 
+@_cdecl("kk_string_windowed_default")
+public func kk_string_windowed_default(_ strRaw: Int, _ size: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowed(source, size: size, step: 1)
+}
+
+@_cdecl("kk_string_windowed")
+public func kk_string_windowed(_ strRaw: Int, _ size: Int, _ step: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowed(source, size: size, step: step)
+}
+
 private func runtimeStringWindowedPartial(
     _ source: String,
     size: Int,
@@ -5161,12 +5197,18 @@ private func runtimeStringWindowedPartial(
     var windows: [String] = []
     var i = 0
     while i < scalars.count {
-        let end = min(i + clampedSize, scalars.count)
+        let end = Swift.min(i + clampedSize, scalars.count)
         if !partial && end - i < clampedSize { break }
         windows.append(runtimeStringFromScalars(scalars[i ..< end]))
         i += clampedStep
     }
     return runtimeMakeStringListValue(windows)
+}
+
+@_cdecl("kk_string_windowed_partial")
+public func kk_string_windowed_partial(_ strRaw: Int, _ size: Int, _ step: Int, _ partialWindows: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedPartial(source, size: size, step: step, partialWindows: partialWindows)
 }
 
 private func runtimeStringWindowedSequencePartial(
@@ -5225,6 +5267,39 @@ private func runtimeStringWindowedSequenceTransform(
         i += clampedStep
     }
     return registerRuntimeObject(RuntimeSequenceBox(steps: [.valueSource(values: results)]))
+}
+
+@_cdecl("kk_string_windowedSequence_partial")
+public func kk_string_windowedSequence_partial(
+    _ strRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedSequencePartial(source, size: size, step: step, partialWindows: partialWindows)
+}
+
+@_cdecl("kk_string_windowedSequence_transform")
+public func kk_string_windowedSequence_transform(
+    _ strRaw: Int,
+    _ size: Int,
+    _ step: Int,
+    _ partialWindows: Int,
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeStringWindowedSequenceTransform(
+        source,
+        size: size,
+        step: step,
+        partialWindows: partialWindows,
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_string_chunked_flat")
@@ -7678,132 +7753,6 @@ private func runtimeStringPartition(
         firstValue: runtimeMakeStringValue(runtimeStringFromScalars(matched)),
         secondValue: runtimeMakeStringValue(runtimeStringFromScalars(unmatched))
     )
-}
-
-// MARK: - Internal bridge functions for Kotlin stdlib migration (MIGRATION-TEXT-002)
-
-@_cdecl("__string_replace")
-public func __string_replace(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let old = runtimeStringFromRaw(oldRaw),
-          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new))
-}
-
-@_cdecl("__string_replace_ignoreCase")
-public func __string_replace_ignoreCase(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let old = runtimeStringFromRaw(oldRaw),
-          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new, options: options))
-}
-
-@_cdecl("__string_replace_char")
-public func __string_replace_char(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
-    let old = runtimeCharacterFromRaw(oldCharRaw)
-    let new = runtimeCharacterFromRaw(newCharRaw)
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new))
-}
-
-@_cdecl("__string_replace_char_ignoreCase")
-public func __string_replace_char_ignoreCase(_ strRaw: Int, _ oldCharRaw: Int, _ newCharRaw: Int, _ ignoreCaseRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
-    let old = runtimeCharacterFromRaw(oldCharRaw)
-    let new = runtimeCharacterFromRaw(newCharRaw)
-    let options: String.CompareOptions = ignoreCaseRaw != 0 ? [.caseInsensitive] : []
-    return runtimeMakeStringRaw(source.replacingOccurrences(of: old, with: new, options: options))
-}
-
-@_cdecl("__string_replaceFirst")
-public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let old = runtimeStringFromRaw(oldRaw),
-          let new = runtimeStringFromRaw(newRaw) else { return strRaw }
-    guard !old.isEmpty, let range = source.range(of: old) else {
-        return runtimeMakeStringRaw(source)
-    }
-    return runtimeMakeStringRaw(source.replacingCharacters(in: range, with: new))
-}
-
-@_cdecl("__string_replaceRange")
-public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let source = runtimeStringFromRaw(strRaw),
-          let replacement = runtimeStringFromRaw(replacementRaw) else { return strRaw }
-    let scalars = Array(source.unicodeScalars)
-    let scalarCount = scalars.count
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, message: "Invalid range for replaceRange")
-        return runtimeMakeStringRaw(source)
-    }
-    let first = range.first
-    let last = range.last
-    if first < 0 || first > scalarCount || last < -1 || last >= scalarCount || first > last + 1 {
-        runtimeSetThrown(outThrown, message: "StringIndexOutOfBoundsException: start=\(first), end=\(last + 1), length=\(scalarCount)")
-        return runtimeMakeStringRaw(source)
-    }
-    let endIndex = last + 1
-    let before = runtimeStringFromScalars(scalars[0 ..< first])
-    let after = runtimeStringFromScalars(scalars[endIndex...])
-    return runtimeMakeStringRaw(before + replacement + after)
-}
-
-@_cdecl("__string_removeRange")
-public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let source = runtimeStringFromRaw(strRaw) else { return strRaw }
-    let scalars = Array(source.unicodeScalars)
-    let scalarCount = scalars.count
-    let start = startRaw
-    let end = endRaw
-    if start < 0 || start > scalarCount || end < 0 || end > scalarCount || start > end {
-        runtimeSetThrown(outThrown, message: "StringIndexOutOfBoundsException: start=\(start), end=\(end), length=\(scalarCount)")
-        return runtimeMakeStringRaw(source)
-    }
-    let before = runtimeStringFromScalars(scalars[0 ..< start])
-    let after = runtimeStringFromScalars(scalars[end...])
-    return runtimeMakeStringRaw(before + after)
-}
-
-@_cdecl("__string_removeRange_range")
-public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        runtimeSetThrown(outThrown, message: "Invalid range for removeRange")
-        return runtimeMakeStringRaw(runtimeStringFromRaw(strRaw) ?? "")
-    }
-    return __string_removeRange(strRaw, range.first, range.last + 1, outThrown)
-}
-
-@_cdecl("__string_removePrefix")
-public func __string_removePrefix(_ strRaw: Int, _ prefixRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let prefix = runtimeStringFromRaw(prefixRaw) else { return strRaw }
-    return runtimeMakeStringRaw(runtimeStringRemovingPrefix(source, prefix: prefix))
-}
-
-@_cdecl("__string_removeSuffix")
-public func __string_removeSuffix(_ strRaw: Int, _ suffixRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let suffix = runtimeStringFromRaw(suffixRaw) else { return strRaw }
-    return runtimeMakeStringRaw(runtimeStringRemovingSuffix(source, suffix: suffix))
-}
-
-@_cdecl("__string_removeSurrounding")
-public func __string_removeSurrounding(_ strRaw: Int, _ delimiterRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let delimiter = runtimeStringFromRaw(delimiterRaw) else { return strRaw }
-    return runtimeMakeStringRaw(runtimeStringRemovingSurrounding(source, delimiter: delimiter))
-}
-
-@_cdecl("__string_removeSurrounding_pair")
-public func __string_removeSurrounding_pair(_ strRaw: Int, _ prefixRaw: Int, _ suffixRaw: Int) -> Int {
-    guard let source = runtimeStringFromRaw(strRaw),
-          let prefix = runtimeStringFromRaw(prefixRaw),
-          let suffix = runtimeStringFromRaw(suffixRaw) else { return strRaw }
-    return runtimeMakeStringRaw(runtimeStringRemovingSurrounding(source, prefix: prefix, suffix: suffix))
 }
 
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source

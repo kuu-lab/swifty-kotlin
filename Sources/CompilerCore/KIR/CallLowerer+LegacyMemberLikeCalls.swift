@@ -1828,7 +1828,7 @@ extension CallLowerer {
                 case "takeLastWhile":
                     ("kk_string_takeLastWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "dropWhile":
-                    ("kk_string_dropWhile", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_dropWhile_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "splitToSequence":
                     ("kk_string_splitToSequence_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "find":
@@ -1879,21 +1879,21 @@ extension CallLowerer {
                 case "removeSuffix":
                     ("kk_string_removeSuffix_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "removeSurrounding":
-                    ("kk_string_removeSurrounding", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_removeSurrounding_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "trim":
-                    ("kk_string_trim_predicate", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_trim_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "trimStart":
-                    ("kk_string_trimStart_predicate", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_trimStart_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "trimEnd":
-                    ("kk_string_trimEnd_predicate", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_trimEnd_predicate_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "take":
-                    ("kk_string_take", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_take_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "drop":
-                    ("kk_string_drop", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_drop_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "takeLast":
-                    ("kk_string_takeLast", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_takeLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "dropLast":
-                    ("kk_string_dropLast", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_dropLast_flat", [loweredReceiverID, loweredArgIDs[0]])
                 default:
                     nil
                 }
@@ -2254,8 +2254,6 @@ extension CallLowerer {
             }
         }
 
-        // String stdlib: windowed(size, step, partialWindows) — STDLIB-549
-        // NOTE: Same name-based matching limitation as the 2-arg case above.
         if args.count == 3 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)

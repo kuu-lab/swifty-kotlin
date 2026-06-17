@@ -3,7 +3,7 @@ import Foundation
 typealias KKCustomDelegateGetterEntryPoint = @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 typealias KKCustomDelegateSetterEntryPoint = @convention(c) (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int
 
-private let runtimeNotNullUninitializedMessage =
+private let runtimeNotNullUninitializedPayload =
     "IllegalStateException: Property delegate must be assigned before being accessed."
 
 /// Throws an `IllegalStateException` for uninitialized `notNull` delegate access.
@@ -25,8 +25,9 @@ private func runtimeThrowNotNullUninitialized(
         outThrown.pointee = runtimeAllocateIllegalStateException(message: message)
         return 0
     } else {
-        FileHandle.standardError.write(Data((runtimeNotNullUninitializedMessage + "\n").utf8))
-        fatalError(runtimeNotNullUninitializedMessage)
+        let message = runtimeStructuredPanicMessage(runtimeNotNullUninitializedPayload)
+        FileHandle.standardError.write(Data((message + "\n").utf8))
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
 }
 
@@ -53,31 +54,19 @@ final class RuntimeKPropertyStub {
     let visibility: Int // intptr_t to a KKString (e.g. "PUBLIC", "INTERNAL", etc.)
     let isLateinit: Bool
     let isConst: Bool
-    /// Optional getter function pointer; 0 means not set.
-    var getterFnPtr: Int
-    /// Optional setter function pointer; 0 means not set.
-    var setterFnPtr: Int
-    /// The receiver object for get()/set() calls; 0 means top-level.
-    var receiverPtr: Int
 
     init(
         name: Int,
         returnType: Int,
         visibility: Int = 0,
         isLateinit: Bool = false,
-        isConst: Bool = false,
-        getterFnPtr: Int = 0,
-        setterFnPtr: Int = 0,
-        receiverPtr: Int = 0
+        isConst: Bool = false
     ) {
         self.name = name
         self.returnType = returnType
         self.visibility = visibility
         self.isLateinit = isLateinit
         self.isConst = isConst
-        self.getterFnPtr = getterFnPtr
-        self.setterFnPtr = setterFnPtr
-        self.receiverPtr = receiverPtr
     }
 }
 
@@ -142,131 +131,6 @@ public func kk_callable_ref_parameters(_ tagged: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: placeholders))
 }
 
-/// Invokes a callable ref (tagged function pointer) with zero arguments (STDLIB-REFLECT-063).
-/// For bound member references (closures), prepends the closure environment before calling.
-@_cdecl("kk_callable_ref_call_0")
-public func kk_callable_ref_call_0(
-    _ tagged: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard tagged != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
-        return 0
-    }
-    let expectedArity = runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity
-    }
-    if let expectedArity {
-        guard expectedArity == 0 else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "KFunction call arity mismatch: expected \(expectedArity), got 0"
-            )
-            return 0
-        }
-    }
-    if let box = runtimeFunctionValueBox(from: tagged) {
-        let fn = unsafeBitCast(box.fnPtr, to: KKClosureThunkEntryPoint.self)
-        return fn(box.closureRaw, outThrown)
-    }
-    let fn = unsafeBitCast(tagged, to: KKThunkEntryPoint.self)
-    return fn(outThrown)
-}
-
-/// Invokes a callable ref (tagged function pointer) with one argument (STDLIB-REFLECT-063).
-/// For bound member references (closures), prepends the closure environment before calling.
-@_cdecl("kk_callable_ref_call_1")
-public func kk_callable_ref_call_1(
-    _ tagged: Int,
-    _ arg: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard tagged != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
-        return 0
-    }
-    let expectedArity = runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity
-    }
-    if let expectedArity {
-        guard expectedArity == 1 else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "KFunction call arity mismatch: expected \(expectedArity), got 1"
-            )
-            return 0
-        }
-    }
-    if let box = runtimeFunctionValueBox(from: tagged) {
-        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint1.self)
-        return fn(box.closureRaw, arg, outThrown)
-    }
-    let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint1.self)
-    return fn(arg, outThrown)
-}
-
-/// Invokes a callable ref (tagged function pointer) with two arguments (STDLIB-REFLECT-063).
-/// For bound member references (closures), prepends the closure environment before calling.
-@_cdecl("kk_callable_ref_call_2")
-public func kk_callable_ref_call_2(
-    _ tagged: Int,
-    _ arg1: Int,
-    _ arg2: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard tagged != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
-        return 0
-    }
-    let expectedArity = runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity
-    }
-    if let expectedArity {
-        guard expectedArity == 2 else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "KFunction call arity mismatch: expected \(expectedArity), got 2"
-            )
-            return 0
-        }
-    }
-    if let box = runtimeFunctionValueBox(from: tagged) {
-        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint2.self)
-        return fn(box.closureRaw, arg1, arg2, outThrown)
-    }
-    let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint2.self)
-    return fn(arg1, arg2, outThrown)
-}
-
-/// Invokes a callable ref (tagged function pointer) with three arguments (STDLIB-REFLECT-063).
-/// For bound member references (closures), prepends the closure environment before calling.
-@_cdecl("kk_callable_ref_call_3")
-public func kk_callable_ref_call_3(
-    _ tagged: Int,
-    _ arg1: Int,
-    _ arg2: Int,
-    _ arg3: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard tagged != 0 else {
-        outThrown?.pointee = runtimeAllocateThrowable(message: "KFunction call: null function reference")
-        return 0
-    }
-    let expectedArity = runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity
-    }
-    if let expectedArity {
-        guard expectedArity == 3 else {
-            outThrown?.pointee = runtimeAllocateThrowable(
-                message: "KFunction call arity mismatch: expected \(expectedArity), got 3"
-            )
-            return 0
-        }
-    }
-    if let box = runtimeFunctionValueBox(from: tagged) {
-        let fn = unsafeBitCast(box.fnPtr, to: KKClosureFunctionEntryPoint3.self)
-        return fn(box.closureRaw, arg1, arg2, arg3, outThrown)
-    }
-    let fn = unsafeBitCast(tagged, to: KKFunctionEntryPoint3.self)
-    return fn(arg1, arg2, arg3, outThrown)
-}
 
 @_cdecl("kk_kproperty_stub_create")
 public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> Int {
@@ -365,86 +229,6 @@ public func kk_kproperty_stub_is_const(_ handle: Int) -> Int {
     return stub.isConst ? 1 : 0
 }
 
-// STDLIB-REFLECT-062: attach getter function pointer to a KProperty stub
-@_cdecl("kk_kproperty_stub_set_getter")
-public func kk_kproperty_stub_set_getter(_ handle: Int, _ fnPtr: Int, _ receiver: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        return 0
-    }
-    stub.getterFnPtr = fnPtr
-    stub.receiverPtr = receiver
-    return handle
-}
-
-// STDLIB-REFLECT-062: attach setter function pointer to a KProperty stub
-@_cdecl("kk_kproperty_stub_set_setter")
-public func kk_kproperty_stub_set_setter(_ handle: Int, _ fnPtr: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        return 0
-    }
-    stub.setterFnPtr = fnPtr
-    return handle
-}
-
-// STDLIB-REFLECT-062: return stored getter function pointer
-@_cdecl("kk_kproperty_stub_getter")
-public func kk_kproperty_stub_getter(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        return 0
-    }
-    return stub.getterFnPtr
-}
-
-// STDLIB-REFLECT-062: return stored setter function pointer
-@_cdecl("kk_kproperty_stub_setter")
-public func kk_kproperty_stub_setter(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        return 0
-    }
-    return stub.setterFnPtr
-}
-
-// STDLIB-REFLECT-062: invoke the getter via stored function pointer
-@_cdecl("kk_kproperty_stub_get_value")
-public func kk_kproperty_stub_get_value(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self),
-          stub.getterFnPtr != 0
-    else {
-        return runtimeNullSentinelInt
-    }
-    typealias GetterFn = @convention(c) (Int) -> Int
-    let fn = unsafeBitCast(stub.getterFnPtr, to: GetterFn.self)
-    return fn(stub.receiverPtr)
-}
-
-// STDLIB-REFLECT-062: invoke the setter via stored function pointer
-@_cdecl("kk_kproperty_stub_set_value")
-public func kk_kproperty_stub_set_value(_ handle: Int, _ value: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self),
-          stub.setterFnPtr != 0
-    else {
-        return 0
-    }
-    typealias SetterFn = @convention(c) (Int, Int) -> Int
-    let fn = unsafeBitCast(stub.setterFnPtr, to: SetterFn.self)
-    return fn(stub.receiverPtr, value)
-}
 
 /// Cached KKString handle for the default "PUBLIC" visibility value.
 /// Initialized lazily on first use to avoid allocating a new string on every call.
@@ -634,16 +418,16 @@ public func kk_notNull_create() -> Int {
 @_cdecl("kk_notNull_get_value")
 public func kk_notNull_get_value(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     let isObj = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
     guard isObj, let box = tryCast(ptr, to: RuntimeNotNullBox.self) else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     guard let value = box.currentValue else {
-        fatalError(runtimeNotNullUninitializedMessage)
+        runtimeStructuredPanic(runtimeNotNullUninitializedPayload)
     }
     return value
 }

@@ -252,7 +252,7 @@ private func runtimeRegexCreate(pattern: String) -> Int {
                     return registerRuntimeObject(RuntimeRegexBox(regex: lastResort, pattern: pattern))
                 } catch {
                     // This should never happen, but handle gracefully
-                    fatalError("Failed to create any NSRegularExpression instance")
+                    runtimeStructuredPanic("Failed to create any NSRegularExpression instance")
                 }
             }
         }
@@ -917,7 +917,7 @@ private func runtimeRegexFromLiteral(_ literal: String) -> Int {
             let fallback = try NSRegularExpression(pattern: "(?!)", options: [])
             return registerRuntimeObject(RuntimeRegexBox(regex: fallback, pattern: literal))
         } catch {
-            fatalError("Failed to create fallback NSRegularExpression")
+            runtimeStructuredPanic("Failed to create fallback NSRegularExpression")
         }
     }
     return registerRuntimeObject(RuntimeRegexBox(regex: regex, pattern: escapedPattern))

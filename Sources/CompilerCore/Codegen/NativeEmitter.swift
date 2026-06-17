@@ -34,6 +34,8 @@ struct NativeEmitter {
     let bindings: LLVMCAPIBindings
     let module: KIRModule
     let interner: StringInterner
+    let typeSystem: TypeSystem?
+    let symbols: SymbolTable?
     let sourceManager: SourceManager?
     let fileFacadeNamesByFileID: [Int32: String]
     /// REFL-004: Metadata records to embed as runtime reflection metadata.
@@ -50,6 +52,8 @@ struct NativeEmitter {
         bindings: LLVMCAPIBindings,
         module: KIRModule,
         interner: StringInterner,
+        typeSystem: TypeSystem? = nil,
+        symbols: SymbolTable? = nil,
         sourceManager: SourceManager? = nil,
         fileFacadeNamesByFileID: [Int32: String] = [:],
         reflectionMetadataRecords: [MetadataRecord] = [],
@@ -62,6 +66,8 @@ struct NativeEmitter {
         self.bindings = bindings
         self.module = module
         self.interner = interner
+        self.typeSystem = typeSystem
+        self.symbols = symbols
         self.sourceManager = sourceManager
         self.fileFacadeNamesByFileID = fileFacadeNamesByFileID
         self.reflectionMetadataRecords = reflectionMetadataRecords
@@ -146,6 +152,7 @@ struct NativeEmitter {
             bindings.disposeContext(context)
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
+        let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
 
         do {
             try defineWeakFrameRuntimeStubs(
@@ -188,10 +195,21 @@ guard case let .function(function) = declaration,
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            var parameterTypes = Array(repeating: int64Type, count: function.params.count)
+            var parameterTypes = function.params.map {
+                loweredLLVMType(
+                    for: $0.type,
+                    lowering: typeLowering,
+                    defaultType: int64Type
+                )
+            }
             parameterTypes.append(outThrownPointerType)
+            let returnType = loweredLLVMType(
+                for: function.returnType,
+                lowering: typeLowering,
+                defaultType: int64Type
+            )
 
-            guard let functionType = bindings.functionType(returnType: int64Type, parameters: parameterTypes, isVarArg: false),
+            guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
             else {
                 bindings.disposeModule(llvmModule)
@@ -228,6 +246,7 @@ guard case let .function(function) = declaration,
                     llvmModule: llvmModule,
                     context: context,
                     int64Type: int64Type,
+                    typeLowering: typeLowering,
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,

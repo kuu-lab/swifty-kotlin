@@ -3069,7 +3069,7 @@ extension DataFlowSemaPhase {
         // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_range",
+            externalLinkName: "kk_string_encodeToByteArray_range_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -3084,7 +3084,7 @@ extension DataFlowSemaPhase {
         // MIGRATION-TEXT-007: Private primitives — called from BundledKotlinStdlib encodeToByteArray wrappers
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: byteArrayType,
@@ -3095,7 +3095,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray",
+            externalLinkName: "kk_string_encodeToByteArray_flat",
             receiverType: stringType,
             parameters: [],
             returnType: byteArrayType,
@@ -3106,7 +3106,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_range",
-            externalLinkName: "kk_string_encodeToByteArray_range",
+            externalLinkName: "kk_string_encodeToByteArray_range_flat",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -3120,7 +3120,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_charset",
-            externalLinkName: "kk_string_encodeToByteArray_charset",
+            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -3135,7 +3135,7 @@ extension DataFlowSemaPhase {
         for functionName in ["encodeToByteArray", "toByteArray"] {
             registerSyntheticStringExtensionFunction(
                 named: functionName,
-                externalLinkName: "kk_string_encodeToByteArray_range",
+                externalLinkName: "kk_string_encodeToByteArray_range_flat",
                 receiverType: stringType,
                 parameters: [
                     ("startIndex", intType, false, false),
@@ -3151,7 +3151,7 @@ extension DataFlowSemaPhase {
         // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload
         registerSyntheticStringExtensionFunction(
             named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_charset",
+            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
@@ -3763,8 +3763,6 @@ extension DataFlowSemaPhase {
         )
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringComparison.kt (MIGRATION-TEXT-009)
-        // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
