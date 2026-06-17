@@ -1649,8 +1649,6 @@ struct CollectionLiteralLookupTables {
         stringProducingCallees = [
             interner.intern("kk_string_concat"),
             interner.intern("kk_string_trim"),
-            interner.intern("kk_string_lowercase"),
-            interner.intern("kk_string_uppercase"),
             interner.intern("kk_string_replace"),
             interner.intern("kk_string_replaceFirst"),
             interner.intern("kk_string_replaceAfter"),

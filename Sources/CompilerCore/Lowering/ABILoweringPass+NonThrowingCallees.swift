@@ -6,7 +6,7 @@ extension ABILoweringPass {
     /// Derived from `RuntimeABISpec.nonThrowingRuntimeCalleeNames` so throwing
     /// metadata is maintained in a single place (DEBT-KIR-003).
     func nonThrowingCallees(interner: StringInterner) -> Set<InternedString> {
-        Set(RuntimeABISpec.nonThrowingRuntimeCalleeNames.map { interner.intern($0) }).union([
+Set(RuntimeABISpec.nonThrowingRuntimeCalleeNames.map { interner.intern($0) }).union([
             interner.intern("kk_for_lowered"),
             interner.intern("kk_range_iterator"),
             interner.intern("kk_range_hasNext"),

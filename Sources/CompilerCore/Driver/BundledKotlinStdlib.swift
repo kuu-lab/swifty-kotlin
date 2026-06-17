@@ -80,6 +80,48 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     static let kotlinTextSource = """
 package kotlin.text
 
+// MIGRATION-TEXT-010: no-locale String case conversion now lives in Kotlin.
+
+fun String.lowercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].lowercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.uppercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].uppercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.capitalize(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    sb.append(this[0].uppercase())
+    var i = 1
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
+    return sb.toString()
+}
+
+fun String.lowercase(locale: java.util.Locale): String =
+    this.__kk_lowercase_locale(locale)
+
+fun String.uppercase(locale: java.util.Locale): String =
+    this.__kk_uppercase_locale(locale)
+
 fun String.repeat(count: Int): String {
     if (count < 0) throw IllegalArgumentException("Count 'n' must be non-negative, but was $count.")
     val sb = StringBuilder()

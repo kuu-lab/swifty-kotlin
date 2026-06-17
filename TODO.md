@@ -173,13 +173,27 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/`
 
-- [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
+- [~] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）— `lowercase` / `uppercase` / `capitalize` と locale wrapper は bundled Kotlin source 化済み。残件は下記の小粒タスクへ分割。
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
+
+#### RuntimeABI → Kotlin source 移行候補（小粒・未検証含む）
+- [ ] MIGRATION-TEXT-005a: `String.replaceFirstChar(transform)` を public Kotlin wrapper に移し、`kk_string_replaceFirstChar` は必要なら private bridge へ降格する。確認対象: `(Char) -> Char` 版の現行 synthetic signature と Kotlin upstream の `(Char) -> CharSequence` 差分。
+- [ ] MIGRATION-TEXT-005b: `Sources/CompilerCore/Stdlib/kotlin/text/StringCaseConversion.kt` と `BundledKotlinStdlib.kotlinTextSource` の重複を解消する。まず case conversion 部分だけを物理 `.kt` 読み込みへ寄せるか、virtual source 生成元を一本化する。
+- [ ] MIGRATION-TEXT-009: `String.isEmpty()` / `isNotEmpty()` を Kotlin source に移し、`kk_string_isEmpty` / `kk_string_isNotEmpty` を RuntimeABI から削除する。`length == 0` / `length != 0` のみで表現できるか確認する。
+- [ ] MIGRATION-TEXT-010: `String.isBlank()` / `isNotBlank()` を Kotlin source に移す。`Char.isWhitespace()` ループで実装し、`kk_string_isBlank` / `kk_string_isNotBlank` を削除できるか確認する。
+- [ ] MIGRATION-TEXT-011: `String.firstOrNull()` / `lastOrNull()` / `singleOrNull()` / `getOrNull(index)` を Kotlin source に移す。`Char?` boxing と `null` 返却が codegen で安定するかを小さな実行テストで確認する。
+- [ ] MIGRATION-TEXT-012: `String.first()` / `last()` / `single()` を Kotlin source に移す。空文字・複数文字時の例外が Kotlin と揃うか確認し、必要なら例外生成だけ private bridge に残す。
+- [ ] MIGRATION-TEXT-013: `String.ifEmpty {}` / `ifBlank {}` を Kotlin source に移す。lambda 呼び出しの ABI と例外伝播を既存 HOF 実装に合わせ、`kk_string_ifEmpty` / `kk_string_ifBlank` の public dispatch を外せるか確認する。
+- [ ] MIGRATION-TEXT-014: `String.orEmpty()` / `CharSequence?.orEmpty()` 相当の null 補助 API を Kotlin source 化できるか調査する。既存 synthetic stub がある場合は同名 source symbol に C link を貼らない登録順へ調整する。
+- [ ] MIGRATION-TEXT-015: `String.contains` / `startsWith` / `endsWith` の ignoreCase=false 版を Kotlin source に移す。ignoreCase=true や locale/Unicode 依存部分だけを bridge として残す分割が可能か確認する。
 
 ### Phase M2: kotlin.text StringBuilder
 > 移行元: `Sources/Runtime/RuntimeStringBuilder.swift` (29 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/StringBuilder.kt`
 
+- [ ] MIGRATION-SB-001: `StringBuilder` の constructor / `toString` / `append(String?)` を Kotlin source wrapper に移し、実バッファ操作だけを private bridge に残す。
+- [ ] MIGRATION-SB-002: `StringBuilder.append(Char)` / `append(Boolean)` / `append(Int)` など型別 append を Kotlin overload として分割し、runtime 側の `kk_string_builder_append_*` public dispatch を段階的に縮小する。
+- [ ] MIGRATION-SB-003: `StringBuilder.deleteAt` / `deleteRange` / `insertRange` / `setRange` の境界チェックを Kotlin source に寄せる。catch 可能例外化タスク（DEBT-RT-001）と衝突しないよう、例外方針を先に決める。
 
 ### Phase M3: kotlin.collections ファクトリ・HOF
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
@@ -197,6 +211,19 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [x] MIGRATION-COL-012: Map HOF を Kotlin source に移行する（`map.filter`, `filterKeys`, `filterValues`, `mapKeys`, `mapValues`, `mapNotNull`, `flatMap`, `forEach`, `getOrElse`, `getOrDefault`）
 - [ ] MIGRATION-COL-013: Set HOF を Kotlin source に移行する（`set.filter`, `map`, `flatMap`, `forEach`, `sorted`, `first`, `last`, `count`, `any`, `all`, `none`）
 
+#### RuntimeABI → Kotlin source 移行候補（collections / 未検証含む）
+- [ ] MIGRATION-COL-003a: `List.filter` / `filterNot` を Kotlin source に移す。既存 `kk_list_filter*` 直 dispatch を外し、predicate lambda ABI と例外伝播だけを重点確認する。
+- [ ] MIGRATION-COL-003b: `List.filterIndexed` / `filterNotNull` / `filterIsInstance` を Kotlin source に移す。`filterIsInstance` は type token / runtime type check が必要なら private bridge に残す。
+- [ ] MIGRATION-COL-004a: `List.fold` / `reduce` / `reduceOrNull` を Kotlin source に移す。空 List の例外・`null` 返却・accumulator 未呼出ケースを小さく確認する。
+- [ ] MIGRATION-COL-004b: `List.scan` / `runningFold` / `runningReduce` を Kotlin source に移す。返却 List の初期値・中間値個数・空 List の扱いを確認する。
+- [ ] MIGRATION-COL-005a: `List.getOrNull` / `elementAtOrNull` / `firstOrNull` / `lastOrNull` / `singleOrNull` を Kotlin source に移す。`T?` 返却が generic codegen で安定するかを先に確認する。
+- [ ] MIGRATION-COL-005b: `List.first` / `last` / `single` / `elementAt` を Kotlin source に移す。例外生成だけ private bridge に残す必要があるか確認する。
+- [ ] MIGRATION-COL-006a: `List.reversed` / `sorted` / `sortedDescending` を Kotlin source wrapper に移す。比較・安定ソート本体は当面 bridge に残す分割を検討する。
+- [ ] MIGRATION-COL-013a: `Set.count` / `any` / `all` / `none` / `forEach` を Kotlin source に移す。Set iterator 順序に依存しないケースから実行テストを追加する。
+- [ ] MIGRATION-COL-013b: `Set.first` / `last` / `firstOrNull` / `lastOrNull` / `singleOrNull` を Kotlin source に移す。空 Set 例外と順序の扱いを既存 runtime 表現に合わせる。
+- [ ] MIGRATION-SETMAP-001a: `Map.size` / `isEmpty` / `containsKey` / `containsValue` / `get` を Kotlin source wrapper に移す。Map storage への直接アクセスは private bridge として残す。
+- [ ] MIGRATION-SETMAP-001b: `Map.getOrDefault` / `getValue` / `withDefault` を Kotlin source に移す。default lambda の保持・呼び出しタイミング・例外伝播を確認する。
+
 ### Phase M4: kotlin.sequences
 > 移行元: `Sources/Runtime/RuntimeSequence.swift` (105), `RuntimeSequenceBuilders.swift` (20), `RuntimeSequenceAssociation.swift` (25), `RuntimeSequenceFoldScan.swift` (9)
 > 移行先: `Stdlib/kotlin/sequences/`
@@ -207,12 +234,26 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
 - [ ] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
 
+#### RuntimeABI → Kotlin source 移行候補（sequences / 未検証含む）
+- [ ] MIGRATION-SEQ-001a: `emptySequence()` / `sequenceOf(vararg)` / `Sequence<T>?.orEmpty()` を Kotlin source wrapper に移す。内部 sequence box 生成だけ private bridge に残す。
+- [ ] MIGRATION-SEQ-002a: `Sequence.map` / `filter` / `filterNot` を Kotlin source で遅延 wrapper 化する。評価回数テストを追加し、eager 化しないことを確認する。
+- [ ] MIGRATION-SEQ-002b: `Sequence.mapIndexed` / `filterIndexed` / `mapNotNull` を Kotlin source 化する。index overflow と null skip の挙動を確認する。
+- [ ] MIGRATION-SEQ-003a: `Sequence.count` / `any` / `all` / `none` を Kotlin source に移す。短絡評価と空 sequence の返り値を重点確認する。
+- [ ] MIGRATION-SEQ-003b: `Sequence.firstOrNull` / `lastOrNull` / `singleOrNull` / `elementAtOrNull` を Kotlin source に移す。iterator 消費回数を小さな実行テストで確認する。
+- [ ] MIGRATION-SEQ-004a: `Sequence.fold` / `reduce` / `reduceOrNull` を Kotlin source に移す。空 sequence と lambda 例外伝播を確認する。
+
 ### Phase M5: kotlin.comparisons
 > 移行元: `Sources/Runtime/RuntimeComparator.swift` (47 @_cdecl)
 > 移行先: `Stdlib/kotlin/comparisons/Comparisons.kt`
 
 - [ ] MIGRATION-COMP-001: Comparator ファクトリ・合成を Kotlin source に移行する（`compareBy`, `compareByDescending`, `naturalOrder`, `reverseOrder`, `reversed`, `thenBy`, `thenByDescending`, `thenComparing`）
 - [ ] MIGRATION-COMP-002: maxOf/minOf 全オーバーロードを Kotlin source に移行する（Comparable版, プリミティブ版, vararg版）
+
+#### RuntimeABI → Kotlin source 移行候補（comparisons / 未検証含む）
+- [ ] MIGRATION-COMP-001a: `naturalOrder` / `reverseOrder` を Kotlin source wrapper に移す。Comparator object 生成だけ private bridge に残す分割を検討する。
+- [ ] MIGRATION-COMP-001b: `thenBy` / `thenByDescending` / `reversed` を Kotlin source に移す。既存 comparator trampoline の ABI を private bridge 化できるか確認する。
+- [ ] MIGRATION-COMP-002a: `maxOf` / `minOf` の 2 引数 primitive overload を Kotlin source に移す。単純比較で表現できる型から始める。
+- [ ] MIGRATION-COMP-002b: `maxOf` / `minOf` の 3 引数 overload を Kotlin source に移す。2 引数版のネストで実装し、NaN を含む Float/Double だけ別確認する。
 
 ### Phase M6: kotlin.ranges
 > 移行元: `Sources/Runtime/RuntimeRangeAndDispatch.swift` (46), `RuntimeRangeIntRangeHOF.swift` (30), `RuntimeRangeLongRange.swift`, `RuntimeRangeUIntULongRange.swift`
@@ -222,11 +263,23 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-RANGE-002: Range HOF を Kotlin source に移行する（`forEach`, `map`, `filter`, `toList`, `count`, `first`, `last`, `reversed`, `step`）
 - [ ] MIGRATION-RANGE-003: Range ユーティリティを Kotlin source に移行する（`coerceIn`, `coerceAtLeast`, `coerceAtMost`, `until`, `downTo`）
 
+#### RuntimeABI → Kotlin source 移行候補（ranges / 未検証含む）
+- [ ] MIGRATION-RANGE-001a: `IntRange.contains` / `isEmpty` / `first` / `last` / `count` を Kotlin source に移す。`step` なしの閉区間だけを先に切り出す。
+- [ ] MIGRATION-RANGE-001b: `LongRange.contains` / `isEmpty` / `first` / `last` / `count` を Kotlin source に移す。overflow しやすい端点を追加テストする。
+- [ ] MIGRATION-RANGE-002a: `IntRange.forEach` / `map` / `filter` を Kotlin source に移す。lambda 例外伝播と空 range を確認する。
+- [ ] MIGRATION-RANGE-003a: `coerceAtLeast` / `coerceAtMost` / `coerceIn` の primitive overload を Kotlin source に移す。Double/Float の NaN 挙動は別タスクとして残す。
+- [ ] MIGRATION-RANGE-003b: `until` / `downTo` の Int/Long overload を Kotlin source wrapper に移す。range/progression object 生成だけ bridge に残す分割を検討する。
+
 ### Phase M7: kotlin.random
 > 移行元: `Sources/Runtime/RuntimeRandom.swift` (38 @_cdecl)
 > 移行先: `Stdlib/kotlin/random/Random.kt`
 
 - [ ] MIGRATION-RANDOM-001: `Random` クラス API を Kotlin source に移行する（`nextInt`, `nextLong`, `nextDouble`, `nextFloat`, `nextBoolean`, `nextBytes` — PRNG ステート管理はブリッジに委譲）
+
+#### RuntimeABI → Kotlin source 移行候補（random / 未検証含む）
+- [ ] MIGRATION-RANDOM-001a: `Random.nextBoolean()` を Kotlin source wrapper に移す。`nextBits(1)` または既存 bridge のどちらに委譲するかを確認する。
+- [ ] MIGRATION-RANDOM-001b: `Random.nextBytes(size)` / `nextBytes(array)` を Kotlin source に移す。配列確保と範囲チェックは Kotlin、乱数充填のみ private bridge に寄せる。
+- [ ] MIGRATION-RANDOM-001c: `Random.nextInt(until)` / `nextLong(until)` の引数検証を Kotlin source に寄せる。PRNG 本体は bridge のまま維持する。
 
 ### Phase M8: kotlin.time / Duration
 > 移行元: `Sources/Runtime/RuntimeDuration.swift` (61 @_cdecl)
@@ -236,6 +289,15 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-TIME-002: `Duration` コンポーネント・文字列変換を Kotlin source に移行する（`toComponents`, `toString`, `toIsoString`, `inWholeMilliseconds`, `inWholeMicroseconds` 等）
 - [ ] MIGRATION-TIME-003: `Duration` ファクトリ拡張を Kotlin source に移行する（`Int.seconds`, `Long.milliseconds`, `Double.minutes` 等の拡張プロパティ）
 
+#### RuntimeABI → Kotlin source 移行候補（time / 未検証含む）
+- [ ] MIGRATION-TIME-001a: `Duration.isPositive` / `isNegative` / `isFinite` / `isInfinite` を Kotlin source wrapper に移す。内部 duration 表現の raw 値を読む bridge が必要か確認する。
+- [ ] MIGRATION-TIME-001b: `Duration.absoluteValue` / `unaryMinus` を Kotlin source に移す。無限大・最小値 overflow の扱いは runtime と突き合わせる。
+- [ ] MIGRATION-TIME-002a: `Duration.inWholeMilliseconds` / `inWholeSeconds` / `inWholeMinutes` / `inWholeHours` / `inWholeDays` / `inWholeNanoseconds` を Kotlin source wrapper に移す。raw 変換だけ private bridge に残せるか確認する。
+- [ ] MIGRATION-TIME-002b: `Duration.toString()` / `toIsoString()` / `toComponents(...)` を Kotlin source wrapper に移す。component callback の ABI と overflow 境界を確認する。
+- [ ] MIGRATION-TIME-002c: `Duration.parse` / `parseOrNull` / `parseIsoString` / `parseIsoStringOrNull` を Kotlin source wrapper に移す。throwing parse と null parse の分岐を Kotlin 側へ寄せる。
+- [ ] MIGRATION-TIME-003a: `Int.seconds` / `Int.milliseconds` / `Long.seconds` / `Long.milliseconds` の拡張プロパティを Kotlin source wrapper に移す。単位変換本体は当面 private bridge に残す。
+- [ ] MIGRATION-TIME-004a: `measureTime {}` / `measureTimedValue {}` を Kotlin source wrapper に移す。計測 clock と `TimedValue` box 生成だけ private bridge に残し、lambda 例外伝播を確認する。
+
 ### Phase M9: kotlin.io File I/O
 > 移行元: `Sources/Runtime/RuntimeFileIO.swift` (144 @_cdecl)
 > 移行先: `Stdlib/kotlin/io/`
@@ -244,12 +306,34 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] MIGRATION-IO-002: File ストリーム・バッファ関数を Kotlin source に移行する（`bufferedReader`, `bufferedWriter`, `inputStream`, `outputStream`, `reader`, `writer`）
 - [ ] MIGRATION-IO-003: File 走査・操作関数を Kotlin source に移行する（`walk`, `walkTopDown`, `walkBottomUp`, `copyTo`, `copyRecursively`, `deleteRecursively`, `forEachLine`, `useLines`）
 
+#### RuntimeABI → Kotlin source 移行候補（io / 未検証含む）
+- [ ] MIGRATION-IO-001a: `File.readText` / `readBytes` を Kotlin source wrapper に移す。実ファイル読み込みは private bridge のまま、charset/default 引数処理を Kotlin 側へ寄せる。
+- [ ] MIGRATION-IO-001b: `File.writeText` / `appendText` / `writeBytes` / `appendBytes` を Kotlin source wrapper に移す。上書き・追記 mode の選択だけ Kotlin 側で表現できるか確認する。
+- [ ] MIGRATION-IO-002a: `File.bufferedReader` / `reader` / `inputStream` を Kotlin source wrapper に移す。stream object 生成は bridge に残す。
+- [ ] MIGRATION-IO-003a: `File.forEachLine` / `useLines` を Kotlin source に移す。resource close と lambda 例外伝播を小さな実行テストで確認する。
+- [ ] MIGRATION-PATH-001: `Path.name` / `extension` / `nameWithoutExtension` / `pathString` を Kotlin source wrapper に移す。OS path 正規化が絡む処理だけ bridge に残す。
+- [ ] MIGRATION-PATH-002: `Path.readText` / `writeText` / `appendText` を Kotlin source wrapper に移す。charset/default 引数処理を Kotlin 側へ寄せる。
+- [ ] MIGRATION-PATH-003a: `Path.resolve` / `relativize` / `normalize` / `/` operator (`div`) を Kotlin source wrapper に移す。path normalization 本体は bridge 維持。
+- [ ] MIGRATION-PATH-003b: `Path.relativeTo` / `relativeToOrSelf` / `relativeToOrNull` を Kotlin source に移す。失敗時例外と null fallback の分岐を Kotlin 側へ寄せる。
+- [ ] MIGRATION-PATH-004a: `Path.exists` / `notExists` / `isDirectory` / `isRegularFile` / `isAbsolute` / `isReadable` / `isWritable` / `isExecutable` / `isHidden` / `isSymbolicLink` を Kotlin source wrapper に移す。filesystem query 本体は bridge 維持。
+- [ ] MIGRATION-PATH-004b: `Path.fileSize` / `getLastModifiedTime` / `readAttributes` / `getAttribute` / `fileAttributesView` / owner/permission API を Kotlin source wrapper に移す。OS-specific attribute handling は bridge に残す。
+- [ ] MIGRATION-PATH-005a: `Path.createDirectories` / `createDirectory` / `createFile` / `createParentDirectories` / temp file/directory creation を Kotlin source wrapper に移す。attribute/default argument 処理を Kotlin 側へ寄せる。
+- [ ] MIGRATION-PATH-005b: `Path.deleteIfExists` / `deleteExisting` / `deleteRecursively` / `copyTo` / `copyToRecursively` / `moveTo` を Kotlin source wrapper に移す。overwrite/options/onError/copyAction の分岐を Kotlin 側へ寄せる。
+- [ ] MIGRATION-PATH-006a: `Path.listDirectoryEntries` / `useDirectoryEntries` / `forEachDirectoryEntry` / `walk` / `visitFileTree` を Kotlin source wrapper に移す。resource close と callback exception を重点確認する。
+- [ ] MIGRATION-PATH-007a: `Path.toFile` / `toUri` / `URI.toPath` と URI/URL wrapper (`scheme`, `host`, `readText`, `readBytes`, encode/decode) を Kotlin source に寄せられる範囲で分割する。target 外候補は DEADCODE 側へ移す。
+
 ### Phase M10: kotlin.io.encoding
 > 移行元: `Sources/Runtime/RuntimeBase64.swift` (26), `RuntimeHexFormat.swift` (18)
 > 移行先: `Stdlib/kotlin/io/encoding/`
 
 - [ ] MIGRATION-ENC-001: Base64 encode/decode を Kotlin source に移行する（`Base64.encode`, `Base64.decode`, `Base64.UrlSafe`, `Base64.Mime`）
 - [ ] MIGRATION-ENC-002: HexFormat を Kotlin source に移行する（`HexFormat`, `toHexString`, `hexToByteArray`）
+
+#### RuntimeABI → Kotlin source 移行候補（encoding / 未検証含む）
+- [ ] MIGRATION-ENC-001a: `Base64.encode(source)` / `decode(source)` の public overload を Kotlin source wrapper に移す。バイト変換本体だけ private bridge に残す。
+- [ ] MIGRATION-ENC-001b: `Base64.encodeToString` / `decodeToString` を Kotlin source に移す。`ByteArray.decodeToString` wrapper と共有できるか確認する。
+- [ ] MIGRATION-ENC-002a: `HexFormat` の prefix/suffix/upperCase 等の単純 property を Kotlin source model に移す。format object の raw box が必要な箇所だけ bridge に残す。
+- [ ] MIGRATION-ENC-002b: `ByteArray.toHexString` / `hexToByteArray` の public overload を Kotlin wrapper 化する。range/default 引数処理を Kotlin 側へ寄せる。
 
 ### Phase M11: kotlin.text Regex
 > 移行元: `Sources/Runtime/RuntimeRegex.swift` (44 @_cdecl)
@@ -263,11 +347,21 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [ ] MIGRATION-UUID-001: `Uuid` クラス API を Kotlin source に移行する（`Uuid.random`, `Uuid.parse`, `toString`, `toLongs`, `toByteArray`）
 
+#### RuntimeABI → Kotlin source 移行候補（uuid / 未検証含む）
+- [ ] MIGRATION-UUID-001a: `Uuid.version` / `variant` / `mostSignificantBits` / `leastSignificantBits` を Kotlin source wrapper に移す。raw 128-bit 値取得だけ private bridge に残す。
+- [ ] MIGRATION-UUID-001b: `Uuid.parseOrNull` / `parseHexOrNull` / `parseHexDashOrNull` を Kotlin source に移す。throwing parse bridge を `try/catch` で包めるか確認する。
+- [ ] MIGRATION-UUID-001c: `Uuid.toByteArray` / `toLongs` を Kotlin source wrapper に移す。byte order と signed/unsigned 変換を実行テストで固定する。
+
 ### Phase M13: kotlin (Result)
 > 移行元: `Sources/Runtime/RuntimeResult.swift` (16 @_cdecl)
 > 移行先: `Stdlib/kotlin/Result.kt`
 
 - [ ] MIGRATION-RESULT-001: `Result` クラスと `runCatching` を Kotlin source に移行する（`isSuccess`, `isFailure`, `getOrNull`, `getOrDefault`, `getOrElse`, `getOrThrow`, `map`, `fold`, `onSuccess`, `onFailure`）
+
+#### RuntimeABI → Kotlin source 移行候補（Result / 未検証含む）
+- [ ] MIGRATION-RESULT-001a: `Result.isSuccess` / `isFailure` / `getOrNull` / `exceptionOrNull` を Kotlin source に移す。success/failure box の判定だけ private bridge に残す。
+- [ ] MIGRATION-RESULT-001b: `Result.getOrDefault` / `getOrElse` / `getOrThrow` を Kotlin source に移す。failure 例外再送出と default lambda の呼び出し条件を確認する。
+- [ ] MIGRATION-RESULT-001c: `Result.map` / `fold` / `onSuccess` / `onFailure` を Kotlin source に移す。lambda 例外が `map` と `mapCatching` で異なる扱いになる点を確認する。
 
 ### Phase M14: kotlin.properties
 > 移行元: `Sources/Runtime/RuntimeDelegates.swift` (41 @_cdecl)
@@ -289,11 +383,161 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [ ] MIGRATION-ATOMIC-001: `AtomicInt` / `AtomicLong` / `AtomicRef` の API を Kotlin source に移行する（`get`, `set`, `getAndSet`, `compareAndSet`, `incrementAndGet`, `decrementAndGet`, `addAndGet` — CAS 操作はブリッジに委譲）
 
+#### RuntimeABI → Kotlin source 移行候補（atomics / 未検証含む）
+- [ ] MIGRATION-ATOMIC-001a: `AtomicInt.incrementAndGet` / `decrementAndGet` / `addAndGet` を Kotlin source wrapper に移す。fetch/add primitive だけ bridge に残せるか確認する。
+- [ ] MIGRATION-ATOMIC-001b: `AtomicLong.incrementAndGet` / `decrementAndGet` / `addAndGet` を Kotlin source wrapper に移す。overflow 挙動を既存 runtime と突き合わせる。
+- [ ] MIGRATION-ATOMIC-001c: `AtomicRef.update` / `fetchAndUpdate` 系を Kotlin source に移す。CAS retry loop を Kotlin で書き、lambda が複数回呼ばれ得ることをテストで明記する。
+
 ### Phase M17: kotlin.collections Set/Map 基本操作
 > 移行元: `Sources/Runtime/RuntimeSetAndMap.swift` (53 @_cdecl)
 > 移行先: `Stdlib/kotlin/collections/`
 
 - [ ] MIGRATION-SETMAP-001: Set/Map ファクトリ・基本操作を Kotlin source に移行する（`contains`, `containsKey`, `containsValue`, `get`, `getOrDefault`, `keys`, `values`, `entries`, `size`, `isEmpty`）
+
+#### RuntimeABI → Kotlin source 移行候補（Set/Map 基本操作 / 未検証含む）
+- [ ] MIGRATION-SETMAP-001c: `Set.size` / `isEmpty` / `contains` / `containsAll` を Kotlin source wrapper に移す。storage access は private bridge に残す。
+- [ ] MIGRATION-SETMAP-001d: `Set.toList` / `toSet` / `toMutableSet` を Kotlin source に移す。copy か view かの現行挙動を実行テストで固定する。
+- [ ] MIGRATION-SETMAP-001e: `Map.keys` / `values` / `entries` を Kotlin source wrapper に移す。返却 collection の mutability と順序を確認する。
+
+### Phase M18: kotlin 基本 API / 配列 / Char / IO
+> 移行元: `Sources/RuntimeABI/RuntimeABISpec.swift` の `arrayFunctions` / `booleanFunctions` / `charFunctions` / `consolePrintFunctions` / `ioFunctions`
+> 移行先: `Stdlib/kotlin/` / `Stdlib/kotlin/io/`
+
+#### RuntimeABI → Kotlin source 移行候補（基本 API / 未検証含む）
+- [ ] MIGRATION-ARRAY-001a: `arrayOfNulls<T>(size)` / object array constructor wrapper を Kotlin source に移す。実配列確保は private bridge のまま、size 検証と型 token 受け渡しを確認する。
+- [ ] MIGRATION-ARRAY-001b: `Array<T>.get(index)` / `set(index, value)` の境界チェックを Kotlin source に寄せる。inbounds fast path と catch 可能例外化の方針を揃える。
+- [ ] MIGRATION-ARRAY-001c: `Array<T>.binarySearch` の comparator overload を Kotlin source wrapper に移す。比較 lambda の ABI と `fromIndex` / `toIndex` 検証を確認する。
+- [ ] MIGRATION-ARRAY-001d: vararg spread concat (`*a`, `*b`) の公開 lowering 経路を棚卸しし、Kotlin source の helper に寄せられる範囲を分離する。
+- [ ] MIGRATION-ARRAY-002a: primitive array `binarySearch` (`IntArray`, `LongArray`, `ByteArray`, unsigned array 等) の range/default 引数処理を Kotlin source wrapper に移す。比較本体は bridge か intrinsic に残す。
+- [ ] MIGRATION-ARRAYDEQUE-001a: `ArrayDeque` constructor / `addFirst` / `addLast` / `removeFirst` / `removeLast` / `first` / `last` / `size` / `isEmpty` / `toString` を Kotlin source wrapper 化できるか調査する。buffer mutation 本体は bridge 維持。
+- [ ] MIGRATION-CHAR-001a: `Char.minus(Char)` / `Char.compareTo(Char)` を Kotlin source へ移す。UTF-16 code unit 差分として既存 runtime と一致するか確認する。
+- [ ] MIGRATION-CHAR-001b: `Char.rangeTo(Char)` を Kotlin source wrapper に移す。`CharRange` object 生成だけ private bridge に残す分割を検討する。
+- [ ] MIGRATION-BOOL-001a: `Boolean.not()` の RuntimeABI dispatch が残っているか確認し、可能なら compiler intrinsic または Kotlin source 実装へ寄せる。
+- [ ] MIGRATION-PRINT-001a: `print(any)` / `println(any)` / `println()` の overload wrapper を Kotlin source に移す。実出力だけ `kk_print*` bridge に残す。
+- [ ] MIGRATION-IO-004a: `readln()` / `readlnOrNull()` / `readLine()` の public wrapper を Kotlin source に移す。EOF 時の例外・null 挙動を kotlinc と突き合わせる。
+- [ ] MIGRATION-IO-004b: `DEFAULT_BUFFER_SIZE` を Kotlin source 定数化できるか調査する。target ごとの値差分がある場合は bridge 維持。
+- [ ] MIGRATION-TEST-001a: `kotlin.test.assertEquals` / `assertTrue` / `assertNull` の public wrapper を Kotlin source に移す。失敗時の assertion exception 生成だけ private bridge に残す。
+- [ ] MIGRATION-TEST-001b: assertion message overload を Kotlin source に移す。message が null/空文字のときの失敗文面を kotlinc / kotlin.test と突き合わせる。
+
+### Phase M19: kotlin.math / 数値変換 / bitwise
+> 移行元: `RuntimeABISpec+Math.swift`, `RuntimeABISpec+NumericConversion.swift`, `RuntimeABISpec+Bitwise.swift`, `RuntimeABISpec+Operator.swift`
+> 移行先: `Stdlib/kotlin/math/` / `Stdlib/kotlin/`
+
+#### RuntimeABI → Kotlin source 移行候補（math / 未検証含む）
+- [ ] MIGRATION-MATH-001a: `PI` / `E` を Kotlin source 定数に移し、`kk_math_PI` / `kk_math_E` を削除できるか確認する。
+- [ ] MIGRATION-MATH-001b: `Int.MAX_VALUE` / `Long.MIN_VALUE` / `Float.NaN` 等の primitive companion constants を Kotlin source 側へ寄せる。ABI bridge 由来の定数を棚卸しする。
+- [ ] MIGRATION-MATH-002a: `abs` / `sign` / `min` / `max` の primitive overload を Kotlin source に移す。`Int.MIN_VALUE` と unsigned 比較を追加テストで固定する。
+- [ ] MIGRATION-MATH-002b: `roundToInt` / `roundToLong` / `round` / `truncate` を Kotlin source wrapper に移す。NaN/Infinity 例外や丸めモードは bridge と突き合わせる。
+- [ ] MIGRATION-MATH-003a: `nextUp` / `nextDown` / `ulp` を Kotlin source wrapper に移す。bit-level 実装を Kotlin で持つか private bridge に残すかを型ごとに判定する。
+- [ ] MIGRATION-MATH-003b: `withSign` の Double/Float/Int sign overload を Kotlin source に移す。負のゼロと NaN payload の扱いを確認する。
+- [ ] MIGRATION-MATH-004a: `sqrt` / `pow` / trig / log / hyperbolic 系は public overload を Kotlin source wrapper に移し、libm 呼び出し本体だけ private bridge に残す。
+- [ ] MIGRATION-NUM-001a: signed primitive の narrowing/widening conversion (`Int.toByte`, `Long.toInt`, `Double.toFloat` 等) を Kotlin source 化できるか確認する。LLVM 側直接 lowering と重複しない経路を整理する。
+- [ ] MIGRATION-NUM-001b: `Char` と数値型の相互変換 (`Char.code`, `Int.toChar` 相当) を Kotlin source に移す。範囲外値の切り詰めを実行テストで固定する。
+- [ ] MIGRATION-NUM-001c: unsigned primitive conversion (`UByte` / `UShort` / `UInt` / `ULong`) の単純 wrapper を Kotlin source に移す。boxing 表現と符号拡張を重点確認する。
+- [ ] MIGRATION-BIT-001a: `and` / `or` / `xor` / `inv` / `shl` / `shr` / `ushr` を Kotlin source または compiler intrinsic に寄せ、RuntimeABI 経由を削減できるか確認する。
+- [ ] MIGRATION-BIT-001b: `countOneBits` / `countLeadingZeroBits` / `countTrailingZeroBits` を Kotlin source wrapper に移す。LLVM intrinsic bridge を private に残す分割を検討する。
+- [ ] MIGRATION-BIT-001c: `rotateLeft` / `rotateRight` / `highestOneBit` / `lowestOneBit` / `takeHighestOneBit` / `takeLowestOneBit` を Kotlin source に移す。shift 距離の masking を kotlinc と突き合わせる。
+- [ ] MIGRATION-OP-001a: `floorDiv` / `floorMod` / `%` / `/` の primitive helper を RuntimeABI から Kotlin source wrapper へ分離できるか調査する。zero division の catch 可能例外化と合わせる。
+- [ ] MIGRATION-OP-001b: `==` / `<` / `<=` / `>` / `>=` の generic dispatch (`kk_op_*`) が public API 経由で残る箇所を棚卸しし、Kotlin source ではなく compiler intrinsic 化すべきものを切り分ける。
+- [ ] MIGRATION-OP-001c: `is` / `as` / `as?` / `in` operator (`kk_op_is`, `kk_op_cast`, `kk_op_safe_cast`, `kk_op_contains`) の emit 経路を棚卸しし、Kotlin source wrapper にできる部分と compiler intrinsic のまま残す部分を分ける。
+
+### Phase M20: kotlin 例外 / Preconditions
+> 移行元: `RuntimeABISpec+Exception.swift`
+> 移行先: `Stdlib/kotlin/`
+
+#### RuntimeABI → Kotlin source 移行候補（exception / 未検証含む）
+- [ ] MIGRATION-EXC-001a: `Throwable.message` / `cause` property wrapper を Kotlin source に移す。raw Throwable storage 取得だけ private bridge に残す。
+- [ ] MIGRATION-EXC-001b: `Throwable.stackTraceToString()` / `printStackTrace()` / suppressed exception API を Kotlin source wrapper に移す。stack trace 生成本体は bridge 維持。
+- [ ] MIGRATION-EXC-002a: `require(condition)` / `check(condition)` / `assert(condition)` の eager 版を Kotlin source に移し、例外生成だけ private bridge に残す。
+- [ ] MIGRATION-EXC-002b: `require(condition) {}` / `check(condition) {}` / `assert(condition) {}` の lazy message 版を Kotlin source に移す。message lambda が失敗時だけ呼ばれることをテストする。
+- [ ] MIGRATION-EXC-003a: `error(message)` / `TODO()` / `TODO(reason)` を Kotlin source wrapper に移す。Nothing 戻り値と throwing lowering の整合を確認する。
+- [ ] MIGRATION-EXC-004a: `Throwable` / `NoWhenBranchMatchedException` / `ConcurrentModificationException` / `ArrayIndexOutOfBoundsException` constructor overload を Kotlin source constructor wrapper に寄せる。実 exception box 生成だけ bridge に残す。
+
+### Phase M21: KotlinVersion / DeepRecursive / BigInteger
+> 移行元: `RuntimeABISpec+KotlinVersion.swift`, `RuntimeABISpec+DeepRecursive.swift`, `RuntimeABISpec+BigInteger.swift`
+> 移行先: `Stdlib/kotlin/` / `Stdlib/kotlin/java/math/`（配置要確認）
+
+#### RuntimeABI → Kotlin source 移行候補（misc value types / 未検証含む）
+- [ ] MIGRATION-VERSION-001a: `KotlinVersion.CURRENT` / `major` / `minor` / `patch` を Kotlin source wrapper に移す。CURRENT の値をビルド時定数にするか bridge に残すか決める。
+- [ ] MIGRATION-VERSION-001b: `KotlinVersion.compareTo` / `isAtLeast` を Kotlin source に移す。version component の範囲検証を kotlinc と突き合わせる。
+- [ ] MIGRATION-DEEPREC-001a: `DeepRecursiveFunction` constructor wrapper を Kotlin source に移す。関数 box と continuation-like scope 生成だけ private bridge に残す。
+- [ ] MIGRATION-DEEPREC-001b: `callRecursive` / `invoke` の public wrapper を Kotlin source に移す。深い再帰で stack overflow を避ける trampoline 本体は bridge 維持。
+- [ ] MIGRATION-BIGINT-001a: `BigInteger.valueOf` / `fromString` / `toString` を Kotlin source wrapper に移す。parse 失敗時の例外を catch 可能にする。
+- [ ] MIGRATION-BIGINT-001b: `BigInteger.add` / `subtract` / `multiply` / `divide` を Kotlin source operator wrapper に移す。多倍長演算本体は private bridge に残す。
+- [ ] MIGRATION-BIGINT-001c: `BigInteger.gcd` / `abs` / `pow` / bitwise `and` / `toInt` / `toLong` を Kotlin source wrapper に移す。overflow と負数の扱いを実行テストで固定する。
+
+### Phase M22: properties / reflect の小粒化
+> 移行元: `RuntimeABISpec.swift` の `delegateFunctions`, `RuntimeABISpec+KFunction.swift`, `RuntimeABISpec+KPropertyStub.swift`, `RuntimeABISpec+Operator.swift` の KClass/KType 周辺
+> 移行先: `Stdlib/kotlin/properties/` / `Stdlib/kotlin/reflect/`
+
+#### RuntimeABI → Kotlin source 移行候補（properties / reflect / 未検証含む）
+- [ ] MIGRATION-PROP-001a: `Delegates.notNull()` の public wrapper を Kotlin source に移す。未初期化時例外と `getValue` / `setValue` の receiver/property 引数を確認する。
+- [ ] MIGRATION-PROP-001b: `Delegates.observable` / `vetoable` を Kotlin source に移す。callback/veto lambda の呼び出し順と old/new value を実行テストで固定する。
+- [ ] MIGRATION-PROP-002a: `lazy {}` / `lazy(mode) {}` / `lazyOf(value)` を Kotlin source wrapper に移す。thread-safety mode の実同期だけ bridge に残す。
+- [ ] MIGRATION-REFLECT-001a: `KClass.simpleName` / `qualifiedName` / `isInstance` / `cast` / `safeCast` を Kotlin source wrapper に移す。type token 判定は bridge 維持。
+- [ ] MIGRATION-REFLECT-001b: `KClass.isData` / `isSealed` / `isValue` / `isInterface` / `isObject` など flag property を Kotlin source wrapper に移す。metadata 登録 API と読み取り API を分ける。
+- [ ] MIGRATION-REFLECT-002a: `KClass.members` / `constructors` / `properties` / `functions` 系 collection property を Kotlin source wrapper に移す。返却 collection の mutability を確認する。
+- [ ] MIGRATION-REFLECT-002b: `KClass.annotations` / `findAnnotation` / associated object lookup を Kotlin source wrapper に移す。annotation box 生成と検索本体は bridge 維持。
+- [ ] MIGRATION-REFLECT-003a: `KType.classifier` / `arguments` / `isMarkedNullable` / `toString` と `KTypeProjection.type` / `variance` を Kotlin source wrapper に移す。
+- [ ] MIGRATION-REFLECT-004a: `KParameter.index` / `name` / `type` / `isOptional` / `kind` と `KFunction.name` / `arity` / `returnType` / `isSuspend` を Kotlin source wrapper に移す。
+- [ ] MIGRATION-REFLECT-004b: `KFunction.call` / `callBy` / vararg call wrapper を Kotlin source に移す。実 call trampoline と thrown exception propagation は bridge 維持。
+- [ ] MIGRATION-KPROP-001a: `KProperty` stub API (`name`, `returnType`, `visibility`, `isLateinit`, `isConst`) を Kotlin source wrapper 化するか、未到達なら DEADCODE 側へ移すか判定する。
+
+### Phase M23: concurrency / thread / native refs
+> 移行元: `RuntimeABISpec+Thread.swift`, `RuntimeABISpec+ThreadLocal.swift`, `RuntimeABISpec+NativeRef.swift`, `RuntimeABISpec+Coroutine.swift` の lock/mutex/semaphore 周辺
+> 移行先: `Stdlib/kotlin/concurrent/` / `Stdlib/kotlin/native/ref/` / `Stdlib/kotlinx/coroutines/sync/`
+
+#### RuntimeABI → Kotlin source 移行候補（concurrency / 未検証含む）
+- [ ] MIGRATION-THREAD-001a: `Thread` constructor/start wrapper を Kotlin source に移す。native thread 生成と callback trampoline だけ bridge に残す。
+- [ ] MIGRATION-THREADLOCAL-001a: `ThreadLocal.getOrSet {}` を Kotlin source に移す。initializer lambda が未設定時だけ呼ばれることをテストする。
+- [ ] MIGRATION-NATIVEREF-001a: `WeakReference.get()` / `clear()` を Kotlin source wrapper に移す。weak handle 操作は bridge 維持。
+- [ ] MIGRATION-NATIVEREF-001b: `Cleaner.clean()` / `dispose()` を Kotlin source wrapper に移す。cleanup lambda の一回性と例外伝播を確認する。
+- [ ] MIGRATION-LOCK-001a: `synchronized(lock) {}` を Kotlin source wrapper に移す。monitor/lock 本体だけ bridge に残し、lambda 例外でも unlock されることを確認する。
+- [ ] MIGRATION-LOCK-001b: `Lock.withLock` / read-write lock `read {}` / `write {}` wrapper を Kotlin source に移す。finally unlock と nested lock の扱いをテストする。
+- [ ] MIGRATION-MUTEX-001a: coroutine `Mutex.withLock {}` を Kotlin source に移す。suspend lambda / continuation ABI と unlock-on-exception を確認する。
+- [ ] MIGRATION-SEMAPHORE-001a: coroutine `Semaphore.withPermit {}` 相当の wrapper を Kotlin source に移せるか調査する。permit release の finally 化を確認する。
+
+### Phase M24: coroutines / Flow / Channel
+> 移行元: `RuntimeABISpec+Coroutine.swift`, `RuntimeABISpec+DeepRecursive.swift`
+> 移行先: `Stdlib/kotlin/coroutines/` / `Stdlib/kotlinx/coroutines/`（配置要確認）
+
+#### RuntimeABI → Kotlin source 移行候補（coroutines / 未検証含む）
+- [ ] MIGRATION-CORO-001a: `runBlocking` / `launch` / `async` の public builder wrapper を Kotlin source に移す。scheduler/job 生成本体は bridge 維持。
+- [ ] MIGRATION-CORO-001b: `delay` / `yield` の public wrapper を Kotlin source に移す。suspension marker と continuation 受け渡しを現行 lowering と突き合わせる。
+- [ ] MIGRATION-CORO-002a: `CoroutineContext.plus` / `get` / `fold` / `minusKey` を Kotlin source wrapper に移す。context storage 操作は private bridge に残す。
+- [ ] MIGRATION-CORO-002b: `Dispatchers.Default` / `IO` / `Main`, `CoroutineName`, exception handler wrapper を Kotlin source に移す。dispatcher singleton の lifetime を確認する。
+- [ ] MIGRATION-CORO-003a: `Job.join` / `cancel` / `isActive` / `isCompleted` / `isCancelled` / `isFailed` を Kotlin source wrapper に移す。job state machine は bridge 維持。
+- [ ] MIGRATION-CHANNEL-001a: `Channel.send` / `receive` / `close` wrapper を Kotlin source に移す。closed token と cancellation exception の扱いを確認する。
+- [ ] MIGRATION-FLOW-001a: `flowOf` / `emptyFlow` / `asFlow` / `flow {}` の public wrapper を Kotlin source に移す。emitter/collector bridge の責務を明確化する。
+- [ ] MIGRATION-FLOW-001b: `Flow.toList` / `first` / `single` / `count` / `fold` / `reduce` を Kotlin source wrapper に移す。terminal operation の cancellation と exception propagation を確認する。
+- [ ] MIGRATION-FLOW-001c: `zip` / `combine` / `merge` / `flatMapConcat` / `flatMapMerge` / `flatMapLatest` を Kotlin source wrapper に移す。実 scheduling は bridge 維持。
+
+### Phase M25: serialization / network / parallel
+> 移行元: `RuntimeABISpec+Serialization.swift`, `RuntimeABISpec+Network.swift`, `RuntimeABISpec+Parallel.swift`
+> 移行先: `Stdlib/kotlinx/serialization/` / `Stdlib/kotlinx/parallel/` / target 外判定候補
+
+#### RuntimeABI → Kotlin source 移行候補（拡張 stdlib / 未検証含む）
+- [ ] MIGRATION-SERIAL-001a: `Json.encodeToString` / `decodeFromString` の public wrapper を Kotlin source に移す。serializer lookup と encode/decode 本体は bridge 維持。
+- [ ] MIGRATION-SERIAL-001b: primitive encoder/decoder (`encodeString`, `decodeInt` 等) の wrapper を Kotlin source に移せるか調査する。context object の lifetime を確認する。
+- [ ] MIGRATION-SERIAL-001c: data class field name / serializer registration API を Kotlin source wrapper に移す。metadata 登録は compiler-generated bridge のまま分離する。
+- [ ] MIGRATION-NET-001a: HTTP response property (`statusCode`, `body`, `url`, `isSuccessful`, `header`) を Kotlin source wrapper に移す。target 外なら DEADCODE 側へ統合する。
+- [ ] MIGRATION-NET-001b: HTTP client option setter (`timeout`, `followRedirects`, auth token) を Kotlin source builder wrapper に移す。実通信 API は bridge 維持または target 外判定。
+- [ ] MIGRATION-PARALLEL-001a: parallel pool / stream creation wrapper を Kotlin source に移す。worker pool 本体は bridge 維持。
+- [ ] MIGRATION-PARALLEL-001b: parallel stream `map` / `forEach` / `reduce` wrapper を Kotlin source に移せるか調査する。lambda ABI と exception aggregation を確認する。
+
+### Phase M26: kotlin.system / platform / runtime
+> 移行元: `RuntimeABISpec.swift` の `systemFunctions`
+> 移行先: `Stdlib/kotlin/system/` / `Stdlib/kotlin/time/` / target 外判定候補
+
+#### RuntimeABI → Kotlin source 移行候補（system / 未検証含む）
+- [ ] MIGRATION-SYSTEM-001a: `exitProcess(status)` の public wrapper を Kotlin source に移す。process exit 本体のみ `kk_system_exitProcess` bridge に残す。
+- [ ] MIGRATION-SYSTEM-002a: `currentTimeMillis()` / `nanoTime()` / `getTimeMillis()` / `getTimeMicros()` / `getTimeNanos()` を Kotlin source wrapper に移す。clock source 本体は bridge 維持。
+- [ ] MIGRATION-SYSTEM-002b: `measureTimeMillis` / `measureTimeMicros` / `measureNanoTime` を Kotlin source に移す。start/end clock 呼び出しと lambda exception propagation を確認する。
+- [ ] MIGRATION-SYSTEM-002c: `process_start_nanos` 系の runtime 起点時刻 API が public surface か内部実装か棚卸しし、public なら Kotlin wrapper、内部なら runtime-only bridge へ降格する。
+- [ ] MIGRATION-PLATFORM-001a: `Platform.canAccessUnaligned` / `isLittleEndian` / `osFamily` / `cpuArchitecture` / `getAvailableProcessors` を Kotlin source wrapper に移す。host/platform query 本体は bridge 維持。
+- [ ] MIGRATION-RUNTIME-001a: `Runtime.getRuntime()` / `totalMemory()` / `freeMemory()` / `maxMemory()` / `gc()` を Kotlin source wrapper に移す。GC/memory 本体は RuntimeABI のまま残す。
+- [ ] MIGRATION-CLOCK-001a: `Clock.System.now()` / `Clock.now()` を Kotlin source wrapper に移す。Instant box 生成と clock query 本体は bridge 維持。
+- [ ] MIGRATION-SYSTEM-003a: `systemFunctions` に混在する JS/JVM interop (`toJsReference`, `toJsNumber`, `toKotlinInstant`, JS collection conversion 等) を target 外 cleanup と Kotlin source 移行候補に分類し直す。target 外なら CLEANUP-STUB / DEADCODE 側へ移す。
 
 ## ターゲット外バックログ（本体非追跡）
 ### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）

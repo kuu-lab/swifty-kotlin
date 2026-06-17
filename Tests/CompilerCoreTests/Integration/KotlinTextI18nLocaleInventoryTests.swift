@@ -6,11 +6,11 @@ import XCTest
 // This file documents which Kotlin common-scope i18n / locale APIs are implemented
 // in the KSwiftK runtime and which are absent (gaps).
 //
-// Implemented (common scope, backed by runtime functions):
-//   - String.lowercase()                   → kk_string_lowercase
-//   - String.uppercase()                   → kk_string_uppercase
-//   - String.lowercase(Locale)             → kk_string_lowercase_locale
-//   - String.uppercase(Locale)             → kk_string_uppercase_locale
+// Implemented (common scope):
+//   - String.lowercase()                   → bundled Kotlin source
+//   - String.uppercase()                   → bundled Kotlin source
+//   - String.lowercase(Locale)             → bundled Kotlin wrapper → kk_string_lowercase_locale
+//   - String.uppercase(Locale)             → bundled Kotlin wrapper → kk_string_uppercase_locale
 //   - String.compareTo(String, Locale)     → kk_string_compareTo_locale
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
@@ -30,7 +30,7 @@ import XCTest
 
 final class KotlinTextI18nLocaleInventoryTests: XCTestCase {
 
-    // MARK: - String.lowercase() / String.uppercase() — no locale (common)
+    // MARK: - String.lowercase() / String.uppercase() — no locale (bundled Kotlin source)
 
     func testStringLowercaseNoLocale() throws {
         try assertKotlinCompilesToKIR("""
