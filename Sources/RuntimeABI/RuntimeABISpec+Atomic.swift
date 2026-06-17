@@ -655,15 +655,6 @@ public extension RuntimeABISpec {
             section: "Atomic",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_java_atomic_ref_array_asKotlinAtomicArray",
-            parameters: [
-                RuntimeABIParameter(name: "receiver", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Atomic",
-            isThrowing: false
-        ),
         // AtomicBoolean
         RuntimeABIFunctionSpec(
             name: "kk_atomic_bool_create",
