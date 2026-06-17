@@ -7,7 +7,8 @@ public extension RuntimeABISpec {
             name: "kk_coroutine_suspended",
             parameters: [],
             returnType: .opaquePointer,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_continuation_new",
@@ -15,13 +16,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "functionID", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_current_context",
             parameters: [],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_continuation_factory",
@@ -30,7 +33,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "resumeWithRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_create_coroutine_unintercepted",
@@ -39,7 +43,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "completionContinuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_start_coroutine_unintercepted_or_return",
@@ -58,7 +63,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "functionID", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_set_label",
@@ -67,7 +73,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "label", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_exit",
@@ -76,7 +83,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_set_spill",
@@ -86,7 +94,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_get_spill",
@@ -95,7 +104,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "slot", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_set_completion",
@@ -104,7 +114,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_get_completion",
@@ -112,7 +123,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_state_get_thrown_exception",
@@ -120,7 +132,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_run_blocking",
@@ -139,7 +152,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "functionID", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_async",
@@ -148,7 +162,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "functionID", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_async_await",
@@ -157,7 +172,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_delay",
@@ -166,7 +182,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_yield",
@@ -182,7 +199,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .int64),
             ],
             returnType: .int64,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_launcher_arg_get",
@@ -191,7 +209,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "index", type: .int64),
             ],
             returnType: .int64,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_run_blocking_with_cont",
@@ -210,7 +229,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_async_with_cont",
@@ -219,7 +239,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_produce",
@@ -248,8 +269,28 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "dispatcherRaw", type: .intptr),
             ],
             returnType: .intptr,
+            section: "Coroutine",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_async_task_cancel",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
             section: "Coroutine"
-        ),        RuntimeABIFunctionSpec(
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_kxmini_async_with_dispatcher",
+            parameters: [
+                RuntimeABIParameter(name: "dispatcherTag", type: .intptr),
+                RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
+                RuntimeABIParameter(name: "continuation", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Coroutine"
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_dispatcher_and_cont",
             parameters: [
                 RuntimeABIParameter(name: "entryPointRaw", type: .intptr),
@@ -257,14 +298,16 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "dispatcherRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         // CoroutineExceptionHandler (STDLIB-CORO-072)
         RuntimeABIFunctionSpec(
             name: "kk_exception_handler_new",
             parameters: [],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kxmini_launch_with_exception_handler",
@@ -274,7 +317,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handlerRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         // Flow (P5-88)
         RuntimeABIFunctionSpec(
@@ -284,7 +328,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_emit",
@@ -294,7 +339,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "tag", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_collect",
@@ -304,7 +350,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_retain",
@@ -312,7 +359,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_release",
@@ -320,7 +368,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "flowHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         // Flow terminal operators & builders (STDLIB-088 / STDLIB-FLOW-178)
         RuntimeABIFunctionSpec(
@@ -356,7 +405,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_first",
@@ -365,7 +415,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_flow_single",
@@ -673,7 +724,8 @@ public extension RuntimeABISpec {
             name: "kk_coroutine_scope_new",
             parameters: [],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_cancel",
@@ -681,7 +733,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_wait",
@@ -689,7 +742,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "scopeHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_register_child",
@@ -698,7 +752,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "childHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_join",
@@ -707,7 +762,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_await_completion",
@@ -716,7 +772,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "continuation", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_scope_run",
@@ -799,7 +856,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_cancel_with_cause",
@@ -808,7 +866,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "cause", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_context_cancel",
@@ -834,7 +893,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_complete_exceptionally",
@@ -843,7 +903,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "exception", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         // Job State Queries (STDLIB-CORO-070)
         RuntimeABIFunctionSpec(
@@ -852,7 +913,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_is_completed",
@@ -860,7 +922,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_is_cancelled",
@@ -868,7 +931,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_job_is_failed",
@@ -876,7 +940,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "jobHandle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Coroutine"
+            section: "Coroutine",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_coroutine_cancel",

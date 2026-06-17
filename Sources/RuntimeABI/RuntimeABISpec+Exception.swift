@@ -19,7 +19,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .opaquePointer,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_new_cause",
@@ -27,13 +28,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .opaquePointer,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_no_when_branch_matched_exception_new",
             parameters: [],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_no_when_branch_matched_exception_new_message",
@@ -41,7 +44,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_no_when_branch_matched_exception_new_message_cause",
@@ -50,7 +54,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_no_when_branch_matched_exception_new_cause",
@@ -58,13 +63,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_concurrent_modification_exception_new",
             parameters: [],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_concurrent_modification_exception_new_message",
@@ -72,7 +79,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_concurrent_modification_exception_new_message_cause",
@@ -81,7 +89,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_concurrent_modification_exception_new_cause",
@@ -89,7 +98,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_index_out_of_bounds_exception_new",
@@ -111,7 +121,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_abort_unreachable",
@@ -119,7 +130,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_require",
@@ -261,7 +273,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_cause",
@@ -269,7 +282,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_stackTraceToString",
@@ -277,7 +291,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_printStackTrace",
@@ -285,7 +300,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         // STDLIB-EXCEPT-105: Advanced exception handling
         RuntimeABIFunctionSpec(
@@ -295,7 +311,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_addSuppressed",
@@ -304,7 +321,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "suppressedRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_getSuppressed",
@@ -312,7 +330,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_throwable_suppressedExceptions",
@@ -320,7 +339,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
     ]
 }
