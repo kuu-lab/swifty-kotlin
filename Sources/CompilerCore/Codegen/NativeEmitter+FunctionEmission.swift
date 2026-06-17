@@ -3562,7 +3562,7 @@ extension NativeEmitter {
                 if let trapFn = declareExternalFunction(named: "kk_dispatch_error", argumentCount: 0, appendThrownChannel: false) {
                     _ = bindings.buildCall(builder, functionType: trapFn.type, callee: trapFn.value, arguments: [], name: "trap_\(instructionIndex)")
                 }
-                _ = bindings.buildBr(builder, destination: mergeBlock)
+                _ = bindings.buildUnreachable(builder)
 
                 // Merge: use the virtual call result.
                 bindings.positionBuilder(builder, at: mergeBlock)

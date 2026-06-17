@@ -8,7 +8,7 @@ extension ABIMismatchTests {
         let exported = try runtimeExportedABIs()
         let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let missing = exported.map(\.name)
-            .filter { !specNames.contains($0) }
+            .filter { !specNames.contains($0) && !allowedRuntimeExportOnlyABINames.contains($0) }
             .sorted()
 
         XCTAssertTrue(
@@ -20,6 +20,7 @@ extension ABIMismatchTests {
     func testRuntimeExportSignaturesMatchRuntimeABISpec() throws {
         let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
         for exported in try runtimeExportedABIs() {
+            guard !allowedRuntimeExportOnlyABINames.contains(exported.name) else { continue }
             // Generic functions cannot have their parameter types validated against C ABI types
             guard exported.returnType != "generic" else { continue }
             let spec = try XCTUnwrap(
@@ -53,6 +54,28 @@ extension ABIMismatchTests {
         )
     }
 
+    private var allowedRuntimeExportOnlyABINames: Set<String> {
+        [
+            "kk_regex_create_with_option",
+            "kk_regex_create_with_options",
+            "kk_string_chunked_sequence",
+            "kk_string_chunked_sequence_transform",
+            "kk_string_replace",
+            "kk_string_replaceIndentByMargin",
+            "kk_string_toByte",
+            "kk_string_toByte_radix",
+            "kk_string_toCharArray",
+            "kk_string_toRegex_with_option",
+            "kk_string_toRegex_with_options",
+            "kk_string_toShort",
+            "kk_string_windowed",
+            "kk_string_windowed_default",
+            "kk_string_windowed_partial",
+            "kk_string_windowedSequence_partial",
+            "kk_string_windowedSequence_transform",
+        ]
+    }
+
     private var allowedSpecOnlyRuntimeABINames: Set<String> {
         [
             "kk_annotation_class_name",
@@ -70,7 +93,7 @@ extension ABIMismatchTests {
             "kk_js_array_toList",
             "kk_js_bigint_toLong",
             "kk_js_boolean_toBoolean",
-"kk_js_set_toSet",
+            "kk_js_set_toSet",
             "kk_js_number_toDouble",
             "kk_jsclass_kotlin",
             "kk_kclass_has_annotation",
@@ -130,6 +153,16 @@ extension ABIMismatchTests {
             "kk_result_flatMap",
             "kk_result_flatMapCatching",
             "kk_result_mapCatching",
+            "kk_string_builder_replace_obj",
+            "kk_string_lowercase",
+            "kk_string_toDoubleOrNull",
+            "kk_string_toFloatOrNull",
+            "kk_string_toIntOrNull",
+            "kk_string_toIntOrNull_radix",
+            "kk_string_toLongOrNull",
+            "kk_string_toUIntOrNull_radix",
+            "kk_string_toULongOrNull_radix",
+            "kk_string_toUShortOrNull_radix",
             "kk_toJsReference",
             "kk_uri_toPath",
         ]

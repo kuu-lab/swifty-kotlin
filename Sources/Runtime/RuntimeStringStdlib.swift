@@ -5050,6 +5050,45 @@ public func kk_string_replaceIndent_flat(
     )
 }
 
+@_cdecl("kk_string_replaceIndentByMargin_flat")
+public func kk_string_replaceIndentByMargin_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ newIndentData: UnsafePointer<UInt8>?,
+    _ newIndentLength: Int,
+    _ newIndentByteCount: Int,
+    _ newIndentHash: Int,
+    _ marginPrefixData: UnsafePointer<UInt8>?,
+    _ marginPrefixLength: Int,
+    _ marginPrefixByteCount: Int,
+    _ marginPrefixHash: Int,
+    _ outLength: UnsafeMutablePointer<Int>?,
+    _ outByteCount: UnsafeMutablePointer<Int>?,
+    _ outHash: UnsafeMutablePointer<Int>?
+) -> UnsafeMutablePointer<UInt8>? {
+    let source = runtimeStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    let newIndent = runtimeStringFromFlatOrDefault(
+        data: newIndentData,
+        length: newIndentLength,
+        byteCount: newIndentByteCount,
+        hash: newIndentHash,
+        defaultValue: ""
+    )
+    let marginPrefix = runtimeStringFromFlatOrDefault(
+        data: marginPrefixData,
+        length: marginPrefixLength,
+        byteCount: marginPrefixByteCount,
+        hash: marginPrefixHash,
+        defaultValue: "|"
+    )
+    let result = marginPrefix.trimmingCharacters(in: .whitespaces).isEmpty
+        ? ""
+        : runtimeReplaceIndentByMargin(source, newIndent: newIndent, marginPrefix: marginPrefix)
+    return runtimeReturnFlatString(result, outLength: outLength, outByteCount: outByteCount, outHash: outHash)
+}
+
 @_cdecl("kk_string_replaceIndentByMargin")
 public func kk_string_replaceIndentByMargin(
     _ strRaw: Int,

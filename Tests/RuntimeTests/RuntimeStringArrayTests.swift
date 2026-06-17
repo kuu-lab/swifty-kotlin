@@ -2569,11 +2569,41 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
     }
 
     func testStringScalarIndexedOperationsWithNonASCII() {
-        let textRaw = rawFromRuntimeString("aé🐻")
-
-        XCTAssertEqual(runtimeStringValue(kk_string_substring(textRaw, 1, 3, 1, nil)), "é🐻")
-        XCTAssertEqual(kk_string_indexOf(textRaw, rawFromRuntimeString("é🐻")), 1)
-        XCTAssertEqual(kk_string_lastIndexOf(textRaw, rawFromRuntimeString("é")), 1)
+        XCTAssertEqual(flatStringSubstringValue("aé🐻", start: 1, end: 3), "é🐻")
+        XCTAssertEqual(
+            withFlatString("aé🐻") { data, length, byteCount, hash in
+                withFlatString("é🐻") { otherData, otherLength, otherByteCount, otherHash in
+                    kk_string_indexOf_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash
+                    )
+                }
+            },
+            1
+        )
+        XCTAssertEqual(
+            withFlatString("aé🐻") { data, length, byteCount, hash in
+                withFlatString("é") { otherData, otherLength, otherByteCount, otherHash in
+                    kk_string_lastIndexOf_flat(
+                        data,
+                        length,
+                        byteCount,
+                        hash,
+                        otherData,
+                        otherLength,
+                        otherByteCount,
+                        otherHash
+                    )
+                }
+            },
+            1
+        )
     }
 
     func testPairAndArrayRenderingStayDistinct() {

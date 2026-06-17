@@ -1581,7 +1581,7 @@ extension CallLowerer {
                 if calleeStr == "trim" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_trim"),
+                        callee: interner.intern("kk_string_trim_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1592,7 +1592,7 @@ extension CallLowerer {
                 if calleeStr == "trimStart" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_trimStart"),
+                        callee: interner.intern("kk_string_trimStart_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1603,7 +1603,7 @@ extension CallLowerer {
                 if calleeStr == "trimEnd" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_trimEnd"),
+                        callee: interner.intern("kk_string_trimEnd_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -2068,7 +2068,7 @@ extension CallLowerer {
             {
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_subSequence"),
+                    callee: interner.intern("kk_string_subSequence_flat"),
                     arguments: [loweredReceiverID, loweredArgIDs[0], loweredArgIDs[1]],
                     result: result,
                     canThrow: true,

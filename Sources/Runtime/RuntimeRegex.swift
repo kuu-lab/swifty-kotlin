@@ -546,6 +546,20 @@ public func kk_regex_create_with_option_flat(
     )
 }
 
+@_cdecl("kk_string_toRegex_with_option_flat")
+public func kk_string_toRegex_with_option_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOption(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionRaw: optionRaw
+    )
+}
+
 private func runtimeRegexCreateWithOption(pattern: String, optionRaw: Int) -> Int {
     let ordinal = Int(kk_unbox_int(optionRaw))
     let isLiteral = ordinal == kRegexOptionOrdinalLiteral
@@ -565,6 +579,20 @@ public func kk_regex_create_with_options(_ patternRaw: Int, _ optionsSetRaw: Int
 /// corresponding `NSRegularExpression.Options`.
 @_cdecl("kk_regex_create_with_options_flat")
 public func kk_regex_create_with_options_flat(
+    _ data: UnsafePointer<UInt8>?,
+    _ length: Int,
+    _ byteCount: Int,
+    _ hash: Int,
+    _ optionsSetRaw: Int
+) -> Int {
+    runtimeRegexCreateWithOptions(
+        pattern: regexStringFromFlat(data: data, length: length, byteCount: byteCount, hash: hash),
+        optionsSetRaw: optionsSetRaw
+    )
+}
+
+@_cdecl("kk_string_toRegex_with_options_flat")
+public func kk_string_toRegex_with_options_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,

@@ -88,8 +88,8 @@ extension CallLowerer {
                 return interner.intern("kk_string_lineSequence_flat")
             case "toRegex":
                 return argumentCount == 0
-                    ? interner.intern("kk_string_toRegex")
-                    : interner.intern("kk_string_toRegex_with_option")
+                    ? interner.intern("kk_string_toRegex_flat")
+                    : interner.intern("kk_string_toRegex_with_option_flat")
             default:
                 break
             }

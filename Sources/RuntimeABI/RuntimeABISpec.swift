@@ -1230,14 +1230,6 @@ RuntimeABIFunctionSpec(
             returnType: .intptr,
             section: "Regex"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toRegex",
-            parameters: [
-                RuntimeABIParameter(name: "str", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
         // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_option_flat",
@@ -1414,18 +1406,6 @@ RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_size",
             parameters: [
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Regex"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_match_group_collection_get_flat",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
             section: "Regex"

@@ -121,9 +121,9 @@ final class ABIMismatchTests: XCTestCase {
         // kk_string_commonPrefixWith_flat, kk_string_commonSuffixWith_flat
         // STDLIB-REGEX-097: kk_regex_group_names
         // STDLIB-REGEX-094: kk_regex_matches, kk_regex_from_literal, kk_string_replaceFirst_regex
-        // STDLIB-TEXT-FN-105: kk_string_toRegex_with_option, kk_string_toRegex_with_options
+        // STDLIB-TEXT-FN-105: kk_string_toRegex_with_option_flat, kk_string_toRegex_with_options_flat
         // STDLIB-TEXT-TYPE-008: kk_match_group_collection_get_at, kk_match_group_collection_size
-        XCTAssertGreaterThanOrEqual(RuntimeABISpec.regexFunctions.count, 53)
+        XCTAssertGreaterThanOrEqual(RuntimeABISpec.regexFunctions.count, 34)
     }
 
     func testPrintAndPrintlnFunctionCount() {

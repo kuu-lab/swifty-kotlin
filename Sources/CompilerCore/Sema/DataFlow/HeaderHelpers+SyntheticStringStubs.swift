@@ -719,7 +719,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
-            externalLinkName: "kk_string_subSequence",
+            externalLinkName: "kk_string_subSequence_flat",
             receiverType: stringType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
             returnType: stringType,
@@ -2696,7 +2696,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart",
+            externalLinkName: "kk_string_trimStart_flat",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2706,7 +2706,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate",
+            externalLinkName: "kk_string_trimStart_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2716,7 +2716,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd",
+            externalLinkName: "kk_string_trimEnd_flat",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2726,7 +2726,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate",
+            externalLinkName: "kk_string_trimEnd_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2737,7 +2737,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-144: String.trim (predicate overload) ---
         registerSyntheticStringExtensionFunction(
             named: "trim",
-            externalLinkName: "kk_string_trim_predicate",
+            externalLinkName: "kk_string_trim_predicate_flat",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,

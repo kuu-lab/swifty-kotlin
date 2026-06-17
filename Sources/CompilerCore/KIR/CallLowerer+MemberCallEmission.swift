@@ -471,7 +471,7 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_string_zipTransform"),
+        if loweredCallee == interner.intern("kk_string_zipTransform_flat"),
            finalArguments.count == 3
         {
             // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
