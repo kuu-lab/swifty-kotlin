@@ -2979,6 +2979,7 @@ extension DataFlowSemaPhase {
             classSymbol: bigIntegerSymbol, args: [], nullability: .nonNull
         )))
         symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
+        let nullableBigIntegerType = types.makeNullable(bigIntegerType)
 
         registerSyntheticStringExtensionFunction(
             named: "toBigDecimal",
@@ -2997,6 +2998,17 @@ extension DataFlowSemaPhase {
             receiverType: stringType,
             parameters: [],
             returnType: bigIntegerType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toBigIntegerOrNull",
+            externalLinkName: "kk_string_toBigIntegerOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: nullableBigIntegerType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner

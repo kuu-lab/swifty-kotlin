@@ -3986,14 +3986,25 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     return registerRuntimeObject(box)
 }
 
+@_cdecl("kk_string_toBigIntegerOrNull")
+public func kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
+    var thrown = 0
+    let raw = kk_biginteger_fromString(strRaw, &thrown)
+    return thrown == 0 ? raw : runtimeNullSentinelInt
+}
+
 @_cdecl("kk_bignum_toString")
 public func kk_bignum_toString(_ numRaw: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: numRaw),
-          let box = tryCast(ptr, to: RuntimeBigNumberBox.self)
-    else {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: numRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bignum_toString received invalid BigNumber handle")
     }
-    return runtimeMakeStringRaw(box.value)
+    if let box = tryCast(ptr, to: RuntimeBigNumberBox.self) {
+        return runtimeMakeStringRaw(box.value)
+    }
+    if let box = resolveRuntimeHandle(numRaw, as: RuntimeBigIntegerBox.self) {
+        return runtimeMakeStringRaw(box.value.stringValue)
+    }
+    fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_bignum_toString received invalid BigNumber handle")
 }
 
 // MARK: - STDLIB-HOF-023: Advanced String Higher-Order Functions
