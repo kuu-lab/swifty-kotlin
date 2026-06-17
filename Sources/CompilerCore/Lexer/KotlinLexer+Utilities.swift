@@ -37,11 +37,11 @@ extension KotlinLexer {
     }
 
     func starts(with literal: String, at position: Int) -> Bool {
-        let utf8 = Array(literal.utf8)
-        guard position + utf8.count <= bytes.count else {
+        let literalCount = literal.utf8.count
+        guard position + literalCount <= bytes.count else {
             return false
         }
-        for index in 0 ..< utf8.count where bytes[position + index] != utf8[index] {
+        for (index, byte) in literal.utf8.enumerated() where bytes[position + index] != byte {
             return false
         }
         return true
@@ -78,10 +78,13 @@ extension KotlinLexer {
         guard escapeStart + 4 < bytes.count else {
             return nil
         }
-        let raw = Array(bytes[(escapeStart + 1) ... (escapeStart + 4)])
-        let hex = raw.compactMap { hexValue(of: $0) }
-        guard hex.count == 4 else {
-            return nil
+        var hex: [Int] = []
+        for i in 0 ..< 4 {
+            if let value = hexValue(of: bytes[escapeStart + 1 + i]) {
+                hex.append(value)
+            } else {
+                return nil
+            }
         }
         let scalar = UInt32((hex[0] << 12) + (hex[1] << 8) + (hex[2] << 4) + hex[3])
         return (scalar: scalar, length: 5)
