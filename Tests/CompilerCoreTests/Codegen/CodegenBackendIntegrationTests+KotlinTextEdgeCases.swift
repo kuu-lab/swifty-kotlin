@@ -913,6 +913,76 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // MARK: - codePointCount
+
+    func testKotlinTextCodePointCountEdgeCases() throws {
+        let source = """
+        fun main() {
+            val text = "a😀b"
+
+            println("abc".codePointCount())
+            println("😀".codePointCount())
+            println(text.codePointCount())
+            println(text.codePointCount(1))
+            println(text.codePointCount(1, 3))
+            println(text.codePointCount(0, 2))
+            println(text.codePointCount(endIndex = 3))
+
+            val asSequence: CharSequence = text
+            println(asSequence.codePointCount(1, 3))
+
+            try {
+                println(text.codePointCount(-1, 1))
+            } catch (e: Throwable) {
+                println("oob-codepoint-start")
+            }
+
+            try {
+                println(text.codePointCount(0, 99))
+            } catch (e: Throwable) {
+                println("oob-codepoint-end")
+            }
+
+            try {
+                println(text.codePointCount(3, 1))
+            } catch (e: Throwable) {
+                println("oob-codepoint-order")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextCodePointCountEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                3
+                1
+                3
+                2
+                1
+                2
+                2
+                1
+                oob-codepoint-start
+                oob-codepoint-end
+                oob-codepoint-order
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - trim / trimStart / trimEnd
 
     func testKotlinTextTrimEdgeCases() throws {

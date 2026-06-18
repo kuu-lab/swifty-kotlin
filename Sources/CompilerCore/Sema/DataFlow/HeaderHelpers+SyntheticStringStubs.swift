@@ -211,6 +211,49 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-010: CharSequence.codePointCount ---
+        //
+        // Kotlin/JVM defines the range in UTF-16 code units. KSwiftK's general
+        // String indexing helpers are scalar-oriented, so this family is backed
+        // by dedicated runtime entries.
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_from",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_range",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, true, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // capitalize() — deprecated in Kotlin 1.5+ but still callable (STDLIB-GAP-PH1)
         registerSyntheticStringExtensionFunction(
             named: "capitalize",
