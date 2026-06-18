@@ -125,4 +125,34 @@ extension BuildKIRRegressionTests {
             )
         }
     }
+
+    func testMeasureTimeMillisCallableReferenceRethrowsThrownResult() throws {
+        let source = """
+        import kotlin.system.measureTimeMillis
+
+        fun work() {}
+
+        fun main(): Long {
+            return measureTimeMillis(::work)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try XCTUnwrap(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let hasRethrow = body.contains { instruction in
+                if case .rethrow = instruction {
+                    return true
+                }
+                return false
+            }
+
+            XCTAssertTrue(
+                hasRethrow,
+                "measureTimeMillis callable-reference path must rethrow a non-null thrown channel"
+            )
+        }
+    }
 }

@@ -21,9 +21,26 @@ final class RuntimeBigDecimalTests: XCTestCase {
         XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "1.25e3")
     }
 
+    func testStringToBigDecimalAcceptsDecimalPointEdgeForms() {
+        for value in [".5", "1.", "-.25", "+12.0E-3"] {
+            var thrown = 0
+            let raw = kk_string_toBigDecimal(runtimeString(value), &thrown)
+            XCTAssertEqual(thrown, 0, "Expected \(value) to parse as BigDecimal")
+            XCTAssertEqual(stringValue(kk_bignum_toString(raw)), value)
+        }
+    }
+
     func testStringToBigDecimalRejectsWhitespaceWrappedInput() {
         var thrown = 0
         _ = kk_string_toBigDecimal(runtimeString(" 12.5 "), &thrown)
         XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testStringToBigDecimalRejectsMalformedInputs() {
+        for value in ["", ".", "+", "-", "1e", "1e+", "e10", "NaN"] {
+            var thrown = 0
+            _ = kk_string_toBigDecimal(runtimeString(value), &thrown)
+            XCTAssertNotEqual(thrown, 0, "Expected \(value) to throw NumberFormatException")
+        }
     }
 }

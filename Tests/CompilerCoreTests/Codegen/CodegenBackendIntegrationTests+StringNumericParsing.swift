@@ -152,6 +152,52 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    func testStringToUnsignedAndToUnsignedOrNullExecution() throws {
+        let source = """
+        fun main() {
+            println("255".toUByteOrNull())
+            println("256".toUByteOrNull())
+            println("65535".toUShortOrNull())
+            println("65536".toUShortOrNull())
+            println("4294967295".toUIntOrNull())
+            println("4294967296".toUIntOrNull())
+            // Compare ULong values by equality so we do not depend on signed raw rendering.
+            println("18446744073709551615".toULongOrNull() == ULong.MAX_VALUE)
+            println("18446744073709551616".toULongOrNull() == null)
+            println(" 255 ".toUByteOrNull())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "StringToUnsignedExecution",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                normalizedStdout,
+                """
+                255
+                null
+                65535
+                null
+                4294967295
+                null
+                true
+                true
+                null
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testStringToFloatAndToFloatOrNullExecution() throws {
         let source = """
         fun main() {
