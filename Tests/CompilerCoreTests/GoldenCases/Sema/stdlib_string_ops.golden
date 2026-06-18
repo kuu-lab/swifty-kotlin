@@ -653,12 +653,10 @@ expr e424 string(hello) type=String
 expr e425 memberCall recv=e424 callee=first args=[] type=Char call=s37 map=[] targs=[]
 expr e426 string() type=String
 expr e427 memberCall recv=e426 callee=firstOrNull args=[] type=Char? call=s38 map=[] targs=[]
-expr e428 string(abc
-def) type=String
+expr e428 string(def) type=String
 expr e429 string(  ) type=String
 expr e430 memberCall recv=e428 callee=prependIndent args=[_:e429] type=String call=s39 map=[0->0] targs=[]
-expr e431 string(  abc
-  def) type=String
+expr e431 string(  def) type=String
 expr e432 string() type=String
 expr e433 memberCall recv=e431 callee=replaceIndent args=[_:e432] type=String call=s40 map=[0->0] targs=[]
 expr e434 string(abc) type=String
