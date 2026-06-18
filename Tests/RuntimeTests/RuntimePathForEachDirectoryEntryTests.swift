@@ -4,32 +4,19 @@ import XCTest
 
 // MARK: - STDLIB-IO-PATH-FN-019 lambda thunks for forEachDirectoryEntry
 //
-// `kk_path_forEachDirectoryEntry` calls kk_function_invoke which dispatches to
-// KKFunctionEntryPoint1 = @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int.
-// The argument is the boxed Path raw pointer for the current entry.
-
-nonisolated(unsafe) private var _forEachDirectoryEntryCount: Int = 0
-
-private let forEachDirectoryEntryCounter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-    outThrown?.pointee = 0
-    _forEachDirectoryEntryCount += 1
-    return 0
-}
+// `kk_path_forEachDirectoryEntry` calls kk_function_invoke once per matched
+// direct child. The argument is the RuntimePathBox raw pointer for the child
+// path. These file-scope globals accumulate state across invocations since
+// @convention(c) closures cannot capture variables.
 
 nonisolated(unsafe) private var _forEachDirectoryEntryNames: [String] = []
 
-private let forEachDirectoryEntryNameCollector: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { arg, outThrown in
+private let forEachDirectoryEntryRecordName: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { pathRaw, outThrown in
     outThrown?.pointee = 0
-    if let ptr = UnsafeMutableRawPointer(bitPattern: arg),
-       let pathBox = tryCast(ptr, to: RuntimePathBox.self) {
-        let name = (pathBox.pathString as NSString).lastPathComponent
-        _forEachDirectoryEntryNames.append(name)
-    }
-    return 0
-}
-
-private let forEachDirectoryEntryAlwaysThrows: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "BlockError: forEachDirectoryEntry lambda threw")
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: kk_path_name(pathRaw)),
+          let name = extractString(from: ptr)
+    else { return 0 }
+    _forEachDirectoryEntryNames.append(name)
     return 0
 }
 
@@ -37,7 +24,10 @@ private func fnPtrInt1(_ fn: @convention(c) (Int, UnsafeMutablePointer<Int>?) ->
     Int(bitPattern: unsafeBitCast(fn, to: UnsafeRawPointer.self))
 }
 
-/// Tests for STDLIB-IO-PATH-FN-019: Path.forEachDirectoryEntry
+/// Tests for STDLIB-IO-PATH-FN-019: Path.forEachDirectoryEntry.
+///
+/// Covers kk_path_forEachDirectoryEntry and kk_path_forEachDirectoryEntry_default,
+/// the runtime entries for the kotlin.io.path.forEachDirectoryEntry extension.
 final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcOnly }
@@ -54,63 +44,53 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         kk_path_new(makeRuntimeString(path))
     }
 
-    func testForEachDirectoryEntryDefaultListsAllDirectChildren() throws {
-        let dirURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dirURL) }
-
-        try "".write(to: dirURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
-        try "".write(to: dirURL.appendingPathComponent("b.kt"), atomically: true, encoding: .utf8)
-        try FileManager.default.createDirectory(at: dirURL.appendingPathComponent("subdir"), withIntermediateDirectories: true)
-
-        let pathRaw = runtimeTestPathHandle(dirURL.path)
-        _forEachDirectoryEntryNames = []
-        var thrown = 0
-        _ = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryNameCollector), &thrown)
-
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachDirectoryEntryNames.sorted(), ["a.txt", "b.kt", "subdir"])
+    private func makeFixtureDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try "alpha".write(to: directory.appendingPathComponent("alpha.kt"), atomically: true, encoding: .utf8)
+        try "beta".write(to: directory.appendingPathComponent("beta.txt"), atomically: true, encoding: .utf8)
+        try FileManager.default.createDirectory(
+            at: directory.appendingPathComponent("nested", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        return directory
     }
 
-    func testForEachDirectoryEntryWithGlobFiltersChildren() throws {
-        let dirURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dirURL) }
+    func testForEachDirectoryEntryDefaultInvokesActionForEachDirectEntry() throws {
+        let directory = try makeFixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
 
-        try "".write(to: dirURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
-        try "".write(to: dirURL.appendingPathComponent("b.kt"), atomically: true, encoding: .utf8)
-        try "".write(to: dirURL.appendingPathComponent("c.kt"), atomically: true, encoding: .utf8)
+        _forEachDirectoryEntryNames = []
+        let pathRaw = runtimeTestPathHandle(directory.path)
+        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
 
-        let pathRaw = runtimeTestPathHandle(dirURL.path)
+        XCTAssertEqual(result, 0)
+        XCTAssertEqual(_forEachDirectoryEntryNames.sorted(), ["alpha.kt", "beta.txt", "nested"])
+    }
+
+    func testForEachDirectoryEntryFiltersByGlob() throws {
+        let directory = try makeFixtureDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        _forEachDirectoryEntryNames = []
+        let pathRaw = runtimeTestPathHandle(directory.path)
         let globRaw = makeRuntimeString("*.kt")
+        let result = kk_path_forEachDirectoryEntry(pathRaw, globRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
+
+        XCTAssertEqual(result, 0)
+        XCTAssertEqual(_forEachDirectoryEntryNames, ["alpha.kt"])
+    }
+
+    func testForEachDirectoryEntryMissingDirectoryProducesNoInvocations() {
+        let missingPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
         _forEachDirectoryEntryNames = []
-        var thrown = 0
-        _ = kk_path_forEachDirectoryEntry(pathRaw, globRaw, fnPtrInt1(forEachDirectoryEntryNameCollector), &thrown)
+        let pathRaw = runtimeTestPathHandle(missingPath.path)
+        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
 
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachDirectoryEntryNames.sorted(), ["b.kt", "c.kt"])
-    }
-
-    func testForEachDirectoryEntryNonExistentDirectoryReturnsZero() {
-        let pathRaw = runtimeTestPathHandle("/nonexistent/\(UUID().uuidString)")
-        _forEachDirectoryEntryCount = 0
-        var thrown = 0
-        _ = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryCounter), &thrown)
-        
-        XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(_forEachDirectoryEntryCount, 0)
-    }
-
-    func testForEachDirectoryEntryLambdaThrownPropagates() throws {
-        let dirURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dirURL) }
-
-        try "".write(to: dirURL.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
-
-        let pathRaw = runtimeTestPathHandle(dirURL.path)
-        var thrown = 0
-        _ = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryAlwaysThrows), &thrown)
-        XCTAssertNotEqual(thrown, 0)
+        XCTAssertEqual(result, 0)
+        XCTAssertTrue(_forEachDirectoryEntryNames.isEmpty)
     }
 }

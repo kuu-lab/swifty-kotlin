@@ -94,8 +94,20 @@ final class LambdaClosureConversionPass: LoweringPass {
 
     // MARK: - shouldRun
 
+    private nonisolated(unsafe) static var cache: [ObjectIdentifier: InternedString] = [:]
+
+    private static func getCachedMarkerCallee(interner: StringInterner) -> InternedString {
+        let key = ObjectIdentifier(interner)
+        if let cached = cache[key] {
+            return cached
+        }
+        let markerCallee = interner.intern("<lambda>")
+        cache[key] = markerCallee
+        return markerCallee
+    }
+
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        let markerCallee = ctx.interner.intern("<lambda>")
+        let markerCallee = Self.getCachedMarkerCallee(interner: ctx.interner)
         let lambdaPrefix = "kk_lambda_"
 
         // Build call-site index once for shouldRun checks.
