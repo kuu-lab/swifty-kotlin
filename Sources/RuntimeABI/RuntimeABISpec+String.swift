@@ -670,7 +670,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // SPEC-NUM-0007: no-arg unsigned parsers
         RuntimeABIFunctionSpec(
