@@ -518,7 +518,8 @@ expr e371 memberCall recv=e370 callee=flatten args=[] type=Class#0<out Any>
 expr e372 memberCall recv=e371 callee=toList args=[] type=Class#3<Any> call=s39 map=[] targs=[]
 expr e373 call callee=e361 args=[_:e372] type=Unit call=s29 map=[0->0] targs=[]
 expr e374 name(println) type=_
-expr e375 string(=== Large sequence data ===) type=String
+expr e375 string(
+=== Large sequence data ===) type=String
 expr e376 call callee=e374 args=[_:e375] type=Unit call=s29 map=[0->0] targs=[]
 expr e377 name(sequence) type=_
 expr e378 int(1) type=_
@@ -566,7 +567,8 @@ expr e419 binary(subtract) lhs=e417 rhs=e418 type=Int
 expr e420 memberCall recv=e415 callee=drop args=[_:e419] type=Any call=s11 map=[0->0] targs=[]
 expr e421 call callee=e414 args=[_:e420] type=Unit call=s29 map=[0->0] targs=[]
 expr e422 name(println) type=_
-expr e423 string(=== Nested sequences ===) type=String
+expr e423 string(
+=== Nested sequences ===) type=String
 expr e424 call callee=e422 args=[_:e423] type=Unit call=s29 map=[0->0] targs=[]
 expr e425 name(sequenceOf) type=_
 expr e426 name(sequenceOf) type=_
@@ -585,7 +587,8 @@ expr e438 memberCall recv=e437 callee=flatten args=[] type=Class#0<out Int>
 expr e439 memberCall recv=e438 callee=toList args=[] type=Class#3<Int> call=s39 map=[] targs=[]
 expr e440 call callee=e436 args=[_:e439] type=Unit call=s29 map=[0->0] targs=[]
 expr e441 name(println) type=_
-expr e442 string(=== Mixed collection types ===) type=String
+expr e442 string(
+=== Mixed collection types ===) type=String
 expr e443 call callee=e441 args=[_:e442] type=Unit call=s29 map=[0->0] targs=[]
 expr e444 name(sequenceOf) type=_
 expr e445 name(listOf) type=_
@@ -604,7 +607,8 @@ expr e457 memberCall recv=e456 callee=flatten args=[] type=Class#0<out Any>
 expr e458 memberCall recv=e457 callee=toList args=[] type=Class#3<Any> call=s39 map=[] targs=[]
 expr e459 call callee=e455 args=[_:e458] type=Unit call=s29 map=[0->0] targs=[]
 expr e460 name(println) type=_
-expr e461 string(=== Sequence with special cases ===) type=String
+expr e461 string(
+=== Sequence with special cases ===) type=String
 expr e462 call callee=e460 args=[_:e461] type=Unit call=s29 map=[0->0] targs=[]
 expr e463 name(sequenceOf) type=_
 expr e464 name(listOf) type=_
