@@ -1124,10 +1124,12 @@ expr e804 string(hello) type=String
 expr e805 memberCall recv=e804 callee=first args=[] type=Char call=s37 map=[] targs=[]
 expr e806 string() type=String
 expr e807 memberCall recv=e806 callee=firstOrNull args=[] type=Char? call=s38 map=[] targs=[]
-expr e808 string(def) type=String
+expr e808 string(abc
+def) type=String
 expr e809 string(  ) type=String
 expr e810 memberCall recv=e808 callee=prependIndent args=[_:e809] type=String call=s39 map=[0->0] targs=[]
-expr e811 string(  def) type=String
+expr e811 string(  abc
+  def) type=String
 expr e812 string() type=String
 expr e813 memberCall recv=e811 callee=replaceIndent args=[_:e812] type=String call=s40 map=[0->0] targs=[]
 expr e814 string(abc) type=String
