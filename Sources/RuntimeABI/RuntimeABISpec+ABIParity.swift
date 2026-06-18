@@ -869,12 +869,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
-        abiParitySpec("kk_native_heap_alloc", parameters: [
-            p("byteCount", .intptr),
-        ]),
-        abiParitySpec("kk_native_heap_free", parameters: [
-            p("handle", .intptr),
-        ]),
         abiParitySpec("kk_normalization_form_nfc",
             isThrowing: false),
         abiParitySpec("kk_normalization_form_nfd",
