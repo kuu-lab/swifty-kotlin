@@ -1,4 +1,4 @@
-node kotlinFile f0:0..3088
+node kotlinFile f0:0..3091
   node packageHeader f0:0..26
     tok keyword(package) f0:0..7
     tok identifier(kotlin) f0:8..14
@@ -833,7 +833,7 @@ node kotlinFile f0:0..3088
             tok symbol()) f0:2409..2410
           tok symbol(}) f0:2415..2416
       tok symbol(}) f0:2417..2418
-  node funDecl f0:2420..2594
+  node funDecl f0:2420..2597
     tok keyword(internal) f0:2420..2428
     tok keyword(fun) f0:2429..2432
     node typeArgs f0:2433..2436
@@ -857,14 +857,14 @@ node kotlinFile f0:0..3088
     tok symbol()) f0:2475..2476
     tok symbol(:) f0:2476..2477
     tok identifier(Int) f0:2478..2481
-    node block f0:2482..2594
+    node block f0:2482..2597
       tok symbol({) f0:2482..2483
       node propertyDecl f0:2488..2501
         tok keyword(var) f0:2488..2491
         tok identifier(count) f0:2492..2497
         tok symbol(=) f0:2498..2499
         tok intLiteral(0) f0:2500..2501
-      node loopStmt f0:2506..2575
+      node loopStmt f0:2506..2578
         tok keyword(for) f0:2506..2509
         node statement f0:2510..2527
           tok symbol(() f0:2510..2511
@@ -872,9 +872,9 @@ node kotlinFile f0:0..3088
           tok keyword(in) f0:2519..2521
           tok keyword(this) f0:2522..2526
           tok symbol()) f0:2526..2527
-        node block f0:2528..2575
+        node block f0:2528..2578
           tok symbol({) f0:2528..2529
-          node ifExpr f0:2538..2569
+          node ifExpr f0:2538..2572
             tok keyword(if) f0:2538..2540
             node statement f0:2541..2561
               tok symbol(() f0:2541..2542
@@ -884,166 +884,167 @@ node kotlinFile f0:0..3088
               tok symbol()) f0:2559..2560
               tok symbol()) f0:2560..2561
             tok identifier(count) f0:2562..2567
-            tok symbol(++) f0:2567..2569
-          tok symbol(}) f0:2574..2575
-      node statement f0:2580..2592
-        tok keyword(return) f0:2580..2586
-        tok identifier(count) f0:2587..2592
-      tok symbol(}) f0:2593..2594
-  node funDecl f0:2596..2758
-    tok keyword(internal) f0:2596..2604
-    tok keyword(fun) f0:2605..2608
-    node typeArgs f0:2609..2612
-      tok symbol(<) f0:2609..2610
-      tok identifier(T) f0:2610..2611
-      tok symbol(>) f0:2611..2612
-    tok identifier(Set) f0:2613..2616
-    tok symbol(<) f0:2616..2617
-    tok identifier(T) f0:2617..2618
-    tok symbol(>) f0:2618..2619
-    tok symbol(.) f0:2619..2620
-    tok identifier(any) f0:2620..2623
-    tok symbol(() f0:2623..2624
-    tok identifier(predicate) f0:2624..2633
-    tok symbol(:) f0:2633..2634
-    tok symbol(() f0:2635..2636
-    tok identifier(T) f0:2636..2637
-    tok symbol()) f0:2637..2638
-    tok symbol(->) f0:2639..2641
-    tok identifier(Boolean) f0:2642..2649
-    tok symbol()) f0:2649..2650
-    tok symbol(:) f0:2650..2651
-    tok identifier(Boolean) f0:2652..2659
-    node block f0:2660..2758
-      tok symbol({) f0:2660..2661
-      node loopStmt f0:2666..2739
-        tok keyword(for) f0:2666..2669
-        node statement f0:2670..2687
-          tok symbol(() f0:2670..2671
-          tok identifier(element) f0:2671..2678
-          tok keyword(in) f0:2679..2681
-          tok keyword(this) f0:2682..2686
-          tok symbol()) f0:2686..2687
-        node block f0:2688..2739
-          tok symbol({) f0:2688..2689
-          node ifExpr f0:2698..2733
-            tok keyword(if) f0:2698..2700
-            node statement f0:2701..2721
-              tok symbol(() f0:2701..2702
-              tok identifier(predicate) f0:2702..2711
-              tok symbol(() f0:2711..2712
-              tok identifier(element) f0:2712..2719
-              tok symbol()) f0:2719..2720
-              tok symbol()) f0:2720..2721
-            tok keyword(return) f0:2722..2728
-            tok keyword(true) f0:2729..2733
-          tok symbol(}) f0:2738..2739
-      node statement f0:2744..2756
-        tok keyword(return) f0:2744..2750
-        tok keyword(false) f0:2751..2756
-      tok symbol(}) f0:2757..2758
-  node funDecl f0:2760..2923
-    tok keyword(internal) f0:2760..2768
-    tok keyword(fun) f0:2769..2772
-    node typeArgs f0:2773..2776
-      tok symbol(<) f0:2773..2774
-      tok identifier(T) f0:2774..2775
-      tok symbol(>) f0:2775..2776
-    tok identifier(Set) f0:2777..2780
-    tok symbol(<) f0:2780..2781
-    tok identifier(T) f0:2781..2782
-    tok symbol(>) f0:2782..2783
-    tok symbol(.) f0:2783..2784
-    tok identifier(all) f0:2784..2787
-    tok symbol(() f0:2787..2788
-    tok identifier(predicate) f0:2788..2797
-    tok symbol(:) f0:2797..2798
-    tok symbol(() f0:2799..2800
-    tok identifier(T) f0:2800..2801
-    tok symbol()) f0:2801..2802
-    tok symbol(->) f0:2803..2805
-    tok identifier(Boolean) f0:2806..2813
-    tok symbol()) f0:2813..2814
-    tok symbol(:) f0:2814..2815
-    tok identifier(Boolean) f0:2816..2823
-    node block f0:2824..2923
-      tok symbol({) f0:2824..2825
-      node loopStmt f0:2830..2905
-        tok keyword(for) f0:2830..2833
-        node statement f0:2834..2851
-          tok symbol(() f0:2834..2835
-          tok identifier(element) f0:2835..2842
-          tok keyword(in) f0:2843..2845
-          tok keyword(this) f0:2846..2850
-          tok symbol()) f0:2850..2851
-        node block f0:2852..2905
-          tok symbol({) f0:2852..2853
-          node ifExpr f0:2862..2899
-            tok keyword(if) f0:2862..2864
-            node statement f0:2865..2886
-              tok symbol(() f0:2865..2866
-              tok symbol(!) f0:2866..2867
-              tok identifier(predicate) f0:2867..2876
-              tok symbol(() f0:2876..2877
-              tok identifier(element) f0:2877..2884
-              tok symbol()) f0:2884..2885
-              tok symbol()) f0:2885..2886
-            tok keyword(return) f0:2887..2893
-            tok keyword(false) f0:2894..2899
-          tok symbol(}) f0:2904..2905
-      node statement f0:2910..2921
-        tok keyword(return) f0:2910..2916
-        tok keyword(true) f0:2917..2921
-      tok symbol(}) f0:2922..2923
-  node funDecl f0:2925..3088
-    tok keyword(internal) f0:2925..2933
-    tok keyword(fun) f0:2934..2937
-    node typeArgs f0:2938..2941
-      tok symbol(<) f0:2938..2939
-      tok identifier(T) f0:2939..2940
-      tok symbol(>) f0:2940..2941
-    tok identifier(Set) f0:2942..2945
-    tok symbol(<) f0:2945..2946
-    tok identifier(T) f0:2946..2947
-    tok symbol(>) f0:2947..2948
-    tok symbol(.) f0:2948..2949
-    tok identifier(none) f0:2949..2953
-    tok symbol(() f0:2953..2954
-    tok identifier(predicate) f0:2954..2963
-    tok symbol(:) f0:2963..2964
-    tok symbol(() f0:2965..2966
-    tok identifier(T) f0:2966..2967
-    tok symbol()) f0:2967..2968
-    tok symbol(->) f0:2969..2971
-    tok identifier(Boolean) f0:2972..2979
-    tok symbol()) f0:2979..2980
-    tok symbol(:) f0:2980..2981
-    tok identifier(Boolean) f0:2982..2989
-    node block f0:2990..3088
-      tok symbol({) f0:2990..2991
-      node loopStmt f0:2996..3070
-        tok keyword(for) f0:2996..2999
-        node statement f0:3000..3017
-          tok symbol(() f0:3000..3001
-          tok identifier(element) f0:3001..3008
-          tok keyword(in) f0:3009..3011
-          tok keyword(this) f0:3012..3016
-          tok symbol()) f0:3016..3017
-        node block f0:3018..3070
-          tok symbol({) f0:3018..3019
-          node ifExpr f0:3028..3064
-            tok keyword(if) f0:3028..3030
-            node statement f0:3031..3051
-              tok symbol(() f0:3031..3032
-              tok identifier(predicate) f0:3032..3041
-              tok symbol(() f0:3041..3042
-              tok identifier(element) f0:3042..3049
-              tok symbol()) f0:3049..3050
-              tok symbol()) f0:3050..3051
-            tok keyword(return) f0:3052..3058
-            tok keyword(false) f0:3059..3064
-          tok symbol(}) f0:3069..3070
-      node statement f0:3075..3086
-        tok keyword(return) f0:3075..3081
-        tok keyword(true) f0:3082..3086
-      tok symbol(}) f0:3087..3088
+            tok symbol(+=) f0:2568..2570
+            tok intLiteral(1) f0:2571..2572
+          tok symbol(}) f0:2577..2578
+      node statement f0:2583..2595
+        tok keyword(return) f0:2583..2589
+        tok identifier(count) f0:2590..2595
+      tok symbol(}) f0:2596..2597
+  node funDecl f0:2599..2761
+    tok keyword(internal) f0:2599..2607
+    tok keyword(fun) f0:2608..2611
+    node typeArgs f0:2612..2615
+      tok symbol(<) f0:2612..2613
+      tok identifier(T) f0:2613..2614
+      tok symbol(>) f0:2614..2615
+    tok identifier(Set) f0:2616..2619
+    tok symbol(<) f0:2619..2620
+    tok identifier(T) f0:2620..2621
+    tok symbol(>) f0:2621..2622
+    tok symbol(.) f0:2622..2623
+    tok identifier(any) f0:2623..2626
+    tok symbol(() f0:2626..2627
+    tok identifier(predicate) f0:2627..2636
+    tok symbol(:) f0:2636..2637
+    tok symbol(() f0:2638..2639
+    tok identifier(T) f0:2639..2640
+    tok symbol()) f0:2640..2641
+    tok symbol(->) f0:2642..2644
+    tok identifier(Boolean) f0:2645..2652
+    tok symbol()) f0:2652..2653
+    tok symbol(:) f0:2653..2654
+    tok identifier(Boolean) f0:2655..2662
+    node block f0:2663..2761
+      tok symbol({) f0:2663..2664
+      node loopStmt f0:2669..2742
+        tok keyword(for) f0:2669..2672
+        node statement f0:2673..2690
+          tok symbol(() f0:2673..2674
+          tok identifier(element) f0:2674..2681
+          tok keyword(in) f0:2682..2684
+          tok keyword(this) f0:2685..2689
+          tok symbol()) f0:2689..2690
+        node block f0:2691..2742
+          tok symbol({) f0:2691..2692
+          node ifExpr f0:2701..2736
+            tok keyword(if) f0:2701..2703
+            node statement f0:2704..2724
+              tok symbol(() f0:2704..2705
+              tok identifier(predicate) f0:2705..2714
+              tok symbol(() f0:2714..2715
+              tok identifier(element) f0:2715..2722
+              tok symbol()) f0:2722..2723
+              tok symbol()) f0:2723..2724
+            tok keyword(return) f0:2725..2731
+            tok keyword(true) f0:2732..2736
+          tok symbol(}) f0:2741..2742
+      node statement f0:2747..2759
+        tok keyword(return) f0:2747..2753
+        tok keyword(false) f0:2754..2759
+      tok symbol(}) f0:2760..2761
+  node funDecl f0:2763..2926
+    tok keyword(internal) f0:2763..2771
+    tok keyword(fun) f0:2772..2775
+    node typeArgs f0:2776..2779
+      tok symbol(<) f0:2776..2777
+      tok identifier(T) f0:2777..2778
+      tok symbol(>) f0:2778..2779
+    tok identifier(Set) f0:2780..2783
+    tok symbol(<) f0:2783..2784
+    tok identifier(T) f0:2784..2785
+    tok symbol(>) f0:2785..2786
+    tok symbol(.) f0:2786..2787
+    tok identifier(all) f0:2787..2790
+    tok symbol(() f0:2790..2791
+    tok identifier(predicate) f0:2791..2800
+    tok symbol(:) f0:2800..2801
+    tok symbol(() f0:2802..2803
+    tok identifier(T) f0:2803..2804
+    tok symbol()) f0:2804..2805
+    tok symbol(->) f0:2806..2808
+    tok identifier(Boolean) f0:2809..2816
+    tok symbol()) f0:2816..2817
+    tok symbol(:) f0:2817..2818
+    tok identifier(Boolean) f0:2819..2826
+    node block f0:2827..2926
+      tok symbol({) f0:2827..2828
+      node loopStmt f0:2833..2908
+        tok keyword(for) f0:2833..2836
+        node statement f0:2837..2854
+          tok symbol(() f0:2837..2838
+          tok identifier(element) f0:2838..2845
+          tok keyword(in) f0:2846..2848
+          tok keyword(this) f0:2849..2853
+          tok symbol()) f0:2853..2854
+        node block f0:2855..2908
+          tok symbol({) f0:2855..2856
+          node ifExpr f0:2865..2902
+            tok keyword(if) f0:2865..2867
+            node statement f0:2868..2889
+              tok symbol(() f0:2868..2869
+              tok symbol(!) f0:2869..2870
+              tok identifier(predicate) f0:2870..2879
+              tok symbol(() f0:2879..2880
+              tok identifier(element) f0:2880..2887
+              tok symbol()) f0:2887..2888
+              tok symbol()) f0:2888..2889
+            tok keyword(return) f0:2890..2896
+            tok keyword(false) f0:2897..2902
+          tok symbol(}) f0:2907..2908
+      node statement f0:2913..2924
+        tok keyword(return) f0:2913..2919
+        tok keyword(true) f0:2920..2924
+      tok symbol(}) f0:2925..2926
+  node funDecl f0:2928..3091
+    tok keyword(internal) f0:2928..2936
+    tok keyword(fun) f0:2937..2940
+    node typeArgs f0:2941..2944
+      tok symbol(<) f0:2941..2942
+      tok identifier(T) f0:2942..2943
+      tok symbol(>) f0:2943..2944
+    tok identifier(Set) f0:2945..2948
+    tok symbol(<) f0:2948..2949
+    tok identifier(T) f0:2949..2950
+    tok symbol(>) f0:2950..2951
+    tok symbol(.) f0:2951..2952
+    tok identifier(none) f0:2952..2956
+    tok symbol(() f0:2956..2957
+    tok identifier(predicate) f0:2957..2966
+    tok symbol(:) f0:2966..2967
+    tok symbol(() f0:2968..2969
+    tok identifier(T) f0:2969..2970
+    tok symbol()) f0:2970..2971
+    tok symbol(->) f0:2972..2974
+    tok identifier(Boolean) f0:2975..2982
+    tok symbol()) f0:2982..2983
+    tok symbol(:) f0:2983..2984
+    tok identifier(Boolean) f0:2985..2992
+    node block f0:2993..3091
+      tok symbol({) f0:2993..2994
+      node loopStmt f0:2999..3073
+        tok keyword(for) f0:2999..3002
+        node statement f0:3003..3020
+          tok symbol(() f0:3003..3004
+          tok identifier(element) f0:3004..3011
+          tok keyword(in) f0:3012..3014
+          tok keyword(this) f0:3015..3019
+          tok symbol()) f0:3019..3020
+        node block f0:3021..3073
+          tok symbol({) f0:3021..3022
+          node ifExpr f0:3031..3067
+            tok keyword(if) f0:3031..3033
+            node statement f0:3034..3054
+              tok symbol(() f0:3034..3035
+              tok identifier(predicate) f0:3035..3044
+              tok symbol(() f0:3044..3045
+              tok identifier(element) f0:3045..3052
+              tok symbol()) f0:3052..3053
+              tok symbol()) f0:3053..3054
+            tok keyword(return) f0:3055..3061
+            tok keyword(false) f0:3062..3067
+          tok symbol(}) f0:3072..3073
+      node statement f0:3078..3089
+        tok keyword(return) f0:3078..3084
+        tok keyword(true) f0:3085..3089
+      tok symbol(}) f0:3090..3091
