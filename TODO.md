@@ -18,7 +18,7 @@
 #### kotlin.io.path 関数の実装
 - [x] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
 - [x] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
+- [x] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-023: `getOwner` 関数の実装
 - [ ] STDLIB-IO-PATH-FN-026: `moveTo` 関数の実装
 - [x] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
@@ -29,9 +29,9 @@
 - [x] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
 
 #### kotlin.system 関数の実装
-- [ ] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
+- [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
 - [x] STDLIB-SYSTEM-FN-003: `getTimeMillis` 関数の実装
-- [ ] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
+- [x] STDLIB-SYSTEM-FN-007: `measureTimeMillis` 関数の実装
 - [x] STDLIB-SYSTEM-FN-006: `measureTimeMicros` 関数の実装
 
 #### kotlin.text 型の実装
@@ -42,11 +42,11 @@
 - [x] STDLIB-TEXT-FN-003: `append` 関数の実装
 - [ ] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
 - [x] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
-- [ ] STDLIB-TEXT-FN-006: `buildString` 関数の実装
+- [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [ ] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
-- [ ] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
+- [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
 - [ ] STDLIB-TEXT-FN-019: `indent` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
@@ -82,15 +82,15 @@
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
 - [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
-- [ ] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
+- [x] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
 - [ ] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
 - [ ] STDLIB-TEXT-FN-086: `toBigIntegerOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
-- [ ] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
+- [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
+- [x] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
 
 #### kotlin.time 型の実装
 
@@ -327,7 +327,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
-- [ ] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
+- [x] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
 #### Wasm Export stub
 #### Wasm Import stub
 #### Wasm Unsafe Annotation stub
@@ -422,7 +422,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-090: JS Symbol stub削除（`HeaderHelpers+SyntheticJsSymbolStubs.swift` — `@JsSymbol` annotation surface）
 - [ ] CLEANUP-STUB-091: JS Date 系 stub削除（`kk_js_date_to_kotlin_instant` / `kk_js_date_epoch_millis` / `kk_js_date_from_epoch_millis` / `kk_js_date_to_string`。`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` の登録と `RuntimeTime.swift` 実装も削除）
 - [ ] CLEANUP-STUB-092: `kk_java_instant_*` 合成サーフェス削除（`of_epoch_second` / `of_epoch_milli` / `epoch_seconds` / `nano_of_second` / `to_epoch_milli` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
-- [ ] CLEANUP-STUB-093: `kk_java_duration_*` 合成サーフェス削除（`of_seconds` / `of_millis` / `seconds` / `nano` / `to_millis` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
+- [x] CLEANUP-STUB-093: `kk_java_duration_*` 合成サーフェス削除（`of_seconds` / `of_millis` / `seconds` / `nano` / `to_millis` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
 - [ ] CLEANUP-STUB-094: `Sources/Runtime/RuntimeJsInterop.swift` 削除（`kk_js_reference_get` / `kk_js_set_toMutableSet` の @_cdecl 実装。`Tests/RuntimeTests/RuntimeJsReferenceTests.swift` も同一 PR で削除）
 - [ ] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` / `kk_js_date_to_kotlin_instant` の計 16 シンボル。各 stub 削除タスクの完了に合わせて段階的に外す）
 - JDBC / DB コネクション・トランザクション・プール
@@ -480,9 +480,8 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 
 ### 数値・プリミティブ型（第1バッチ）
 - [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
-- [ ] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`。diff と codegen 回帰テストで検証済み。
 - [ ] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現が `java.lang.*.toString` と異なる（Kotlin: `4.9E-324`/`1.4E-45`、kswiftk: `5.0E-324`/`1.0E-45`）。Swift の最短表現と Java の FloatingDecimal の差。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`（SKIP-DIFF）。
-- [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
 
 ## 全体リファクタリング計画（RF0–RF9）
 
