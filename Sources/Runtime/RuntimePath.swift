@@ -1739,7 +1739,7 @@ public func kk_path_appendLines_sequence_default(_ pathRaw: Int, _ linesRaw: Int
     kk_path_appendLines_sequence(pathRaw, linesRaw, 0, outThrown)
 }
 
-// MARK: - STDLIB-IO-PATH-FN-037: Path.useDirectoryEntries { block }
+// MARK: - STDLIB-IO-PATH-FN-019: Path.forEachDirectoryEntry { action }
 
 /// Matches a file name against a simple glob pattern supporting `*` (any sequence)
 /// and `?` (any single character).  Mirrors the behaviour of `fnmatch` for the
@@ -1772,6 +1772,48 @@ private func pathMatchesGlob(_ name: String, _ pattern: String) -> Bool {
     }
     return pi == pattern.endIndex
 }
+
+/// Path.forEachDirectoryEntry(glob: String = "*", action: (Path) -> Unit)
+///
+/// Lists direct children of this directory, filters them by `glob`, and calls
+/// `action` once for each matched entry. `globRaw == 0` selects the default
+/// `"*"` pattern (all entries).
+@_cdecl("kk_path_forEachDirectoryEntry")
+public func kk_path_forEachDirectoryEntry(
+    _ pathRaw: Int,
+    _ globRaw: Int,
+    _ actionRaw: Int
+) -> Int {
+    guard let path = runtimePathBox(from: pathRaw) else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_forEachDirectoryEntry received invalid Path handle")
+    }
+    let glob = globRaw == 0 ? "*" : (pathStringValue(from: globRaw) ?? "*")
+    guard let rawEntries = try? FileManager.default.contentsOfDirectory(atPath: path.pathString) else {
+        return 0
+    }
+    let matched = glob == "*" ? rawEntries : rawEntries.filter { pathMatchesGlob($0, glob) }
+    for entry in matched {
+        let childPath = (path.pathString as NSString).appendingPathComponent(entry)
+        let childRaw = registerRuntimeObject(RuntimePathBox(childPath))
+        var thrown = 0
+        _ = kk_function_invoke(actionRaw, childRaw, &thrown)
+        if thrown != 0 {
+            return 0
+        }
+    }
+    return 0
+}
+
+/// Default-glob variant of `kk_path_forEachDirectoryEntry` (matches all entries).
+@_cdecl("kk_path_forEachDirectoryEntry_default")
+public func kk_path_forEachDirectoryEntry_default(
+    _ pathRaw: Int,
+    _ actionRaw: Int
+) -> Int {
+    kk_path_forEachDirectoryEntry(pathRaw, 0, actionRaw)
+}
+
+// MARK: - STDLIB-IO-PATH-FN-037: Path.useDirectoryEntries { block }
 
 /// Path.useDirectoryEntries(glob: String = "*", block: (Sequence<Path>) -> T): T
 ///
