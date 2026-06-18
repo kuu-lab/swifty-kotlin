@@ -2,7 +2,7 @@ import Foundation
 
 final class KotlinLexer {
     let file: FileID
-    let bytes: [UInt8]
+    let bytes: Data
     let interner: StringInterner
     let diagnostics: DiagnosticEngine
 
@@ -10,28 +10,28 @@ final class KotlinLexer {
 
     init(file: FileID, source: Data, interner: StringInterner, diagnostics: DiagnosticEngine) {
         self.file = file
-        bytes = Array(source)
+        bytes = source
         self.interner = interner
         self.diagnostics = diagnostics
     }
 
     func lexAll() -> [Token] {
         var tokens: [Token] = []
-        while offset < bytes.count {
+        while offset < byteCount() {
             let leadingTrivia = consumeTrivia()
-            if offset >= bytes.count {
+            if offset >= byteCount() {
                 break
             }
             tokens.append(contentsOf: scanNextTokens(leadingTrivia: leadingTrivia))
         }
-        let eofLocation = SourceLocation(file: file, offset: bytes.count)
+        let eofLocation = SourceLocation(file: file, offset: byteCount())
         tokens.append(Token(kind: .eof, range: SourceRange(start: eofLocation, end: eofLocation), leadingTrivia: []))
         return tokens
     }
 
     func consumeTrivia() -> [TriviaPiece] {
         var trivia: [TriviaPiece] = []
-        while offset < bytes.count {
+        while offset < byteCount() {
             if let piece = consumeWhitespaceTrivia() {
                 trivia.append(piece)
                 continue
@@ -68,18 +68,18 @@ final class KotlinLexer {
     }
 
     private func consumeWhitespaceTrivia() -> TriviaPiece? {
-        guard offset < bytes.count else { return nil }
-        let ch = bytes[offset]
+        guard offset < byteCount() else { return nil }
+        let ch = byte(at: offset)
         if ch == 0x20 {
             let start = offset
-            while offset < bytes.count, bytes[offset] == 0x20 {
+            while offset < byteCount(), byte(at: offset) == 0x20 {
                 offset += 1
             }
             return .spaces(offset - start)
         }
         if ch == 0x09 {
             let start = offset
-            while offset < bytes.count, bytes[offset] == 0x09 {
+            while offset < byteCount(), byte(at: offset) == 0x09 {
                 offset += 1
             }
             return .tabs(offset - start)
@@ -88,10 +88,10 @@ final class KotlinLexer {
     }
 
     private func consumeLineBreakTrivia() -> TriviaPiece? {
-        guard offset < bytes.count else { return nil }
-        let ch = bytes[offset]
+        guard offset < byteCount() else { return nil }
+        let ch = byte(at: offset)
         if ch == 0x0D {
-            if offset + 1 < bytes.count, bytes[offset + 1] == 0x0A {
+            if offset + 1 < byteCount(), byte(at: offset + 1) == 0x0A {
                 offset += 2
                 return .newline
             }
@@ -106,12 +106,12 @@ final class KotlinLexer {
     }
 
     private func consumeShebangTrivia() -> TriviaPiece? {
-        guard offset < bytes.count else { return nil }
-        guard bytes[offset] == 0x23, offset == 0, starts(with: "#!") else {
+        guard offset < byteCount() else { return nil }
+        guard byte(at: offset) == 0x23, offset == 0, starts(with: "#!") else {
             return nil
         }
         let start = offset
-        while offset < bytes.count, bytes[offset] != 0x0A {
+        while offset < byteCount(), byte(at: offset) != 0x0A {
             offset += 1
         }
         return .shebang(text(from: start ..< offset))
@@ -123,7 +123,7 @@ final class KotlinLexer {
         }
         let start = offset
         offset += 2
-        while offset < bytes.count, bytes[offset] != 0x0A {
+        while offset < byteCount(), byte(at: offset) != 0x0A {
             offset += 1
         }
         return .lineComment(text(from: start ..< offset))
@@ -142,7 +142,7 @@ final class KotlinLexer {
         let start = offset
         offset += 2
         var depth = 1
-        while offset < bytes.count, depth > 0 {
+        while offset < byteCount(), depth > 0 {
             if starts(with: "/*") {
                 depth += 1
                 offset += 2
@@ -165,7 +165,7 @@ final class KotlinLexer {
                 "Unterminated block comment.",
                 range: SourceRange(
                     start: SourceLocation(file: file, offset: start),
-                    end: SourceLocation(file: file, offset: bytes.count)
+                    end: SourceLocation(file: file, offset: byteCount())
                 )
             )
             return .unterminated
@@ -175,9 +175,9 @@ final class KotlinLexer {
     }
 
     func scanNextTokens(leadingTrivia: [TriviaPiece]) -> [Token] {
-        guard offset < bytes.count else { return [] }
+        guard offset < byteCount() else { return [] }
         let start = offset
-        let ch = bytes[offset]
+        let ch = byte(at: offset)
 
         if ch == 0x22 {
             if starts(with: "\"\"\"") {
@@ -191,7 +191,7 @@ final class KotlinLexer {
             let dollarCount = countConsecutiveDollars(at: offset)
             if dollarCount >= 2 {
                 let afterDollars = offset + dollarCount
-                if afterDollars < bytes.count, bytes[afterDollars] == 0x22 {
+                if afterDollars < byteCount(), byte(at: afterDollars) == 0x22 {
                     if starts(with: "\"\"\"", at: afterDollars) {
                         return scanMultiDollarRawString(leadingTrivia: leadingTrivia, start: start, dollarCount: dollarCount)
                     }
@@ -229,7 +229,7 @@ final class KotlinLexer {
             "Unknown character '\(text(from: start ..< (start + 1)))'",
             range: SourceRange(
                 start: SourceLocation(file: file, offset: start),
-                end: SourceLocation(file: file, offset: min(start + 1, bytes.count))
+                end: SourceLocation(file: file, offset: min(start + 1, byteCount()))
             )
         )
         offset += 1

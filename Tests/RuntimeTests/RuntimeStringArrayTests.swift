@@ -60,6 +60,10 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
+    private func doubleFromRuntimeBits(_ raw: Int) -> Double {
+        Double(bitPattern: UInt64(bitPattern: Int64(raw)))
+    }
+
     // MARK: - kk_string_from_utf8
 
     func testStringFromUTF8CreatesBoxedString() {
@@ -813,18 +817,49 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         var thrown = 0
         let parsed = kk_string_toDouble(rawFromRuntimeString("  -Infinity "), &thrown)
         XCTAssertEqual(thrown, 0)
-        let parsedValue = Double(bitPattern: UInt64(bitPattern: Int64(parsed)))
-        XCTAssertEqual(parsedValue, -.infinity)
+        XCTAssertEqual(doubleFromRuntimeBits(parsed), -.infinity)
 
         let nanRaw = kk_string_toDouble(rawFromRuntimeString("NaN"), &thrown)
         XCTAssertEqual(thrown, 0)
-        let nanValue = Double(bitPattern: UInt64(bitPattern: Int64(nanRaw)))
-        XCTAssertTrue(nanValue.isNaN)
+        XCTAssertTrue(doubleFromRuntimeBits(nanRaw).isNaN)
 
         _ = kk_string_toDouble(rawFromRuntimeString("nope"), &thrown)
         XCTAssertNotEqual(thrown, 0)
         let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
         XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+    }
+
+    func testStringToDoubleParsesKotlinFloatingLiterals() {
+        var thrown = 0
+        let cases: [(String, Double)] = [
+            ("1.", 1.0),
+            (".5", 0.5),
+            ("1e3", 1_000.0),
+            ("1.0d", 1.0),
+            ("+6.25F", 6.25),
+            ("0x1.8p1", 3.0),
+        ]
+
+        for (source, expected) in cases {
+            let raw = kk_string_toDouble(rawFromRuntimeString(source), &thrown)
+            XCTAssertEqual(thrown, 0, "Expected \(source) to parse")
+            XCTAssertEqual(doubleFromRuntimeBits(raw), expected, accuracy: 1e-12)
+        }
+    }
+
+    func testStringToDoubleRejectsSwiftOnlySpellings() {
+        var thrown = 0
+
+        _ = kk_string_toDouble(rawFromRuntimeString("nan"), &thrown)
+        XCTAssertNotEqual(thrown, 0)
+        let thrownOutput = capturePrintln { kk_println_any(UnsafeMutableRawPointer(bitPattern: thrown)) }
+        XCTAssertTrue(thrownOutput.contains("NumberFormatException"))
+
+        XCTAssertEqual(kk_string_toDoubleOrNull(rawFromRuntimeString("inf")), runtimeNullSentinelInt)
+
+        let parsed = kk_string_toDoubleOrNull(rawFromRuntimeString("0x1p2D"))
+        XCTAssertNotEqual(parsed, runtimeNullSentinelInt)
+        XCTAssertEqual(doubleFromRuntimeBits(parsed), 4.0, accuracy: 1e-12)
     }
 
     func testStringFormatSupportsStringIntAndDoubleSpecifiers() {

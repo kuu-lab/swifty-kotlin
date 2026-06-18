@@ -814,4 +814,47 @@ final class RuntimeCoroutineStateTests: IsolatedRuntimeXCTestCase {
         gate.signal()
         wait(for: [done], timeout: 2.0)
     }
+
+    func testAsyncTaskAwaitResultReturnsCompletedWhenAlreadyDone() {
+        let task = RuntimeAsyncTask()
+        task.complete(with: 19)
+        let state = RuntimeContinuationState(functionID: 9201)
+        switch task.awaitResult(callerState: state) {
+        case .completed(let result, let thrown):
+            XCTAssertEqual(result, 19)
+            XCTAssertEqual(thrown, 0)
+        case .suspended:
+            XCTFail("already-completed task must not suspend")
+        }
+    }
+
+    func testAsyncTaskAwaitResultSuspendsAndResumesCallerState() {
+        let task = RuntimeAsyncTask()
+        let state = RuntimeContinuationState(functionID: 9202)
+        let registered = expectation(description: "resumer registered")
+        DispatchQueue.global().async {
+            switch task.awaitResult(callerState: state) {
+            case .suspended:
+                registered.fulfill()
+            case .completed:
+                XCTFail("incomplete task with callerState must suspend")
+            }
+        }
+        wait(for: [registered], timeout: 2.0)
+        task.complete(with: 31)
+        XCTAssertEqual(state.completion, 31, "completion resumer should resume callerState")
+    }
+
+    func testAsyncTaskBlockingAwaitResultStillWaits() {
+        let task = RuntimeAsyncTask()
+        let completed = expectation(description: "blocking await finished")
+        DispatchQueue.global().async {
+            XCTAssertEqual(task.awaitResult(), 44)
+            completed.fulfill()
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) {
+            task.complete(with: 44)
+        }
+        wait(for: [completed], timeout: 2.0)
+    }
 }

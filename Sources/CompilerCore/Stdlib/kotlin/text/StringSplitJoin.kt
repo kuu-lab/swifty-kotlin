@@ -243,6 +243,19 @@ public fun <R> CharSequence.zipWithNext(transform: (Char, Char) -> R): List<R> {
 }
 
 /**
+ * Returns an iterable of [IndexedValue] for each character in this char sequence.
+ *
+ * @return An iterable of indexed characters.
+ */
+public fun CharSequence.withIndex(): Iterable<IndexedValue<Char>> {
+    val result = mutableListOf<IndexedValue<Char>>()
+    for (i in 0 until length) {
+        result.add(IndexedValue(i, this[i]))
+    }
+    return result
+}
+
+/**
  * Returns a list of pairs built from the characters of `this` char sequence and the [other] char sequence
  * with the same index. The returned list has the length of the shortest char sequence.
  *

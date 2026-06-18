@@ -12,23 +12,23 @@ extension KotlinLexer {
             scanDecimalDigits(cursor: &cursor, start: start, hasDot: &hasDot)
         }
 
-        if !parsedPrefix && cursor < bytes.count && (bytes[cursor] == 0x45 || bytes[cursor] == 0x65) {
+        if !parsedPrefix && cursor < byteCount() && (byte(at: cursor) == 0x45 || byte(at: cursor) == 0x65) {
             hasExponent = true
             cursor += 1
-            if cursor < bytes.count, bytes[cursor] == 0x2B || bytes[cursor] == 0x2D {
+            if cursor < byteCount(), byte(at: cursor) == 0x2B || byte(at: cursor) == 0x2D {
                 cursor += 1
             }
             let exponentStart = cursor
-            if cursor < bytes.count, bytes[cursor] == 0x5F {
+            if cursor < byteCount(), byte(at: cursor) == 0x5F {
                 diagnostics.error(
                     "KSWIFTK-LEX-0006",
                     "Invalid underscore placement in numeric literal.",
-                    range: makeRange(start: cursor, end: min(cursor + 1, bytes.count))
+                    range: makeRange(start: cursor, end: min(cursor + 1, byteCount()))
                 )
             }
             var exponentDigitCount = 0
-            while cursor < bytes.count {
-                let ch = bytes[cursor]
+            while cursor < byteCount() {
+                let ch = byte(at: cursor)
                 if isDigit(ch) {
                     exponentDigitCount += 1
                     cursor += 1
@@ -44,9 +44,9 @@ extension KotlinLexer {
                 diagnostics.error(
                     "KSWIFTK-LEX-0003",
                     "Invalid number format in numeric literal.",
-                    range: makeRange(start: start, end: min(cursor + 1, bytes.count))
+                    range: makeRange(start: start, end: min(cursor + 1, byteCount()))
                 )
-            } else if cursor > exponentStart, bytes[cursor - 1] == 0x5F {
+            } else if cursor > exponentStart, byte(at: cursor - 1) == 0x5F {
                 diagnostics.error(
                     "KSWIFTK-LEX-0006",
                     "Trailing underscore in numeric literal.",
@@ -55,7 +55,7 @@ extension KotlinLexer {
             }
         }
 
-        let suffix = cursor < bytes.count ? bytes[cursor] : nil
+        let suffix = cursor < byteCount() ? byte(at: cursor) : nil
         var textEnd = cursor
 
         // Unsigned suffixes: u/U (UInt) or uL/UL (ULong). Must be checked before L.
@@ -68,7 +68,7 @@ extension KotlinLexer {
                 )
             }
             textEnd = cursor + 1
-            let nextChar = textEnd < bytes.count ? bytes[textEnd] : nil
+            let nextChar = textEnd < byteCount() ? byte(at: textEnd) : nil
             if nextChar == 0x4C || nextChar == 0x6C {
                 if nextChar == 0x6C {
                     diagnostics.error(
@@ -78,13 +78,9 @@ extension KotlinLexer {
                     )
                 }
                 textEnd += 1
-                let literal = text(from: start ..< textEnd)
-                offset = textEnd
-                return Token(kind: .ulongLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+                return makeNumericToken(kind: TokenKind.ulongLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
             }
-            let literal = text(from: start ..< textEnd)
-            offset = textEnd
-            return Token(kind: .uintLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.uintLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         } else if suffix == 0x4C {
             if hasDot || hasExponent {
                 diagnostics.error(
@@ -94,9 +90,7 @@ extension KotlinLexer {
                 )
             }
             textEnd = cursor + 1
-            let literal = text(from: start ..< textEnd)
-            offset = textEnd
-            return Token(kind: .longLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.longLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         } else if suffix == 0x6C {
             diagnostics.error(
                 "KSWIFTK-LEX-0003",
@@ -111,9 +105,7 @@ extension KotlinLexer {
                 )
             }
             textEnd = cursor + 1
-            let literal = text(from: start ..< textEnd)
-            offset = textEnd
-            return Token(kind: .longLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.longLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         } else if suffix == 0x46 || suffix == 0x66 {
             if isHexOrBin {
                 diagnostics.error(
@@ -123,9 +115,7 @@ extension KotlinLexer {
                 )
             }
             textEnd = cursor + 1
-            let literal = text(from: start ..< textEnd)
-            offset = textEnd
-            return Token(kind: .floatLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.floatLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         } else if suffix == 0x44 || suffix == 0x64 {
             diagnostics.error(
                 "KSWIFTK-LEX-0003",
@@ -133,17 +123,13 @@ extension KotlinLexer {
                 range: makeRange(start: cursor, end: cursor + 1)
             )
             textEnd = cursor + 1
-            let literal = text(from: start ..< textEnd)
-            offset = textEnd
-            return Token(kind: .doubleLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.doubleLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         }
 
-        offset = textEnd
-        let literal = text(from: start ..< textEnd)
         if hasDot || hasExponent {
-            return Token(kind: .doubleLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+            return makeNumericToken(kind: TokenKind.doubleLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
         }
-        return Token(kind: .intLiteral(literal), range: makeRange(start: start, end: textEnd), leadingTrivia: leadingTrivia)
+        return makeNumericToken(kind: TokenKind.intLiteral, start: start, end: textEnd, leadingTrivia: leadingTrivia)
     }
 
     // MARK: - scanNumber helpers
@@ -151,16 +137,16 @@ extension KotlinLexer {
     /// Scans hex/bin digits with underscore handling. Advances cursor past digits; emits diagnostics for invalid placement.
     private func scanPrefixedDigits(cursor: inout Int, isDigit: (UInt8) -> Bool, rangeStart: Int) -> Int {
         let startDigits = cursor
-        if cursor < bytes.count, bytes[cursor] == 0x5F {
+        if cursor < byteCount(), byte(at: cursor) == 0x5F {
             diagnostics.error(
                 "KSWIFTK-LEX-0006",
                 "Invalid underscore placement in numeric literal.",
-                range: makeRange(start: cursor, end: min(cursor + 1, bytes.count))
+                range: makeRange(start: cursor, end: min(cursor + 1, byteCount()))
             )
         }
         var digitCount = 0
-        while cursor < bytes.count {
-            let ch = bytes[cursor]
+        while cursor < byteCount() {
+            let ch = byte(at: cursor)
             if isDigit(ch) {
                 digitCount += 1
                 cursor += 1
@@ -176,9 +162,9 @@ extension KotlinLexer {
             diagnostics.error(
                 "KSWIFTK-LEX-0003",
                 "Invalid number format in numeric literal.",
-                range: makeRange(start: rangeStart, end: min(cursor + 1, bytes.count))
+                range: makeRange(start: rangeStart, end: min(cursor + 1, byteCount()))
             )
-        } else if cursor > startDigits, bytes[cursor - 1] == 0x5F {
+        } else if cursor > startDigits, byte(at: cursor - 1) == 0x5F {
             diagnostics.error(
                 "KSWIFTK-LEX-0006",
                 "Trailing underscore in numeric literal.",
@@ -188,12 +174,19 @@ extension KotlinLexer {
         return digitCount
     }
 
+    /// Creates a numeric literal token from the given range.
+    private func makeNumericToken(kind: (String) -> TokenKind, start: Int, end: Int, leadingTrivia: [TriviaPiece]) -> Token {
+        let literal = text(from: start ..< end)
+        offset = end
+        return Token(kind: kind(literal), range: makeRange(start: start, end: end), leadingTrivia: leadingTrivia)
+    }
+
     /// Handles 0x, 0b, 0o prefixes. Returns (parsedPrefix, isHexOrBin).
     private func scanNumberPrefix(cursor: inout Int, start: Int) -> (Bool, Bool) {
-        guard bytes[cursor] == 0x30 && cursor + 1 < bytes.count else {
+        guard byte(at: cursor) == 0x30 && cursor + 1 < byteCount() else {
             return (false, false)
         }
-        let marker = bytes[cursor + 1]
+        let marker = byte(at: cursor + 1)
         if marker == 0x78 || marker == 0x58 {
             cursor += 2
             _ = scanPrefixedDigits(cursor: &cursor, isDigit: isHexDigit, rangeStart: start)
@@ -211,8 +204,8 @@ extension KotlinLexer {
                 "Octal literal prefix '0o' is not supported in Kotlin.",
                 range: makeRange(start: start, end: cursor)
             )
-            while cursor < bytes.count {
-                let ch = bytes[cursor]
+            while cursor < byteCount() {
+                let ch = byte(at: cursor)
                 if isOctalDigit(ch) || ch == 0x5F {
                     cursor += 1
                     continue
@@ -226,8 +219,8 @@ extension KotlinLexer {
 
     /// Scans decimal digits and optional decimal point. Advances cursor.
     private func scanDecimalDigits(cursor: inout Int, start: Int, hasDot: inout Bool) {
-        while cursor < bytes.count {
-            let ch = bytes[cursor]
+        while cursor < byteCount() {
+            let ch = byte(at: cursor)
             if isDigit(ch) {
                 cursor += 1
                 continue
@@ -237,10 +230,10 @@ extension KotlinLexer {
                 continue
             }
             if ch == 0x2E, !hasDot {
-                if cursor + 1 >= bytes.count || !isDigit(bytes[cursor + 1]) {
+                if cursor + 1 >= byteCount() || !isDigit(byte(at: cursor + 1)) {
                     break
                 }
-                if cursor > start, bytes[cursor - 1] == 0x5F {
+                if cursor > start, byte(at: cursor - 1) == 0x5F {
                     diagnostics.error(
                         "KSWIFTK-LEX-0006",
                         "Trailing underscore in numeric literal.",
@@ -253,7 +246,7 @@ extension KotlinLexer {
             }
             break
         }
-        if cursor > start, bytes[cursor - 1] == 0x5F {
+        if cursor > start, byte(at: cursor - 1) == 0x5F {
             diagnostics.error(
                 "KSWIFTK-LEX-0006",
                 "Trailing underscore in numeric literal.",
@@ -264,42 +257,42 @@ extension KotlinLexer {
 
     func scanCharLiteral(leadingTrivia: [TriviaPiece], start: Int) -> Token {
         offset += 1
-        if offset >= bytes.count {
+        if offset >= byteCount() {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",
                 "Unterminated character literal.",
-                range: makeRange(start: start, end: bytes.count)
+                range: makeRange(start: start, end: byteCount())
             )
-            return Token(kind: .charLiteral(0), range: makeRange(start: start, end: bytes.count), leadingTrivia: leadingTrivia)
+            return Token(kind: .charLiteral(0), range: makeRange(start: start, end: byteCount()), leadingTrivia: leadingTrivia)
         }
 
         var value: UInt32 = 0
         var emittedContentError = false
-        if bytes[offset] == 0x27 {
+        if byte(at: offset) == 0x27 {
             diagnostics.error(
                 "KSWIFTK-LEX-0003",
                 "Empty character literal.",
-                range: makeRange(start: start, end: min(start + 2, bytes.count))
+                range: makeRange(start: start, end: min(start + 2, byteCount()))
             )
             offset += 1
             return Token(kind: .charLiteral(0), range: makeRange(start: start, end: offset), leadingTrivia: leadingTrivia)
         }
-        if bytes[offset] == 0x5C {
-            if offset + 1 >= bytes.count {
+        if byte(at: offset) == 0x5C {
+            if offset + 1 >= byteCount() {
                 diagnostics.error(
                     "KSWIFTK-LEX-0002",
                     "Invalid escape sequence in character literal.",
-                    range: makeRange(start: start, end: bytes.count)
+                    range: makeRange(start: start, end: byteCount())
                 )
-                return Token(kind: .charLiteral(0), range: makeRange(start: start, end: bytes.count), leadingTrivia: leadingTrivia)
+                return Token(kind: .charLiteral(0), range: makeRange(start: start, end: byteCount()), leadingTrivia: leadingTrivia)
             }
-            let escape = bytes[offset + 1]
+            let escape = byte(at: offset + 1)
             if escape == 0x75 {
                 if let unicode = scanUnicodeEscape(escapeStart: offset + 1) {
                     value = unicode.scalar
                     offset += 1 + unicode.length
                 } else {
-                    let missingEnd = min(offset + 6, bytes.count)
+                    let missingEnd = min(offset + 6, byteCount())
                     diagnostics.error(
                         "KSWIFTK-LEX-0003",
                         "Invalid unicode escape in character literal.",
@@ -315,7 +308,7 @@ extension KotlinLexer {
                 diagnostics.error(
                     "KSWIFTK-LEX-0003",
                     "Invalid escape sequence in character literal.",
-                    range: makeRange(start: offset, end: min(offset + 2, bytes.count))
+                    range: makeRange(start: offset, end: min(offset + 2, byteCount()))
                 )
                 offset += 2
                 emittedContentError = true
@@ -328,28 +321,28 @@ extension KotlinLexer {
                 diagnostics.error(
                     "KSWIFTK-LEX-0003",
                     "Invalid UTF-8 sequence in character literal.",
-                    range: makeRange(start: offset, end: min(offset + 1, bytes.count))
+                    range: makeRange(start: offset, end: min(offset + 1, byteCount()))
                 )
                 offset += 1
                 emittedContentError = true
             }
         }
 
-        if offset >= bytes.count {
+        if offset >= byteCount() {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",
                 "Unterminated character literal.",
-                range: makeRange(start: start, end: bytes.count)
+                range: makeRange(start: start, end: byteCount())
             )
-            return Token(kind: .charLiteral(value), range: makeRange(start: start, end: bytes.count), leadingTrivia: leadingTrivia)
+            return Token(kind: .charLiteral(value), range: makeRange(start: start, end: byteCount()), leadingTrivia: leadingTrivia)
         }
 
-        if bytes[offset] == 0x27 {
+        if byte(at: offset) == 0x27 {
             offset += 1
             return Token(kind: .charLiteral(value), range: makeRange(start: start, end: offset), leadingTrivia: leadingTrivia)
         }
 
-        if bytes[offset] == 0x0A || bytes[offset] == 0x0D {
+        if byte(at: offset) == 0x0A || byte(at: offset) == 0x0D {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",
                 "Unterminated character literal.",
@@ -362,7 +355,7 @@ extension KotlinLexer {
             diagnostics.error(
                 "KSWIFTK-LEX-0003",
                 "Character literal must contain exactly one character.",
-                range: makeRange(start: start, end: min(offset + 1, bytes.count))
+                range: makeRange(start: start, end: min(offset + 1, byteCount()))
             )
         }
 
@@ -371,15 +364,15 @@ extension KotlinLexer {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",
                 "Unterminated character literal.",
-                range: makeRange(start: start, end: min(offset + 1, bytes.count))
+                range: makeRange(start: start, end: min(offset + 1, byteCount()))
             )
         }
         return Token(kind: .charLiteral(value), range: makeRange(start: start, end: offset), leadingTrivia: leadingTrivia)
     }
 
     private func consumeUntilCharacterLiteralClosingQuote() -> Bool {
-        while offset < bytes.count {
-            let current = bytes[offset]
+        while offset < byteCount() {
+            let current = byte(at: offset)
             if current == 0x27 {
                 offset += 1
                 return true
@@ -393,10 +386,10 @@ extension KotlinLexer {
     }
 
     private func decodeUTF8Scalar(at start: Int) -> (scalar: UInt32, length: Int)? {
-        guard start < bytes.count else {
+        guard start < byteCount() else {
             return nil
         }
-        let leading = bytes[start]
+        let leading = byte(at: start)
         if leading < 0x80 {
             return (UInt32(leading), 1)
         }
@@ -417,12 +410,12 @@ extension KotlinLexer {
             return nil
         }
 
-        guard start + length <= bytes.count else {
+        guard start + length <= byteCount() else {
             return nil
         }
 
         for index in 1 ..< length {
-            let next = bytes[start + index]
+            let next = byte(at: start + index)
             guard (next & 0xC0) == 0x80 else {
                 return nil
             }

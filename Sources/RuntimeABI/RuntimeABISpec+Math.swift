@@ -8,7 +8,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_abs",
@@ -16,7 +17,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sqrt",
@@ -24,7 +26,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_pow",
@@ -33,7 +36,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "exp", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-MATH-007: remaining official floating-point overloads.
         RuntimeABIFunctionSpec(
@@ -43,7 +47,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "exp", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_pow_int",
@@ -52,7 +57,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "exp", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_pow_float_int",
@@ -61,7 +67,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "exp", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_IEEErem",
@@ -70,7 +77,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "y", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_IEEErem_float",
@@ -79,7 +87,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "y", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_nextTowards",
@@ -88,7 +97,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "to", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_nextTowards_float",
@@ -97,7 +107,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "to", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_withSign",
@@ -106,7 +117,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sign", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_withSign_float",
@@ -115,7 +127,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sign", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_withSign_int",
@@ -124,7 +137,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sign", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_withSign_float_int",
@@ -133,7 +147,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "sign", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ceil",
@@ -141,7 +156,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_floor",
@@ -149,7 +165,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round",
@@ -157,7 +174,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // Trigonometric functions (STDLIB-430)
         // Note: Each trig entry is spelled out individually rather than generated
@@ -170,7 +188,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cos",
@@ -178,7 +197,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_tan",
@@ -186,7 +206,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_asin",
@@ -194,7 +215,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_acos",
@@ -202,7 +224,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_atan",
@@ -210,7 +233,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_atan2",
@@ -219,7 +243,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "x", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-431: exp/ln/log functions
         RuntimeABIFunctionSpec(
@@ -228,7 +253,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_expm1",
@@ -236,7 +262,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ln",
@@ -244,7 +271,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ln1p",
@@ -252,7 +280,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log2",
@@ -260,7 +289,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log10",
@@ -268,7 +298,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log",
@@ -277,7 +308,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "base", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-432: sign/hypot + PI/E constants
         RuntimeABIFunctionSpec(
@@ -286,7 +318,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sign_int",
@@ -294,7 +327,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sign_long",
@@ -302,7 +336,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_hypot",
@@ -311,7 +346,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "y", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-MATH-006: max/min overload matrix.
         RuntimeABIFunctionSpec(
@@ -321,7 +357,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_max_float",
@@ -330,7 +367,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_max_int",
@@ -339,7 +377,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_max_long",
@@ -348,7 +387,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_max_uint",
@@ -357,7 +397,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_max_ulong",
@@ -366,7 +407,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min",
@@ -375,7 +417,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min_float",
@@ -384,7 +427,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min_int",
@@ -393,7 +437,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min_long",
@@ -402,7 +447,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min_uint",
@@ -411,7 +457,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_min_ulong",
@@ -420,19 +467,22 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "b", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_PI",
             parameters: [],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_E",
             parameters: [],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false,
         ),
         // STDLIB-500~509: Float overloads
         RuntimeABIFunctionSpec(
@@ -441,7 +491,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cos_float",
@@ -449,7 +500,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_tan_float",
@@ -457,7 +509,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_asin_float",
@@ -465,7 +518,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_acos_float",
@@ -473,7 +527,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_atan_float",
@@ -481,7 +536,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_atan2_float",
@@ -490,7 +546,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "x", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sqrt_float",
@@ -498,7 +555,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_float",
@@ -506,7 +564,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ceil_float",
@@ -514,7 +573,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_floor_float",
@@ -522,50 +582,58 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-430: additional Float overloads (abs, exp, expm1, ln, ln1p, log2, log10, log, sign, hypot)
         RuntimeABIFunctionSpec(
             name: "kk_math_abs_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_exp_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_expm1_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ln_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_ln1p_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log2_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log10_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_log_float",
@@ -574,13 +642,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "base", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sign_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_hypot_float",
@@ -589,7 +659,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "y", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-510~511: roundToInt / roundToLong
         // Throwing callees: NaN receiver throws IllegalArgumentException, so the
@@ -637,7 +708,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_nextUp",
@@ -645,7 +717,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_double_nextDown",
@@ -653,7 +726,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_ulp",
@@ -661,7 +735,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_nextUp",
@@ -669,7 +744,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_float_nextDown",
@@ -677,7 +753,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-111: IEEE 754 rounding modes — generic mode-dispatch entry points
         RuntimeABIFunctionSpec(
@@ -687,7 +764,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "mode", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_mode_float",
@@ -696,105 +774,122 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "mode", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-111: IEEE 754 rounding modes — Double convenience entry points
         RuntimeABIFunctionSpec(
             name: "kk_math_round_up",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_down",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_ceiling",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_floor",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_up",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_down",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_even",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_unnecessary",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-111: IEEE 754 rounding modes — Float convenience entry points
         RuntimeABIFunctionSpec(
             name: "kk_math_round_up_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_down_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_ceiling_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_floor_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_up_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_down_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_half_even_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_round_unnecessary_float",
             parameters: [RuntimeABIParameter(name: "value", type: .intptr)],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-514: abs(Long), truncate
         RuntimeABIFunctionSpec(
@@ -877,7 +972,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cosh",
@@ -885,7 +981,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_tanh",
@@ -893,7 +990,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cbrt",
@@ -901,7 +999,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_sinh_float",
@@ -909,7 +1008,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cosh_float",
@@ -917,7 +1017,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_tanh_float",
@@ -925,7 +1026,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_math_cbrt_float",
@@ -933,7 +1035,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Math"
+            section: "Math",
+            isThrowing: false
         ),
         // STDLIB-MATH-112: numeric constants — Double special values
         RuntimeABIFunctionSpec(name: "kk_double_positive_infinity", parameters: [], returnType: .intptr, section: "Math"),

@@ -45,6 +45,16 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
     }
 
+    func testAppendRangeUsesUTF16IndicesForMultibyteCharacters() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString(""))
+        let value = makeRuntimeString("你好世界")
+
+        let returned = kk_string_builder_appendRange_obj(builder, value, 1, 3)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "好世")
+    }
+
     func testInsertObjAtBeginningPrependsValue() {
         let builder = kk_string_builder_new_from_string(makeRuntimeString("bc"))
         let value = makeRuntimeString("a")

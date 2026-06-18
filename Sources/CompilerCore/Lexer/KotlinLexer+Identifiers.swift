@@ -4,7 +4,7 @@ extension KotlinLexer {
     }
 
     func scanTemplateName(leadingTrivia: [TriviaPiece], start: Int) -> Token? {
-        guard start < bytes.count, isIdentifierStart(bytes[start]), bytes[start] != 0x24 else {
+        guard start < byteCount(), isIdentifierStart(byte(at: start)), byte(at: start) != 0x24 else {
             return nil
         }
         return scanTemplateNameCore(start: start, leadingTrivia: leadingTrivia)
@@ -15,7 +15,7 @@ extension KotlinLexer {
     /// template references like `"$i$j"` are parsed as two separate names.
     private func scanTemplateNameCore(start: Int, leadingTrivia: [TriviaPiece]) -> Token {
         var cursor = start
-        while cursor < bytes.count, isIdentifierContinue(bytes[cursor]), bytes[cursor] != 0x24 {
+        while cursor < byteCount(), isIdentifierContinue(byte(at: cursor)), byte(at: cursor) != 0x24 {
             cursor += 1
         }
         let name = text(from: start ..< cursor)
@@ -25,7 +25,7 @@ extension KotlinLexer {
 
     private func scanIdentifierCore(start: Int, leadingTrivia: [TriviaPiece]) -> Token {
         var cursor = start
-        while cursor < bytes.count, isIdentifierContinue(bytes[cursor]) {
+        while cursor < byteCount(), isIdentifierContinue(byte(at: cursor)) {
             cursor += 1
         }
         let name = text(from: start ..< cursor)
@@ -42,15 +42,15 @@ extension KotlinLexer {
     func scanBacktickedIdentifier(leadingTrivia: [TriviaPiece], start: Int) -> Token {
         offset += 1
         let bodyStart = offset
-        while offset < bytes.count, bytes[offset] != 0x60 {
+        while offset < byteCount(), byte(at: offset) != 0x60 {
             offset += 1
         }
-        let body = text(from: bodyStart ..< min(offset, bytes.count))
-        if offset >= bytes.count {
+        let body = text(from: bodyStart ..< min(offset, byteCount()))
+        if offset >= byteCount() {
             diagnostics.error(
                 "KSWIFTK-LEX-0002",
                 "Unterminated backticked identifier.",
-                range: makeRange(start: start, end: bytes.count)
+                range: makeRange(start: start, end: byteCount())
             )
         } else {
             offset += 1
