@@ -644,7 +644,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > 完了ゲートは RF-GUARD-005 と同じ（全テスト + golden + `diff_kotlinc.sh` green）。
 
 ### Runtime: ファイル丸ごと削除可能（emit 経路なし・テスト参照なし）
-- [ ] DEADCODE-001: `RuntimeLogging.swift`（`kk_slf4j_*` 20 件が全て未到達）と `RuntimeLoggingAdvanced.swift`（`kk_adv_logger_*` / `kk_mdc_*` / appender 系 19 件が全て未到達）を削除する。SLF4J/MDC/Appender はターゲット外（「JVM 風ロギングフレームワーク互換」）で Sema 側 stub も存在せず、`Scripts/diff_cases/logging_basic.kt` は SKIP-DIFF のため実行経路なし。`kk_file_appender_new` / `kk_rolling_appender_new` / `kk_structured_appender_new` / `kk_async_appender_wrap_*` と `RuntimeABISpec+ABIParity.swift` の対応宣言（約 39 件）も同時に削除する
+- [x] DEADCODE-001: SLF4J/MDC/Appender 系の未到達シンボル 28 件を削除する（`kk_slf4j_*` 20 件、`kk_adv_logger_get`、`kk_mdc_clear` / `get` / `put` / `remove`、`kk_file_appender_new` / `kk_rolling_appender_new` / `kk_structured_appender_new`）。`@_cdecl` 実装（`RuntimeLogging.swift` / `RuntimeLoggingAdvanced.swift`）は先行 PR で既に削除済みのため、残存していた `RuntimeABISpec+ABIParity.swift` の spec 宣言と `ABIMismatchTests+RuntimeExportParity.swift` の allowlist エントリを削除して整合させた。SLF4J/MDC/Appender はターゲット外（「JVM 風ロギングフレームワーク互換」）で Sema 側 stub も存在せず、`Scripts/diff_cases/logging_basic.kt` は SKIP-DIFF のため実行経路なし
 - [ ] DEADCODE-002: `RuntimeFlowErrorHandling.swift` を削除する（`kk_flow_catch` / `on_completion` / `on_error_resume` / `on_error_return` / `retry` / `retry_when` の 6/6 件が未到達。kotlinx.coroutines 風 Flow エラー演算子はターゲット外）
 
 ### Runtime: 未到達 `@_cdecl` エクスポート（関数単位）
