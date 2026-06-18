@@ -3872,7 +3872,7 @@ private func runtimeIsObjectPointer(_ pointer: UnsafeMutableRawPointer) -> Bool 
     }
 }
 
-// MARK: - STDLIB-319: String.toBigDecimal() / String.toBigInteger()
+// MARK: - STDLIB-TEXT-FN-083 / STDLIB-TEXT-FN-085: String.toBigDecimal() / String.toBigInteger()
 
 /// BigDecimal and BigInteger are represented as boxed strings in KSwiftK.
 /// The runtime validates the format and stores the string representation.
