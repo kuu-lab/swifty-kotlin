@@ -389,7 +389,6 @@ extension KotlinLexer {
         if escaped == 0x75 {
             if let unicode = scanUnicodeEscape(escapeStart: offset + 1) {
                 offset += 1 + unicode.length
-                segmentStart = offset
                 return true
             } else {
                 let missingEnd = min(offset + 12, byteCount())
@@ -418,7 +417,6 @@ extension KotlinLexer {
             return true
         }
         offset += 2
-        segmentStart = offset
         return true
     }
 
