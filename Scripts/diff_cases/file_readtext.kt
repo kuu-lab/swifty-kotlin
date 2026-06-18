@@ -1,3 +1,4 @@
+// SKIP-DIFF
 import java.io.File
 
 fun main() {

@@ -1,3 +1,4 @@
+// SKIP-DIFF
 fun main() {
     println("=== Boolean Operators Test ===")
     

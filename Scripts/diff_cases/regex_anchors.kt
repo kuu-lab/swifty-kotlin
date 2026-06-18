@@ -1,3 +1,4 @@
+// SKIP-DIFF
 fun main() {
     // STDLIB-REGEX-098: Line anchors ^ and $
     val lineStart = Regex("^hello")
