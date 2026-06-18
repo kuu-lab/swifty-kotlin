@@ -1049,6 +1049,7 @@ extension ABIMismatchTests {
         "kk_string_substringBeforeLast",
         "kk_string_substringBeforeLast_char",
         "kk_string_substringBefore_char",
+        "kk_string_toBigIntegerOrNull",
         "kk_string_toBoolean",
         "kk_string_toBooleanStrictOrNull",
         "kk_string_toByteArray",
