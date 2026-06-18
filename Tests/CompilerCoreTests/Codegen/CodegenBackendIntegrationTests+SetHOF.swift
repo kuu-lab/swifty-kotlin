@@ -364,4 +364,155 @@ extension CodegenBackendIntegrationTests {
             XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "null\n")
         }
     }
+
+    // MARK: - edge cases
+
+    func testCodegenSetEmptySetEdgeCasesCoverCollectionHelpers() throws {
+        let source = """
+        fun main() {
+            val empty = setOf<Int>()
+            println(empty.filter { it > 0 })
+            println(empty.filterNot { it > 0 })
+            println(empty.map { it * 2 })
+            println(empty.flatMap { listOf(it, it * 10) })
+            println(empty.all { it > 0 })
+            println(empty.any())
+            var visited = 0
+            empty.forEach { visited += 1 }
+            println(visited)
+            println(empty.sorted())
+            println(empty.sortedDescending())
+            println(empty.count { it > 0 })
+            println(empty.maxOrNull())
+            println(empty.minOrNull())
+            try {
+                empty.first()
+                println("missing")
+            } catch (e: NoSuchElementException) {
+                println("first-empty")
+            }
+            try {
+                empty.last()
+                println("missing")
+            } catch (e: NoSuchElementException) {
+                println("last-empty")
+            }
+            println(empty.lastOrNull())
+            println(empty.singleOrNull())
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetEmptyEdgeCases", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                """
+                []
+                []
+                []
+                []
+                true
+                false
+                0
+                []
+                []
+                0
+                null
+                null
+                first-empty
+                last-empty
+                null
+                null
+                """ + "\n"
+            )
+        }
+    }
+
+    func testCodegenSetSingleElementEdgeCasesPreserveOrderAndSingletonSemantics() throws {
+        let source = """
+        fun main() {
+            val single = setOf(7)
+            println(single.first())
+            println(single.last())
+            println(single.lastOrNull())
+            println(single.maxOrNull())
+            println(single.minOrNull())
+            println(single.sorted())
+            println(single.sortedDescending())
+            println(single.singleOrNull())
+            println(single.count { it > 0 })
+            println(single.any())
+            println(single.all { it == 7 })
+            println(single.map { it * 2 })
+            println(single.flatMap { listOf(it, it * 10) })
+            var order = ""
+            single.forEach { order += it }
+            println(order)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetSingleEdgeCases", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                """
+                7
+                7
+                7
+                7
+                7
+                [7]
+                [7]
+                7
+                1
+                true
+                true
+                [14]
+                [7, 70]
+                7
+                """ + "\n"
+            )
+        }
+    }
+
+    func testCodegenSetMatchExtremesCoverAllMatchAndAllMismatchCases() throws {
+        let source = """
+        fun main() {
+            val allMatch = setOf(2, 4, 6)
+            println(allMatch.filter { it % 2 == 0 })
+            println(allMatch.filterNot { it % 2 == 0 })
+            println(allMatch.all { it % 2 == 0 })
+            println(allMatch.any { it % 2 == 0 })
+
+            val noMatch = setOf(1, 3, 5)
+            println(noMatch.filter { it % 2 == 0 })
+            println(noMatch.filterNot { it % 2 == 0 })
+            println(noMatch.all { it % 2 == 0 })
+            println(noMatch.any { it % 2 == 0 })
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "SetMatchExtremes", emit: .executable, outputPath: outputBase)
+            try LinkPhase().run(ctx)
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                """
+                [2, 4, 6]
+                []
+                true
+                true
+                []
+                [1, 3, 5]
+                false
+                false
+                """ + "\n"
+            )
+        }
+    }
 }
