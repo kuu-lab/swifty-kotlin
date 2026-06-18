@@ -994,7 +994,7 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_string_toBigIntegerOrNull", parameters: [
             p("strRaw", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("kk_string_toBooleanStrictOrNull", parameters: [
             p("strRaw", .intptr),
         ],

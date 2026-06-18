@@ -1354,6 +1354,17 @@ extension CallLowerer {
                     ))
                     return result
                 }
+                if calleeStr == "toBigIntegerOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toBigIntegerOrNull"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if calleeStr == "toList" {
                     instructions.append(.call(
                         symbol: nil,
