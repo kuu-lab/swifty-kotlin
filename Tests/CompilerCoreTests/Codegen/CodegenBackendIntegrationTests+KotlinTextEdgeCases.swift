@@ -2430,6 +2430,54 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
+    func testKotlinTextToCollectionEdgeCases() throws {
+        let source = """
+        fun main() {
+            val list = mutableListOf<Char>('x')
+            val returnedList: MutableList<Char> = "ab".toCollection(list)
+            println(returnedList)
+            println(list)
+            println(returnedList.size)
+
+            val cs: CharSequence = "cda"
+            val set = mutableSetOf<Char>('c')
+            val returnedSet: MutableSet<Char> = cs.toCollection(set)
+            println(returnedSet)
+            println(returnedSet.size)
+
+            val empty = mutableListOf<Char>('q')
+            println("".toCollection(empty))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextToCollectionEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                [x, a, b]
+                [x, a, b]
+                3
+                [c, d, a]
+                3
+                [q]
+                """
+                + "\n"
+            )
+        }
+    }
+
     // STDLIB-TEXT-FN-108: CharSequence.toSortedSet(): SortedSet<Char>
     // End-to-end execution coverage — the runtime/Sema layers are tested in
     // isolation elsewhere; this asserts the full compile-and-run pipeline
