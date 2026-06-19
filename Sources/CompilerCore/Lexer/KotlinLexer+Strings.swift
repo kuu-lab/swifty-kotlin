@@ -225,6 +225,18 @@ extension KotlinLexer {
                 }
             }
             tokens.append(contentsOf: scanned)
+            for token in scanned {
+                switch token.kind {
+                case .symbol(.lBrace):
+                    depth += 1
+                case .symbol(.rBrace):
+                    if depth > 1 {
+                        depth -= 1
+                    }
+                default:
+                    break
+                }
+            }
         }
 
         diagnostics.error(
