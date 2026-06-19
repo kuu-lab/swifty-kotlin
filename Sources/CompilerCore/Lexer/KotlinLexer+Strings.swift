@@ -214,6 +214,16 @@ extension KotlinLexer {
                 offset += 1
                 continue
             }
+            for scannedToken in scanned {
+                switch scannedToken.kind {
+                case .symbol(.lBrace):
+                    depth += 1
+                case .symbol(.rBrace):
+                    depth -= 1
+                default:
+                    break
+                }
+            }
             tokens.append(contentsOf: scanned)
         }
 
