@@ -220,8 +220,8 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 24 bundled stdlib functions (7 collections + 17 text)
-            XCTAssertEqual(allFunNames.count, 26)
+            // 2 user functions + 20 bundled stdlib functions (7 collections + 13 text)
+            XCTAssertEqual(allFunNames.count, 22)
 
             XCTAssertEqual(ctx.syntaxTrees.count, 4)
             for (_, cst, root) in ctx.syntaxTrees {
