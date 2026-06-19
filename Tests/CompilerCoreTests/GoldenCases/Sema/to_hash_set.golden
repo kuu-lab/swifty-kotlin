@@ -486,10 +486,10 @@ expr e353 memberCall recv=e352 callee=toHashSet args=[] type=Class#7<String> cal
 expr e354 localDecl hs mutable=0 type=t94 init=e353 type=Unit ref=s108
 expr e355 name(hs) type=Class#7<String> ref=s108
 expr e356 string(d) type=String
-expr e357 memberCall recv=e355 callee=add args=[_:e356] type=Boolean call=s9 map=[0->0] targs=[String]
+expr e357 memberCall recv=e355 callee=add args=[_:e356] type=Boolean call=s9 map=[0->0] targs=[]
 expr e358 name(hs) type=Class#7<String> ref=s108
 expr e359 string(a) type=String
-expr e360 memberCall recv=e358 callee=remove args=[_:e359] type=Boolean call=s10 map=[0->0] targs=[String]
+expr e360 memberCall recv=e358 callee=remove args=[_:e359] type=Boolean call=s10 map=[0->0] targs=[]
 expr e361 name(println) type=_
 expr e362 name(hs) type=Class#7<String> ref=s108
 expr e363 call callee=e361 args=[_:e362] type=Unit call=s29 map=[0->0] targs=[]

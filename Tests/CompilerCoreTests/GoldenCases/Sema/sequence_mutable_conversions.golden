@@ -498,7 +498,7 @@ expr e355 memberCall recv=e354 callee=toMutableList args=[] type=Class#9<Int> ca
 expr e356 localDecl mutableList mutable=0 type=t94 init=e355 type=Unit ref=s116
 expr e357 name(mutableList) type=Class#9<Int> ref=s116
 expr e358 int(99) type=Int
-expr e359 memberCall recv=e357 callee=add args=[_:e358] type=Boolean call=s11 map=[0->0] targs=[Int]
+expr e359 memberCall recv=e357 callee=add args=[_:e358] type=Boolean call=s11 map=[0->0] targs=[]
 expr e360 name(println) type=_
 expr e361 name(mutableList) type=Class#9<Int> ref=s116
 expr e362 call callee=e360 args=[_:e361] type=Unit call=s32 map=[0->0] targs=[]
@@ -513,7 +513,7 @@ expr e370 memberCall recv=e369 callee=toMutableSet args=[] type=Class#12<Int> ca
 expr e371 localDecl mutableSet mutable=0 type=t96 init=e370 type=Unit ref=s117
 expr e372 name(mutableSet) type=Class#12<Int> ref=s117
 expr e373 int(42) type=Int
-expr e374 memberCall recv=e372 callee=add args=[_:e373] type=Boolean call=s14 map=[0->0] targs=[Int]
+expr e374 memberCall recv=e372 callee=add args=[_:e373] type=Boolean call=s14 map=[0->0] targs=[]
 expr e375 name(println) type=_
 expr e376 name(mutableSet) type=Class#12<Int> ref=s117
 expr e377 call callee=e375 args=[_:e376] type=Unit call=s32 map=[0->0] targs=[]
@@ -528,7 +528,7 @@ expr e385 memberCall recv=e384 callee=toHashSet args=[] type=Class#12<Int> call=
 expr e386 localDecl hashSet mutable=0 type=t98 init=e385 type=Unit ref=s118
 expr e387 name(hashSet) type=Class#12<Int> ref=s118
 expr e388 int(77) type=Int
-expr e389 memberCall recv=e387 callee=add args=[_:e388] type=Boolean call=s14 map=[0->0] targs=[Int]
+expr e389 memberCall recv=e387 callee=add args=[_:e388] type=Boolean call=s14 map=[0->0] targs=[]
 expr e390 name(println) type=_
 expr e391 name(hashSet) type=Class#12<Int> ref=s118
 expr e392 call callee=e390 args=[_:e391] type=Unit call=s32 map=[0->0] targs=[]

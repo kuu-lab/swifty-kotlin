@@ -515,7 +515,7 @@ expr e353 memberCall recv=e352 callee=toMutableList args=[] type=Class#13<Int> c
 expr e354 localDecl ml1 mutable=0 type=t96 init=e353 type=Unit ref=s131
 expr e355 name(ml1) type=Class#13<Int> ref=s131
 expr e356 int(4) type=Int
-expr e357 memberCall recv=e355 callee=add args=[_:e356] type=Boolean call=s15 map=[0->0] targs=[Int]
+expr e357 memberCall recv=e355 callee=add args=[_:e356] type=Boolean call=s15 map=[0->0] targs=[]
 expr e358 name(println) type=_
 expr e359 name(ml1) type=Class#13<Int> ref=s131
 expr e360 call callee=e358 args=[_:e359] type=Unit call=s52 map=[0->0] targs=[]
@@ -524,7 +524,7 @@ expr e362 memberCall recv=e361 callee=toMutableSet args=[] type=Class#19<Int> ca
 expr e363 localDecl ms0 mutable=0 type=t98 init=e362 type=Unit ref=s132
 expr e364 name(ms0) type=Class#19<Int> ref=s132
 expr e365 int(4) type=Int
-expr e366 memberCall recv=e364 callee=add args=[_:e365] type=Boolean call=s21 map=[0->0] targs=[Int]
+expr e366 memberCall recv=e364 callee=add args=[_:e365] type=Boolean call=s21 map=[0->0] targs=[]
 expr e367 name(println) type=_
 expr e368 name(ms0) type=Class#19<Int> ref=s132
 expr e369 int(4) type=Int
@@ -535,7 +535,7 @@ expr e373 memberCall recv=e372 callee=toHashSet args=[] type=Class#19<Int> call=
 expr e374 localDecl hs0 mutable=0 type=t100 init=e373 type=Unit ref=s133
 expr e375 name(hs0) type=Class#19<Int> ref=s133
 expr e376 int(5) type=Int
-expr e377 memberCall recv=e375 callee=add args=[_:e376] type=Boolean call=s21 map=[0->0] targs=[Int]
+expr e377 memberCall recv=e375 callee=add args=[_:e376] type=Boolean call=s21 map=[0->0] targs=[]
 expr e378 name(println) type=_
 expr e379 name(hs0) type=Class#19<Int> ref=s133
 expr e380 int(5) type=Int
@@ -552,7 +552,7 @@ expr e390 memberCall recv=e389 callee=toMutableList args=[] type=Class#13<String
 expr e391 localDecl ml2 mutable=0 type=t104 init=e390 type=Unit ref=s135
 expr e392 name(ml2) type=Class#13<String> ref=s135
 expr e393 string(d) type=String
-expr e394 memberCall recv=e392 callee=add args=[_:e393] type=Boolean call=s15 map=[0->0] targs=[String]
+expr e394 memberCall recv=e392 callee=add args=[_:e393] type=Boolean call=s15 map=[0->0] targs=[]
 expr e395 name(println) type=_
 expr e396 name(ml2) type=Class#13<String> ref=s135
 expr e397 call callee=e395 args=[_:e396] type=Unit call=s52 map=[0->0] targs=[]

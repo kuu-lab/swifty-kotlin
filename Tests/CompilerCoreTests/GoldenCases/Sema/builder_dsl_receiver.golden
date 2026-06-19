@@ -485,7 +485,7 @@ expr e355 call callee=e346 args=[_:e354] type=String
 expr e356 name(buildList) type=_
 expr e357 this type=Class#7<Int>
 expr e358 int(1) type=Int
-expr e359 memberCall recv=e357 callee=add args=[_:e358] type=Boolean call=s9 map=[0->0] targs=[Int]
+expr e359 memberCall recv=e357 callee=add args=[_:e358] type=Boolean call=s9 map=[0->0] targs=[]
 expr e360 name(add) type=_
 expr e361 int(2) type=Int
 expr e362 call callee=e360 args=[_:e361] type=Unit

@@ -532,7 +532,7 @@ expr e364 string(nested) type=String
 expr e365 memberCall recv=e363 callee=add args=[_:e364] type=<error>
 expr e366 name(nested) type=Class#16<Class#16<String>> ref=s127
 expr e367 name(inner) type=Class#8<out String> ref=s128
-expr e368 memberCall recv=e366 callee=add args=[_:e367] type=<error>
+expr e368 memberCall recv=e366 callee=add args=[_:e367] type=Boolean call=s13 map=[0->0] targs=[]
 expr e369 name(println) type=_
 expr e370 name(nested) type=Class#16<Class#16<String>> ref=s127
 expr e371 memberCall recv=e370 callee=size args=[] type=Int ref=s0
@@ -549,10 +549,10 @@ expr e381 call callee=e380 args=[] type=Class#16<String> call=s18 map=[] targs=[
 expr e382 localDecl set mutable=0 type=t117 init=e381 type=Unit ref=s129
 expr e383 name(set) type=Class#16<String> ref=s129
 expr e384 string(hello) type=String
-expr e385 memberCall recv=e383 callee=add args=[_:e384] type=Boolean call=s13 map=[0->0] targs=[String]
+expr e385 memberCall recv=e383 callee=add args=[_:e384] type=Boolean call=s13 map=[0->0] targs=[]
 expr e386 name(set) type=Class#16<String> ref=s129
 expr e387 string(world) type=String
-expr e388 memberCall recv=e386 callee=add args=[_:e387] type=Boolean call=s13 map=[0->0] targs=[String]
+expr e388 memberCall recv=e386 callee=add args=[_:e387] type=Boolean call=s13 map=[0->0] targs=[]
 expr e389 name(println) type=_
 expr e390 name(set) type=Class#16<String> ref=s129
 expr e391 memberCall recv=e390 callee=size args=[] type=Int ref=s0
@@ -566,7 +566,7 @@ expr e398 name(set) type=Class#16<String> ref=s129
 expr e399 localDecl ms mutable=0 type=t119 init=e398 type=Unit ref=s130
 expr e400 name(ms) type=Class#11<String> ref=s130
 expr e401 string(!) type=String
-expr e402 memberCall recv=e400 callee=add args=[_:e401] type=Boolean call=s13 map=[0->0] targs=[String]
+expr e402 memberCall recv=e400 callee=add args=[_:e401] type=Boolean call=s13 map=[0->0] targs=[]
 expr e403 name(println) type=_
 expr e404 name(ms) type=Class#11<String> ref=s130
 expr e405 memberCall recv=e404 callee=size args=[] type=Int ref=s0
@@ -579,7 +579,7 @@ expr e411 call callee=e407 args=[_:e408,_:e409,_:e410] type=Class#16<Int>
 expr e412 localDecl ordered mutable=0 type=_ init=e411 type=Unit ref=s131
 expr e413 name(ordered) type=Class#16<Int> ref=s131
 expr e414 int(2) type=Int
-expr e415 memberCall recv=e413 callee=remove args=[_:e414] type=Boolean call=s14 map=[0->0] targs=[Int]
+expr e415 memberCall recv=e413 callee=remove args=[_:e414] type=Boolean call=s14 map=[0->0] targs=[]
 expr e416 name(println) type=_
 expr e417 name(ordered) type=Class#16<Int> ref=s131
 expr e418 memberCall recv=e417 callee=size args=[] type=Int ref=s0
@@ -598,7 +598,7 @@ expr e430 call callee=e429 args=[] type=Class#16<Int> call=s86 map=[] targs=[]
 expr e431 localDecl created mutable=0 type=_ init=e430 type=Unit ref=s133
 expr e432 name(created) type=Class#16<Int> ref=s133
 expr e433 int(42) type=Int
-expr e434 memberCall recv=e432 callee=add args=[_:e433] type=Boolean call=s13 map=[0->0] targs=[Int]
+expr e434 memberCall recv=e432 callee=add args=[_:e433] type=Boolean call=s13 map=[0->0] targs=[]
 expr e435 name(println) type=_
 expr e436 name(created) type=Class#16<Int> ref=s133
 expr e437 memberCall recv=e436 callee=size args=[] type=Int ref=s0
@@ -609,7 +609,7 @@ expr e441 localDecl container mutable=0 type=_ init=e440 type=Unit ref=s134
 expr e442 name(container) type=Class#87 ref=s134
 expr e443 memberCall recv=e442 callee=tags args=[] type=Class#16<String> ref=s89
 expr e444 string(property) type=String
-expr e445 memberCall recv=e443 callee=add args=[_:e444] type=Boolean call=s13 map=[0->0] targs=[String]
+expr e445 memberCall recv=e443 callee=add args=[_:e444] type=Boolean call=s13 map=[0->0] targs=[]
 expr e446 name(println) type=_
 expr e447 name(container) type=Class#87 ref=s134
 expr e448 memberCall recv=e447 callee=tags args=[] type=Class#16<String> ref=s89
