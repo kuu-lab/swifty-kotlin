@@ -16,7 +16,6 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
-  merge_group:
   schedule:
     - cron: '45 8 * * 0'
 
