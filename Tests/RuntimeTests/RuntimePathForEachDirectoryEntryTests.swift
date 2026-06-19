@@ -63,7 +63,7 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
 
         _forEachDirectoryEntryNames = []
         let pathRaw = runtimeTestPathHandle(directory.path)
-        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
+        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
         XCTAssertEqual(result, 0)
         XCTAssertEqual(_forEachDirectoryEntryNames.sorted(), ["alpha.kt", "beta.txt", "nested"])
@@ -76,7 +76,7 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
         _forEachDirectoryEntryNames = []
         let pathRaw = runtimeTestPathHandle(directory.path)
         let globRaw = makeRuntimeString("*.kt")
-        let result = kk_path_forEachDirectoryEntry(pathRaw, globRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
+        let result = kk_path_forEachDirectoryEntry(pathRaw, globRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
         XCTAssertEqual(result, 0)
         XCTAssertEqual(_forEachDirectoryEntryNames, ["alpha.kt"])
@@ -88,7 +88,7 @@ final class RuntimePathForEachDirectoryEntryTests: IsolatedRuntimeXCTestCase {
 
         _forEachDirectoryEntryNames = []
         let pathRaw = runtimeTestPathHandle(missingPath.path)
-        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName))
+        let result = kk_path_forEachDirectoryEntry_default(pathRaw, fnPtrInt1(forEachDirectoryEntryRecordName), nil)
 
         XCTAssertEqual(result, 0)
         XCTAssertTrue(_forEachDirectoryEntryNames.isEmpty)
