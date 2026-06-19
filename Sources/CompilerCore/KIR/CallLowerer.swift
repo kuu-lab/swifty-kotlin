@@ -705,7 +705,7 @@ final class CallLowerer {
         if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
             let sourceName = interner.resolve(sourceCalleeName)
             let builderRuntimeCallee: String? = switch builderKind {
-            case .buildString:
+            case .buildString, .buildStringBuilder:
                 switch (sourceName, loweredArgIDs.count) {
                 case ("append", 1):
                     "kk_string_builder_append"

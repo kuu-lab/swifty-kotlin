@@ -1961,7 +1961,7 @@ extension CallTypeChecker {
         if ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString:
+            case .buildString, .buildStringBuilder:
                 (name == "append" && args.count == 1)
                     || (name == "appendLine" && args.count <= 1)
                     || (name == "appendRange" && args.count == 3)

@@ -215,6 +215,7 @@ extension ABIMismatchTests {
         // Lazy sequence builder is closure-aware because its receiver lambda can capture values.
         let builderThunks: Set<String> = [
             "kk_build_string", "kk_build_string_with_capacity",
+            "kk_build_string_builder", "kk_build_string_builder_with_capacity",
             "kk_build_list", "kk_build_list_with_capacity",
             "kk_build_set", "kk_build_map", "kk_iterator_builder_build",
         ]
