@@ -475,6 +475,23 @@ public func kk_math_log10(_ value: Int) -> Int {
 public func kk_math_log(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_double(x)
     let rawBase = kk_bits_to_double(base)
+
+    // Match Kotlin's special-case table instead of relying on raw ln(x) / ln(base).
+    if rawX.isNaN || rawBase.isNaN {
+        return kk_double_to_bits(Double.nan)
+    }
+    if rawX < 0 || rawBase <= 0 || rawBase == 1.0 {
+        return kk_double_to_bits(Double.nan)
+    }
+    if rawX.isInfinite {
+        if rawBase.isInfinite {
+            return kk_double_to_bits(Double.nan)
+        }
+        return kk_double_to_bits(rawBase > 1.0 ? Double.infinity : -Double.infinity)
+    }
+    if rawX == 0.0 {
+        return kk_double_to_bits(rawBase > 1.0 ? -Double.infinity : Double.infinity)
+    }
     return kk_double_to_bits(log(rawX) / log(rawBase))
 }
 
@@ -771,6 +788,23 @@ public func kk_math_log10_float(_ value: Int) -> Int {
 public func kk_math_log_float(_ x: Int, _ base: Int) -> Int {
     let rawX = kk_bits_to_float(x)
     let rawBase = kk_bits_to_float(base)
+
+    // Match Kotlin's special-case table instead of relying on raw ln(x) / ln(base).
+    if rawX.isNaN || rawBase.isNaN {
+        return kk_float_to_bits(Float.nan)
+    }
+    if rawX < 0 || rawBase <= 0 || rawBase == 1.0 {
+        return kk_float_to_bits(Float.nan)
+    }
+    if rawX.isInfinite {
+        if rawBase.isInfinite {
+            return kk_float_to_bits(Float.nan)
+        }
+        return kk_float_to_bits(rawBase > 1.0 ? Float.infinity : -Float.infinity)
+    }
+    if rawX == 0.0 {
+        return kk_float_to_bits(rawBase > 1.0 ? -Float.infinity : Float.infinity)
+    }
     return kk_float_to_bits(log(rawX) / log(rawBase))
 }
 
