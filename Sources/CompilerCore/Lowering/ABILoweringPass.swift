@@ -20,18 +20,8 @@ struct UnboxingCalleeNames {
 final class ABILoweringPass: LoweringPass {
     static let name = "ABILowering"
 
-    private var cachedNonThrowingCallees: Set<InternedString>?
-    private var cachedInterner: StringInterner?
-
     func run(module: KIRModule, ctx: KIRContext) throws {
-        let nonThrowingCalleeSet: Set<InternedString>
-        if cachedInterner === ctx.interner, let cached = cachedNonThrowingCallees {
-            nonThrowingCalleeSet = cached
-        } else {
-            nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
-            cachedNonThrowingCallees = nonThrowingCalleeSet
-            cachedInterner = ctx.interner
-        }
+        let nonThrowingCalleeSet = nonThrowingCallees(interner: ctx.interner)
 
         let boxCallees = BoxingCalleeNames(
             int: ctx.interner.intern("kk_box_int"),
