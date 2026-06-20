@@ -139,6 +139,18 @@ extension CallTypeChecker {
                 return finalType
             }
         }
+        if args.count == 1, interner.resolve(calleeName) == "digitToIntOrNull" {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            if receiverTypeForCheck == sema.types.charType {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                let resultType = sema.types.makeNullable(sema.types.intType)
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
         // Boolean.not() / Boolean.and(other) / Boolean.or(other) / Boolean.xor(other) (STDLIB-308)
         do {
             let receiverTypeForCheck = safeCall
