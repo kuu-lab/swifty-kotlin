@@ -71,7 +71,6 @@ extension ABIMismatchTests {
             "kk_js_bigint_toLong",
 "kk_js_map_toMap",
             "kk_js_set_toMutableSet",
-            "kk_js_set_toSet",
             "kk_js_boolean_toBoolean",
             "kk_js_number_toDouble",
             "kk_jsclass_kotlin",
