@@ -671,6 +671,33 @@ private func runtimeBigIntegerBox(from rawValue: Int) -> RuntimeBigIntegerBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeBigIntegerBox.self)
 }
 
+func runtimeParseBigIntegerDecimalString(_ str: String) -> BigIntValue? {
+    var idx = str.startIndex
+    guard idx < str.endIndex else {
+        return nil
+    }
+
+    var isNegative = false
+    if str[idx] == "+" || str[idx] == "-" {
+        isNegative = str[idx] == "-"
+        idx = str.index(after: idx)
+    }
+
+    let digitStart = idx
+    while idx < str.endIndex, str[idx] >= "0", str[idx] <= "9" {
+        idx = str.index(after: idx)
+    }
+    guard idx > digitStart && idx == str.endIndex else {
+        return nil
+    }
+
+    let absStr = str[digitStart..<str.endIndex]
+    let normalized = absStr.drop(while: { $0 == "0" })
+    let normalizedStr = normalized.isEmpty ? "0" : String(normalized)
+    let finalStr = isNegative && normalizedStr != "0" ? "-" + normalizedStr : normalizedStr
+    return BigIntValue(string: finalStr)
+}
+
 private func bigIntMakeStringRaw(_ value: String) -> Int {
     Int(bitPattern: value.withCString { cstr in
         cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
@@ -697,34 +724,13 @@ public func kk_biginteger_fromString(_ strRaw: Int, _ outThrown: UnsafeMutablePo
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_biginteger_fromString received invalid string handle")
     }
-    // Validate integer format: optional leading sign followed by one or more digits
-    var idx = str.startIndex
-    guard idx < str.endIndex else {
+    guard let value = runtimeParseBigIntegerDecimalString(str) else {
         outThrown?.pointee = runtimeAllocateThrowable(
             message: "NumberFormatException: For input string: \"\(str)\""
         )
         return 0
     }
-    if str[idx] == "+" || str[idx] == "-" {
-        idx = str.index(after: idx)
-    }
-    let digitStart = idx
-    while idx < str.endIndex, str[idx] >= "0", str[idx] <= "9" {
-        idx = str.index(after: idx)
-    }
-    guard idx > digitStart && idx == str.endIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NumberFormatException: For input string: \"\(str)\""
-        )
-        return 0
-    }
-    // Normalize: remove leading zeros but keep sign
-    let isNeg = str.hasPrefix("-")
-    let absStr = isNeg ? String(str.dropFirst()) : str.hasPrefix("+") ? String(str.dropFirst()) : str
-    let normalized = absStr.drop(while: { $0 == "0" })
-    let normalizedStr = normalized.isEmpty ? "0" : String(normalized)
-    let finalStr = isNeg && normalizedStr != "0" ? "-" + normalizedStr : normalizedStr
-    let box = RuntimeBigIntegerBox(value: BigIntValue(string: finalStr))
+    let box = RuntimeBigIntegerBox(value: value)
     return registerRuntimeObject(box)
 }
 
