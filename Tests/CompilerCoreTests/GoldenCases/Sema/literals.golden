@@ -1071,7 +1071,7 @@ expr e794 this type=String
 expr e795 name(i) type=Int ref=s208
 expr e796 indexedAccess receiver=e794 indices=[e795] type=Char call=s17 map=[0->0] targs=[]
 expr e797 call callee=e793 args=[_:e796] type=T#113
-expr e798 memberCall recv=e792 callee=add args=[_:e797] type=Boolean call=s14 map=[0->0] targs=[T#113]
+expr e798 memberCall recv=e792 callee=add args=[_:e797] type=Boolean call=s14 map=[0->0] targs=[]
 expr e799 name(i) type=_
 expr e800 int(1) type=Int
 expr e801 compoundAssign(plusAssign) name=i value=e800 type=Unit ref=s208
@@ -1094,7 +1094,7 @@ expr e817 this type=String
 expr e818 name(i) type=Int ref=s210
 expr e819 indexedAccess receiver=e817 indices=[e818] type=Char call=s17 map=[0->0] targs=[]
 expr e820 call callee=e815 args=[_:e816,_:e819] type=T#116
-expr e821 memberCall recv=e814 callee=add args=[_:e820] type=Boolean call=s14 map=[0->0] targs=[T#116]
+expr e821 memberCall recv=e814 callee=add args=[_:e820] type=Boolean call=s14 map=[0->0] targs=[]
 expr e822 name(i) type=_
 expr e823 int(1) type=Int
 expr e824 compoundAssign(plusAssign) name=i value=e823 type=Unit ref=s210
@@ -1121,7 +1121,7 @@ expr e844 name(null) type=Nothing?
 expr e845 binary(notEqual) lhs=e843 rhs=e844 type=Boolean
 expr e846 name(result) type=Class#12<T#119> ref=s211
 expr e847 name(mapped) type=T#119 ref=s213
-expr e848 memberCall recv=e846 callee=add args=[_:e847] type=Boolean call=s14 map=[0->0] targs=[T#119]
+expr e848 memberCall recv=e846 callee=add args=[_:e847] type=Boolean call=s14 map=[0->0] targs=[]
 expr e849 if cond=e845 then=e848 else=_ type=Unit
 expr e850 name(i) type=_
 expr e851 int(1) type=Int
@@ -1190,7 +1190,7 @@ expr e913 indexedAccess receiver=e911 indices=[e912] type=Char call=s17 map=[0->
 expr e914 call callee=e910 args=[_:e913] type=Class#4<T#130>
 expr e915 name(result) type=Class#12<T#130> ref=s218
 expr e916 name(item) type=T#130 ref=s220
-expr e917 memberCall recv=e915 callee=add args=[_:e916] type=Boolean call=s14 map=[0->0] targs=[T#130]
+expr e917 memberCall recv=e915 callee=add args=[_:e916] type=Boolean call=s14 map=[0->0] targs=[]
 expr e918 blockExpr stmts=[] trailing=e917 type=Boolean
 expr e919 for var=item iterable=e914 body=e918 type=Unit ref=s220
 expr e920 name(i) type=_
@@ -1205,7 +1205,7 @@ expr e928 call callee=e927 args=[] type=Class#12<T#133>
 expr e929 localDecl result mutable=0 type=_ init=e928 type=Unit ref=s221
 expr e930 name(result) type=Class#12<T#133> ref=s221
 expr e931 name(initial) type=T#133 ref=s134
-expr e932 memberCall recv=e930 callee=add args=[_:e931] type=Boolean call=s14 map=[0->0] targs=[T#133]
+expr e932 memberCall recv=e930 callee=add args=[_:e931] type=Boolean call=s14 map=[0->0] targs=[]
 expr e933 name(initial) type=T#133 ref=s134
 expr e934 localDecl acc mutable=1 type=_ init=e933 type=Unit ref=s222
 expr e935 int(0) type=Int
@@ -1223,7 +1223,7 @@ expr e946 call callee=e941 args=[_:e942,_:e945] type=T#133
 expr e947 localAssign acc value=e946 type=Unit ref=s222
 expr e948 name(result) type=Class#12<T#133> ref=s221
 expr e949 name(acc) type=T#133 ref=s222
-expr e950 memberCall recv=e948 callee=add args=[_:e949] type=Boolean call=s14 map=[0->0] targs=[T#133]
+expr e950 memberCall recv=e948 callee=add args=[_:e949] type=Boolean call=s14 map=[0->0] targs=[]
 expr e951 name(i) type=_
 expr e952 int(1) type=Int
 expr e953 compoundAssign(plusAssign) name=i value=e952 type=Unit ref=s223
