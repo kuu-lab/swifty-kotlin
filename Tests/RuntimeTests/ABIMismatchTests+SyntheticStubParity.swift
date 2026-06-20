@@ -73,7 +73,6 @@ extension ABIMismatchTests {
         "kk_collection_toTypedArray",
         "kk_iterable_toMutableList",
         "kk_iterable_toMutableSet",
-        "kk_js_set_toMutableSet",
         "kk_list_binarySearch",
         "kk_list_binarySearch_compare",
         "kk_list_binarySearch_comparator",
