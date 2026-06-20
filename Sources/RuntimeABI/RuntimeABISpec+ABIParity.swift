@@ -104,9 +104,6 @@ public extension RuntimeABISpec {
             p("loggerRaw", .intptr),
             p("appenderRaw", .intptr),
         ]),
-        abiParitySpec("kk_adv_logger_get", parameters: [
-            p("nameRaw", .intptr),
-        ]),
         abiParitySpec("kk_adv_logger_log", parameters: [
             p("loggerRaw", .intptr),
             p("levelRaw", .intptr),
@@ -299,6 +296,11 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_char_digitToIntOrNull_radix", parameters: [
+            p("value", .intptr),
+            p("radix", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_char_fromCode", parameters: [
             p("code", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -372,9 +374,6 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_file_appender_new", parameters: [
-            p("pathRaw", .intptr),
-        ]),
         abiParitySpec("kk_files_copy", parameters: [
             p("filesRaw", .intptr),
             p("sourceRaw", .intptr),
@@ -825,17 +824,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_math_e"),
         abiParitySpec("kk_math_pi"),
-        abiParitySpec("kk_mdc_clear"),
-        abiParitySpec("kk_mdc_get", parameters: [
-            p("keyRaw", .intptr),
-        ]),
-        abiParitySpec("kk_mdc_put", parameters: [
-            p("keyRaw", .intptr),
-            p("valueRaw", .intptr),
-        ]),
-        abiParitySpec("kk_mdc_remove", parameters: [
-            p("keyRaw", .intptr),
-        ]),
         abiParitySpec("kk_mem_scope_alloc", parameters: [
             p("scopeHandle", .intptr),
             p("byteCount", .intptr),
@@ -868,12 +856,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
-        ]),
-        abiParitySpec("kk_native_heap_alloc", parameters: [
-            p("byteCount", .intptr),
-        ]),
-        abiParitySpec("kk_native_heap_free", parameters: [
-            p("handle", .intptr),
         ]),
         abiParitySpec("kk_normalization_form_nfc",
             isThrowing: false),
@@ -924,11 +906,6 @@ public extension RuntimeABISpec {
             p("closureRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_rolling_appender_new", parameters: [
-            p("pathRaw", .intptr),
-            p("maxBytes", .intptr),
-            p("maxFiles", .intptr),
-        ]),
         abiParitySpec("kk_sequence_input_stream_available", parameters: [
             p("streamRaw", .intptr),
         ]),
@@ -974,91 +951,6 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_shared_immutable_init", parameters: [
             p("objectRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_is_debug_enabled", parameters: [
-            p("loggerRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_is_error_enabled", parameters: [
-            p("loggerRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_is_info_enabled", parameters: [
-            p("loggerRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_is_trace_enabled", parameters: [
-            p("loggerRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_is_warn_enabled", parameters: [
-            p("loggerRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_debug", parameters: [
-            p("loggerRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_debug_1", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_error", parameters: [
-            p("loggerRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_error_1", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_error_2", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-            p("arg1Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_info", parameters: [
-            p("loggerRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_info_1", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_info_2", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-            p("arg1Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_trace", parameters: [
-            p("loggerRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_trace_1", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_warn", parameters: [
-            p("loggerRaw", .intptr),
-            p("messageRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_warn_1", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_log_warn_2", parameters: [
-            p("loggerRaw", .intptr),
-            p("patternRaw", .intptr),
-            p("arg0Raw", .intptr),
-            p("arg1Raw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_logger_get", parameters: [
-            p("nameRaw", .intptr),
-        ]),
-        abiParitySpec("kk_slf4j_set_level", parameters: [
-            p("loggerRaw", .intptr),
-            p("levelRaw", .intptr),
         ]),
         abiParitySpec("kk_state_flow_value", parameters: [
             p("handle", .intptr),
@@ -1125,13 +1017,6 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_string_toShort", parameters: [
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
-        ]),
-        abiParitySpec("kk_string_toShortOrNull", parameters: [
-            p("strRaw", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_structured_appender_new", parameters: [
-            p("pathRaw", .intptr),
         ]),
         abiParitySpec("kk_suspend_coroutine", parameters: [
             p("fnPtr", .intptr),

@@ -418,6 +418,19 @@ extension DataFlowSemaPhase {
         )
         // STDLIB-003-ABI-001: Char.digitToInt(radix: Int)
         registerDigitToIntRadixStub(symbols: symbols, types: types, interner: interner)
+        // STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
+        registerSyntheticCharExtensionFunction(
+            named: "digitToIntOrNull",
+            externalLinkName: "kk_char_digitToIntOrNull_radix",
+            receiverType: types.charType,
+            parameters: [
+                ("radix", types.intType, false, false),
+            ],
+            returnType: types.makeNullable(types.intType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
         registerNativeCharCompanionHelpers(symbols: symbols, types: types, interner: interner)
     }
 
