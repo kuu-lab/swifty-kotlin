@@ -483,16 +483,8 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "System"
         ),
-RuntimeABIFunctionSpec(
-            name: "kk_js_set_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_set_toSet",
+            name: "kk_js_set_toMutableSet",
             parameters: [
                 RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
             ],
@@ -503,14 +495,6 @@ RuntimeABIFunctionSpec(
             name: "kk_int_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .int32),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_boolean_toBoolean",
-            parameters: [
-                RuntimeABIParameter(name: "jsBooleanRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "System"
@@ -1733,8 +1717,8 @@ RuntimeABIFunctionSpec(
         RuntimeABIFunctionSpec(name: "kk_path_useDirectoryEntries_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_writeLines_sequence", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "linesRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_fileAttributesViewOrNull", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr)], returnType: .intptr, section: "Path"),
-        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "globRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
-        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
+        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "globRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
+        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_get_base_subpaths", parameters: [RuntimeABIParameter(name: "baseRaw", type: .intptr), RuntimeABIParameter(name: "subpathsRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_writer", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_forEachLine", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),

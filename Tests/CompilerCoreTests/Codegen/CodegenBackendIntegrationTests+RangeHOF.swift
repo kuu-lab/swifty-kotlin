@@ -186,4 +186,72 @@ extension CodegenBackendIntegrationTests {
             )
         }
     }
+
+    func testCodegenLongRangeHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1L..4L).mapIndexed { index, value -> index + value })
+            println((1L..1L).mapIndexed { index, value -> index + value })
+            println((1L..0L).mapIndexed { index, value -> index + value })
+
+            println((1L..5L).mapNotNull { if (it % 2L == 0L) null else it })
+            println((2L..2L).mapNotNull { if (it % 2L == 0L) null else it })
+            println((1L..0L).mapNotNull { if (it % 2L == 0L) null else it })
+
+            println((1L..4L).filterIndexed { index, _ -> index % 2 == 0 })
+            println((10L..13L).filterIndexed { index, value -> index == 0 || value > 11L })
+            println((1L..0L).filterIndexed { index, _ -> index % 2 == 0 })
+
+            println((1L..6L).findLast { it % 2L == 0L })
+            println((1L..5L).findLast { it > 10L })
+            println((1L..0L).findLast { it % 2L == 0L })
+            println((3L..3L).findLast { it == 3L })
+
+            println((1L..4L).reduceIndexed { index, acc, value -> acc + index + value })
+            println((5L..5L).reduceIndexed { index, acc, value -> acc + index + value })
+
+            println((5L downTo 1L).first { it % 2L == 0L })
+            println((5L downTo 1L).last { it % 2L == 0L })
+            println((5L downTo 3L).mapIndexed { index, value -> index + value })
+            println((1L..4L).average())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "LongRangeHOFExecution",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            XCTAssertEqual(
+                result.stdout.replacingOccurrences(of: "\r\n", with: "\n"),
+                """
+                [1, 3, 5, 7]
+                [1]
+                []
+                [1, 3, 5]
+                []
+                []
+                [1, 3]
+                [10, 12, 13]
+                []
+                6
+                null
+                null
+                3
+                16
+                5
+                4
+                2
+                [5, 5, 5]
+                2.5
+                """ + "\n"
+            )
+        }
+    }
 }

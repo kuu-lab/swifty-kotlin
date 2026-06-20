@@ -89,6 +89,13 @@ final class RuntimeCharIsJavaIdentifierStartTests: XCTestCase {
         XCTAssertFalse(boolValue(kk_char_isJavaIdentifierStart(0x0300)))
     }
 
+    // MARK: - Other_ID_Start characters are not Java identifier starts
+
+    func testOtherIdStartCharactersAreNotIdentifierStart() {
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierStart(0x2118)))
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierStart(0x309B)))
+    }
+
     // MARK: - Surrogate code units — NOT identifier starts (unlike isJavaIdentifierPart)
 
     func testSurrogateIsNotIdentifierStart() {

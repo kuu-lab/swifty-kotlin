@@ -282,6 +282,7 @@ struct KnownCompilerNames {
     let buildSet: InternedString
     let buildMap: InternedString
     let buildString: InternedString
+    let buildStringBuilder: InternedString
     let className: InternedString
     let isInitialized: InternedString
     let simpleName: InternedString
@@ -469,6 +470,7 @@ struct KnownCompilerNames {
         buildSet = interner.intern("buildSet")
         buildMap = interner.intern("buildMap")
         buildString = interner.intern("buildString")
+        buildStringBuilder = interner.intern("buildStringBuilder")
         className = interner.intern("class")
         isInitialized = interner.intern("isInitialized")
         simpleName = interner.intern("simpleName")

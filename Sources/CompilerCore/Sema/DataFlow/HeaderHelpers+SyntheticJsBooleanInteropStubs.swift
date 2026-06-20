@@ -51,6 +51,18 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(classType, for: classSymbol)
 
+        let jsAnySymbol = ensureInterfaceSymbol(
+            named: "JsAny",
+            in: kotlinJsPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let packageSymbol = symbols.lookup(fqName: kotlinJsPkg) {
+            symbols.setParentSymbol(packageSymbol, for: jsAnySymbol)
+        }
+        symbols.setDirectSupertypes([jsAnySymbol], for: classSymbol)
+        types.setNominalDirectSupertypes([jsAnySymbol], for: classSymbol)
+
         return classType
     }
 

@@ -278,14 +278,17 @@ public func kk_string_builder_length() -> Int {
     return runtimeBuilderState.stringLength()
 }
 
-@_cdecl("kk_build_string")
-public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+private func runtimeExecuteStringBuilderAction(
+    _ fnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> RuntimeStringBuilderFrame {
     outThrown?.pointee = 0
     guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_string called with null function pointer")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) called with null function pointer")
     }
     guard runtimeBuilderState.pushStringFrame() else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_string nesting depth exceeded (max 16)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) nesting depth exceeded (max 16)")
     }
 
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
@@ -296,7 +299,12 @@ public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>
         outThrown?.pointee = thrown
     }
 
-    let frame = runtimeBuilderState.popStringFrame() ?? RuntimeStringBuilderFrame()
+    return runtimeBuilderState.popStringFrame() ?? RuntimeStringBuilderFrame()
+}
+
+@_cdecl("kk_build_string")
+public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string")
     return runtimeMakeStringRaw(frame.value)
 }
 
@@ -312,6 +320,25 @@ public func kk_build_string_with_capacity(
         return 0
     }
     return kk_build_string(fnPtr, outThrown)
+}
+
+@_cdecl("kk_build_string_builder")
+public func kk_build_string_builder(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string_builder")
+    return registerRuntimeObject(RuntimeStringBuilderBox(frame.value))
+}
+
+@_cdecl("kk_build_string_builder_with_capacity")
+public func kk_build_string_builder_with_capacity(
+    _ capacity: Int,
+    _ fnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if capacity < 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        return 0
+    }
+    return kk_build_string_builder(fnPtr, outThrown)
 }
 
 @_cdecl("kk_builder_list_add")

@@ -2,20 +2,8 @@
 final class ForLoweringPass: LoweringPass {
     static let name = "ForLowering"
 
-    private nonisolated(unsafe) static var cache: [ObjectIdentifier: InternedString] = [:]
-
-    private static func getCachedMarker(interner: StringInterner) -> InternedString {
-        let key = ObjectIdentifier(interner)
-        if let cached = cache[key] {
-            return cached
-        }
-        let marker = interner.intern("kk_for_lowered")
-        cache[key] = marker
-        return marker
-    }
-
     func shouldRun(module: KIRModule, ctx: KIRContext) -> Bool {
-        let marker = Self.getCachedMarker(interner: ctx.interner)
+        let marker = ctx.interner.intern("kk_for_lowered")
         for decl in module.arena.declarations {
             guard case let .function(function) = decl else { continue }
             for instruction in function.body {

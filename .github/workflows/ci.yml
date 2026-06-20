@@ -60,24 +60,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
       - name: Show toolchain versions
         run: swift --version
-      - name: Build with strict concurrency (warnings)
-        run: swift build -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run smoke tests
+      - name: Run smoke tests with strict concurrency warnings
         env:
           SWIFT_TEST_PARALLEL: "4"
-        run: bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6
+        run: bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Smoke test reproduce hint
         if: always()
         run: |
           {
             echo '## Smoke test reproduce'
             echo '```bash'
-            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6'
+            echo 'SWIFT_TEST_PARALLEL=4 bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -126,25 +122,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
       - name: Show toolchain versions
         run: swift --version
-      - name: Build with strict concurrency (warnings)
-        run: swift build -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
-      - name: Run full Swift test suite for ${{ matrix.test-target }}
+      - name: Run full Swift test suite for ${{ matrix.test-target }} with strict concurrency warnings
         env:
           SWIFT_TEST_WORKERS: "${{ matrix.workers }}"
           SWIFT_TEST_BUILD_JOBS: "${{ matrix.build-jobs }}"
-        run: bash Scripts/swift_test.sh --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6
+        run: bash Scripts/swift_test.sh --filter "${{ matrix.test-filter }}" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
       - name: Full test reproduce hint
         if: always()
         run: |
           {
             echo '## Full Swift test reproduce (${{ matrix.test-target }})'
             echo '```bash'
-            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6"
+            echo "SWIFT_TEST_WORKERS=${{ matrix.workers }} SWIFT_TEST_BUILD_JOBS=${{ matrix.build-jobs }} bash Scripts/swift_test.sh --filter \"${{ matrix.test-filter }}\" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -213,9 +205,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved') }}
-          restore-keys: |
-            spm-${{ runner.os }}-swift-6.2-
+          key: spm-${{ runner.os }}-swift-6.2-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Stdlib/**', 'Scripts/**') }}
       - name: Verify prerequisites
         run: |
           java -version

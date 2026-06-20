@@ -70,7 +70,7 @@ extension CollectionLiteralLoweringPass {
             case let .call(symbol, callee, arguments, _, _, _, _, _):
                 if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx),
                    !arguments.isEmpty {
-                    entries.append((argID: arguments[0].rawValue, callee: callee))
+                    entries.append((argID: arguments[arguments.count - 1].rawValue, callee: callee))
                 }
             default:
                 break

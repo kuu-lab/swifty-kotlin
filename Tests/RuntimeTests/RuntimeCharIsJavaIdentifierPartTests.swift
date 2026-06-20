@@ -67,12 +67,31 @@ final class RuntimeCharIsJavaIdentifierPartTests: XCTestCase {
         XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(scalar("."))))
     }
 
+    // MARK: - Identifier-ignorable code points
+
+    func testIgnorableControlIsIdentifierPart() {
+        XCTAssertTrue(boolValue(kk_char_isJavaIdentifierPart(0x0001)))
+    }
+
+    func testIgnorableFormatIsIdentifierPart() {
+        XCTAssertTrue(boolValue(kk_char_isJavaIdentifierPart(0xFEFF)))
+    }
+
+    // MARK: - Other_ID_* characters
+
+    func testOtherIdCharactersAreNotIdentifierPart() {
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0x2118)))
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0x309B)))
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0x00B7)))
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0x0387)))
+    }
+
     // MARK: - Surrogate code units
 
-    func testSurrogateIsIdentifierPart() {
-        // Java treats surrogates as identifier parts
-        XCTAssertTrue(boolValue(kk_char_isJavaIdentifierPart(0xD800)))
-        XCTAssertTrue(boolValue(kk_char_isJavaIdentifierPart(0xDFFF)))
+    func testSurrogateIsNotIdentifierPart() {
+        // Surrogate code units are not valid Java identifier parts.
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0xD800)))
+        XCTAssertFalse(boolValue(kk_char_isJavaIdentifierPart(0xDFFF)))
     }
 
     // MARK: - Letter number (Nl category)

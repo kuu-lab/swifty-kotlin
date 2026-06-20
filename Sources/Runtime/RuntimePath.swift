@@ -1782,13 +1782,16 @@ private func pathMatchesGlob(_ name: String, _ pattern: String) -> Bool {
 public func kk_path_forEachDirectoryEntry(
     _ pathRaw: Int,
     _ globRaw: Int,
-    _ actionRaw: Int
+    _ actionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
+    outThrown?.pointee = 0
     guard let path = runtimePathBox(from: pathRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_path_forEachDirectoryEntry received invalid Path handle")
     }
     let glob = globRaw == 0 ? "*" : (pathStringValue(from: globRaw) ?? "*")
     guard let rawEntries = try? FileManager.default.contentsOfDirectory(atPath: path.pathString) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IOException: Cannot list directory \(path.pathString)")
         return 0
     }
     let matched = glob == "*" ? rawEntries : rawEntries.filter { pathMatchesGlob($0, glob) }
@@ -1798,6 +1801,7 @@ public func kk_path_forEachDirectoryEntry(
         var thrown = 0
         _ = kk_function_invoke(actionRaw, childRaw, &thrown)
         if thrown != 0 {
+            outThrown?.pointee = thrown
             return 0
         }
     }
@@ -1808,9 +1812,10 @@ public func kk_path_forEachDirectoryEntry(
 @_cdecl("kk_path_forEachDirectoryEntry_default")
 public func kk_path_forEachDirectoryEntry_default(
     _ pathRaw: Int,
-    _ actionRaw: Int
+    _ actionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
-    kk_path_forEachDirectoryEntry(pathRaw, 0, actionRaw)
+    kk_path_forEachDirectoryEntry(pathRaw, 0, actionRaw, outThrown)
 }
 
 // MARK: - STDLIB-IO-PATH-FN-037: Path.useDirectoryEntries { block }
