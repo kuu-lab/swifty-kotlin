@@ -262,6 +262,25 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         )
     }
 
+    func testCharDigitToIntOrNullRadixStubHasCorrectExternalLink() throws {
+        let (sema, interner) = try makeSema()
+        XCTAssertEqual(
+            externalLink(for: "digitToIntOrNull", parameterCount: 1, sema: sema, interner: interner),
+            "kk_char_digitToIntOrNull_radix"
+        )
+    }
+
+    func testCharDigitToIntOrNullRadixResolvesInCallExpressions() throws {
+        let source = """
+        fun probe(ch: Char) { ch.digitToIntOrNull(16) }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(ctx.diagnostics.hasError)
+        }
+    }
+
     func testCharPredicateMembersResolveInCallExpressions() throws {
         let source = """
         fun probe(ch: Char) {
