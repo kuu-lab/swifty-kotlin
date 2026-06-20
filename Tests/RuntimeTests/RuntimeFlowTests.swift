@@ -313,6 +313,12 @@ func runtime_test_flow_emitter_fail_for_fallback(_ outThrown: UnsafeMutablePoint
     return 0
 }
 
+@_cdecl("runtime_test_flow_flat_map_to_pair_flow")
+func runtime_test_flow_flat_map_to_pair_flow(_: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    return runtimeFlowOf([value, value + 10])
+}
+
 final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
     // swiftlint:disable:next static_over_final_class
     override class var requiredLockSet: RuntimeLockSet { .gcAndFlow }
@@ -842,6 +848,70 @@ final class RuntimeFlowTests: IsolatedRuntimeXCTestCase {
 
         XCTAssertEqual(runtimeFlowTestState.snapshot().values, [5, 42, 43])
     }
+
+    // MARK: - TEST-CORO-003: advanced coroutine flow sources
+
+    func testAdvancedFlowZipCombinesMatchingPairsAndStopsAtShorterInput() {
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let combinerPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
+
+        let leftFlow = runtimeFlowOf([1, 2, 3])
+        let rightFlow = runtimeFlowOf([10, 20])
+        let zipped = kk_flow_zip(leftFlow, rightFlow, combinerPtr, 0)
+
+        _ = kk_flow_collect(zipped, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22], "zip should stop at the shorter source and combine pairwise")
+    }
+
+    func testAdvancedFlowCombineRepeatsLatestValuesWhenLengthsDiffer() {
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let combinerPtr = unsafeBitCast(runtime_test_flow_fold_add as RuntimeFlowFoldEntry, to: Int.self)
+
+        let leftFlow = runtimeFlowOf([1, 2])
+        let rightFlow = runtimeFlowOf([10, 20, 30])
+        let combined = kk_flow_combine(leftFlow, rightFlow, combinerPtr, 0)
+
+        _ = kk_flow_collect(combined, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [11, 22, 32], "combine should repeat the latest value from the shorter source")
+    }
+
+    func testAdvancedFlowMergeConcatenatesInputFlowsInOrder() {
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+
+        let flowArray = kk_array_new(3)
+        let first = runtimeFlowOf([1, 2])
+        let second = runtimeFlowOf([3])
+        let third = runtimeFlowOf([4, 5])
+        _ = kk_array_set(flowArray, 0, first, nil)
+        _ = kk_array_set(flowArray, 1, second, nil)
+        _ = kk_array_set(flowArray, 2, third, nil)
+
+        let merged = kk_flow_merge(flowArray, 3, 0)
+
+        _ = kk_flow_collect(merged, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 2, 3, 4, 5], "merge should concatenate flows in the provided order")
+    }
+
+    func testAdvancedFlowFlatMapVariantsUseConcatMergeAndLatestSemantics() {
+        let collectorPtr = unsafeBitCast(runtime_test_flow_collect_store as RuntimeFlowCollectorEntry, to: Int.self)
+        let mapperPtr = unsafeBitCast(runtime_test_flow_flat_map_to_pair_flow as RuntimeFlowUnaryEntry, to: Int.self)
+
+        let source = runtimeFlowOf([1, 2])
+
+        let concat = kk_flow_flat_map_concat(source, mapperPtr, 0)
+        _ = kk_flow_collect(concat, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapConcat should append each inner flow in source order")
+
+        runtimeFlowTestState.reset()
+        let merge = kk_flow_flat_map_merge(source, mapperPtr, 0)
+        _ = kk_flow_collect(merge, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [1, 11, 2, 12], "flatMapMerge should match concat in the synchronous runtime")
+
+        runtimeFlowTestState.reset()
+        let latest = kk_flow_flat_map_latest(source, mapperPtr, 0)
+        _ = kk_flow_collect(latest, collectorPtr, 0)
+        XCTAssertEqual(runtimeFlowTestState.snapshot().values, [2, 12], "flatMapLatest should keep only the last mapped flow")
+    }
 }
 
 // MARK: - Additional test helpers
@@ -900,4 +970,12 @@ private typealias RuntimeFlowFoldEntry = @convention(c) (Int, Int, Int, UnsafeMu
 func runtime_test_flow_fold_add(_: Int, _ acc: Int, _ value: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return acc + value
+}
+
+private func runtimeFlowOf(_ values: [Int]) -> Int {
+    let arrayHandle = kk_array_new(values.count)
+    for (index, value) in values.enumerated() {
+        _ = kk_array_set(arrayHandle, index, value, nil)
+    }
+    return kk_flow_of(arrayHandle, values.count)
 }
