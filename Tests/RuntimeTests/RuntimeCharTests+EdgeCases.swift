@@ -287,6 +287,26 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         XCTAssertEqual(result, runtimeNullSentinelInt)
     }
 
+    func testDigitToIntOrNullRadixReturnsValueForValidDigit() {
+        var thrown: Int = 0
+        let result = kk_char_digitToIntOrNull_radix(Int(("a" as UnicodeScalar).value), 16, &thrown)
+        XCTAssertEqual(result, 10)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadixReturnsNullForInvalidDigit() {
+        var thrown: Int = 0
+        let result = kk_char_digitToIntOrNull_radix(Int(("z" as UnicodeScalar).value), 16, &thrown)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadixThrowsForOutOfRangeRadix() {
+        var thrown: Int = 0
+        _ = kk_char_digitToIntOrNull_radix(Int(("5" as UnicodeScalar).value), 1, &thrown)
+        XCTAssertNotEqual(thrown, 0, "Expected exception for radix < 2")
+    }
+
     // MARK: - code property
 
     func testCodeReturnsUnicodeCodePoint() {

@@ -24,8 +24,12 @@ enum GoldenHarnessDump {
         try LoadSourcesPhase().run(ctx)
         try LexPhase().run(ctx)
 
+        guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
+            return ""
+        }
+
         var lines: [String] = []
-        for token in ctx.tokens {
+        for token in ctx.tokens where token.range.start.file == sourceFileID {
             lines.append("\(GoldenHarnessSyntaxFormat.renderTokenKind(token.kind, interner: ctx.interner)) \(GoldenHarnessSyntaxFormat.renderRange(token.range))")
         }
         return lines.joined(separator: "\n") + "\n"
@@ -37,12 +41,15 @@ enum GoldenHarnessDump {
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
 
-        guard let syntax = ctx.syntaxTree else {
+        guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
+            throw GoldenHarnessDumpError.missingSyntaxTree
+        }
+        guard let (_, syntax, root) = ctx.syntaxTrees.first(where: { $0.0 == sourceFileID }) else {
             throw GoldenHarnessDumpError.missingSyntaxTree
         }
         var lines: [String] = []
         GoldenHarnessSyntaxFormat.dumpSyntaxNode(
-            id: ctx.syntaxTreeRoot,
+            id: root,
             syntax: syntax,
             interner: ctx.interner,
             indent: "",
@@ -80,10 +87,14 @@ enum GoldenHarnessDump {
             lines.append(renderFile(file, ast: ast, sema: sema, interner: interner))
         }
 
-        // Render expressions
+        // Render expressions (skip those with no semantic info)
         for raw in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(raw))
             guard let expr = ast.arena.expr(exprID) else { continue }
+            let hasType = sema.bindings.exprTypes[exprID] != nil
+            let hasRef = sema.bindings.identifierSymbols[exprID] != nil
+            let hasCall = sema.bindings.callBindings[exprID] != nil
+            guard hasType || hasRef || hasCall else { continue }
             lines.append(renderExpression(expr, id: exprID, sema: sema, interner: interner))
         }
 
@@ -143,11 +154,11 @@ enum GoldenHarnessDump {
         }
 
         if let callBinding = sema.bindings.callBindings[id] {
-            let map = callBinding.parameterMapping.keys.sorted().map { key in
-                "\(key)->\(callBinding.parameterMapping[key] ?? -1)"
-            }.joined(separator: ",")
-            let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
-            line += " call=s\(callBinding.chosenCallee.rawValue) map=[\(map)] targs=[\(typeArgs)]"
+            line += " call=s\(callBinding.chosenCallee.rawValue)"
+            if !callBinding.substitutedTypeArguments.isEmpty {
+                let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
+                line += " targs=[\(typeArgs)]"
+            }
         }
 
         return line
