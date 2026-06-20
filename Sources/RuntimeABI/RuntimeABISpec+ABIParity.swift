@@ -1018,10 +1018,6 @@ public extension RuntimeABISpec {
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toShortOrNull", parameters: [
-            p("strRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_suspend_coroutine", parameters: [
             p("fnPtr", .intptr),
             p("closureRaw", .intptr),

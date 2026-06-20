@@ -80,7 +80,7 @@
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
-- [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
 
 #### kotlin.time 型の実装
@@ -625,7 +625,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [x] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
 - [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
 - [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
 - [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
@@ -690,7 +690,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - 採番は `SPEC-NUM-{NUMBER}`。修正できない大規模/横断要因は再現 diff ケースを `// SKIP-DIFF` で残し追跡する（修正後にマーカーを外せば回帰テストになる）。
 
 ### 数値・プリミティブ型（第1バッチ）
-- [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt` と `Tests/CompilerCoreTests/Codegen/CodegenBackendIntegrationTests+NumericDivisionByZero.swift`。
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。

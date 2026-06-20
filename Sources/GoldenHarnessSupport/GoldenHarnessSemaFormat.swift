@@ -8,7 +8,7 @@ enum GoldenHarnessSemaFormat {
         case let .interfaceDecl(interfaceDecl):
             "interface \(interner.resolve(interfaceDecl.name))"
         case let .funDecl(funDecl):
-            "fun \(interner.resolve(funDecl.name)) suspend=\(funDecl.isSuspend ? 1 : 0) inline=\(funDecl.isInline ? 1 : 0)"
+            "fun \(interner.resolve(funDecl.name))\(funDecl.isSuspend ? " suspend=1" : "")\(funDecl.isInline ? " inline=1" : "")"
         case let .propertyDecl(propertyDecl):
             "property \(interner.resolve(propertyDecl.name)) var=\(propertyDecl.isVar ? 1 : 0)"
         case let .typeAliasDecl(typeAliasDecl):
@@ -53,7 +53,15 @@ enum GoldenHarnessSemaFormat {
         let defaults = signature.valueParameterHasDefaultValues.map { $0 ? "1" : "0" }.joined(separator: ",")
         let vararg = signature.valueParameterIsVararg.map { $0 ? "1" : "0" }.joined(separator: ",")
         var result = "recv=\(receiver) params=[\(parameters)] ret=\(returnType)"
-        result += " suspend=\(signature.isSuspend ? 1 : 0) defaults=[\(defaults)] vararg=[\(vararg)]"
+        if signature.isSuspend {
+            result += " suspend=1"
+        }
+        if signature.valueParameterHasDefaultValues.contains(true) {
+            result += " defaults=[\(defaults)]"
+        }
+        if signature.valueParameterIsVararg.contains(true) {
+            result += " vararg=[\(vararg)]"
+        }
         let hasBounds = !signature.typeParameterUpperBoundsList.isEmpty
             && signature.typeParameterUpperBoundsList.contains(where: { !$0.isEmpty })
         if hasBounds {

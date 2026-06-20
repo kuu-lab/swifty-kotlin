@@ -1,960 +1,779 @@
 symbol s0 kind=interface fq=kotlin.collections.List vis=public flags=synthetic
 symbol s1 kind=typeParameter fq=kotlin.collections.List.E vis=private flags=_
-symbol s2 kind=function fq=kotlin.collections.List.get vis=public flags=synthetic|operatorFunction sig=recv=Class#0<out T#1> params=[Int] ret=T#1 suspend=0 defaults=[] vararg=[]
-symbol s3 kind=function fq=kotlin.collections.List.isEmpty vis=public flags=synthetic sig=recv=Class#0<out T#1> params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
+symbol s2 kind=function fq=kotlin.collections.List.get vis=public flags=synthetic|operatorFunction sig=recv=Class#0<out T#1> params=[Int] ret=T#1
+symbol s3 kind=function fq=kotlin.collections.List.isEmpty vis=public flags=synthetic sig=recv=Class#0<out T#1> params=[] ret=Boolean
 symbol s4 kind=interface fq=kotlin.Comparable vis=public flags=synthetic
 symbol s5 kind=typeParameter fq=kotlin.Comparable.T vis=private flags=_
-symbol s6 kind=function fq=kotlin.Comparable.compareTo vis=public flags=synthetic|operatorFunction sig=recv=T#5 params=[T#5] ret=Int suspend=0 defaults=[] vararg=[]
+symbol s6 kind=function fq=kotlin.Comparable.compareTo vis=public flags=synthetic|operatorFunction sig=recv=T#5 params=[T#5] ret=Int
 symbol s7 kind=class fq=kotlin.ByteArray vis=public flags=synthetic type=Class#7
-symbol s8 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int suspend=0 defaults=[] vararg=[]
-symbol s9 kind=class fq=java.util.Locale vis=public flags=synthetic type=Class#9
-symbol s10 kind=function fq=kotlin.text.__kk_lowercase_locale vis=public flags=synthetic sig=recv=String params=[Class#9] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s11 kind=function fq=kotlin.text.__kk_uppercase_locale vis=public flags=synthetic sig=recv=String params=[Class#9] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s12 kind=function fq=kotlin.text.contains vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s13 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char suspend=0 defaults=[0] vararg=[0]
-symbol s14 kind=function fq=kotlin.text.isEmpty vis=public flags=synthetic sig=recv=String params=[] ret=Boolean suspend=0 defaults=[] vararg=[]
-symbol s15 kind=class fq=kotlin.text.Charset vis=public flags=synthetic type=Class#15
-symbol s16 kind=function fq=kotlin.text.__kk_encodeToByteArray vis=public flags=synthetic sig=recv=String params=[] ret=Class#7 suspend=0 defaults=[] vararg=[]
-symbol s17 kind=function fq=kotlin.text.__kk_encodeToByteArray_range vis=public flags=synthetic sig=recv=String params=[Int,Int] ret=Class#7 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s18 kind=function fq=kotlin.text.__kk_encodeToByteArray_charset vis=public flags=synthetic sig=recv=String params=[Class#15] ret=Class#7 suspend=0 defaults=[0] vararg=[0]
-symbol s19 kind=function fq=kotlin.text.__kk_decodeToString vis=public flags=synthetic sig=recv=Class#7 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s20 kind=function fq=kotlin.text.__kk_decodeToString_charset vis=public flags=synthetic sig=recv=Class#7 params=[Class#15] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s21 kind=function fq=kotlin.text.__kk_decodeToString_range vis=public flags=synthetic sig=recv=Class#7 params=[Int,Int] ret=String suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s22 kind=function fq=kotlin.text.__kk_decodeToString_range_throw vis=public flags=synthetic sig=recv=Class#7 params=[Int,Int,Boolean] ret=String suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s23 kind=function fq=kotlin.text.uppercase vis=public flags=synthetic sig=recv=Char params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s24 kind=function fq=kotlin.text.lowercase vis=public flags=synthetic sig=recv=Char params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s25 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#25
-symbol s26 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#25 suspend=0 defaults=[0] vararg=[0]
-symbol s27 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
-symbol s28 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#27 params=[String?] ret=Class#27 suspend=0 defaults=[0] vararg=[0]
-symbol s29 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#27 params=[Char] ret=Class#27 suspend=0 defaults=[0] vararg=[0]
-symbol s30 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#27 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s31 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit suspend=0 defaults=[0] vararg=[0]
-symbol s32 kind=function fq=kotlin.collections.count vis=public flags=_ sig=recv=Class#0<T#33> params=[(T#33) -> Boolean] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s33 kind=typeParameter fq=kotlin.collections.count.$0.T vis=private flags=_
-symbol s34 kind=valueParameter fq=kotlin.collections.count.$0.predicate vis=private flags=_
-symbol s35 kind=function fq=kotlin.collections.any vis=public flags=_ sig=recv=Class#0<T#36> params=[(T#36) -> Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s36 kind=typeParameter fq=kotlin.collections.any.$1.T vis=private flags=_
-symbol s37 kind=valueParameter fq=kotlin.collections.any.$1.predicate vis=private flags=_
-symbol s38 kind=function fq=kotlin.collections.all vis=public flags=_ sig=recv=Class#0<T#39> params=[(T#39) -> Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s39 kind=typeParameter fq=kotlin.collections.all.$2.T vis=private flags=_
-symbol s40 kind=valueParameter fq=kotlin.collections.all.$2.predicate vis=private flags=_
-symbol s41 kind=function fq=kotlin.collections.none vis=public flags=_ sig=recv=Class#0<T#42> params=[(T#42) -> Boolean] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s42 kind=typeParameter fq=kotlin.collections.none.$3.T vis=private flags=_
-symbol s43 kind=valueParameter fq=kotlin.collections.none.$3.predicate vis=private flags=_
-symbol s44 kind=function fq=kotlin.collections.sumOf vis=public flags=_ sig=recv=Class#0<T#45> params=[(T#45) -> Int] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s45 kind=typeParameter fq=kotlin.collections.sumOf.$4.T vis=private flags=_
-symbol s46 kind=valueParameter fq=kotlin.collections.sumOf.$4.selector vis=private flags=_
-symbol s47 kind=function fq=kotlin.collections.maxByOrNull vis=public flags=_ sig=recv=Class#0<T#48> params=[(T#48) -> T#49] ret=T#48? suspend=0 defaults=[0] vararg=[0] bounds=[_,Class#4<T#49>]
-symbol s48 kind=typeParameter fq=kotlin.collections.maxByOrNull.$5.T vis=private flags=_
-symbol s49 kind=typeParameter fq=kotlin.collections.maxByOrNull.$5.R vis=private flags=_
-symbol s50 kind=valueParameter fq=kotlin.collections.maxByOrNull.$5.selector vis=private flags=_
-symbol s51 kind=function fq=kotlin.collections.minByOrNull vis=public flags=_ sig=recv=Class#0<T#52> params=[(T#52) -> T#53] ret=T#52? suspend=0 defaults=[0] vararg=[0] bounds=[_,Class#4<T#53>]
-symbol s52 kind=typeParameter fq=kotlin.collections.minByOrNull.$6.T vis=private flags=_
-symbol s53 kind=typeParameter fq=kotlin.collections.minByOrNull.$6.R vis=private flags=_
-symbol s54 kind=valueParameter fq=kotlin.collections.minByOrNull.$6.selector vis=private flags=_
-symbol s55 kind=function fq=kotlin.text.lowercase vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s56 kind=function fq=kotlin.text.uppercase vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s57 kind=function fq=kotlin.text.capitalize vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s58 kind=function fq=kotlin.text.lowercase vis=public flags=_ sig=recv=String params=[Class#9] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s59 kind=valueParameter fq=kotlin.text.lowercase.$7.locale vis=private flags=_
-symbol s60 kind=function fq=kotlin.text.uppercase vis=public flags=_ sig=recv=String params=[Class#9] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s61 kind=valueParameter fq=kotlin.text.uppercase.$8.locale vis=private flags=_
-symbol s62 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s63 kind=valueParameter fq=kotlin.text.repeat.$9.count vis=private flags=_
-symbol s64 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s65 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
-symbol s66 kind=valueParameter fq=kotlin.text.padStart.$10.length vis=private flags=_
-symbol s67 kind=valueParameter fq=kotlin.text.padStart.$10.padChar vis=private flags=_
-symbol s68 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String suspend=0 defaults=[0,1] vararg=[0,0]
-symbol s69 kind=valueParameter fq=kotlin.text.padEnd.$11.length vis=private flags=_
-symbol s70 kind=valueParameter fq=kotlin.text.padEnd.$11.padChar vis=private flags=_
-symbol s71 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[] ret=Class#7 suspend=0 defaults=[] vararg=[]
-symbol s72 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Int,Int] ret=Class#7 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s73 kind=valueParameter fq=kotlin.text.encodeToByteArray.$12.startIndex vis=private flags=_
-symbol s74 kind=valueParameter fq=kotlin.text.encodeToByteArray.$12.endIndex vis=private flags=_
-symbol s75 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Class#15] ret=Class#7 suspend=0 defaults=[0] vararg=[0]
-symbol s76 kind=valueParameter fq=kotlin.text.encodeToByteArray.$13.charset vis=private flags=_
-symbol s77 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s78 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Class#15] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s79 kind=valueParameter fq=kotlin.text.decodeToString.$14.charset vis=private flags=_
-symbol s80 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Int,Int] ret=String suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s81 kind=valueParameter fq=kotlin.text.decodeToString.$15.startIndex vis=private flags=_
-symbol s82 kind=valueParameter fq=kotlin.text.decodeToString.$15.endIndex vis=private flags=_
-symbol s83 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Int,Int,Boolean] ret=String suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s84 kind=valueParameter fq=kotlin.text.decodeToString.$16.startIndex vis=private flags=_
-symbol s85 kind=valueParameter fq=kotlin.text.decodeToString.$16.endIndex vis=private flags=_
-symbol s86 kind=valueParameter fq=kotlin.text.decodeToString.$16.throwOnInvalidSequence vis=private flags=_
-symbol s87 kind=class fq=golden.sema.User vis=public flags=_
-symbol s88 kind=constructor fq=golden.sema.User.<init> vis=private flags=_ sig=recv=Class#87 params=[String,Int] ret=Class#87 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s89 kind=function fq=golden.sema.User.getInfo vis=public flags=_ sig=recv=Class#87 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s90 kind=property fq=golden.sema.User.name vis=public flags=_ type=String
-symbol s91 kind=property fq=golden.sema.User.age vis=public flags=_ type=Int
-symbol s92 kind=object fq=golden.sema.User.Companion vis=public flags=_
-symbol s93 kind=function fq=golden.sema.User.Companion.createAdult vis=public flags=_ sig=recv=Class#92 params=[String] ret=Class#87 suspend=0 defaults=[0] vararg=[0]
-symbol s94 kind=valueParameter fq=golden.sema.User.Companion.createAdult.$17.name vis=private flags=_
-symbol s95 kind=function fq=golden.sema.User.Companion.createChild vis=public flags=_ sig=recv=Class#92 params=[String] ret=Class#87 suspend=0 defaults=[0] vararg=[0]
-symbol s96 kind=valueParameter fq=golden.sema.User.Companion.createChild.$18.name vis=private flags=_
-symbol s97 kind=function fq=golden.sema.User.Companion.fromNameAndAge vis=public flags=_ sig=recv=Class#92 params=[String,Int] ret=Class#87 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s98 kind=valueParameter fq=golden.sema.User.Companion.fromNameAndAge.$19.name vis=private flags=_
-symbol s99 kind=valueParameter fq=golden.sema.User.Companion.fromNameAndAge.$19.age vis=private flags=_
-symbol s100 kind=class fq=golden.sema.Database vis=public flags=_
-symbol s101 kind=constructor fq=golden.sema.Database.<init> vis=public flags=_ sig=recv=Class#100 params=[] ret=Class#100 suspend=0 defaults=[] vararg=[]
-symbol s102 kind=property fq=golden.sema.Database.connection vis=private flags=_ type=String
-symbol s103 kind=property fq=golden.sema.Database.maxConnections vis=private flags=_ type=Int
-symbol s104 kind=object fq=golden.sema.Database.Companion vis=public flags=_
-symbol s105 kind=function fq=golden.sema.Database.Companion.getConnection vis=public flags=_ sig=recv=Class#104 params=[Class#100] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s106 kind=valueParameter fq=golden.sema.Database.Companion.getConnection.$20.db vis=private flags=_
-symbol s107 kind=function fq=golden.sema.Database.Companion.getMaxConnections vis=public flags=_ sig=recv=Class#104 params=[Class#100] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s108 kind=valueParameter fq=golden.sema.Database.Companion.getMaxConnections.$21.db vis=private flags=_
-symbol s109 kind=class fq=golden.sema.Calculator vis=public flags=_
-symbol s110 kind=constructor fq=golden.sema.Calculator.<init> vis=public flags=_ sig=recv=Class#109 params=[] ret=Class#109 suspend=0 defaults=[] vararg=[]
-symbol s111 kind=function fq=golden.sema.Calculator.validateInput vis=private flags=_ sig=recv=Class#109 params=[Int] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s112 kind=valueParameter fq=golden.sema.Calculator.validateInput.$22.x vis=private flags=_
-symbol s113 kind=function fq=golden.sema.Calculator.square vis=private flags=_ sig=recv=Class#109 params=[Int] ret=Int suspend=0 defaults=[0] vararg=[0]
-symbol s114 kind=valueParameter fq=golden.sema.Calculator.square.$23.x vis=private flags=_
-symbol s115 kind=object fq=golden.sema.Calculator.Companion vis=public flags=_
-symbol s116 kind=function fq=golden.sema.Calculator.Companion.safeSquare vis=public flags=_ sig=recv=Class#115 params=[Class#109,Int] ret=Int suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s117 kind=valueParameter fq=golden.sema.Calculator.Companion.safeSquare.$24.calculator vis=private flags=_
-symbol s118 kind=valueParameter fq=golden.sema.Calculator.Companion.safeSquare.$24.x vis=private flags=_
-symbol s119 kind=class fq=golden.sema.Logger vis=public flags=_
-symbol s120 kind=constructor fq=golden.sema.Logger.<init> vis=public flags=_ sig=recv=Class#119 params=[] ret=Class#119 suspend=0 defaults=[] vararg=[]
-symbol s121 kind=function fq=golden.sema.Logger.log vis=public flags=_ sig=recv=Class#119 params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s122 kind=valueParameter fq=golden.sema.Logger.log.$25.message vis=private flags=_
-symbol s123 kind=function fq=golden.sema.Logger.getTag vis=public flags=_ sig=recv=Class#119 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s124 kind=object fq=golden.sema.Logger.Companion vis=public flags=_
-symbol s125 kind=function fq=golden.sema.Logger.Companion.format vis=private flags=_ sig=recv=Class#124 params=[String] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s126 kind=valueParameter fq=golden.sema.Logger.Companion.format.$26.message vis=private flags=_
-symbol s127 kind=property fq=golden.sema.Logger.Companion.tag vis=private flags=_ type=String
-symbol s128 kind=property fq=golden.sema.Logger.Companion.level vis=private flags=_ type=String
-symbol s129 kind=class fq=golden.sema.Product vis=public flags=dataType
-symbol s130 kind=constructor fq=golden.sema.Product.<init> vis=private flags=_ sig=recv=Class#129 params=[String,String,Double] ret=Class#129 suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s131 kind=function fq=golden.sema.Product.getDescription vis=public flags=_ sig=recv=Class#129 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s132 kind=property fq=golden.sema.Product.id vis=public flags=_ type=String
-symbol s133 kind=property fq=golden.sema.Product.name vis=public flags=_ type=String
-symbol s134 kind=property fq=golden.sema.Product.price vis=public flags=_ type=Double
-symbol s135 kind=object fq=golden.sema.Product.Companion vis=public flags=_
-symbol s136 kind=function fq=golden.sema.Product.Companion.createBasicProduct vis=public flags=_ sig=recv=Class#135 params=[String] ret=Class#129 suspend=0 defaults=[0] vararg=[0]
-symbol s137 kind=valueParameter fq=golden.sema.Product.Companion.createBasicProduct.$27.name vis=private flags=_
-symbol s138 kind=function fq=golden.sema.Product.Companion.createPremiumProduct vis=public flags=_ sig=recv=Class#135 params=[String,Double] ret=Class#129 suspend=0 defaults=[0,0] vararg=[0,0]
-symbol s139 kind=valueParameter fq=golden.sema.Product.Companion.createPremiumProduct.$28.name vis=private flags=_
-symbol s140 kind=valueParameter fq=golden.sema.Product.Companion.createPremiumProduct.$28.price vis=private flags=_
-symbol s141 kind=function fq=golden.sema.Product.Companion.fromCatalog vis=public flags=_ sig=recv=Class#135 params=[String,String,Double] ret=Class#129 suspend=0 defaults=[0,0,0] vararg=[0,0,0]
-symbol s142 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$29.id vis=private flags=_
-symbol s143 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$29.name vis=private flags=_
-symbol s144 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$29.price vis=private flags=_
-symbol s145 kind=class fq=golden.sema.EmailAddress vis=public flags=_
-symbol s146 kind=constructor fq=golden.sema.EmailAddress.<init> vis=private flags=_ sig=recv=Class#145 params=[String] ret=Class#145 suspend=0 defaults=[0] vararg=[0]
-symbol s147 kind=function fq=golden.sema.EmailAddress.toString vis=public flags=_ sig=recv=Class#145 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s148 kind=property fq=golden.sema.EmailAddress.address vis=public flags=_ type=String
-symbol s149 kind=object fq=golden.sema.EmailAddress.Companion vis=public flags=_
-symbol s150 kind=function fq=golden.sema.EmailAddress.Companion.create vis=public flags=_ sig=recv=Class#149 params=[String] ret=Class#145? suspend=0 defaults=[0] vararg=[0]
-symbol s151 kind=valueParameter fq=golden.sema.EmailAddress.Companion.create.$30.address vis=private flags=_
-symbol s152 kind=function fq=golden.sema.EmailAddress.Companion.isValidEmail vis=private flags=_ sig=recv=Class#149 params=[String] ret=Boolean suspend=0 defaults=[0] vararg=[0]
-symbol s153 kind=valueParameter fq=golden.sema.EmailAddress.Companion.isValidEmail.$31.address vis=private flags=_
-symbol s154 kind=class fq=golden.sema.OuterClass vis=public flags=_
-symbol s155 kind=constructor fq=golden.sema.OuterClass.<init> vis=public flags=_ sig=recv=Class#154 params=[] ret=Class#154 suspend=0 defaults=[] vararg=[]
-symbol s156 kind=function fq=golden.sema.OuterClass.getCompanionSecretFromOuter vis=public flags=_ sig=recv=Class#154 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s157 kind=property fq=golden.sema.OuterClass.outerSecret vis=private flags=_ type=String
-symbol s158 kind=object fq=golden.sema.OuterClass.Companion vis=public flags=_
-symbol s159 kind=function fq=golden.sema.OuterClass.Companion.getOuterSecret vis=public flags=_ sig=recv=Class#158 params=[Class#154] ret=String suspend=0 defaults=[0] vararg=[0]
-symbol s160 kind=valueParameter fq=golden.sema.OuterClass.Companion.getOuterSecret.$32.outer vis=private flags=_
-symbol s161 kind=function fq=golden.sema.OuterClass.Companion.getCompanionSecret vis=public flags=_ sig=recv=Class#158 params=[] ret=String suspend=0 defaults=[] vararg=[]
-symbol s162 kind=property fq=golden.sema.OuterClass.Companion.companionSecret vis=private flags=_ type=String
-symbol s163 kind=class fq=golden.sema.NetworkClient vis=public flags=_
-symbol s164 kind=constructor fq=golden.sema.NetworkClient.<init> vis=public flags=_ sig=recv=Class#163 params=[] ret=Class#163 suspend=0 defaults=[] vararg=[]
-symbol s165 kind=function fq=golden.sema.createDefault vis=public flags=_ sig=recv=<error> params=[] ret=Class#163 suspend=0 defaults=[] vararg=[]
-symbol s166 kind=function fq=golden.sema.createWithTimeout vis=public flags=_ sig=recv=<error> params=[Int] ret=Class#163 suspend=0 defaults=[0] vararg=[0]
-symbol s167 kind=class fq=golden.sema.FileManager vis=public flags=_
-symbol s168 kind=constructor fq=golden.sema.FileManager.<init> vis=public flags=_ sig=recv=Class#167 params=[] ret=Class#167 suspend=0 defaults=[] vararg=[]
-symbol s169 kind=function fq=golden.sema.createFile vis=public flags=_ sig=recv=<error> params=[] ret=Class#167 suspend=0 defaults=[] vararg=[]
-symbol s170 kind=function fq=golden.sema.createReadOnly vis=public flags=_ sig=recv=<error> params=[] ret=Class#167 suspend=0 defaults=[] vararg=[]
-symbol s171 kind=property fq=golden.sema.defaultTimeout vis=public flags=_ type=Int
-symbol s172 kind=property fq=golden.sema.maxFiles vis=public flags=_ type=Int
-symbol s173 kind=function fq=golden.sema.main vis=public flags=_ sig=recv=_ params=[] ret=Unit suspend=0 defaults=[] vararg=[]
-symbol s174 kind=local fq=__local_0.count vis=private flags=mutable type=Int
-symbol s175 kind=local fq=__local_1.i vis=private flags=mutable type=Int
-symbol s176 kind=local fq=__local_2.i vis=private flags=mutable type=Int
-symbol s177 kind=local fq=__local_3.i vis=private flags=mutable type=Int
-symbol s178 kind=local fq=__local_4.i vis=private flags=mutable type=Int
-symbol s179 kind=local fq=__local_5.sum vis=private flags=mutable type=Int
-symbol s180 kind=local fq=__local_6.i vis=private flags=mutable type=Int
-symbol s181 kind=local fq=__local_7.bestElem vis=private flags=mutable type=T#48
-symbol s182 kind=local fq=__local_8.bestKey vis=private flags=mutable type=T#49
-symbol s183 kind=local fq=__local_9.i vis=private flags=mutable type=Int
-symbol s184 kind=local fq=__local_10.elem vis=private flags=_ type=T#48
-symbol s185 kind=local fq=__local_11.key vis=private flags=_ type=T#49
-symbol s186 kind=local fq=__local_12.bestElem vis=private flags=mutable type=T#52
-symbol s187 kind=local fq=__local_13.bestKey vis=private flags=mutable type=T#53
-symbol s188 kind=local fq=__local_14.i vis=private flags=mutable type=Int
-symbol s189 kind=local fq=__local_15.elem vis=private flags=_ type=T#52
-symbol s190 kind=local fq=__local_16.key vis=private flags=_ type=T#53
-symbol s191 kind=local fq=__local_17.sb vis=private flags=_ type=Class#27
-symbol s192 kind=local fq=__local_18.i vis=private flags=mutable type=Int
-symbol s193 kind=local fq=__local_19.sb vis=private flags=_ type=Class#27
-symbol s194 kind=local fq=__local_20.i vis=private flags=mutable type=Int
-symbol s195 kind=local fq=__local_21.sb vis=private flags=_ type=Class#27
-symbol s196 kind=local fq=__local_22.i vis=private flags=mutable type=Int
-symbol s197 kind=local fq=__local_23.sb vis=private flags=_ type=Class#27
-symbol s198 kind=local fq=__local_24.i vis=private flags=mutable type=Int
-symbol s199 kind=local fq=__local_25.len vis=private flags=_ type=Int
-symbol s200 kind=local fq=__local_26.sb vis=private flags=_ type=Class#27
-symbol s201 kind=local fq=__local_27.i vis=private flags=mutable type=Int
-symbol s202 kind=local fq=__local_28.padding vis=private flags=_ type=Int
-symbol s203 kind=local fq=__local_29.sb vis=private flags=_ type=Class#27
-symbol s204 kind=local fq=__local_30.i vis=private flags=mutable type=Int
-symbol s205 kind=local fq=__local_31.padding vis=private flags=_ type=Int
-symbol s206 kind=local fq=__local_32.sb vis=private flags=_ type=Class#27
-symbol s207 kind=local fq=__local_33.i vis=private flags=mutable type=Int
-symbol s208 kind=local fq=__local_34.adult vis=private flags=_ type=Class#87
-symbol s209 kind=local fq=__local_35.child vis=private flags=_ type=Class#87
-symbol s210 kind=local fq=__local_36.custom vis=private flags=_ type=Class#87
-symbol s211 kind=local fq=__local_37.db vis=private flags=_ type=Class#100
-symbol s212 kind=local fq=__local_38.calc vis=private flags=_ type=Class#109
-symbol s213 kind=local fq=__local_39.logger vis=private flags=_ type=Class#119
-symbol s214 kind=local fq=__local_40.basic vis=private flags=_ type=Class#129
-symbol s215 kind=local fq=__local_41.premium vis=private flags=_ type=Class#129
-symbol s216 kind=local fq=__local_42.catalog vis=private flags=_ type=Class#129
-symbol s217 kind=local fq=__local_43.validEmail vis=private flags=_ type=Class#145?
-symbol s218 kind=local fq=__local_44.invalidEmail vis=private flags=_ type=Class#145?
-symbol s219 kind=local fq=__local_45.outer vis=private flags=_ type=Class#154
-symbol s220 kind=local fq=__local_46.client1 vis=private flags=_ type=<error>
-symbol s221 kind=local fq=__local_47.client2 vis=private flags=_ type=<error>
-symbol s222 kind=local fq=__local_48.file1 vis=private flags=_ type=<error>
-symbol s223 kind=local fq=__local_49.file2 vis=private flags=_ type=<error>
+symbol s8 kind=function fq=kotlin.text.length vis=public flags=synthetic sig=recv=String params=[] ret=Int
+symbol s9 kind=function fq=kotlin.text.contains vis=public flags=synthetic|operatorFunction sig=recv=String params=[String] ret=Boolean
+symbol s10 kind=function fq=kotlin.text.get vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char
+symbol s11 kind=class fq=kotlin.text.Charset vis=public flags=synthetic type=Class#11
+symbol s12 kind=function fq=kotlin.text.__kk_encodeToByteArray vis=public flags=synthetic sig=recv=String params=[] ret=Class#7
+symbol s13 kind=function fq=kotlin.text.__kk_encodeToByteArray_range vis=public flags=synthetic sig=recv=String params=[Int,Int] ret=Class#7
+symbol s14 kind=function fq=kotlin.text.__kk_encodeToByteArray_charset vis=public flags=synthetic sig=recv=String params=[Class#11] ret=Class#7
+symbol s15 kind=function fq=kotlin.text.__kk_decodeToString vis=public flags=synthetic sig=recv=Class#7 params=[] ret=String
+symbol s16 kind=function fq=kotlin.text.__kk_decodeToString_charset vis=public flags=synthetic sig=recv=Class#7 params=[Class#11] ret=String
+symbol s17 kind=function fq=kotlin.text.__kk_decodeToString_range vis=public flags=synthetic sig=recv=Class#7 params=[Int,Int] ret=String
+symbol s18 kind=function fq=kotlin.text.__kk_decodeToString_range_throw vis=public flags=synthetic sig=recv=Class#7 params=[Int,Int,Boolean] ret=String
+symbol s19 kind=class fq=kotlin.IllegalArgumentException vis=public flags=synthetic type=Class#19
+symbol s20 kind=constructor fq=kotlin.IllegalArgumentException.<init> vis=public flags=synthetic sig=recv=_ params=[String] ret=Class#19
+symbol s21 kind=class fq=kotlin.text.StringBuilder vis=public flags=synthetic
+symbol s22 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#21 params=[String?] ret=Class#21
+symbol s23 kind=function fq=kotlin.text.StringBuilder.append vis=public flags=synthetic sig=recv=Class#21 params=[Char] ret=Class#21
+symbol s24 kind=function fq=kotlin.text.StringBuilder.toString vis=public flags=synthetic sig=recv=Class#21 params=[] ret=String
+symbol s25 kind=function fq=kotlin.io.println vis=public flags=synthetic sig=recv=_ params=[Any?] ret=Unit
+symbol s26 kind=function fq=kotlin.collections.count vis=public flags=_ sig=recv=Class#0<T#27> params=[(T#27) -> Boolean] ret=Int
+symbol s27 kind=typeParameter fq=kotlin.collections.count.$0.T vis=private flags=_
+symbol s28 kind=valueParameter fq=kotlin.collections.count.$0.predicate vis=private flags=_
+symbol s29 kind=function fq=kotlin.collections.any vis=public flags=_ sig=recv=Class#0<T#30> params=[(T#30) -> Boolean] ret=Boolean
+symbol s30 kind=typeParameter fq=kotlin.collections.any.$1.T vis=private flags=_
+symbol s31 kind=valueParameter fq=kotlin.collections.any.$1.predicate vis=private flags=_
+symbol s32 kind=function fq=kotlin.collections.all vis=public flags=_ sig=recv=Class#0<T#33> params=[(T#33) -> Boolean] ret=Boolean
+symbol s33 kind=typeParameter fq=kotlin.collections.all.$2.T vis=private flags=_
+symbol s34 kind=valueParameter fq=kotlin.collections.all.$2.predicate vis=private flags=_
+symbol s35 kind=function fq=kotlin.collections.none vis=public flags=_ sig=recv=Class#0<T#36> params=[(T#36) -> Boolean] ret=Boolean
+symbol s36 kind=typeParameter fq=kotlin.collections.none.$3.T vis=private flags=_
+symbol s37 kind=valueParameter fq=kotlin.collections.none.$3.predicate vis=private flags=_
+symbol s38 kind=function fq=kotlin.collections.sumOf vis=public flags=_ sig=recv=Class#0<T#39> params=[(T#39) -> Int] ret=Int
+symbol s39 kind=typeParameter fq=kotlin.collections.sumOf.$4.T vis=private flags=_
+symbol s40 kind=valueParameter fq=kotlin.collections.sumOf.$4.selector vis=private flags=_
+symbol s41 kind=function fq=kotlin.collections.maxByOrNull vis=public flags=_ sig=recv=Class#0<T#42> params=[(T#42) -> T#43] ret=T#42? bounds=[_,Class#4<T#43>]
+symbol s42 kind=typeParameter fq=kotlin.collections.maxByOrNull.$5.T vis=private flags=_
+symbol s43 kind=typeParameter fq=kotlin.collections.maxByOrNull.$5.R vis=private flags=_
+symbol s44 kind=valueParameter fq=kotlin.collections.maxByOrNull.$5.selector vis=private flags=_
+symbol s45 kind=function fq=kotlin.collections.minByOrNull vis=public flags=_ sig=recv=Class#0<T#46> params=[(T#46) -> T#47] ret=T#46? bounds=[_,Class#4<T#47>]
+symbol s46 kind=typeParameter fq=kotlin.collections.minByOrNull.$6.T vis=private flags=_
+symbol s47 kind=typeParameter fq=kotlin.collections.minByOrNull.$6.R vis=private flags=_
+symbol s48 kind=valueParameter fq=kotlin.collections.minByOrNull.$6.selector vis=private flags=_
+symbol s49 kind=function fq=kotlin.text.repeat vis=public flags=_ sig=recv=String params=[Int] ret=String
+symbol s50 kind=valueParameter fq=kotlin.text.repeat.$7.count vis=private flags=_
+symbol s51 kind=function fq=kotlin.text.reversed vis=public flags=_ sig=recv=String params=[] ret=String
+symbol s52 kind=function fq=kotlin.text.padStart vis=public flags=_ sig=recv=String params=[Int,Char] ret=String defaults=[0,1]
+symbol s53 kind=valueParameter fq=kotlin.text.padStart.$8.length vis=private flags=_
+symbol s54 kind=valueParameter fq=kotlin.text.padStart.$8.padChar vis=private flags=_
+symbol s55 kind=function fq=kotlin.text.padEnd vis=public flags=_ sig=recv=String params=[Int,Char] ret=String defaults=[0,1]
+symbol s56 kind=valueParameter fq=kotlin.text.padEnd.$9.length vis=private flags=_
+symbol s57 kind=valueParameter fq=kotlin.text.padEnd.$9.padChar vis=private flags=_
+symbol s58 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[] ret=Class#7
+symbol s59 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Int,Int] ret=Class#7
+symbol s60 kind=valueParameter fq=kotlin.text.encodeToByteArray.$10.startIndex vis=private flags=_
+symbol s61 kind=valueParameter fq=kotlin.text.encodeToByteArray.$10.endIndex vis=private flags=_
+symbol s62 kind=function fq=kotlin.text.encodeToByteArray vis=public flags=_ sig=recv=String params=[Class#11] ret=Class#7
+symbol s63 kind=valueParameter fq=kotlin.text.encodeToByteArray.$11.charset vis=private flags=_
+symbol s64 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[] ret=String
+symbol s65 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Class#11] ret=String
+symbol s66 kind=valueParameter fq=kotlin.text.decodeToString.$12.charset vis=private flags=_
+symbol s67 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Int,Int] ret=String
+symbol s68 kind=valueParameter fq=kotlin.text.decodeToString.$13.startIndex vis=private flags=_
+symbol s69 kind=valueParameter fq=kotlin.text.decodeToString.$13.endIndex vis=private flags=_
+symbol s70 kind=function fq=kotlin.text.decodeToString vis=public flags=_ sig=recv=Class#7 params=[Int,Int,Boolean] ret=String
+symbol s71 kind=valueParameter fq=kotlin.text.decodeToString.$14.startIndex vis=private flags=_
+symbol s72 kind=valueParameter fq=kotlin.text.decodeToString.$14.endIndex vis=private flags=_
+symbol s73 kind=valueParameter fq=kotlin.text.decodeToString.$14.throwOnInvalidSequence vis=private flags=_
+symbol s74 kind=class fq=golden.sema.User vis=public flags=_
+symbol s75 kind=constructor fq=golden.sema.User.<init> vis=private flags=_ sig=recv=Class#74 params=[String,Int] ret=Class#74
+symbol s76 kind=function fq=golden.sema.User.getInfo vis=public flags=_ sig=recv=Class#74 params=[] ret=String
+symbol s77 kind=property fq=golden.sema.User.name vis=public flags=_ type=String
+symbol s78 kind=property fq=golden.sema.User.age vis=public flags=_ type=Int
+symbol s79 kind=object fq=golden.sema.User.Companion vis=public flags=_
+symbol s80 kind=function fq=golden.sema.User.Companion.createAdult vis=public flags=_ sig=recv=Class#79 params=[String] ret=Class#74
+symbol s81 kind=valueParameter fq=golden.sema.User.Companion.createAdult.$15.name vis=private flags=_
+symbol s82 kind=function fq=golden.sema.User.Companion.createChild vis=public flags=_ sig=recv=Class#79 params=[String] ret=Class#74
+symbol s83 kind=valueParameter fq=golden.sema.User.Companion.createChild.$16.name vis=private flags=_
+symbol s84 kind=function fq=golden.sema.User.Companion.fromNameAndAge vis=public flags=_ sig=recv=Class#79 params=[String,Int] ret=Class#74
+symbol s85 kind=valueParameter fq=golden.sema.User.Companion.fromNameAndAge.$17.name vis=private flags=_
+symbol s86 kind=valueParameter fq=golden.sema.User.Companion.fromNameAndAge.$17.age vis=private flags=_
+symbol s87 kind=class fq=golden.sema.Database vis=public flags=_
+symbol s88 kind=constructor fq=golden.sema.Database.<init> vis=public flags=_ sig=recv=Class#87 params=[] ret=Class#87
+symbol s89 kind=property fq=golden.sema.Database.connection vis=private flags=_ type=String
+symbol s90 kind=property fq=golden.sema.Database.maxConnections vis=private flags=_ type=Int
+symbol s91 kind=object fq=golden.sema.Database.Companion vis=public flags=_
+symbol s92 kind=function fq=golden.sema.Database.Companion.getConnection vis=public flags=_ sig=recv=Class#91 params=[Class#87] ret=String
+symbol s93 kind=valueParameter fq=golden.sema.Database.Companion.getConnection.$18.db vis=private flags=_
+symbol s94 kind=function fq=golden.sema.Database.Companion.getMaxConnections vis=public flags=_ sig=recv=Class#91 params=[Class#87] ret=Int
+symbol s95 kind=valueParameter fq=golden.sema.Database.Companion.getMaxConnections.$19.db vis=private flags=_
+symbol s96 kind=class fq=golden.sema.Calculator vis=public flags=_
+symbol s97 kind=constructor fq=golden.sema.Calculator.<init> vis=public flags=_ sig=recv=Class#96 params=[] ret=Class#96
+symbol s98 kind=function fq=golden.sema.Calculator.validateInput vis=private flags=_ sig=recv=Class#96 params=[Int] ret=Boolean
+symbol s99 kind=valueParameter fq=golden.sema.Calculator.validateInput.$20.x vis=private flags=_
+symbol s100 kind=function fq=golden.sema.Calculator.square vis=private flags=_ sig=recv=Class#96 params=[Int] ret=Int
+symbol s101 kind=valueParameter fq=golden.sema.Calculator.square.$21.x vis=private flags=_
+symbol s102 kind=object fq=golden.sema.Calculator.Companion vis=public flags=_
+symbol s103 kind=function fq=golden.sema.Calculator.Companion.safeSquare vis=public flags=_ sig=recv=Class#102 params=[Class#96,Int] ret=Int
+symbol s104 kind=valueParameter fq=golden.sema.Calculator.Companion.safeSquare.$22.calculator vis=private flags=_
+symbol s105 kind=valueParameter fq=golden.sema.Calculator.Companion.safeSquare.$22.x vis=private flags=_
+symbol s106 kind=class fq=golden.sema.Logger vis=public flags=_
+symbol s107 kind=constructor fq=golden.sema.Logger.<init> vis=public flags=_ sig=recv=Class#106 params=[] ret=Class#106
+symbol s108 kind=function fq=golden.sema.Logger.log vis=public flags=_ sig=recv=Class#106 params=[String] ret=String
+symbol s109 kind=valueParameter fq=golden.sema.Logger.log.$23.message vis=private flags=_
+symbol s110 kind=function fq=golden.sema.Logger.getTag vis=public flags=_ sig=recv=Class#106 params=[] ret=String
+symbol s111 kind=object fq=golden.sema.Logger.Companion vis=public flags=_
+symbol s112 kind=function fq=golden.sema.Logger.Companion.format vis=private flags=_ sig=recv=Class#111 params=[String] ret=String
+symbol s113 kind=valueParameter fq=golden.sema.Logger.Companion.format.$24.message vis=private flags=_
+symbol s114 kind=property fq=golden.sema.Logger.Companion.tag vis=private flags=_ type=String
+symbol s115 kind=property fq=golden.sema.Logger.Companion.level vis=private flags=_ type=String
+symbol s116 kind=class fq=golden.sema.Product vis=public flags=dataType
+symbol s117 kind=constructor fq=golden.sema.Product.<init> vis=private flags=_ sig=recv=Class#116 params=[String,String,Double] ret=Class#116
+symbol s118 kind=function fq=golden.sema.Product.getDescription vis=public flags=_ sig=recv=Class#116 params=[] ret=String
+symbol s119 kind=property fq=golden.sema.Product.id vis=public flags=_ type=String
+symbol s120 kind=property fq=golden.sema.Product.name vis=public flags=_ type=String
+symbol s121 kind=property fq=golden.sema.Product.price vis=public flags=_ type=Double
+symbol s122 kind=object fq=golden.sema.Product.Companion vis=public flags=_
+symbol s123 kind=function fq=golden.sema.Product.Companion.createBasicProduct vis=public flags=_ sig=recv=Class#122 params=[String] ret=Class#116
+symbol s124 kind=valueParameter fq=golden.sema.Product.Companion.createBasicProduct.$25.name vis=private flags=_
+symbol s125 kind=function fq=golden.sema.Product.Companion.createPremiumProduct vis=public flags=_ sig=recv=Class#122 params=[String,Double] ret=Class#116
+symbol s126 kind=valueParameter fq=golden.sema.Product.Companion.createPremiumProduct.$26.name vis=private flags=_
+symbol s127 kind=valueParameter fq=golden.sema.Product.Companion.createPremiumProduct.$26.price vis=private flags=_
+symbol s128 kind=function fq=golden.sema.Product.Companion.fromCatalog vis=public flags=_ sig=recv=Class#122 params=[String,String,Double] ret=Class#116
+symbol s129 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$27.id vis=private flags=_
+symbol s130 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$27.name vis=private flags=_
+symbol s131 kind=valueParameter fq=golden.sema.Product.Companion.fromCatalog.$27.price vis=private flags=_
+symbol s132 kind=class fq=golden.sema.EmailAddress vis=public flags=_
+symbol s133 kind=constructor fq=golden.sema.EmailAddress.<init> vis=private flags=_ sig=recv=Class#132 params=[String] ret=Class#132
+symbol s134 kind=function fq=golden.sema.EmailAddress.toString vis=public flags=_ sig=recv=Class#132 params=[] ret=String
+symbol s135 kind=property fq=golden.sema.EmailAddress.address vis=public flags=_ type=String
+symbol s136 kind=object fq=golden.sema.EmailAddress.Companion vis=public flags=_
+symbol s137 kind=function fq=golden.sema.EmailAddress.Companion.create vis=public flags=_ sig=recv=Class#136 params=[String] ret=Class#132?
+symbol s138 kind=valueParameter fq=golden.sema.EmailAddress.Companion.create.$28.address vis=private flags=_
+symbol s139 kind=function fq=golden.sema.EmailAddress.Companion.isValidEmail vis=private flags=_ sig=recv=Class#136 params=[String] ret=Boolean
+symbol s140 kind=valueParameter fq=golden.sema.EmailAddress.Companion.isValidEmail.$29.address vis=private flags=_
+symbol s141 kind=class fq=golden.sema.OuterClass vis=public flags=_
+symbol s142 kind=constructor fq=golden.sema.OuterClass.<init> vis=public flags=_ sig=recv=Class#141 params=[] ret=Class#141
+symbol s143 kind=function fq=golden.sema.OuterClass.getCompanionSecretFromOuter vis=public flags=_ sig=recv=Class#141 params=[] ret=String
+symbol s144 kind=property fq=golden.sema.OuterClass.outerSecret vis=private flags=_ type=String
+symbol s145 kind=object fq=golden.sema.OuterClass.Companion vis=public flags=_
+symbol s146 kind=function fq=golden.sema.OuterClass.Companion.getOuterSecret vis=public flags=_ sig=recv=Class#145 params=[Class#141] ret=String
+symbol s147 kind=valueParameter fq=golden.sema.OuterClass.Companion.getOuterSecret.$30.outer vis=private flags=_
+symbol s148 kind=function fq=golden.sema.OuterClass.Companion.getCompanionSecret vis=public flags=_ sig=recv=Class#145 params=[] ret=String
+symbol s149 kind=property fq=golden.sema.OuterClass.Companion.companionSecret vis=private flags=_ type=String
+symbol s150 kind=class fq=golden.sema.NetworkClient vis=public flags=_
+symbol s151 kind=constructor fq=golden.sema.NetworkClient.<init> vis=public flags=_ sig=recv=Class#150 params=[] ret=Class#150
+symbol s152 kind=function fq=golden.sema.createDefault vis=public flags=_ sig=recv=<error> params=[] ret=Class#150
+symbol s153 kind=function fq=golden.sema.createWithTimeout vis=public flags=_ sig=recv=<error> params=[Int] ret=Class#150
+symbol s154 kind=class fq=golden.sema.FileManager vis=public flags=_
+symbol s155 kind=constructor fq=golden.sema.FileManager.<init> vis=public flags=_ sig=recv=Class#154 params=[] ret=Class#154
+symbol s156 kind=function fq=golden.sema.createFile vis=public flags=_ sig=recv=<error> params=[] ret=Class#154
+symbol s157 kind=function fq=golden.sema.createReadOnly vis=public flags=_ sig=recv=<error> params=[] ret=Class#154
+symbol s158 kind=property fq=golden.sema.defaultTimeout vis=public flags=_ type=Int
+symbol s159 kind=property fq=golden.sema.maxFiles vis=public flags=_ type=Int
+symbol s160 kind=function fq=golden.sema.main vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol s161 kind=local fq=__local_0.count vis=private flags=mutable type=Int
+symbol s162 kind=local fq=__local_1.i vis=private flags=mutable type=Int
+symbol s163 kind=local fq=__local_2.i vis=private flags=mutable type=Int
+symbol s164 kind=local fq=__local_3.i vis=private flags=mutable type=Int
+symbol s165 kind=local fq=__local_4.i vis=private flags=mutable type=Int
+symbol s166 kind=local fq=__local_5.sum vis=private flags=mutable type=Int
+symbol s167 kind=local fq=__local_6.i vis=private flags=mutable type=Int
+symbol s168 kind=local fq=__local_7.bestElem vis=private flags=mutable type=T#42
+symbol s169 kind=local fq=__local_8.bestKey vis=private flags=mutable type=T#43
+symbol s170 kind=local fq=__local_9.i vis=private flags=mutable type=Int
+symbol s171 kind=local fq=__local_10.elem vis=private flags=_ type=T#42
+symbol s172 kind=local fq=__local_11.key vis=private flags=_ type=T#43
+symbol s173 kind=local fq=__local_12.bestElem vis=private flags=mutable type=T#46
+symbol s174 kind=local fq=__local_13.bestKey vis=private flags=mutable type=T#47
+symbol s175 kind=local fq=__local_14.i vis=private flags=mutable type=Int
+symbol s176 kind=local fq=__local_15.elem vis=private flags=_ type=T#46
+symbol s177 kind=local fq=__local_16.key vis=private flags=_ type=T#47
+symbol s178 kind=local fq=__local_17.sb vis=private flags=_ type=Class#21
+symbol s179 kind=local fq=__local_18.i vis=private flags=mutable type=Int
+symbol s180 kind=local fq=__local_19.len vis=private flags=_ type=Int
+symbol s181 kind=local fq=__local_20.sb vis=private flags=_ type=Class#21
+symbol s182 kind=local fq=__local_21.i vis=private flags=mutable type=Int
+symbol s183 kind=local fq=__local_22.padding vis=private flags=_ type=Int
+symbol s184 kind=local fq=__local_23.sb vis=private flags=_ type=Class#21
+symbol s185 kind=local fq=__local_24.i vis=private flags=mutable type=Int
+symbol s186 kind=local fq=__local_25.padding vis=private flags=_ type=Int
+symbol s187 kind=local fq=__local_26.sb vis=private flags=_ type=Class#21
+symbol s188 kind=local fq=__local_27.i vis=private flags=mutable type=Int
+symbol s189 kind=local fq=__local_28.adult vis=private flags=_ type=Class#74
+symbol s190 kind=local fq=__local_29.child vis=private flags=_ type=Class#74
+symbol s191 kind=local fq=__local_30.custom vis=private flags=_ type=Class#74
+symbol s192 kind=local fq=__local_31.db vis=private flags=_ type=Class#87
+symbol s193 kind=local fq=__local_32.calc vis=private flags=_ type=Class#96
+symbol s194 kind=local fq=__local_33.logger vis=private flags=_ type=Class#106
+symbol s195 kind=local fq=__local_34.basic vis=private flags=_ type=Class#116
+symbol s196 kind=local fq=__local_35.premium vis=private flags=_ type=Class#116
+symbol s197 kind=local fq=__local_36.catalog vis=private flags=_ type=Class#116
+symbol s198 kind=local fq=__local_37.validEmail vis=private flags=_ type=Class#132?
+symbol s199 kind=local fq=__local_38.invalidEmail vis=private flags=_ type=Class#132?
+symbol s200 kind=local fq=__local_39.outer vis=private flags=_ type=Class#141
+symbol s201 kind=local fq=__local_40.client1 vis=private flags=_ type=<error>
+symbol s202 kind=local fq=__local_41.client2 vis=private flags=_ type=<error>
+symbol s203 kind=local fq=__local_42.file1 vis=private flags=_ type=<error>
+symbol s204 kind=local fq=__local_43.file2 vis=private flags=_ type=<error>
 file f0 package=kotlin.collections
-  decl d0 fun count suspend=0 inline=0 sym=s32
-  decl d1 fun any suspend=0 inline=0 sym=s35
-  decl d2 fun all suspend=0 inline=0 sym=s38
-  decl d3 fun none suspend=0 inline=0 sym=s41
-  decl d4 fun sumOf suspend=0 inline=0 sym=s44
-  decl d5 fun maxByOrNull suspend=0 inline=0 sym=s47
-  decl d6 fun minByOrNull suspend=0 inline=0 sym=s51
+  decl d0 fun count sym=s26
+  decl d1 fun any sym=s29
+  decl d2 fun all sym=s32
+  decl d3 fun none sym=s35
+  decl d4 fun sumOf sym=s38
+  decl d5 fun maxByOrNull sym=s41
+  decl d6 fun minByOrNull sym=s45
 file f1 package=kotlin.text
-  decl d7 fun lowercase suspend=0 inline=0 sym=s55
-  decl d8 fun uppercase suspend=0 inline=0 sym=s56
-  decl d9 fun capitalize suspend=0 inline=0 sym=s57
-  decl d10 fun lowercase suspend=0 inline=0 sym=s58
-  decl d11 fun uppercase suspend=0 inline=0 sym=s60
-  decl d12 fun repeat suspend=0 inline=0 sym=s62
-  decl d13 fun reversed suspend=0 inline=0 sym=s64
-  decl d14 fun padStart suspend=0 inline=0 sym=s65
-  decl d15 fun padEnd suspend=0 inline=0 sym=s68
-  decl d16 fun encodeToByteArray suspend=0 inline=0 sym=s71
-  decl d17 fun encodeToByteArray suspend=0 inline=0 sym=s72
-  decl d18 fun encodeToByteArray suspend=0 inline=0 sym=s75
-  decl d19 fun decodeToString suspend=0 inline=0 sym=s77
-  decl d20 fun decodeToString suspend=0 inline=0 sym=s78
-  decl d21 fun decodeToString suspend=0 inline=0 sym=s80
-  decl d22 fun decodeToString suspend=0 inline=0 sym=s83
+  decl d7 fun repeat sym=s49
+  decl d8 fun reversed sym=s51
+  decl d9 fun padStart sym=s52
+  decl d10 fun padEnd sym=s55
+  decl d11 fun encodeToByteArray sym=s58
+  decl d12 fun encodeToByteArray sym=s59
+  decl d13 fun encodeToByteArray sym=s62
+  decl d14 fun decodeToString sym=s64
+  decl d15 fun decodeToString sym=s65
+  decl d16 fun decodeToString sym=s67
+  decl d17 fun decodeToString sym=s70
 file f2 package=golden.sema
-  decl d30 class User sym=s87
-  decl d36 class Database sym=s100
-  decl d41 class Calculator sym=s109
-  decl d48 class Logger sym=s119
-  decl d57 class Product sym=s129
-  decl d63 class EmailAddress sym=s145
-  decl d70 class OuterClass sym=s154
-  decl d72 class NetworkClient sym=s163
-  decl d73 fun createDefault suspend=0 inline=0 sym=s165
-  decl d74 fun createWithTimeout suspend=0 inline=0 sym=s166
-  decl d76 class FileManager sym=s167
-  decl d77 fun createFile suspend=0 inline=0 sym=s169
-  decl d78 fun createReadOnly suspend=0 inline=0 sym=s170
-  decl d79 property defaultTimeout var=0 sym=s171
-  decl d80 property maxFiles var=0 sym=s172
-  decl d81 fun main suspend=0 inline=0 sym=s173
+  decl d25 class User sym=s74
+  decl d31 class Database sym=s87
+  decl d36 class Calculator sym=s96
+  decl d43 class Logger sym=s106
+  decl d52 class Product sym=s116
+  decl d58 class EmailAddress sym=s132
+  decl d65 class OuterClass sym=s141
+  decl d67 class NetworkClient sym=s150
+  decl d68 fun createDefault sym=s152
+  decl d69 fun createWithTimeout sym=s153
+  decl d71 class FileManager sym=s154
+  decl d72 fun createFile sym=s156
+  decl d73 fun createReadOnly sym=s157
+  decl d74 property defaultTimeout var=0 sym=s158
+  decl d75 property maxFiles var=0 sym=s159
+  decl d76 fun main sym=s160
 expr e0 int(0) type=Int
-expr e1 localDecl count mutable=1 type=_ init=e0 type=Unit ref=s174
+expr e1 localDecl count mutable=1 type=_ init=e0 type=Unit ref=s161
 expr e2 int(0) type=Int
-expr e3 localDecl i mutable=1 type=_ init=e2 type=Unit ref=s175
-expr e4 name(i) type=Int ref=s175
+expr e3 localDecl i mutable=1 type=_ init=e2 type=Unit ref=s162
+expr e4 name(i) type=Int ref=s162
 expr e5 name(size) type=Int
 expr e6 binary(lessThan) lhs=e4 rhs=e5 type=Boolean
-expr e7 name(predicate) type=_
-expr e8 this type=_
-expr e9 name(i) type=_
-expr e10 indexedAccess receiver=e8 indices=[e9] type=_
-expr e11 call callee=e7 args=[_:e10] type=_
-expr e12 name(count) type=_
-expr e13 if cond=e11 then=e12 else=_ type=_
-expr e14 int(1) type=_
-expr e15 name(predicate) type=(T#33) -> Boolean ref=s34
-expr e16 this type=Class#0<T#33>
-expr e17 name(i) type=Int ref=s175
-expr e18 indexedAccess receiver=e16 indices=[e17] type=T#33 call=s2 map=[0->0] targs=[T#33]
+expr e15 name(predicate) type=(T#27) -> Boolean ref=s28
+expr e16 this type=Class#0<T#27>
+expr e17 name(i) type=Int ref=s162
+expr e18 indexedAccess receiver=e16 indices=[e17] type=T#27 call=s2 targs=[T#27]
 expr e19 call callee=e15 args=[_:e18] type=Boolean
-expr e20 name(count) type=_
 expr e21 int(1) type=Int
-expr e22 compoundAssign(plusAssign) name=count value=e21 type=Unit ref=s174
+expr e22 compoundAssign(plusAssign) name=count value=e21 type=Unit ref=s161
 expr e23 if cond=e19 then=e22 else=_ type=Unit
-expr e24 name(i) type=_
 expr e25 int(1) type=Int
-expr e26 compoundAssign(plusAssign) name=i value=e25 type=Unit ref=s175
+expr e26 compoundAssign(plusAssign) name=i value=e25 type=Unit ref=s162
 expr e27 blockExpr stmts=[e23,e26] trailing=_ type=Unit
 expr e28 while cond=e6 body=e27 type=Unit
-expr e29 name(count) type=Int ref=s174
+expr e29 name(count) type=Int ref=s161
 expr e30 return value=e29 type=Nothing
 expr e31 int(0) type=Int
-expr e32 localDecl i mutable=1 type=_ init=e31 type=Unit ref=s176
-expr e33 name(i) type=Int ref=s176
+expr e32 localDecl i mutable=1 type=_ init=e31 type=Unit ref=s163
+expr e33 name(i) type=Int ref=s163
 expr e34 name(size) type=Int
 expr e35 binary(lessThan) lhs=e33 rhs=e34 type=Boolean
-expr e36 name(predicate) type=(T#36) -> Boolean ref=s37
-expr e37 this type=Class#0<T#36>
-expr e38 name(i) type=Int ref=s176
-expr e39 indexedAccess receiver=e37 indices=[e38] type=T#36 call=s2 map=[0->0] targs=[T#36]
+expr e36 name(predicate) type=(T#30) -> Boolean ref=s31
+expr e37 this type=Class#0<T#30>
+expr e38 name(i) type=Int ref=s163
+expr e39 indexedAccess receiver=e37 indices=[e38] type=T#30 call=s2 targs=[T#30]
 expr e40 call callee=e36 args=[_:e39] type=Boolean
 expr e41 bool(true) type=Boolean
 expr e42 return value=e41 type=Nothing
 expr e43 if cond=e40 then=e42 else=_ type=Unit
-expr e44 name(i) type=_
 expr e45 int(1) type=Int
-expr e46 compoundAssign(plusAssign) name=i value=e45 type=Unit ref=s176
+expr e46 compoundAssign(plusAssign) name=i value=e45 type=Unit ref=s163
 expr e47 blockExpr stmts=[e43,e46] trailing=_ type=Unit
 expr e48 while cond=e35 body=e47 type=Unit
 expr e49 bool(false) type=Boolean
 expr e50 return value=e49 type=Nothing
 expr e51 int(0) type=Int
-expr e52 localDecl i mutable=1 type=_ init=e51 type=Unit ref=s177
-expr e53 name(i) type=Int ref=s177
+expr e52 localDecl i mutable=1 type=_ init=e51 type=Unit ref=s164
+expr e53 name(i) type=Int ref=s164
 expr e54 name(size) type=Int
 expr e55 binary(lessThan) lhs=e53 rhs=e54 type=Boolean
-expr e56 name(predicate) type=(T#39) -> Boolean ref=s40
-expr e57 this type=Class#0<T#39>
-expr e58 name(i) type=Int ref=s177
-expr e59 indexedAccess receiver=e57 indices=[e58] type=T#39 call=s2 map=[0->0] targs=[T#39]
+expr e56 name(predicate) type=(T#33) -> Boolean ref=s34
+expr e57 this type=Class#0<T#33>
+expr e58 name(i) type=Int ref=s164
+expr e59 indexedAccess receiver=e57 indices=[e58] type=T#33 call=s2 targs=[T#33]
 expr e60 call callee=e56 args=[_:e59] type=Boolean
 expr e61 unary(not) operand=e60 type=Boolean
 expr e62 bool(false) type=Boolean
 expr e63 return value=e62 type=Nothing
 expr e64 if cond=e61 then=e63 else=_ type=Unit
-expr e65 name(i) type=_
 expr e66 int(1) type=Int
-expr e67 compoundAssign(plusAssign) name=i value=e66 type=Unit ref=s177
+expr e67 compoundAssign(plusAssign) name=i value=e66 type=Unit ref=s164
 expr e68 blockExpr stmts=[e64,e67] trailing=_ type=Unit
 expr e69 while cond=e55 body=e68 type=Unit
 expr e70 bool(true) type=Boolean
 expr e71 return value=e70 type=Nothing
 expr e72 int(0) type=Int
-expr e73 localDecl i mutable=1 type=_ init=e72 type=Unit ref=s178
-expr e74 name(i) type=Int ref=s178
+expr e73 localDecl i mutable=1 type=_ init=e72 type=Unit ref=s165
+expr e74 name(i) type=Int ref=s165
 expr e75 name(size) type=Int
 expr e76 binary(lessThan) lhs=e74 rhs=e75 type=Boolean
-expr e77 name(predicate) type=(T#42) -> Boolean ref=s43
-expr e78 this type=Class#0<T#42>
-expr e79 name(i) type=Int ref=s178
-expr e80 indexedAccess receiver=e78 indices=[e79] type=T#42 call=s2 map=[0->0] targs=[T#42]
+expr e77 name(predicate) type=(T#36) -> Boolean ref=s37
+expr e78 this type=Class#0<T#36>
+expr e79 name(i) type=Int ref=s165
+expr e80 indexedAccess receiver=e78 indices=[e79] type=T#36 call=s2 targs=[T#36]
 expr e81 call callee=e77 args=[_:e80] type=Boolean
 expr e82 bool(false) type=Boolean
 expr e83 return value=e82 type=Nothing
 expr e84 if cond=e81 then=e83 else=_ type=Unit
-expr e85 name(i) type=_
 expr e86 int(1) type=Int
-expr e87 compoundAssign(plusAssign) name=i value=e86 type=Unit ref=s178
+expr e87 compoundAssign(plusAssign) name=i value=e86 type=Unit ref=s165
 expr e88 blockExpr stmts=[e84,e87] trailing=_ type=Unit
 expr e89 while cond=e76 body=e88 type=Unit
 expr e90 bool(true) type=Boolean
 expr e91 return value=e90 type=Nothing
 expr e92 int(0) type=Int
-expr e93 localDecl sum mutable=1 type=_ init=e92 type=Unit ref=s179
+expr e93 localDecl sum mutable=1 type=_ init=e92 type=Unit ref=s166
 expr e94 int(0) type=Int
-expr e95 localDecl i mutable=1 type=_ init=e94 type=Unit ref=s180
-expr e96 name(i) type=Int ref=s180
+expr e95 localDecl i mutable=1 type=_ init=e94 type=Unit ref=s167
+expr e96 name(i) type=Int ref=s167
 expr e97 name(size) type=Int
 expr e98 binary(lessThan) lhs=e96 rhs=e97 type=Boolean
-expr e99 name(sum) type=_
-expr e100 name(selector) type=(T#45) -> Int ref=s46
-expr e101 this type=Class#0<T#45>
-expr e102 name(i) type=Int ref=s180
-expr e103 indexedAccess receiver=e101 indices=[e102] type=T#45 call=s2 map=[0->0] targs=[T#45]
+expr e100 name(selector) type=(T#39) -> Int ref=s40
+expr e101 this type=Class#0<T#39>
+expr e102 name(i) type=Int ref=s167
+expr e103 indexedAccess receiver=e101 indices=[e102] type=T#39 call=s2 targs=[T#39]
 expr e104 call callee=e100 args=[_:e103] type=Int
-expr e105 compoundAssign(plusAssign) name=sum value=e104 type=Unit ref=s179
-expr e106 name(i) type=_
+expr e105 compoundAssign(plusAssign) name=sum value=e104 type=Unit ref=s166
 expr e107 int(1) type=Int
-expr e108 compoundAssign(plusAssign) name=i value=e107 type=Unit ref=s180
+expr e108 compoundAssign(plusAssign) name=i value=e107 type=Unit ref=s167
 expr e109 blockExpr stmts=[e105,e108] trailing=_ type=Unit
 expr e110 while cond=e98 body=e109 type=Unit
-expr e111 name(sum) type=Int ref=s179
+expr e111 name(sum) type=Int ref=s166
 expr e112 return value=e111 type=Nothing
-expr e113 name(isEmpty) type=_
-expr e114 call callee=e113 args=[] type=Boolean call=s3 map=[] targs=[T#48]
+expr e114 call callee=e113 args=[] type=Boolean call=s3 targs=[T#42]
 expr e115 name(null) type=Nothing?
 expr e116 return value=e115 type=Nothing
 expr e117 if cond=e114 then=e116 else=_ type=Unit
-expr e118 this type=Class#0<T#48>
+expr e118 this type=Class#0<T#42>
 expr e119 int(0) type=Int
-expr e120 indexedAccess receiver=e118 indices=[e119] type=T#48 call=s2 map=[0->0] targs=[T#48]
-expr e121 localDecl bestElem mutable=1 type=_ init=e120 type=Unit ref=s181
-expr e122 name(selector) type=(T#48) -> T#49 ref=s50
-expr e123 name(bestElem) type=T#48 ref=s181
-expr e124 call callee=e122 args=[_:e123] type=T#49
-expr e125 localDecl bestKey mutable=1 type=_ init=e124 type=Unit ref=s182
+expr e120 indexedAccess receiver=e118 indices=[e119] type=T#42 call=s2 targs=[T#42]
+expr e121 localDecl bestElem mutable=1 type=_ init=e120 type=Unit ref=s168
+expr e122 name(selector) type=(T#42) -> T#43 ref=s44
+expr e123 name(bestElem) type=T#42 ref=s168
+expr e124 call callee=e122 args=[_:e123] type=T#43
+expr e125 localDecl bestKey mutable=1 type=_ init=e124 type=Unit ref=s169
 expr e126 int(1) type=Int
-expr e127 localDecl i mutable=1 type=_ init=e126 type=Unit ref=s183
-expr e128 name(i) type=Int ref=s183
+expr e127 localDecl i mutable=1 type=_ init=e126 type=Unit ref=s170
+expr e128 name(i) type=Int ref=s170
 expr e129 name(size) type=Int
 expr e130 binary(lessThan) lhs=e128 rhs=e129 type=Boolean
-expr e131 this type=Class#0<T#48>
-expr e132 name(i) type=Int ref=s183
-expr e133 indexedAccess receiver=e131 indices=[e132] type=T#48 call=s2 map=[0->0] targs=[T#48]
-expr e134 localDecl elem mutable=0 type=_ init=e133 type=Unit ref=s184
-expr e135 name(selector) type=(T#48) -> T#49 ref=s50
-expr e136 name(elem) type=T#48 ref=s184
-expr e137 call callee=e135 args=[_:e136] type=T#49
-expr e138 localDecl key mutable=0 type=_ init=e137 type=Unit ref=s185
-expr e139 name(key) type=T#49 ref=s185
-expr e140 name(bestKey) type=T#49 ref=s182
-expr e141 binary(greaterThan) lhs=e139 rhs=e140 type=Boolean call=s6 map=[0->0] targs=[T#49]
-expr e142 name(bestElem) type=_
-expr e143 name(elem) type=T#48 ref=s184
-expr e144 localAssign bestElem value=e143 type=Unit ref=s181
-expr e145 name(bestKey) type=_
-expr e146 name(key) type=T#49 ref=s185
-expr e147 localAssign bestKey value=e146 type=Unit ref=s182
+expr e131 this type=Class#0<T#42>
+expr e132 name(i) type=Int ref=s170
+expr e133 indexedAccess receiver=e131 indices=[e132] type=T#42 call=s2 targs=[T#42]
+expr e134 localDecl elem mutable=0 type=_ init=e133 type=Unit ref=s171
+expr e135 name(selector) type=(T#42) -> T#43 ref=s44
+expr e136 name(elem) type=T#42 ref=s171
+expr e137 call callee=e135 args=[_:e136] type=T#43
+expr e138 localDecl key mutable=0 type=_ init=e137 type=Unit ref=s172
+expr e139 name(key) type=T#43 ref=s172
+expr e140 name(bestKey) type=T#43 ref=s169
+expr e141 binary(greaterThan) lhs=e139 rhs=e140 type=Boolean call=s6 targs=[T#43]
+expr e143 name(elem) type=T#42 ref=s171
+expr e144 localAssign bestElem value=e143 type=Unit ref=s168
+expr e146 name(key) type=T#43 ref=s172
+expr e147 localAssign bestKey value=e146 type=Unit ref=s169
 expr e148 blockExpr stmts=[e144,e147] trailing=_ type=Unit
 expr e149 if cond=e141 then=e148 else=_ type=Unit
-expr e150 name(i) type=_
 expr e151 int(1) type=Int
-expr e152 compoundAssign(plusAssign) name=i value=e151 type=Unit ref=s183
+expr e152 compoundAssign(plusAssign) name=i value=e151 type=Unit ref=s170
 expr e153 blockExpr stmts=[e134,e138,e149,e152] trailing=_ type=Unit
 expr e154 while cond=e130 body=e153 type=Unit
-expr e155 name(bestElem) type=T#48 ref=s181
+expr e155 name(bestElem) type=T#42 ref=s168
 expr e156 return value=e155 type=Nothing
-expr e157 name(isEmpty) type=_
-expr e158 call callee=e157 args=[] type=Boolean call=s3 map=[] targs=[T#52]
+expr e158 call callee=e157 args=[] type=Boolean call=s3 targs=[T#46]
 expr e159 name(null) type=Nothing?
 expr e160 return value=e159 type=Nothing
 expr e161 if cond=e158 then=e160 else=_ type=Unit
-expr e162 this type=Class#0<T#52>
+expr e162 this type=Class#0<T#46>
 expr e163 int(0) type=Int
-expr e164 indexedAccess receiver=e162 indices=[e163] type=T#52 call=s2 map=[0->0] targs=[T#52]
-expr e165 localDecl bestElem mutable=1 type=_ init=e164 type=Unit ref=s186
-expr e166 name(selector) type=(T#52) -> T#53 ref=s54
-expr e167 name(bestElem) type=T#52 ref=s186
-expr e168 call callee=e166 args=[_:e167] type=T#53
-expr e169 localDecl bestKey mutable=1 type=_ init=e168 type=Unit ref=s187
+expr e164 indexedAccess receiver=e162 indices=[e163] type=T#46 call=s2 targs=[T#46]
+expr e165 localDecl bestElem mutable=1 type=_ init=e164 type=Unit ref=s173
+expr e166 name(selector) type=(T#46) -> T#47 ref=s48
+expr e167 name(bestElem) type=T#46 ref=s173
+expr e168 call callee=e166 args=[_:e167] type=T#47
+expr e169 localDecl bestKey mutable=1 type=_ init=e168 type=Unit ref=s174
 expr e170 int(1) type=Int
-expr e171 localDecl i mutable=1 type=_ init=e170 type=Unit ref=s188
-expr e172 name(i) type=Int ref=s188
+expr e171 localDecl i mutable=1 type=_ init=e170 type=Unit ref=s175
+expr e172 name(i) type=Int ref=s175
 expr e173 name(size) type=Int
 expr e174 binary(lessThan) lhs=e172 rhs=e173 type=Boolean
-expr e175 this type=Class#0<T#52>
-expr e176 name(i) type=Int ref=s188
-expr e177 indexedAccess receiver=e175 indices=[e176] type=T#52 call=s2 map=[0->0] targs=[T#52]
-expr e178 localDecl elem mutable=0 type=_ init=e177 type=Unit ref=s189
-expr e179 name(selector) type=(T#52) -> T#53 ref=s54
-expr e180 name(elem) type=T#52 ref=s189
-expr e181 call callee=e179 args=[_:e180] type=T#53
-expr e182 localDecl key mutable=0 type=_ init=e181 type=Unit ref=s190
-expr e183 name(key) type=T#53 ref=s190
-expr e184 name(bestKey) type=T#53 ref=s187
-expr e185 binary(lessThan) lhs=e183 rhs=e184 type=Boolean call=s6 map=[0->0] targs=[T#53]
-expr e186 name(bestElem) type=_
-expr e187 name(elem) type=T#52 ref=s189
-expr e188 localAssign bestElem value=e187 type=Unit ref=s186
-expr e189 name(bestKey) type=_
-expr e190 name(key) type=T#53 ref=s190
-expr e191 localAssign bestKey value=e190 type=Unit ref=s187
+expr e175 this type=Class#0<T#46>
+expr e176 name(i) type=Int ref=s175
+expr e177 indexedAccess receiver=e175 indices=[e176] type=T#46 call=s2 targs=[T#46]
+expr e178 localDecl elem mutable=0 type=_ init=e177 type=Unit ref=s176
+expr e179 name(selector) type=(T#46) -> T#47 ref=s48
+expr e180 name(elem) type=T#46 ref=s176
+expr e181 call callee=e179 args=[_:e180] type=T#47
+expr e182 localDecl key mutable=0 type=_ init=e181 type=Unit ref=s177
+expr e183 name(key) type=T#47 ref=s177
+expr e184 name(bestKey) type=T#47 ref=s174
+expr e185 binary(lessThan) lhs=e183 rhs=e184 type=Boolean call=s6 targs=[T#47]
+expr e187 name(elem) type=T#46 ref=s176
+expr e188 localAssign bestElem value=e187 type=Unit ref=s173
+expr e190 name(key) type=T#47 ref=s177
+expr e191 localAssign bestKey value=e190 type=Unit ref=s174
 expr e192 blockExpr stmts=[e188,e191] trailing=_ type=Unit
 expr e193 if cond=e185 then=e192 else=_ type=Unit
-expr e194 name(i) type=_
 expr e195 int(1) type=Int
-expr e196 compoundAssign(plusAssign) name=i value=e195 type=Unit ref=s188
+expr e196 compoundAssign(plusAssign) name=i value=e195 type=Unit ref=s175
 expr e197 blockExpr stmts=[e178,e182,e193,e196] trailing=_ type=Unit
 expr e198 while cond=e174 body=e197 type=Unit
-expr e199 name(bestElem) type=T#52 ref=s186
+expr e199 name(bestElem) type=T#46 ref=s173
 expr e200 return value=e199 type=Nothing
-expr e201 name(isEmpty) type=_
-expr e202 call callee=e201 args=[] type=Boolean call=s14 map=[] targs=[]
-expr e203 this type=String
-expr e204 return value=e203 type=Nothing
-expr e205 if cond=e202 then=e204 else=_ type=Unit
-expr e206 name(StringBuilder) type=Any ref=s27
-expr e207 call callee=e206 args=[] type=Class#27
-expr e208 localDecl sb mutable=0 type=_ init=e207 type=Unit ref=s191
-expr e209 int(0) type=Int
-expr e210 localDecl i mutable=1 type=_ init=e209 type=Unit ref=s192
-expr e211 name(i) type=Int ref=s192
-expr e212 name(length) type=Int
-expr e213 binary(lessThan) lhs=e211 rhs=e212 type=Boolean
-expr e214 name(sb) type=Class#27 ref=s191
-expr e215 this type=String
-expr e216 name(i) type=Int ref=s192
-expr e217 indexedAccess receiver=e215 indices=[e216] type=Char call=s13 map=[0->0] targs=[]
-expr e218 memberCall recv=e217 callee=lowercase args=[] type=String call=s24 map=[] targs=[]
-expr e219 memberCall recv=e214 callee=append args=[_:e218] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e220 name(i) type=_
-expr e221 int(1) type=Int
-expr e222 compoundAssign(plusAssign) name=i value=e221 type=Unit ref=s192
-expr e223 blockExpr stmts=[e219,e222] trailing=_ type=Unit
-expr e224 while cond=e213 body=e223 type=Unit
-expr e225 name(sb) type=Class#27 ref=s191
-expr e226 memberCall recv=e225 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e227 return value=e226 type=Nothing
-expr e228 name(isEmpty) type=_
-expr e229 call callee=e228 args=[] type=Boolean call=s14 map=[] targs=[]
-expr e230 this type=String
-expr e231 return value=e230 type=Nothing
-expr e232 if cond=e229 then=e231 else=_ type=Unit
-expr e233 name(StringBuilder) type=Any ref=s27
-expr e234 call callee=e233 args=[] type=Class#27
-expr e235 localDecl sb mutable=0 type=_ init=e234 type=Unit ref=s193
-expr e236 int(0) type=Int
-expr e237 localDecl i mutable=1 type=_ init=e236 type=Unit ref=s194
-expr e238 name(i) type=Int ref=s194
-expr e239 name(length) type=Int
-expr e240 binary(lessThan) lhs=e238 rhs=e239 type=Boolean
-expr e241 name(sb) type=Class#27 ref=s193
-expr e242 this type=String
-expr e243 name(i) type=Int ref=s194
-expr e244 indexedAccess receiver=e242 indices=[e243] type=Char call=s13 map=[0->0] targs=[]
-expr e245 memberCall recv=e244 callee=uppercase args=[] type=String call=s23 map=[] targs=[]
-expr e246 memberCall recv=e241 callee=append args=[_:e245] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e247 name(i) type=_
+expr e201 name(count) type=Int ref=s50
+expr e202 int(0) type=Int
+expr e203 binary(lessThan) lhs=e201 rhs=e202 type=Boolean
+expr e205 name(count) type=Int ref=s50
+expr e206 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e205),lit(.)] type=String
+expr e207 call callee=e204 args=[_:e206] type=Class#19 call=s20
+expr e208 throw value=e207 type=Nothing
+expr e209 if cond=e203 then=e208 else=_ type=Unit
+expr e210 name(StringBuilder) type=Any ref=s21
+expr e211 call callee=e210 args=[] type=Class#21
+expr e212 localDecl sb mutable=0 type=_ init=e211 type=Unit ref=s178
+expr e213 int(0) type=Int
+expr e214 localDecl i mutable=1 type=_ init=e213 type=Unit ref=s179
+expr e215 name(i) type=Int ref=s179
+expr e216 name(count) type=Int ref=s50
+expr e217 binary(lessThan) lhs=e215 rhs=e216 type=Boolean
+expr e218 name(sb) type=Class#21 ref=s178
+expr e219 this type=String
+expr e220 memberCall recv=e218 callee=append args=[_:e219] type=Class#21 call=s22
+expr e222 int(1) type=Int
+expr e223 compoundAssign(plusAssign) name=i value=e222 type=Unit ref=s179
+expr e224 blockExpr stmts=[e220,e223] trailing=_ type=Unit
+expr e225 while cond=e217 body=e224 type=Unit
+expr e226 name(sb) type=Class#21 ref=s178
+expr e227 memberCall recv=e226 callee=toString args=[] type=String call=s24
+expr e228 return value=e227 type=Nothing
+expr e229 this type=String
+expr e230 memberCall recv=e229 callee=length args=[] type=Int call=s8
+expr e231 localDecl len mutable=0 type=_ init=e230 type=Unit ref=s180
+expr e232 name(StringBuilder) type=Any ref=s21
+expr e233 call callee=e232 args=[] type=Class#21
+expr e234 localDecl sb mutable=0 type=_ init=e233 type=Unit ref=s181
+expr e235 name(len) type=Int ref=s180
+expr e236 int(1) type=Int
+expr e237 binary(subtract) lhs=e235 rhs=e236 type=Int
+expr e238 localDecl i mutable=1 type=_ init=e237 type=Unit ref=s182
+expr e239 name(i) type=Int ref=s182
+expr e240 int(0) type=Int
+expr e241 binary(greaterOrEqual) lhs=e239 rhs=e240 type=Boolean
+expr e242 name(sb) type=Class#21 ref=s181
+expr e243 this type=String
+expr e244 name(i) type=Int ref=s182
+expr e245 indexedAccess receiver=e243 indices=[e244] type=Char call=s10
+expr e246 memberCall recv=e242 callee=append args=[_:e245] type=Class#21 call=s23
 expr e248 int(1) type=Int
-expr e249 compoundAssign(plusAssign) name=i value=e248 type=Unit ref=s194
+expr e249 compoundAssign(minusAssign) name=i value=e248 type=Unit ref=s182
 expr e250 blockExpr stmts=[e246,e249] trailing=_ type=Unit
-expr e251 while cond=e240 body=e250 type=Unit
-expr e252 name(sb) type=Class#27 ref=s193
-expr e253 memberCall recv=e252 callee=toString args=[] type=String call=s30 map=[] targs=[]
+expr e251 while cond=e241 body=e250 type=Unit
+expr e252 name(sb) type=Class#21 ref=s181
+expr e253 memberCall recv=e252 callee=toString args=[] type=String call=s24
 expr e254 return value=e253 type=Nothing
-expr e255 name(isEmpty) type=_
-expr e256 call callee=e255 args=[] type=Boolean call=s14 map=[] targs=[]
+expr e256 name(length) type=Int ref=s53
 expr e257 this type=String
-expr e258 return value=e257 type=Nothing
-expr e259 if cond=e256 then=e258 else=_ type=Unit
-expr e260 name(StringBuilder) type=Any ref=s27
-expr e261 call callee=e260 args=[] type=Class#27
-expr e262 localDecl sb mutable=0 type=_ init=e261 type=Unit ref=s195
-expr e263 name(sb) type=Class#27 ref=s195
+expr e258 memberCall recv=e257 callee=length args=[] type=Int call=s8
+expr e259 binary(subtract) lhs=e256 rhs=e258 type=Int
+expr e260 localDecl padding mutable=0 type=_ init=e259 type=Unit ref=s183
+expr e261 name(padding) type=Int ref=s183
+expr e262 int(0) type=Int
+expr e263 binary(lessOrEqual) lhs=e261 rhs=e262 type=Boolean
 expr e264 this type=String
-expr e265 int(0) type=Int
-expr e266 indexedAccess receiver=e264 indices=[e265] type=Char call=s13 map=[0->0] targs=[]
-expr e267 memberCall recv=e266 callee=uppercase args=[] type=String call=s23 map=[] targs=[]
-expr e268 memberCall recv=e263 callee=append args=[_:e267] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e269 int(1) type=Int
-expr e270 localDecl i mutable=1 type=_ init=e269 type=Unit ref=s196
-expr e271 name(i) type=Int ref=s196
-expr e272 name(length) type=Int
-expr e273 binary(lessThan) lhs=e271 rhs=e272 type=Boolean
-expr e274 name(sb) type=Class#27 ref=s195
-expr e275 this type=String
-expr e276 name(i) type=Int ref=s196
-expr e277 indexedAccess receiver=e275 indices=[e276] type=Char call=s13 map=[0->0] targs=[]
-expr e278 memberCall recv=e274 callee=append args=[_:e277] type=Class#27 call=s29 map=[0->0] targs=[]
-expr e279 name(i) type=_
-expr e280 int(1) type=Int
-expr e281 compoundAssign(plusAssign) name=i value=e280 type=Unit ref=s196
-expr e282 blockExpr stmts=[e278,e281] trailing=_ type=Unit
-expr e283 while cond=e273 body=e282 type=Unit
-expr e284 name(sb) type=Class#27 ref=s195
-expr e285 memberCall recv=e284 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e286 return value=e285 type=Nothing
-expr e287 this type=String
-expr e288 name(locale) type=Class#9 ref=s59
-expr e289 memberCall recv=e287 callee=__kk_lowercase_locale args=[_:e288] type=String call=s10 map=[0->0] targs=[]
-expr e290 this type=String
-expr e291 name(locale) type=Class#9 ref=s61
-expr e292 memberCall recv=e290 callee=__kk_uppercase_locale args=[_:e291] type=String call=s11 map=[0->0] targs=[]
-expr e293 name(count) type=Int ref=s63
-expr e294 int(0) type=Int
-expr e295 binary(lessThan) lhs=e293 rhs=e294 type=Boolean
-expr e296 name(IllegalArgumentException) type=_
-expr e297 name(count) type=Int ref=s63
-expr e298 stringTemplate[lit(Count 'n' must be non-negative, but was ),expr(e297),lit(.)] type=String
-expr e299 call callee=e296 args=[_:e298] type=Class#25 call=s26 map=[0->0] targs=[]
-expr e300 throw value=e299 type=Nothing
-expr e301 if cond=e295 then=e300 else=_ type=Unit
-expr e302 name(StringBuilder) type=Any ref=s27
-expr e303 call callee=e302 args=[] type=Class#27
-expr e304 localDecl sb mutable=0 type=_ init=e303 type=Unit ref=s197
-expr e305 int(0) type=Int
-expr e306 localDecl i mutable=1 type=_ init=e305 type=Unit ref=s198
-expr e307 name(i) type=Int ref=s198
-expr e308 name(count) type=Int ref=s63
-expr e309 binary(lessThan) lhs=e307 rhs=e308 type=Boolean
-expr e310 name(sb) type=Class#27 ref=s197
-expr e311 this type=String
-expr e312 memberCall recv=e310 callee=append args=[_:e311] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e313 name(i) type=_
-expr e314 int(1) type=Int
-expr e315 compoundAssign(plusAssign) name=i value=e314 type=Unit ref=s198
-expr e316 blockExpr stmts=[e312,e315] trailing=_ type=Unit
-expr e317 while cond=e309 body=e316 type=Unit
-expr e318 name(sb) type=Class#27 ref=s197
-expr e319 memberCall recv=e318 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e320 return value=e319 type=Nothing
-expr e321 this type=String
-expr e322 memberCall recv=e321 callee=length args=[] type=Int call=s8 map=[] targs=[]
-expr e323 localDecl len mutable=0 type=_ init=e322 type=Unit ref=s199
-expr e324 name(StringBuilder) type=Any ref=s27
-expr e325 call callee=e324 args=[] type=Class#27
-expr e326 localDecl sb mutable=0 type=_ init=e325 type=Unit ref=s200
-expr e327 name(len) type=Int ref=s199
-expr e328 int(1) type=Int
-expr e329 binary(subtract) lhs=e327 rhs=e328 type=Int
-expr e330 localDecl i mutable=1 type=_ init=e329 type=Unit ref=s201
-expr e331 name(i) type=Int ref=s201
-expr e332 int(0) type=Int
-expr e333 binary(greaterOrEqual) lhs=e331 rhs=e332 type=Boolean
-expr e334 name(sb) type=Class#27 ref=s200
-expr e335 this type=String
-expr e336 name(i) type=Int ref=s201
-expr e337 indexedAccess receiver=e335 indices=[e336] type=Char call=s13 map=[0->0] targs=[]
-expr e338 memberCall recv=e334 callee=append args=[_:e337] type=Class#27 call=s29 map=[0->0] targs=[]
-expr e339 name(i) type=_
-expr e340 int(1) type=Int
-expr e341 compoundAssign(minusAssign) name=i value=e340 type=Unit ref=s201
-expr e342 blockExpr stmts=[e338,e341] trailing=_ type=Unit
-expr e343 while cond=e333 body=e342 type=Unit
-expr e344 name(sb) type=Class#27 ref=s200
-expr e345 memberCall recv=e344 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e346 return value=e345 type=Nothing
-expr e347 char(32) type=_
-expr e348 name(length) type=Int ref=s66
-expr e349 this type=String
-expr e350 memberCall recv=e349 callee=length args=[] type=Int call=s8 map=[] targs=[]
-expr e351 binary(subtract) lhs=e348 rhs=e350 type=Int
-expr e352 localDecl padding mutable=0 type=_ init=e351 type=Unit ref=s202
-expr e353 name(padding) type=Int ref=s202
-expr e354 int(0) type=Int
-expr e355 binary(lessOrEqual) lhs=e353 rhs=e354 type=Boolean
-expr e356 this type=String
-expr e357 return value=e356 type=Nothing
-expr e358 if cond=e355 then=e357 else=_ type=Unit
-expr e359 name(StringBuilder) type=Any ref=s27
-expr e360 call callee=e359 args=[] type=Class#27
-expr e361 localDecl sb mutable=0 type=_ init=e360 type=Unit ref=s203
-expr e362 int(0) type=Int
-expr e363 localDecl i mutable=1 type=_ init=e362 type=Unit ref=s204
-expr e364 name(i) type=Int ref=s204
-expr e365 name(padding) type=Int ref=s202
-expr e366 binary(lessThan) lhs=e364 rhs=e365 type=Boolean
-expr e367 name(sb) type=Class#27 ref=s203
-expr e368 name(padChar) type=Char ref=s67
-expr e369 memberCall recv=e367 callee=append args=[_:e368] type=Class#27 call=s29 map=[0->0] targs=[]
-expr e370 name(i) type=_
-expr e371 int(1) type=Int
-expr e372 compoundAssign(plusAssign) name=i value=e371 type=Unit ref=s204
-expr e373 blockExpr stmts=[e369,e372] trailing=_ type=Unit
-expr e374 while cond=e366 body=e373 type=Unit
-expr e375 name(sb) type=Class#27 ref=s203
-expr e376 this type=String
-expr e377 memberCall recv=e375 callee=append args=[_:e376] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e378 name(sb) type=Class#27 ref=s203
-expr e379 memberCall recv=e378 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e380 return value=e379 type=Nothing
-expr e381 char(32) type=_
-expr e382 name(length) type=Int ref=s69
-expr e383 this type=String
-expr e384 memberCall recv=e383 callee=length args=[] type=Int call=s8 map=[] targs=[]
-expr e385 binary(subtract) lhs=e382 rhs=e384 type=Int
-expr e386 localDecl padding mutable=0 type=_ init=e385 type=Unit ref=s205
-expr e387 name(padding) type=Int ref=s205
-expr e388 int(0) type=Int
-expr e389 binary(lessOrEqual) lhs=e387 rhs=e388 type=Boolean
-expr e390 this type=String
-expr e391 return value=e390 type=Nothing
-expr e392 if cond=e389 then=e391 else=_ type=Unit
-expr e393 name(StringBuilder) type=Any ref=s27
-expr e394 call callee=e393 args=[] type=Class#27
-expr e395 localDecl sb mutable=0 type=_ init=e394 type=Unit ref=s206
-expr e396 name(sb) type=Class#27 ref=s206
-expr e397 this type=String
-expr e398 memberCall recv=e396 callee=append args=[_:e397] type=Class#27 call=s28 map=[0->0] targs=[]
-expr e399 int(0) type=Int
-expr e400 localDecl i mutable=1 type=_ init=e399 type=Unit ref=s207
-expr e401 name(i) type=Int ref=s207
-expr e402 name(padding) type=Int ref=s205
-expr e403 binary(lessThan) lhs=e401 rhs=e402 type=Boolean
-expr e404 name(sb) type=Class#27 ref=s206
-expr e405 name(padChar) type=Char ref=s70
-expr e406 memberCall recv=e404 callee=append args=[_:e405] type=Class#27 call=s29 map=[0->0] targs=[]
-expr e407 name(i) type=_
-expr e408 int(1) type=Int
-expr e409 compoundAssign(plusAssign) name=i value=e408 type=Unit ref=s207
-expr e410 blockExpr stmts=[e406,e409] trailing=_ type=Unit
-expr e411 while cond=e403 body=e410 type=Unit
-expr e412 name(sb) type=Class#27 ref=s206
-expr e413 memberCall recv=e412 callee=toString args=[] type=String call=s30 map=[] targs=[]
-expr e414 return value=e413 type=Nothing
-expr e415 this type=String
-expr e416 memberCall recv=e415 callee=__kk_encodeToByteArray args=[] type=Class#7 call=s16 map=[] targs=[]
-expr e417 this type=String
-expr e418 name(startIndex) type=Int ref=s73
-expr e419 name(endIndex) type=Int ref=s74
-expr e420 memberCall recv=e417 callee=__kk_encodeToByteArray_range args=[_:e418,_:e419] type=Class#7 call=s17 map=[0->0,1->1] targs=[]
-expr e421 this type=String
-expr e422 name(charset) type=Class#15 ref=s76
-expr e423 memberCall recv=e421 callee=__kk_encodeToByteArray_charset args=[_:e422] type=Class#7 call=s18 map=[0->0] targs=[]
-expr e424 this type=Class#7
-expr e425 memberCall recv=e424 callee=__kk_decodeToString args=[] type=String call=s19 map=[] targs=[]
-expr e426 this type=Class#7
-expr e427 name(charset) type=Class#15 ref=s79
-expr e428 memberCall recv=e426 callee=__kk_decodeToString_charset args=[_:e427] type=String call=s20 map=[0->0] targs=[]
-expr e429 this type=Class#7
-expr e430 name(startIndex) type=Int ref=s81
-expr e431 name(endIndex) type=Int ref=s82
-expr e432 memberCall recv=e429 callee=__kk_decodeToString_range args=[_:e430,_:e431] type=String call=s21 map=[0->0,1->1] targs=[]
-expr e433 this type=Class#7
-expr e434 name(startIndex) type=Int ref=s84
-expr e435 name(endIndex) type=Int ref=s85
-expr e436 name(throwOnInvalidSequence) type=Boolean ref=s86
-expr e437 memberCall recv=e433 callee=__kk_decodeToString_range_throw args=[_:e434,_:e435,_:e436] type=String call=s22 map=[0->0,1->1,2->2] targs=[]
-expr e438 name(User) type=_
-expr e439 name(name) type=String ref=s94
-expr e440 int(18) type=Int
-expr e441 call callee=e438 args=[_:e439,_:e440] type=Class#87 call=s88 map=[0->0,1->1] targs=[]
-expr e442 name(User) type=_
-expr e443 name(name) type=String ref=s96
-expr e444 int(0) type=Int
-expr e445 call callee=e442 args=[_:e443,_:e444] type=Class#87 call=s88 map=[0->0,1->1] targs=[]
-expr e446 name(User) type=_
-expr e447 name(name) type=String ref=s98
-expr e448 name(age) type=Int ref=s99
-expr e449 call callee=e446 args=[_:e447,_:e448] type=Class#87 call=s88 map=[0->0,1->1] targs=[]
-expr e450 name(name) type=String ref=s90
-expr e451 name(age) type=Int ref=s91
-expr e452 stringTemplate[expr(e450),lit( (),expr(e451),lit())] type=String
-expr e453 string(jdbc:default) type=String
-expr e454 int(10) type=Int
-expr e455 name(db) type=Class#100 ref=s106
-expr e456 memberCall recv=e455 callee=connection args=[] type=String ref=s102
-expr e457 name(db) type=Class#100 ref=s108
-expr e458 memberCall recv=e457 callee=maxConnections args=[] type=Int ref=s103
-expr e459 name(x) type=Int ref=s112
-expr e460 int(0) type=Int
-expr e461 binary(greaterThan) lhs=e459 rhs=e460 type=Boolean
-expr e462 name(x) type=Int ref=s114
-expr e463 name(x) type=Int ref=s114
-expr e464 binary(multiply) lhs=e462 rhs=e463 type=Int
-expr e465 name(calculator) type=Class#109 ref=s117
-expr e466 name(x) type=Int ref=s118
-expr e467 memberCall recv=e465 callee=validateInput args=[_:e466] type=Boolean call=s111 map=[0->0] targs=[]
-expr e468 name(calculator) type=Class#109 ref=s117
-expr e469 name(x) type=Int ref=s118
-expr e470 memberCall recv=e468 callee=square args=[_:e469] type=Int call=s113 map=[0->0] targs=[]
-expr e471 return value=e470 type=Nothing
-expr e472 blockExpr stmts=[] trailing=e471 type=Nothing
-expr e473 if cond=e467 then=e472 else=_ type=Unit
-expr e474 int(0) type=Int
-expr e475 return value=e474 type=Nothing
-expr e476 string(AppLogger) type=String
-expr e477 string(INFO) type=String
-expr e478 name(level) type=String ref=s128
-expr e479 name(message) type=String ref=s126
-expr e480 stringTemplate[lit([),expr(e478),lit(] ),expr(e479)] type=String
-expr e481 name(Companion) type=Class#124 ref=s124
-expr e482 name(message) type=String ref=s122
-expr e483 memberCall recv=e481 callee=format args=[_:e482] type=String call=s125 map=[0->0] targs=[]
-expr e484 return value=e483 type=Nothing
-expr e485 name(Companion) type=Class#124 ref=s124
-expr e486 memberCall recv=e485 callee=tag args=[] type=String ref=s127
-expr e487 return value=e486 type=Nothing
-expr e488 name(Product) type=_
-expr e489 name(name) type=String ref=s137
-expr e490 stringTemplate[lit(basic-),expr(e489)] type=String
-expr e491 name(name) type=String ref=s137
-expr e492 double(0.0) type=Double
-expr e493 call callee=e488 args=[_:e490,_:e491,_:e492] type=Class#129 call=s130 map=[0->0,1->1,2->2] targs=[]
-expr e494 name(Product) type=_
-expr e495 name(name) type=String ref=s139
-expr e496 stringTemplate[lit(premium-),expr(e495)] type=String
-expr e497 name(name) type=String ref=s139
-expr e498 name(price) type=Double ref=s140
-expr e499 call callee=e494 args=[_:e496,_:e497,_:e498] type=Class#129 call=s130 map=[0->0,1->1,2->2] targs=[]
-expr e500 name(Product) type=_
-expr e501 name(id) type=String ref=s142
-expr e502 name(name) type=String ref=s143
-expr e503 name(price) type=Double ref=s144
-expr e504 call callee=e500 args=[_:e501,_:e502,_:e503] type=Class#129 call=s130 map=[0->0,1->1,2->2] targs=[]
-expr e505 name(name) type=String ref=s133
-expr e506 name(price) type=Double ref=s134
-expr e507 name(id) type=String ref=s132
-expr e508 stringTemplate[expr(e505),lit( (),expr(e506),lit() - ID: ),expr(e507)] type=String
-expr e509 name(isValidEmail) type=_
-expr e510 name(address) type=String ref=s151
-expr e511 call callee=e509 args=[_:e510] type=Boolean call=s152 map=[0->0] targs=[]
-expr e512 name(EmailAddress) type=_
-expr e513 name(address) type=String ref=s151
-expr e514 call callee=e512 args=[_:e513] type=Class#145 call=s146 map=[0->0] targs=[]
-expr e515 return value=e514 type=Nothing
-expr e516 blockExpr stmts=[] trailing=e515 type=Nothing
-expr e517 if cond=e511 then=e516 else=_ type=Unit
-expr e518 name(null) type=Nothing?
-expr e519 return value=e518 type=Nothing
-expr e520 name(address) type=String ref=s153
-expr e521 string(@) type=String
-expr e522 memberCall recv=e520 callee=contains args=[_:e521] type=Boolean call=s12 map=[0->0] targs=[]
-expr e523 name(address) type=String ref=s153
-expr e524 string(.) type=String
-expr e525 memberCall recv=e523 callee=contains args=[_:e524] type=Boolean call=s12 map=[0->0] targs=[]
-expr e526 binary(logicalAnd) lhs=e522 rhs=e525 type=Boolean
-expr e527 return value=e526 type=Nothing
-expr e528 name(address) type=String ref=s148
-expr e529 string(outer) type=String
-expr e530 string(companion) type=String
-expr e531 name(outer) type=Class#154 ref=s160
-expr e532 memberCall recv=e531 callee=outerSecret args=[] type=String ref=s157
-expr e533 name(companionSecret) type=String ref=s162
-expr e534 name(Companion) type=Class#158 ref=s158
-expr e535 memberCall recv=e534 callee=companionSecret args=[] type=String ref=s162
-expr e536 name(NetworkClient) type=_
-expr e537 call callee=e536 args=[] type=Class#163 call=s164 map=[] targs=[]
-expr e538 name(NetworkClient) type=_
-expr e539 call callee=e538 args=[] type=Class#163 call=s164 map=[] targs=[]
-expr e540 name(FileManager) type=_
-expr e541 call callee=e540 args=[] type=Class#167 call=s168 map=[] targs=[]
-expr e542 name(FileManager) type=_
-expr e543 call callee=e542 args=[] type=Class#167 call=s168 map=[] targs=[]
-expr e544 int(30000) type=Int
-expr e545 int(1000) type=Int
-expr e546 name(User) type=Class#92 ref=s87
-expr e547 string(Alice) type=String
-expr e548 memberCall recv=e546 callee=createAdult args=[_:e547] type=Class#87 call=s93 map=[0->0] targs=[]
-expr e549 localDecl adult mutable=0 type=_ init=e548 type=Unit ref=s208
-expr e550 name(User) type=Class#92 ref=s87
-expr e551 string(Bob) type=String
-expr e552 memberCall recv=e550 callee=createChild args=[_:e551] type=Class#87 call=s95 map=[0->0] targs=[]
-expr e553 localDecl child mutable=0 type=_ init=e552 type=Unit ref=s209
-expr e554 name(User) type=Class#92 ref=s87
-expr e555 string(Charlie) type=String
-expr e556 int(25) type=Int
-expr e557 memberCall recv=e554 callee=fromNameAndAge args=[_:e555,_:e556] type=Class#87 call=s97 map=[0->0,1->1] targs=[]
-expr e558 localDecl custom mutable=0 type=_ init=e557 type=Unit ref=s210
-expr e559 name(println) type=_
-expr e560 name(adult) type=Class#87 ref=s208
-expr e561 memberCall recv=e560 callee=getInfo args=[] type=String call=s89 map=[] targs=[]
-expr e562 call callee=e559 args=[_:e561] type=Unit call=s31 map=[0->0] targs=[]
-expr e563 name(println) type=_
-expr e564 name(child) type=Class#87 ref=s209
-expr e565 memberCall recv=e564 callee=getInfo args=[] type=String call=s89 map=[] targs=[]
-expr e566 call callee=e563 args=[_:e565] type=Unit call=s31 map=[0->0] targs=[]
-expr e567 name(println) type=_
-expr e568 name(custom) type=Class#87 ref=s210
-expr e569 memberCall recv=e568 callee=getInfo args=[] type=String call=s89 map=[] targs=[]
-expr e570 call callee=e567 args=[_:e569] type=Unit call=s31 map=[0->0] targs=[]
-expr e571 name(Database) type=_
-expr e572 call callee=e571 args=[] type=Class#100 call=s101 map=[] targs=[]
-expr e573 localDecl db mutable=0 type=_ init=e572 type=Unit ref=s211
-expr e574 name(println) type=_
-expr e575 name(Database) type=Class#104 ref=s100
-expr e576 name(db) type=Class#100 ref=s211
-expr e577 memberCall recv=e575 callee=getConnection args=[_:e576] type=String call=s105 map=[0->0] targs=[]
-expr e578 call callee=e574 args=[_:e577] type=Unit call=s31 map=[0->0] targs=[]
-expr e579 name(println) type=_
-expr e580 name(Database) type=Class#104 ref=s100
-expr e581 name(db) type=Class#100 ref=s211
-expr e582 memberCall recv=e580 callee=getMaxConnections args=[_:e581] type=Int call=s107 map=[0->0] targs=[]
-expr e583 call callee=e579 args=[_:e582] type=Unit call=s31 map=[0->0] targs=[]
-expr e584 name(Calculator) type=_
-expr e585 call callee=e584 args=[] type=Class#109 call=s110 map=[] targs=[]
-expr e586 localDecl calc mutable=0 type=_ init=e585 type=Unit ref=s212
-expr e587 name(println) type=_
-expr e588 name(Calculator) type=Class#115 ref=s109
-expr e589 name(calc) type=Class#109 ref=s212
-expr e590 int(5) type=Int
-expr e591 memberCall recv=e588 callee=safeSquare args=[_:e589,_:e590] type=Int call=s116 map=[0->0,1->1] targs=[]
-expr e592 call callee=e587 args=[_:e591] type=Unit call=s31 map=[0->0] targs=[]
-expr e593 name(println) type=_
-expr e594 name(Calculator) type=Class#115 ref=s109
-expr e595 name(calc) type=Class#109 ref=s212
-expr e596 int(1) type=Int
-expr e597 unary(unaryMinus) operand=e596 type=Int
-expr e598 memberCall recv=e594 callee=safeSquare args=[_:e595,_:e597] type=Int call=s116 map=[0->0,1->1] targs=[]
-expr e599 call callee=e593 args=[_:e598] type=Unit call=s31 map=[0->0] targs=[]
-expr e600 name(Logger) type=_
-expr e601 call callee=e600 args=[] type=Class#119 call=s120 map=[] targs=[]
-expr e602 localDecl logger mutable=0 type=_ init=e601 type=Unit ref=s213
-expr e603 name(println) type=_
-expr e604 name(logger) type=Class#119 ref=s213
-expr e605 string(Test message) type=String
-expr e606 memberCall recv=e604 callee=log args=[_:e605] type=String call=s121 map=[0->0] targs=[]
-expr e607 call callee=e603 args=[_:e606] type=Unit call=s31 map=[0->0] targs=[]
-expr e608 name(println) type=_
-expr e609 name(logger) type=Class#119 ref=s213
-expr e610 memberCall recv=e609 callee=getTag args=[] type=String call=s123 map=[] targs=[]
-expr e611 call callee=e608 args=[_:e610] type=Unit call=s31 map=[0->0] targs=[]
-expr e612 name(Product) type=Class#135 ref=s129
-expr e613 string(Widget) type=String
-expr e614 memberCall recv=e612 callee=createBasicProduct args=[_:e613] type=Class#129 call=s136 map=[0->0] targs=[]
-expr e615 localDecl basic mutable=0 type=_ init=e614 type=Unit ref=s214
-expr e616 name(Product) type=Class#135 ref=s129
-expr e617 string(Gadget) type=String
-expr e618 double(99.99) type=Double
-expr e619 memberCall recv=e616 callee=createPremiumProduct args=[_:e617,_:e618] type=Class#129 call=s138 map=[0->0,1->1] targs=[]
-expr e620 localDecl premium mutable=0 type=_ init=e619 type=Unit ref=s215
-expr e621 name(Product) type=Class#135 ref=s129
-expr e622 string(P123) type=String
-expr e623 string(Thingamajig) type=String
-expr e624 double(49.95) type=Double
-expr e625 memberCall recv=e621 callee=fromCatalog args=[_:e622,_:e623,_:e624] type=Class#129 call=s141 map=[0->0,1->1,2->2] targs=[]
-expr e626 localDecl catalog mutable=0 type=_ init=e625 type=Unit ref=s216
-expr e627 name(println) type=_
-expr e628 name(basic) type=Class#129 ref=s214
-expr e629 memberCall recv=e628 callee=getDescription args=[] type=String call=s131 map=[] targs=[]
-expr e630 call callee=e627 args=[_:e629] type=Unit call=s31 map=[0->0] targs=[]
-expr e631 name(println) type=_
-expr e632 name(premium) type=Class#129 ref=s215
-expr e633 memberCall recv=e632 callee=getDescription args=[] type=String call=s131 map=[] targs=[]
-expr e634 call callee=e631 args=[_:e633] type=Unit call=s31 map=[0->0] targs=[]
-expr e635 name(println) type=_
-expr e636 name(catalog) type=Class#129 ref=s216
-expr e637 memberCall recv=e636 callee=getDescription args=[] type=String call=s131 map=[] targs=[]
-expr e638 call callee=e635 args=[_:e637] type=Unit call=s31 map=[0->0] targs=[]
-expr e639 name(EmailAddress) type=Class#149 ref=s145
-expr e640 string(test@example.com) type=String
-expr e641 memberCall recv=e639 callee=create args=[_:e640] type=Class#145? call=s150 map=[0->0] targs=[]
-expr e642 localDecl validEmail mutable=0 type=_ init=e641 type=Unit ref=s217
-expr e643 name(EmailAddress) type=Class#149 ref=s145
-expr e644 string(invalid-email) type=String
-expr e645 memberCall recv=e643 callee=create args=[_:e644] type=Class#145? call=s150 map=[0->0] targs=[]
-expr e646 localDecl invalidEmail mutable=0 type=_ init=e645 type=Unit ref=s218
-expr e647 name(println) type=_
-expr e648 name(validEmail) type=Class#145? ref=s217
-expr e649 safeMemberCall recv=e648 callee=toString args=[] type=String? call=s147 map=[] targs=[]
-expr e650 call callee=e647 args=[_:e649] type=Unit call=s31 map=[0->0] targs=[]
-expr e651 name(println) type=_
-expr e652 name(invalidEmail) type=Class#145? ref=s218
-expr e653 safeMemberCall recv=e652 callee=toString args=[] type=String? call=s147 map=[] targs=[]
-expr e654 call callee=e651 args=[_:e653] type=Unit call=s31 map=[0->0] targs=[]
-expr e655 name(OuterClass) type=_
-expr e656 call callee=e655 args=[] type=Class#154 call=s155 map=[] targs=[]
-expr e657 localDecl outer mutable=0 type=_ init=e656 type=Unit ref=s219
-expr e658 name(println) type=_
-expr e659 name(OuterClass) type=Class#158 ref=s154
-expr e660 name(outer) type=Class#154 ref=s219
-expr e661 memberCall recv=e659 callee=getOuterSecret args=[_:e660] type=String call=s159 map=[0->0] targs=[]
-expr e662 call callee=e658 args=[_:e661] type=Unit call=s31 map=[0->0] targs=[]
-expr e663 name(println) type=_
-expr e664 name(OuterClass) type=Class#158 ref=s154
-expr e665 memberCall recv=e664 callee=getCompanionSecret args=[] type=String call=s161 map=[] targs=[]
-expr e666 call callee=e663 args=[_:e665] type=Unit call=s31 map=[0->0] targs=[]
-expr e667 name(println) type=_
-expr e668 name(outer) type=Class#154 ref=s219
-expr e669 memberCall recv=e668 callee=getCompanionSecretFromOuter args=[] type=String call=s156 map=[] targs=[]
-expr e670 call callee=e667 args=[_:e669] type=Unit call=s31 map=[0->0] targs=[]
-expr e671 name(NetworkClient) type=Class#163 ref=s163
-expr e672 memberCall recv=e671 callee=createDefault args=[] type=<error>
-expr e673 localDecl client1 mutable=0 type=_ init=e672 type=Unit ref=s220
-expr e674 name(NetworkClient) type=Class#163 ref=s163
-expr e675 int(5000) type=Int
-expr e676 memberCall recv=e674 callee=createWithTimeout args=[_:e675] type=<error>
-expr e677 localDecl client2 mutable=0 type=_ init=e676 type=Unit ref=s221
-expr e678 name(println) type=_
-expr e679 name(NetworkClient) type=Class#163 ref=s163
-expr e680 memberCall recv=e679 callee=defaultTimeout args=[] type=<error>
-expr e681 stringTemplate[lit(Default timeout: ),expr(e680)] type=String
-expr e682 call callee=e678 args=[_:e681] type=Unit call=s31 map=[0->0] targs=[]
-expr e683 name(FileManager) type=Class#167 ref=s167
-expr e684 memberCall recv=e683 callee=createFile args=[] type=<error>
-expr e685 localDecl file1 mutable=0 type=_ init=e684 type=Unit ref=s222
-expr e686 name(FileManager) type=Class#167 ref=s167
-expr e687 memberCall recv=e686 callee=createReadOnly args=[] type=<error>
-expr e688 localDecl file2 mutable=0 type=_ init=e687 type=Unit ref=s223
-expr e689 name(println) type=_
-expr e690 name(FileManager) type=Class#167 ref=s167
-expr e691 memberCall recv=e690 callee=maxFiles args=[] type=<error>
-expr e692 stringTemplate[lit(Max files: ),expr(e691)] type=String
-expr e693 call callee=e689 args=[_:e692] type=Unit call=s31 map=[0->0] targs=[]
+expr e265 return value=e264 type=Nothing
+expr e266 if cond=e263 then=e265 else=_ type=Unit
+expr e267 name(StringBuilder) type=Any ref=s21
+expr e268 call callee=e267 args=[] type=Class#21
+expr e269 localDecl sb mutable=0 type=_ init=e268 type=Unit ref=s184
+expr e270 int(0) type=Int
+expr e271 localDecl i mutable=1 type=_ init=e270 type=Unit ref=s185
+expr e272 name(i) type=Int ref=s185
+expr e273 name(padding) type=Int ref=s183
+expr e274 binary(lessThan) lhs=e272 rhs=e273 type=Boolean
+expr e275 name(sb) type=Class#21 ref=s184
+expr e276 name(padChar) type=Char ref=s54
+expr e277 memberCall recv=e275 callee=append args=[_:e276] type=Class#21 call=s23
+expr e279 int(1) type=Int
+expr e280 compoundAssign(plusAssign) name=i value=e279 type=Unit ref=s185
+expr e281 blockExpr stmts=[e277,e280] trailing=_ type=Unit
+expr e282 while cond=e274 body=e281 type=Unit
+expr e283 name(sb) type=Class#21 ref=s184
+expr e284 this type=String
+expr e285 memberCall recv=e283 callee=append args=[_:e284] type=Class#21 call=s22
+expr e286 name(sb) type=Class#21 ref=s184
+expr e287 memberCall recv=e286 callee=toString args=[] type=String call=s24
+expr e288 return value=e287 type=Nothing
+expr e290 name(length) type=Int ref=s56
+expr e291 this type=String
+expr e292 memberCall recv=e291 callee=length args=[] type=Int call=s8
+expr e293 binary(subtract) lhs=e290 rhs=e292 type=Int
+expr e294 localDecl padding mutable=0 type=_ init=e293 type=Unit ref=s186
+expr e295 name(padding) type=Int ref=s186
+expr e296 int(0) type=Int
+expr e297 binary(lessOrEqual) lhs=e295 rhs=e296 type=Boolean
+expr e298 this type=String
+expr e299 return value=e298 type=Nothing
+expr e300 if cond=e297 then=e299 else=_ type=Unit
+expr e301 name(StringBuilder) type=Any ref=s21
+expr e302 call callee=e301 args=[] type=Class#21
+expr e303 localDecl sb mutable=0 type=_ init=e302 type=Unit ref=s187
+expr e304 name(sb) type=Class#21 ref=s187
+expr e305 this type=String
+expr e306 memberCall recv=e304 callee=append args=[_:e305] type=Class#21 call=s22
+expr e307 int(0) type=Int
+expr e308 localDecl i mutable=1 type=_ init=e307 type=Unit ref=s188
+expr e309 name(i) type=Int ref=s188
+expr e310 name(padding) type=Int ref=s186
+expr e311 binary(lessThan) lhs=e309 rhs=e310 type=Boolean
+expr e312 name(sb) type=Class#21 ref=s187
+expr e313 name(padChar) type=Char ref=s57
+expr e314 memberCall recv=e312 callee=append args=[_:e313] type=Class#21 call=s23
+expr e316 int(1) type=Int
+expr e317 compoundAssign(plusAssign) name=i value=e316 type=Unit ref=s188
+expr e318 blockExpr stmts=[e314,e317] trailing=_ type=Unit
+expr e319 while cond=e311 body=e318 type=Unit
+expr e320 name(sb) type=Class#21 ref=s187
+expr e321 memberCall recv=e320 callee=toString args=[] type=String call=s24
+expr e322 return value=e321 type=Nothing
+expr e323 this type=String
+expr e324 memberCall recv=e323 callee=__kk_encodeToByteArray args=[] type=Class#7 call=s12
+expr e325 this type=String
+expr e326 name(startIndex) type=Int ref=s60
+expr e327 name(endIndex) type=Int ref=s61
+expr e328 memberCall recv=e325 callee=__kk_encodeToByteArray_range args=[_:e326,_:e327] type=Class#7 call=s13
+expr e329 this type=String
+expr e330 name(charset) type=Class#11 ref=s63
+expr e331 memberCall recv=e329 callee=__kk_encodeToByteArray_charset args=[_:e330] type=Class#7 call=s14
+expr e332 this type=Class#7
+expr e333 memberCall recv=e332 callee=__kk_decodeToString args=[] type=String call=s15
+expr e334 this type=Class#7
+expr e335 name(charset) type=Class#11 ref=s66
+expr e336 memberCall recv=e334 callee=__kk_decodeToString_charset args=[_:e335] type=String call=s16
+expr e337 this type=Class#7
+expr e338 name(startIndex) type=Int ref=s68
+expr e339 name(endIndex) type=Int ref=s69
+expr e340 memberCall recv=e337 callee=__kk_decodeToString_range args=[_:e338,_:e339] type=String call=s17
+expr e341 this type=Class#7
+expr e342 name(startIndex) type=Int ref=s71
+expr e343 name(endIndex) type=Int ref=s72
+expr e344 name(throwOnInvalidSequence) type=Boolean ref=s73
+expr e345 memberCall recv=e341 callee=__kk_decodeToString_range_throw args=[_:e342,_:e343,_:e344] type=String call=s18
+expr e347 name(name) type=String ref=s81
+expr e348 int(18) type=Int
+expr e349 call callee=e346 args=[_:e347,_:e348] type=Class#74 call=s75
+expr e351 name(name) type=String ref=s83
+expr e352 int(0) type=Int
+expr e353 call callee=e350 args=[_:e351,_:e352] type=Class#74 call=s75
+expr e355 name(name) type=String ref=s85
+expr e356 name(age) type=Int ref=s86
+expr e357 call callee=e354 args=[_:e355,_:e356] type=Class#74 call=s75
+expr e358 name(name) type=String ref=s77
+expr e359 name(age) type=Int ref=s78
+expr e360 stringTemplate[expr(e358),lit( (),expr(e359),lit())] type=String
+expr e361 string(jdbc:default) type=String
+expr e362 int(10) type=Int
+expr e363 name(db) type=Class#87 ref=s93
+expr e364 memberCall recv=e363 callee=connection args=[] type=String ref=s89
+expr e365 name(db) type=Class#87 ref=s95
+expr e366 memberCall recv=e365 callee=maxConnections args=[] type=Int ref=s90
+expr e367 name(x) type=Int ref=s99
+expr e368 int(0) type=Int
+expr e369 binary(greaterThan) lhs=e367 rhs=e368 type=Boolean
+expr e370 name(x) type=Int ref=s101
+expr e371 name(x) type=Int ref=s101
+expr e372 binary(multiply) lhs=e370 rhs=e371 type=Int
+expr e373 name(calculator) type=Class#96 ref=s104
+expr e374 name(x) type=Int ref=s105
+expr e375 memberCall recv=e373 callee=validateInput args=[_:e374] type=Boolean call=s98
+expr e376 name(calculator) type=Class#96 ref=s104
+expr e377 name(x) type=Int ref=s105
+expr e378 memberCall recv=e376 callee=square args=[_:e377] type=Int call=s100
+expr e379 return value=e378 type=Nothing
+expr e380 blockExpr stmts=[] trailing=e379 type=Nothing
+expr e381 if cond=e375 then=e380 else=_ type=Unit
+expr e382 int(0) type=Int
+expr e383 return value=e382 type=Nothing
+expr e384 string(AppLogger) type=String
+expr e385 string(INFO) type=String
+expr e386 name(level) type=String ref=s115
+expr e387 name(message) type=String ref=s113
+expr e388 stringTemplate[lit([),expr(e386),lit(] ),expr(e387)] type=String
+expr e389 name(Companion) type=Class#111 ref=s111
+expr e390 name(message) type=String ref=s109
+expr e391 memberCall recv=e389 callee=format args=[_:e390] type=String call=s112
+expr e392 return value=e391 type=Nothing
+expr e393 name(Companion) type=Class#111 ref=s111
+expr e394 memberCall recv=e393 callee=tag args=[] type=String ref=s114
+expr e395 return value=e394 type=Nothing
+expr e397 name(name) type=String ref=s124
+expr e398 stringTemplate[lit(basic-),expr(e397)] type=String
+expr e399 name(name) type=String ref=s124
+expr e400 double(0.0) type=Double
+expr e401 call callee=e396 args=[_:e398,_:e399,_:e400] type=Class#116 call=s117
+expr e403 name(name) type=String ref=s126
+expr e404 stringTemplate[lit(premium-),expr(e403)] type=String
+expr e405 name(name) type=String ref=s126
+expr e406 name(price) type=Double ref=s127
+expr e407 call callee=e402 args=[_:e404,_:e405,_:e406] type=Class#116 call=s117
+expr e409 name(id) type=String ref=s129
+expr e410 name(name) type=String ref=s130
+expr e411 name(price) type=Double ref=s131
+expr e412 call callee=e408 args=[_:e409,_:e410,_:e411] type=Class#116 call=s117
+expr e413 name(name) type=String ref=s120
+expr e414 name(price) type=Double ref=s121
+expr e415 name(id) type=String ref=s119
+expr e416 stringTemplate[expr(e413),lit( (),expr(e414),lit() - ID: ),expr(e415)] type=String
+expr e418 name(address) type=String ref=s138
+expr e419 call callee=e417 args=[_:e418] type=Boolean call=s139
+expr e421 name(address) type=String ref=s138
+expr e422 call callee=e420 args=[_:e421] type=Class#132 call=s133
+expr e423 return value=e422 type=Nothing
+expr e424 blockExpr stmts=[] trailing=e423 type=Nothing
+expr e425 if cond=e419 then=e424 else=_ type=Unit
+expr e426 name(null) type=Nothing?
+expr e427 return value=e426 type=Nothing
+expr e428 name(address) type=String ref=s140
+expr e429 string(@) type=String
+expr e430 memberCall recv=e428 callee=contains args=[_:e429] type=Boolean call=s9
+expr e431 name(address) type=String ref=s140
+expr e432 string(.) type=String
+expr e433 memberCall recv=e431 callee=contains args=[_:e432] type=Boolean call=s9
+expr e434 binary(logicalAnd) lhs=e430 rhs=e433 type=Boolean
+expr e435 return value=e434 type=Nothing
+expr e436 name(address) type=String ref=s135
+expr e437 string(outer) type=String
+expr e438 string(companion) type=String
+expr e439 name(outer) type=Class#141 ref=s147
+expr e440 memberCall recv=e439 callee=outerSecret args=[] type=String ref=s144
+expr e441 name(companionSecret) type=String ref=s149
+expr e442 name(Companion) type=Class#145 ref=s145
+expr e443 memberCall recv=e442 callee=companionSecret args=[] type=String ref=s149
+expr e445 call callee=e444 args=[] type=Class#150 call=s151
+expr e447 call callee=e446 args=[] type=Class#150 call=s151
+expr e449 call callee=e448 args=[] type=Class#154 call=s155
+expr e451 call callee=e450 args=[] type=Class#154 call=s155
+expr e452 int(30000) type=Int
+expr e453 int(1000) type=Int
+expr e454 name(User) type=Class#79 ref=s74
+expr e455 string(Alice) type=String
+expr e456 memberCall recv=e454 callee=createAdult args=[_:e455] type=Class#74 call=s80
+expr e457 localDecl adult mutable=0 type=_ init=e456 type=Unit ref=s189
+expr e458 name(User) type=Class#79 ref=s74
+expr e459 string(Bob) type=String
+expr e460 memberCall recv=e458 callee=createChild args=[_:e459] type=Class#74 call=s82
+expr e461 localDecl child mutable=0 type=_ init=e460 type=Unit ref=s190
+expr e462 name(User) type=Class#79 ref=s74
+expr e463 string(Charlie) type=String
+expr e464 int(25) type=Int
+expr e465 memberCall recv=e462 callee=fromNameAndAge args=[_:e463,_:e464] type=Class#74 call=s84
+expr e466 localDecl custom mutable=0 type=_ init=e465 type=Unit ref=s191
+expr e468 name(adult) type=Class#74 ref=s189
+expr e469 memberCall recv=e468 callee=getInfo args=[] type=String call=s76
+expr e470 call callee=e467 args=[_:e469] type=Unit call=s25
+expr e472 name(child) type=Class#74 ref=s190
+expr e473 memberCall recv=e472 callee=getInfo args=[] type=String call=s76
+expr e474 call callee=e471 args=[_:e473] type=Unit call=s25
+expr e476 name(custom) type=Class#74 ref=s191
+expr e477 memberCall recv=e476 callee=getInfo args=[] type=String call=s76
+expr e478 call callee=e475 args=[_:e477] type=Unit call=s25
+expr e480 call callee=e479 args=[] type=Class#87 call=s88
+expr e481 localDecl db mutable=0 type=_ init=e480 type=Unit ref=s192
+expr e483 name(Database) type=Class#91 ref=s87
+expr e484 name(db) type=Class#87 ref=s192
+expr e485 memberCall recv=e483 callee=getConnection args=[_:e484] type=String call=s92
+expr e486 call callee=e482 args=[_:e485] type=Unit call=s25
+expr e488 name(Database) type=Class#91 ref=s87
+expr e489 name(db) type=Class#87 ref=s192
+expr e490 memberCall recv=e488 callee=getMaxConnections args=[_:e489] type=Int call=s94
+expr e491 call callee=e487 args=[_:e490] type=Unit call=s25
+expr e493 call callee=e492 args=[] type=Class#96 call=s97
+expr e494 localDecl calc mutable=0 type=_ init=e493 type=Unit ref=s193
+expr e496 name(Calculator) type=Class#102 ref=s96
+expr e497 name(calc) type=Class#96 ref=s193
+expr e498 int(5) type=Int
+expr e499 memberCall recv=e496 callee=safeSquare args=[_:e497,_:e498] type=Int call=s103
+expr e500 call callee=e495 args=[_:e499] type=Unit call=s25
+expr e502 name(Calculator) type=Class#102 ref=s96
+expr e503 name(calc) type=Class#96 ref=s193
+expr e504 int(1) type=Int
+expr e505 unary(unaryMinus) operand=e504 type=Int
+expr e506 memberCall recv=e502 callee=safeSquare args=[_:e503,_:e505] type=Int call=s103
+expr e507 call callee=e501 args=[_:e506] type=Unit call=s25
+expr e509 call callee=e508 args=[] type=Class#106 call=s107
+expr e510 localDecl logger mutable=0 type=_ init=e509 type=Unit ref=s194
+expr e512 name(logger) type=Class#106 ref=s194
+expr e513 string(Test message) type=String
+expr e514 memberCall recv=e512 callee=log args=[_:e513] type=String call=s108
+expr e515 call callee=e511 args=[_:e514] type=Unit call=s25
+expr e517 name(logger) type=Class#106 ref=s194
+expr e518 memberCall recv=e517 callee=getTag args=[] type=String call=s110
+expr e519 call callee=e516 args=[_:e518] type=Unit call=s25
+expr e520 name(Product) type=Class#122 ref=s116
+expr e521 string(Widget) type=String
+expr e522 memberCall recv=e520 callee=createBasicProduct args=[_:e521] type=Class#116 call=s123
+expr e523 localDecl basic mutable=0 type=_ init=e522 type=Unit ref=s195
+expr e524 name(Product) type=Class#122 ref=s116
+expr e525 string(Gadget) type=String
+expr e526 double(99.99) type=Double
+expr e527 memberCall recv=e524 callee=createPremiumProduct args=[_:e525,_:e526] type=Class#116 call=s125
+expr e528 localDecl premium mutable=0 type=_ init=e527 type=Unit ref=s196
+expr e529 name(Product) type=Class#122 ref=s116
+expr e530 string(P123) type=String
+expr e531 string(Thingamajig) type=String
+expr e532 double(49.95) type=Double
+expr e533 memberCall recv=e529 callee=fromCatalog args=[_:e530,_:e531,_:e532] type=Class#116 call=s128
+expr e534 localDecl catalog mutable=0 type=_ init=e533 type=Unit ref=s197
+expr e536 name(basic) type=Class#116 ref=s195
+expr e537 memberCall recv=e536 callee=getDescription args=[] type=String call=s118
+expr e538 call callee=e535 args=[_:e537] type=Unit call=s25
+expr e540 name(premium) type=Class#116 ref=s196
+expr e541 memberCall recv=e540 callee=getDescription args=[] type=String call=s118
+expr e542 call callee=e539 args=[_:e541] type=Unit call=s25
+expr e544 name(catalog) type=Class#116 ref=s197
+expr e545 memberCall recv=e544 callee=getDescription args=[] type=String call=s118
+expr e546 call callee=e543 args=[_:e545] type=Unit call=s25
+expr e547 name(EmailAddress) type=Class#136 ref=s132
+expr e548 string(test@example.com) type=String
+expr e549 memberCall recv=e547 callee=create args=[_:e548] type=Class#132? call=s137
+expr e550 localDecl validEmail mutable=0 type=_ init=e549 type=Unit ref=s198
+expr e551 name(EmailAddress) type=Class#136 ref=s132
+expr e552 string(invalid-email) type=String
+expr e553 memberCall recv=e551 callee=create args=[_:e552] type=Class#132? call=s137
+expr e554 localDecl invalidEmail mutable=0 type=_ init=e553 type=Unit ref=s199
+expr e556 name(validEmail) type=Class#132? ref=s198
+expr e557 safeMemberCall recv=e556 callee=toString args=[] type=String? call=s134
+expr e558 call callee=e555 args=[_:e557] type=Unit call=s25
+expr e560 name(invalidEmail) type=Class#132? ref=s199
+expr e561 safeMemberCall recv=e560 callee=toString args=[] type=String? call=s134
+expr e562 call callee=e559 args=[_:e561] type=Unit call=s25
+expr e564 call callee=e563 args=[] type=Class#141 call=s142
+expr e565 localDecl outer mutable=0 type=_ init=e564 type=Unit ref=s200
+expr e567 name(OuterClass) type=Class#145 ref=s141
+expr e568 name(outer) type=Class#141 ref=s200
+expr e569 memberCall recv=e567 callee=getOuterSecret args=[_:e568] type=String call=s146
+expr e570 call callee=e566 args=[_:e569] type=Unit call=s25
+expr e572 name(OuterClass) type=Class#145 ref=s141
+expr e573 memberCall recv=e572 callee=getCompanionSecret args=[] type=String call=s148
+expr e574 call callee=e571 args=[_:e573] type=Unit call=s25
+expr e576 name(outer) type=Class#141 ref=s200
+expr e577 memberCall recv=e576 callee=getCompanionSecretFromOuter args=[] type=String call=s143
+expr e578 call callee=e575 args=[_:e577] type=Unit call=s25
+expr e579 name(NetworkClient) type=Class#150 ref=s150
+expr e580 memberCall recv=e579 callee=createDefault args=[] type=<error>
+expr e581 localDecl client1 mutable=0 type=_ init=e580 type=Unit ref=s201
+expr e582 name(NetworkClient) type=Class#150 ref=s150
+expr e583 int(5000) type=Int
+expr e584 memberCall recv=e582 callee=createWithTimeout args=[_:e583] type=<error>
+expr e585 localDecl client2 mutable=0 type=_ init=e584 type=Unit ref=s202
+expr e587 name(NetworkClient) type=Class#150 ref=s150
+expr e588 memberCall recv=e587 callee=defaultTimeout args=[] type=<error>
+expr e589 stringTemplate[lit(Default timeout: ),expr(e588)] type=String
+expr e590 call callee=e586 args=[_:e589] type=Unit call=s25
+expr e591 name(FileManager) type=Class#154 ref=s154
+expr e592 memberCall recv=e591 callee=createFile args=[] type=<error>
+expr e593 localDecl file1 mutable=0 type=_ init=e592 type=Unit ref=s203
+expr e594 name(FileManager) type=Class#154 ref=s154
+expr e595 memberCall recv=e594 callee=createReadOnly args=[] type=<error>
+expr e596 localDecl file2 mutable=0 type=_ init=e595 type=Unit ref=s204
+expr e598 name(FileManager) type=Class#154 ref=s154
+expr e599 memberCall recv=e598 callee=maxFiles args=[] type=<error>
+expr e600 stringTemplate[lit(Max files: ),expr(e599)] type=String
+expr e601 call callee=e597 args=[_:e600] type=Unit call=s25
