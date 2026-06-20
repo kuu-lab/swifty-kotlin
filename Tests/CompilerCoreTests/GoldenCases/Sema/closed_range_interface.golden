@@ -412,7 +412,7 @@ expr e201 name(initial) type=T#65 ref=s66
 expr e202 localDecl accumulator mutable=1 type=_ init=e201 type=Unit ref=s143
 expr e203 name(result) type=Class#7<T#65> ref=s142
 expr e204 name(accumulator) type=T#65 ref=s143
-expr e205 memberCall recv=e203 callee=add args=[_:e204] type=Boolean call=s9 map=[0->0] targs=[T#65]
+expr e205 memberCall recv=e203 callee=add args=[_:e204] type=Boolean call=s9 map=[0->0] targs=[]
 expr e206 int(0) type=Int
 expr e207 localDecl i mutable=1 type=_ init=e206 type=Unit ref=s144
 expr e208 name(i) type=Int ref=s144
@@ -428,7 +428,7 @@ expr e217 call callee=e212 args=[_:e213,_:e216] type=T#65
 expr e218 localAssign accumulator value=e217 type=Unit ref=s143
 expr e219 name(result) type=Class#7<T#65> ref=s142
 expr e220 name(accumulator) type=T#65 ref=s143
-expr e221 memberCall recv=e219 callee=add args=[_:e220] type=Boolean call=s9 map=[0->0] targs=[T#65]
+expr e221 memberCall recv=e219 callee=add args=[_:e220] type=Boolean call=s9 map=[0->0] targs=[]
 expr e222 name(i) type=_
 expr e223 int(1) type=Int
 expr e224 compoundAssign(plusAssign) name=i value=e223 type=Unit ref=s144
@@ -443,7 +443,7 @@ expr e232 name(initial) type=T#70 ref=s71
 expr e233 localDecl accumulator mutable=1 type=_ init=e232 type=Unit ref=s146
 expr e234 name(result) type=Class#7<T#70> ref=s145
 expr e235 name(accumulator) type=T#70 ref=s146
-expr e236 memberCall recv=e234 callee=add args=[_:e235] type=Boolean call=s9 map=[0->0] targs=[T#70]
+expr e236 memberCall recv=e234 callee=add args=[_:e235] type=Boolean call=s9 map=[0->0] targs=[]
 expr e237 int(0) type=Int
 expr e238 localDecl i mutable=1 type=_ init=e237 type=Unit ref=s147
 expr e239 name(i) type=Int ref=s147
@@ -459,7 +459,7 @@ expr e248 call callee=e243 args=[_:e244,_:e247] type=T#70
 expr e249 localAssign accumulator value=e248 type=Unit ref=s146
 expr e250 name(result) type=Class#7<T#70> ref=s145
 expr e251 name(accumulator) type=T#70 ref=s146
-expr e252 memberCall recv=e250 callee=add args=[_:e251] type=Boolean call=s9 map=[0->0] targs=[T#70]
+expr e252 memberCall recv=e250 callee=add args=[_:e251] type=Boolean call=s9 map=[0->0] targs=[]
 expr e253 name(i) type=_
 expr e254 int(1) type=Int
 expr e255 compoundAssign(plusAssign) name=i value=e254 type=Unit ref=s147
