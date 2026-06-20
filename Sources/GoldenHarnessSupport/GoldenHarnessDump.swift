@@ -24,8 +24,12 @@ enum GoldenHarnessDump {
         try LoadSourcesPhase().run(ctx)
         try LexPhase().run(ctx)
 
+        guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
+            return ""
+        }
+
         var lines: [String] = []
-        for token in ctx.tokens {
+        for token in ctx.tokens where token.range.start.file == sourceFileID {
             lines.append("\(GoldenHarnessSyntaxFormat.renderTokenKind(token.kind, interner: ctx.interner)) \(GoldenHarnessSyntaxFormat.renderRange(token.range))")
         }
         return lines.joined(separator: "\n") + "\n"
@@ -37,12 +41,15 @@ enum GoldenHarnessDump {
         try LexPhase().run(ctx)
         try ParsePhase().run(ctx)
 
-        guard let syntax = ctx.syntaxTree else {
+        guard let sourceFileID = ctx.sourceManager.fileID(forPath: sourcePath) else {
+            throw GoldenHarnessDumpError.missingSyntaxTree
+        }
+        guard let (_, syntax, root) = ctx.syntaxTrees.first(where: { $0.0 == sourceFileID }) else {
             throw GoldenHarnessDumpError.missingSyntaxTree
         }
         var lines: [String] = []
         GoldenHarnessSyntaxFormat.dumpSyntaxNode(
-            id: ctx.syntaxTreeRoot,
+            id: root,
             syntax: syntax,
             interner: ctx.interner,
             indent: "",
