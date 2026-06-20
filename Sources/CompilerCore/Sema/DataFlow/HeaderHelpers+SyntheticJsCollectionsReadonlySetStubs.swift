@@ -26,7 +26,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func ensureJsReadonlySetForConversions(
+    func ensureJsReadonlySetForConversions(
         packageFQName: [InternedString],
         symbols: SymbolTable,
         types: TypeSystem,
@@ -80,7 +80,7 @@ extension DataFlowSemaPhase {
         return (interfaceSymbol, typeParamSymbol)
     }
 
-    private func appendJsCollectionsReadonlySetAnnotation(
+    func appendJsCollectionsReadonlySetAnnotation(
         to symbol: SymbolID,
         symbols: SymbolTable
     ) {
