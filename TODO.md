@@ -381,7 +381,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [x] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
 - [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
 - [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
 - [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
