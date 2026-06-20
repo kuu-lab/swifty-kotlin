@@ -549,7 +549,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Map関連stub
 - [x] CLEANUP-STUB-007: `kk_js_map_toMap` stub削除
 #### JS Set関連stub
-- [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
+- [x] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
 - [x] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
