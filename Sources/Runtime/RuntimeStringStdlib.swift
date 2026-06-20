@@ -3971,19 +3971,7 @@ public func kk_string_toBigDecimal(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
 @_cdecl("kk_string_toBigInteger")
 public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: strRaw),
-          let str = extractString(from: ptr)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
-    }
-    // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
-    // leading/trailing whitespace, so we validate the raw string as-is.
-    guard let value = runtimeParseBigIntegerDecimalString(str) else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
-        return 0
-    }
-    let box = RuntimeBigIntegerBox(value: value)
-    return registerRuntimeObject(box)
+    return kk_biginteger_fromString(strRaw, outThrown)
 }
 
 @_cdecl("kk_string_toBigIntegerOrNull")
