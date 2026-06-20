@@ -11,7 +11,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#0<T#1>' but found 'Class#0<Any>'.",
+      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#387<T#6578>' but found 'Class#387<Any>'.",
       "codeActions": []
     },
     {
@@ -24,7 +24,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'value' has incompatible return type. Expected covariant relationship with 'T#2' but found 'Any'.",
+      "message": "Override of 'value' has incompatible return type. Expected covariant relationship with 'T#6585' but found 'Any'.",
       "codeActions": []
     },
     {
@@ -37,7 +37,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'pair' has incompatible return type. Expected covariant relationship with 'Class#3<T#4, T#4>' but found 'Class#3<Int, String>'.",
+      "message": "Override of 'pair' has incompatible return type. Expected covariant relationship with 'Class#244<T#6592, T#6592>' but found 'Class#244<Int, String>'.",
       "codeActions": []
     },
     {
@@ -50,7 +50,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#0<T#1>' but found 'Class#0<Any>'.",
+      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#387<T#6578>' but found 'Class#387<Any>'.",
       "codeActions": []
     },
     {
@@ -63,7 +63,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'create' has incompatible return type. Expected covariant relationship with 'Class#0<T#5>' but found 'Class#0<Int>'.",
+      "message": "Override of 'create' has incompatible return type. Expected covariant relationship with 'Class#387<T#6607>' but found 'Class#387<Int>'.",
       "codeActions": []
     }
   ]
