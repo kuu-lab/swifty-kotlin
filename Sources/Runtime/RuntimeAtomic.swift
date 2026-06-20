@@ -1222,6 +1222,11 @@ public func kk_atomic_long_array_asJavaAtomicArray(_ receiver: Int) -> Int {
     receiver
 }
 
+@_cdecl("kk_java_atomic_long_array_asKotlinAtomicArray")
+public func kk_java_atomic_long_array_asKotlinAtomicArray(_ receiver: Int) -> Int {
+    receiver
+}
+
 @_cdecl("kk_atomic_long_array_fetchAndUpdateAt")
 public func kk_atomic_long_array_fetchAndUpdateAt(
     _ receiver: Int,
