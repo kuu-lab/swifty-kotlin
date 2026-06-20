@@ -344,7 +344,6 @@ extension ABIMismatchTests {
         "kk_java_atomic_bool_asKotlinAtomic",
         "kk_java_atomic_int_array_asKotlinAtomicArray",
         "kk_java_atomic_int_asKotlinAtomic",
-        "kk_java_atomic_long_asKotlinAtomic",
         "kk_java_atomic_ref_array_asKotlinAtomicArray",
         "kk_job_await_completion",
         "kk_job_cancel",
