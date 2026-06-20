@@ -666,15 +666,6 @@ public extension RuntimeABISpec {
             isThrowing: false
                 ),
                 RuntimeABIFunctionSpec(
-                    name: "kk_list_indexOf",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection"
-                ),
-                RuntimeABIFunctionSpec(
                     name: "kk_list_lastIndexOf",
                     parameters: [
                         RuntimeABIParameter(name: "listRaw", type: .intptr),
