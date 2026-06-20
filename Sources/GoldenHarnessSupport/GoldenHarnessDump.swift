@@ -87,10 +87,14 @@ enum GoldenHarnessDump {
             lines.append(renderFile(file, ast: ast, sema: sema, interner: interner))
         }
 
-        // Render expressions
+        // Render expressions (skip those with no semantic info)
         for raw in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(raw))
             guard let expr = ast.arena.expr(exprID) else { continue }
+            let hasType = sema.bindings.exprTypes[exprID] != nil
+            let hasRef = sema.bindings.identifierSymbols[exprID] != nil
+            let hasCall = sema.bindings.callBindings[exprID] != nil
+            guard hasType || hasRef || hasCall else { continue }
             lines.append(renderExpression(expr, id: exprID, sema: sema, interner: interner))
         }
 
@@ -150,11 +154,11 @@ enum GoldenHarnessDump {
         }
 
         if let callBinding = sema.bindings.callBindings[id] {
-            let map = callBinding.parameterMapping.keys.sorted().map { key in
-                "\(key)->\(callBinding.parameterMapping[key] ?? -1)"
-            }.joined(separator: ",")
-            let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
-            line += " call=s\(callBinding.chosenCallee.rawValue) map=[\(map)] targs=[\(typeArgs)]"
+            line += " call=s\(callBinding.chosenCallee.rawValue)"
+            if !callBinding.substitutedTypeArguments.isEmpty {
+                let typeArgs = callBinding.substitutedTypeArguments.map { sema.types.renderType($0) }.joined(separator: ",")
+                line += " targs=[\(typeArgs)]"
+            }
         }
 
         return line
