@@ -16,17 +16,8 @@
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
 #### kotlin.io.path 関数の実装
-- [x] STDLIB-IO-PATH-FN-011: `createSymbolicLinkPointingTo` 関数の実装
-- [x] STDLIB-IO-PATH-FN-018: `fileVisitor` 関数の実装
-- [x] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-023: `getOwner` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-026: `moveTo` 関数の実装
-- [x] STDLIB-IO-PATH-FN-028: `outputStream` 関数の実装
-- [x] STDLIB-IO-PATH-FN-030: `readAttributes` 関数の実装
-- [x] STDLIB-IO-PATH-FN-032: `setAttribute` 関数の実装
-- [x] STDLIB-IO-PATH-FN-037: `useDirectoryEntries` 関数の実装
-- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
-- [x] STDLIB-IO-PATH-FN-038: `useLines` 関数の実装
+- [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
+- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
@@ -45,7 +36,7 @@
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
 - [x] STDLIB-TEXT-FN-008: `buildStringBuilder` 関数の実装
-- [x] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
+- [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
 - [ ] STDLIB-TEXT-FN-019: `indent` 関数の実装
@@ -89,7 +80,7 @@
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
-- [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
 
 #### kotlin.time 型の実装
@@ -126,7 +117,6 @@
 - [ ] STDLIB-COMP-FN-051: `minOf` 関数の実装（UInt版）
 - [ ] STDLIB-COMP-FN-052: `minOf` 関数の実装（ULong版）
 - [ ] STDLIB-COMP-FN-053: `minOf` 関数の実装（UShort版）
-- [x] STDLIB-COMP-FN-055: `minWith` 関数の実装
 - [ ] STDLIB-COMP-FN-059: `nullsFirst` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-061: `nullsLast` 関数の実装（Comparable版）
 - [ ] STDLIB-COMP-FN-062: `nullsLast` 関数の実装（Comparator版）
@@ -183,13 +173,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeStringStdlib.swift` (211 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/`
 
-- [x] MIGRATION-TEXT-001: String 変換・切り出し関数を Kotlin source に移行する（`trim`, `trimStart`, `trimEnd`, `substring`, `subSequence`, `take`, `takeLast`, `drop`, `dropLast`）
-- [x] MIGRATION-TEXT-002: String 検索・置換関数を Kotlin source に移行する（`replace`, `replaceFirst`, `replaceRange`, `removeRange`, `removeSuffix`, `removePrefix`, `removeSurrounding`）
-- [x] MIGRATION-TEXT-003: String パディング・繰り返し関数を Kotlin source に移行する（`padStart`, `padEnd`, `repeat`, `reversed`）
-- [x] MIGRATION-TEXT-004: String 分割・結合関数を Kotlin source に移行する（`split`, `splitToSequence`, `joinToString`, `chunked`, `windowed`, `zipWithNext`, `zip`）
 - [ ] MIGRATION-TEXT-005: String 大文字小文字・ロケール関数を Kotlin source に移行する（`lowercase`, `uppercase`, `capitalize`, `replaceFirstChar`, locale 版）
-- [x] MIGRATION-TEXT-006: String インデント・フォーマット関数を Kotlin source に移行する（`trimIndent`, `trimMargin`, `prependIndent`, `replaceIndent`, `format`）
-- [x] MIGRATION-TEXT-007: String encode/decode 関数を Kotlin source に移行する（`encodeToByteArray`, `decodeToString`, charset 版含む）
 - [ ] MIGRATION-TEXT-008: String HOF 関数を Kotlin source に移行する（`filter`, `filterNot`, `filterIndexed`, `map`, `mapIndexed`, `mapNotNull`, `flatMap`, `fold`, `reduce`, `scan` 等）
 
 ### Phase M2: kotlin.text StringBuilder
@@ -201,8 +185,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeCollectionHOF.swift` (166), `RuntimeCollectionHOFArray.swift` (27), `RuntimeCollectionHOFGrouping.swift` (11), `RuntimeCollectionHOFMaxMin.swift` (26), `RuntimeCollections.swift` (85)
 > 移行先: `Stdlib/kotlin/collections/`
 
-- [x] MIGRATION-COL-002: List 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`）
-- [x] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
+- [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
 - [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
 - [ ] MIGRATION-COL-005: List 検索 HOF を Kotlin source に移行する（`first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `singleOrNull`, `find`, `findLast`, `indexOf`, `indexOfFirst`, `indexOfLast`）
 - [x] MIGRATION-COL-006: List ソート・比較 HOF を Kotlin source に移行する（`sorted`, `sortedBy`, `sortedByDescending`, `sortedWith`, `reversed`, `shuffled`）
@@ -315,8 +298,8 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 ## ターゲット外バックログ（本体非追跡）
 ### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
 #### JS Array関連stub
-- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
-- [x] CLEANUP-STUB-004: `kk_js_array_create` stub削除
+- [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
+- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [x] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
 #### JS Map関連stub
@@ -324,7 +307,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Set関連stub
 - [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
-- [ ] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
+- [x] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
 - [ ] CLEANUP-STUB-014: `kk_js_boolean_toBoolean` stub削除
 - [x] CLEANUP-STUB-015: `kk_js_reference_get` stub削除
@@ -361,9 +344,6 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-041: JS ParseFloat stub削除（`HeaderHelpers+SyntheticJsParseFloatStubs.swift`）
 - [ ] CLEANUP-STUB-042: JS Function stub削除（`HeaderHelpers+SyntheticJsFunctionStubs.swift`）
 - [ ] CLEANUP-STUB-043: JS Class stub削除（`HeaderHelpers+SyntheticJsClassStubs.swift`）
-- [x] CLEANUP-STUB-044: JS Module stub削除（`HeaderHelpers+SyntheticJsModuleStubs.swift`）
-- [x] CLEANUP-STUB-045: JS Name stub削除（`HeaderHelpers+SyntheticJsNameStubs.swift`）
-- [x] CLEANUP-STUB-046: JS NonModule stub削除（`HeaderHelpers+SyntheticJsNonModuleStubs.swift`）
 - [ ] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
 - [ ] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
 - [ ] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
@@ -374,21 +354,9 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
 - [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
 - [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
-- [x] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
-- [x] CLEANUP-STUB-047: JS Date stub削除（`HeaderHelpers+SyntheticJsDateStubs.swift`）
-- [x] CLEANUP-STUB-048: JS Exception stub削除（`HeaderHelpers+SyntheticJsExceptionStubs.swift`）
-- [x] CLEANUP-STUB-049: JS Promise stub削除（`HeaderHelpers+SyntheticJsPromiseStubs.swift`）
-- [x] CLEANUP-STUB-050: JS RegExpMatch stub削除（`HeaderHelpers+SyntheticJsRegExpMatchStubs.swift`）
-- [x] CLEANUP-STUB-051: JS Static stub削除（`HeaderHelpers+SyntheticJsStaticStubs.swift`）
-- [x] CLEANUP-STUB-052: JS ExternalArgument stub削除（`HeaderHelpers+SyntheticJsExternalArgumentStubs.swift`）
-- [x] CLEANUP-STUB-053: JS ExternalInheritorsOnly stub削除（`HeaderHelpers+SyntheticJsExternalInheritorsOnlyStubs.swift`）
-- [x] CLEANUP-STUB-054: JS DefinedExternally stub削除（`HeaderHelpers+SyntheticJsDefinedExternallyStubs.swift`）
-- [x] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
-- [x] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
 - [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
 - [ ] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
-- [x] CLEANUP-STUB-059: JS NumberInterop stub削除（`HeaderHelpers+SyntheticJsNumberInteropStubs.swift`）
-- [x] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
+- [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
 - [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
 - [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
 - [ ] CLEANUP-STUB-065: JS CollectionsMap stub削除（`HeaderHelpers+SyntheticJsCollectionsMapStubs.swift`）
@@ -413,17 +381,16 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-#### その他JS固有stub（ファイル単位・2026-06-12 棚卸しで発見した抜け漏れ）
-- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [x] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
 - [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
 - [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
 - [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
-- [ ] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
+- [x] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
 - [ ] CLEANUP-STUB-090: JS Symbol stub削除（`HeaderHelpers+SyntheticJsSymbolStubs.swift` — `@JsSymbol` annotation surface）
 - [ ] CLEANUP-STUB-091: JS Date 系 stub削除（`kk_js_date_to_kotlin_instant` / `kk_js_date_epoch_millis` / `kk_js_date_from_epoch_millis` / `kk_js_date_to_string`。`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` の登録と `RuntimeTime.swift` 実装も削除）
 - [x] CLEANUP-STUB-092: `kk_java_instant_*` 合成サーフェス削除（`of_epoch_second` / `of_epoch_milli` / `epoch_seconds` / `nano_of_second` / `to_epoch_milli` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
 - [x] CLEANUP-STUB-093: `kk_java_duration_*` 合成サーフェス削除（`of_seconds` / `of_millis` / `seconds` / `nano` / `to_millis` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
-- [ ] CLEANUP-STUB-094: `Sources/Runtime/RuntimeJsInterop.swift` 削除（`kk_js_reference_get` / `kk_js_set_toMutableSet` の @_cdecl 実装。`Tests/RuntimeTests/RuntimeJsReferenceTests.swift` も同一 PR で削除）
+- [x] CLEANUP-STUB-094: `Sources/Runtime/RuntimeJsInterop.swift` 削除（`kk_js_reference_get` / `kk_js_set_toMutableSet` の @_cdecl 実装。`Tests/RuntimeTests/RuntimeJsReferenceTests.swift` も同一 PR で削除）
 - [ ] CLEANUP-STUB-095: `RuntimeABISpec.swift` / `RuntimeABISpec+BridgeCoverage.swift` の `kk_js_*` spec 登録削除（`kk_js_array_*` 6 / `kk_js_map_*` 2 / `kk_js_set_*` 2 / `kk_js_bigint_toLong` / `kk_js_boolean_toBoolean` / `kk_js_number_*` 2 / `kk_js_reference_get` / `kk_js_date_to_kotlin_instant` の計 16 シンボル。各 stub 削除タスクの完了に合わせて段階的に外す）
 - JDBC / DB コネクション・トランザクション・プール
 - JVM 風ロギングフレームワーク互換
@@ -437,17 +404,17 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 ## テスト改善タスク
 - [ ] TEST-SEQ-009: `kotlin.sequences` の `findLast` / `partition` に Runtime テストを追加する。`kk_sequence_findLast` / `kk_sequence_partition` は専用ランタイム実装があるのに `Tests/RuntimeTests/RuntimeSequenceTests*.swift` での参照が 0 件。カバー対象: 空シーケンス・単一要素・マッチなし（`findLast` は `null`）・全要素マッチ・`partition` の predicate による 2 分割（`Pair<List, List>`）。`count` は基本ケース（`testCountReturnsElementCount`）のみ存在のため、空シーケンスと `predicate` 版を補完する
-- [ ] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
-- [ ] TEST-CI-007: CI パイプラインの最適化
+- [x] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
+- [x] TEST-CI-007: CI パイプラインの最適化（`smoke-tests` / `full-swift-tests` の重複 `swift build` を削除し、`swift test` に strict-concurrency 警告を集約）
 - [ ] TEST-SEQ-010: `kotlin.sequences` 既存関数のエッジケースを拡充する。`distinctBy`（空・全要素同一キー・キーセレクタ例外伝播）、`filterIsInstance`（空・全一致・全不一致）、`reduceIndexed` / `reduceRightIndexed`（単一要素で accumulator 未呼出）、および中間操作の遅延評価回数の検証（`RuntimeSequenceTests+BuilderAndAdvanced.swift` の `_lazyTestYieldCounter` 機構を活用）
 - [ ] TEST-COL-012: `kotlin.collections` の `Set` 高階関数の Runtime/Codegen テストを追加する。`kk_set_filter` / `filterNot` / `map` / `flatMap` / `all` / `any` / `first` / `last` / `lastOrNull` / `maxOrNull` / `minOrNull` / `sorted` / `sortedDescending` / `singleOrNull` / `count{}`（`kk_set_count_predicate`）/ `forEach` は実装の実体が `RuntimeCollectionHOF.swift` にあるが、Runtime テストも Codegen 統合テストも存在しない（Set 専用テストファイルが皆無）。カバー対象: 空 Set・単一要素・全一致/全不一致・要素順序・`first`/`last` の空 Set で例外。`none` と `mapNotNull` は既存カバー済みのため対象外
 - [ ] TEST-COL-014: `kotlin.collections` の `List` 受信者版 `reduceIndexedOrNull` / `scanIndexed` の Codegen 統合テストを追加する。Sequence 受信者版はカバー済みだが List 受信者の実行テストが欠落。カバー対象: 空（`reduceIndexedOrNull` は `null`、`scanIndexed` は initial のみ）・単一要素・accumulator に渡る index の検証
 - [x] TEST-RANGE-015: `kotlin.ranges` の IntRange/LongRange 受信者の HOF 実行テストを追加する。`forEach` / `drop` / `take` / `sorted` / `average` / `mapIndexed` / `mapNotNull` / `filterIndexed` / `findLast` / `reduceIndexed` / `first`(predicate版) / `last`(predicate版) は実装ありだが実行レベルのテストが無い（`KotlinCompilationBasicTests` は KIR コンパイルのみで実行せず、`forEach`/`drop`/`take`/`sorted`/`average` は KIR すら未通過）。`RuntimeRangeHOFTests` の直接 `kk_range_*` 呼び出しか Codegen 統合（`.kt` 実行）で。カバー対象: 空 range・単一要素・降順 progression（step 負）・`average` の整数→Double 変換。IntRange の `mapIndexed` は直接ギャップ（UInt/ULong 版は既存）
 - [ ] TEST-COMP-011: `kotlin.comparisons` の Comparator 合成を補強する。`naturalOrder` / `reverseOrder` のトランポリンに `runtimeNullSentinelInt` を渡したときの挙動、`compareBy` で全キー等値のとき `0` を返すこと、参照型オブジェクトの厳密な安定ソート（同値要素の原順序保持をインデックスベースで検証）。既存 `RuntimeComparatorTests.swift` は充実しているため上記の隙間に限定する
-- [ ] TEST-COL-013: `kotlin.collections` の `Map` 高階関数 `getOrDefault` / `flatMap` / `mapNotNull` / `maxByOrNull` / `minByOrNull` の Codegen 統合テストを追加する（`RuntimeSetAndMap.swift` 等に実装ありだが実行テストなし）。カバー対象: 空 Map・キー不在時の `getOrDefault` デフォルト返却・全エントリ変換・`maxByOrNull`/`minByOrNull` の空 Map で `null`
+- [x] TEST-COL-013: `kotlin.collections` の `Map` 高階関数 `getOrDefault` / `flatMap` / `mapNotNull` / `maxByOrNull` / `minByOrNull` の Codegen 統合テストを追加する（`RuntimeSetAndMap.swift` 等に実装ありだが実行テストなし）。カバー対象: 空 Map・キー不在時の `getOrDefault` デフォルト返却・全エントリ変換・`maxByOrNull`/`minByOrNull` の空 Map で `null`
 - [ ] TEST-MATH-022: `kotlin.math` の `pow` IEEE 特殊ケースの実行テストを追加する。`pow(負, 非整数)`=NaN / `pow(0.0, 負)`=+Inf / `pow(-0.0, 負の奇数整数)`=-Inf / `pow(-1.0, ±Inf)`=1.0 / `pow(+Inf, 負)`=+0.0 が未テスト（`RuntimeMathEdgeCaseTests` は `Inf^-1`/`NaN^0`/`1^NaN` のみで負底・分数指数の特殊表が欠落）。Double/Float/Int 各 overload（`kk_math_pow`/`pow_float`/`pow_int`/`pow_float_int`）でカバー
 - [x] TEST-MATH-023: `kotlin.math` の 2引数 `log(x, base)` と `log2`/`log10` のドメイン端の実行テストを追加する。`log(x, base)` の `base≤0`/`base==1`→NaN、`x<0`→NaN、`x=0`→-Inf、`x`/`base` が `+Inf` の組合せ。`log2`/`log10` の `0`→-Inf・`負`→NaN・`+Inf`→+Inf（既存は `1→0` と NaN のみ）
-- [ ] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある
+- [x] TEST-MATH-024: `kotlin.math` の符号付きゼロ・負無限大の対称性ギャップを埋める。`floor(-0.0)`/`truncate(±0.0)` の符号保持、`cbrt(-0.0)=-0.0`/`cbrt(-Inf)=-Inf`、`sinh(-Inf)=-Inf`/`cosh(-Inf)=+Inf`/`tanh(-Inf)=-1.0`、`atanh(-1.0)=-Inf`、`tan(Inf)=NaN`、`atan2` の IEEE 特殊ケース表（`atan2(±0,±0)`/`atan2(±y,±Inf)`/`atan2(±Inf, finite)`/`atan2(NaN,*)`）、`nextUp(-Inf)`/`nextDown(+Inf)`、`ulp(Float NaN)`、`sign(Float NaN)`/`sign(+0.0)`。既存は「正側のみテスト・負側未テスト」の偏りがある
 - [x] TEST-MATH-025: `roundToInt`/`roundToLong` の NaN 挙動を Kotlin 仕様と照合・是正済み。`kk_double_roundToInt`/`kk_double_roundToLong`/`kk_float_*` は NaN で `IllegalArgumentException` を投げ、±Inf→`Int.MAX/MIN` 飽和は維持する。`Scripts/diff_kotlinc.sh` と `RuntimeMathTests.swift` で確認済み。
 
 ## 公式ドキュメント整合性チェック（Kotlin docs parity）
@@ -479,7 +446,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - 採番は `SPEC-NUM-{NUMBER}`。修正できない大規模/横断要因は再現 diff ケースを `// SKIP-DIFF` で残し追跡する（修正後にマーカーを外せば回帰テストになる）。
 
 ### 数値・プリミティブ型（第1バッチ）
-- [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt` と `Tests/CompilerCoreTests/Codegen/CodegenBackendIntegrationTests+NumericDivisionByZero.swift`。
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。
@@ -582,22 +549,17 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-RT-001: `Sources/Runtime/RuntimeStringBuilder.swift` の境界チェック 11 箇所の `fatalError("StringIndexOutOfBoundsException: ...")` を catch 可能な Kotlin 例外送出へ置換する。`sb.insert(99, "x")` 等のユーザーコード 1 行でプロセスが落ちる最も再現容易な箇所。`try/catch (e: IndexOutOfBoundsException)` の diff ケースで kotlinc と挙動一致を検証する
 - [ ] DEBT-RT-002: `Sources/Runtime/RuntimeStringStdlib.swift:3369` 付近の `trimMargin` が marginPrefix 空白時に `fatalError("IllegalArgumentException: ...")` する。catch 可能な例外送出へ置換する
 - [ ] DEBT-RT-003: `Sources/Runtime/RuntimeRegex.swift` の正規表現フォールバック失敗時 `fatalError` 4 箇所（238 / 439 / 471 / 755 付近）を整理する。pattern はユーザー入力直通。静的フォールバック `(?!)` が失敗し得ないことの検証コメント化、または例外送出化
-- [x] DEBT-RT-004: Runtime の非構造化 `fatalError`（構造化パニック `runtimePanicDiagnosticCode` / `KSwiftK panic [診断コード]` を経由しない約 25 箇所）を棚卸しし、診断コード付き構造化パニックへ寄せる — `runtimeStructuredPanic` / `runtimeStructuredPanicMessage` を `RuntimeStringArray.swift` に追加。パニック系 15 箇所を移行（`RuntimeDelegates` notNull×4、`RuntimeNativeAPI` unhandled exception、`RuntimeRangeLongRange` dispatch error、`RuntimeStringArray` allocation/inbounds×4、`RuntimeCoroutine` withTimeout、`RuntimeRegex` fallback×4）。残 13 箇所は catch 可能例外化タスク（DEBT-RT-001/002）の対象（`StringIndexOutOfBoundsException`×12、`IllegalArgumentException` trimMargin×1）のため本タスクでは未着手
-- [x] DEBT-RT-005: `Sources/Runtime/RuntimeNumericCompat.swift:1690` 付近の `kk_char_get` が index != 0 で replacement char（U+FFFD）を返す暫定実装（「For now」コメントあり)を kotlinc 実挙動と突き合わせ、乖離していれば修正する（diff ケース追加）
 - [ ] DEBT-RT-006: `Sources/Runtime/RuntimeRegex.swift:419` の NOTE コメントどおり、`kk_regex_create_with_option` / `kk_regex_create_with_options` が「effective pattern + try compile + fallback + box」ロジックをインライン重複している。コメント案の `createRegexBox(pattern:isLiteral:options:)` 共通ヘルパーへ抽出する
 
 ### Runtime コルーチン（コード内 CORO TODO の細分化）
-- [x] DEBT-CORO-001: `Sources/Runtime/RuntimeCoroutineChannel.swift:20` — closed sentinel が `Int.min` の in-band 設計のため `Long.MIN_VALUE` を Channel 送信できない（コード内 TODO(CORO-001)）。`kk_coroutine_check_cancellation` と同じ status+value のポインタ渡し（out-of-band）へ移行する
 - [ ] DEBT-CORO-002: `Sources/Runtime/RuntimeTypes.swift:490,708` — `RuntimeSequenceCoroutine` / `RuntimeMapCoroutine` の producer/consumer セマフォ ping-pong が GCD スレッド 2 本をイテレーション中ずっとブロック（コード内 TODO(CORO-004)）。yield() を suspend ポイントとしてモデル化する移行をこの 2 型から着手する
-- [x] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift:691` — `withContext` が continuation 移行途中でセマフォ fallback のまま。continuation ベースへ完了させる
-- [x] DEBT-CORO-004: `Sources/Runtime/RuntimeCoroutine.swift:617` — `awaitResult()` のセマフォブロッキングを suspend ポイント化する（ファイル冒頭 105-135 行の移行計画の残件）
+- [ ] DEBT-CORO-003: `Sources/Runtime/RuntimeCoroutineContext.swift:691` — `withContext` が continuation 移行途中でセマフォ fallback のまま。continuation ベースへ完了させる
 
 ### Sema 近似実装・既知クラッシュ
 - [ ] DEBT-SEMA-001: `Sources/CompilerCore/Sema/TypeCheck/Helpers+TypeArgsAndMemberLookup.swift:113-135` の型エイリアス use-site variance 検証が no-op（計算結果を `_ = (declaredVariance, argVariance)` で破棄、`declaredVariance` は三項演算子の両分岐とも `.invariant`）。宣言側 variance を参照した実検証を実装するか、no-op で正しい仕様根拠をコメントへ明記する
 - [ ] DEBT-SEMA-002: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift:809` 付近のジェネリック戻り値の共変 override チェックが「For now, implement basic checks」の保守的近似。完全な型引数置換ベースへ拡張する。先に現状すり抜ける不正 override ケースを golden 化してから着手する
 - [ ] DEBT-SEMA-003: `Sources/CompilerCore/Sema/DataFlow/OpenFinalOverride.swift:959` 付近のモジュール境界の可視性検証（internal override 等）が保守的近似のまま。モジュール FQN 比較ベースの検証を実装する
 - [ ] DEBT-SEMA-004: `Sources/CompilerCore/Sema/DataFlow/BodyAnalysis.swift:693` の `typeArgInnerType(.star)` が `fatalError("typeArgInnerType called on .star")` — star projection `<*>` を含む入力でコンパイラ自体がクラッシュしうる。診断付きの安全な経路へ変更し、`<*>` を含む回帰テストを追加する
-- [x] DEBT-SEMA-005: 型エイリアス（`ArrayList` 等）をタイプ位置（変数宣言・引数型）で使う golden テストを追加する（`HeaderHelpers+SyntheticComparableAndCollectionStubs.swift:426` の既知 TODO）
 
 ### KIR / Lowering
 - [ ] DEBT-KIR-001: `Sources/CompilerCore/KIR/CallLowerer+SafeMemberCalls.swift:1085-1094` で vtable dispatch が無効化され常に static dispatch へフォールバックしている（「TODO: Re-enable once kk_alloc-based object allocation is in place」）。ブロッカーとされた `kk_alloc` は `Sources/Runtime/RuntimeGC.swift:151` に実装済みのため、前提充足を監査して再有効化を検討する。再有効化時は `VirtualDispatchTests` へ該当経路のケースを追加する
@@ -622,11 +584,9 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - [ ] DEBT-CI-001: `LSPServerTests` が Package.swift にターゲット定義されているのに `.github/workflows/ci.yml` の full-swift-tests マトリクスへ含まれておらず CI 未実行。マトリクスへ追加する
 - [ ] DEBT-CI-002: `jscpd-check` / `smoke-tests` ジョブに `timeout-minutes` が未設定（npm install のネットワーク障害等でハングしうる。full-swift-tests は 45 分、diff-regression-shards は 60 分設定済み）。それぞれ適切な値を設定する
 - [ ] DEBT-SCRIPT-001: `detect_workers()` が `Scripts/swift_test.sh:9` と `Scripts/diff_kotlinc.sh:344` に同一実装でコピーされている。`Scripts/lib/common.sh` へ抽出し両者から source で共有する
-- [x] DEBT-SCRIPT-002: `Scripts/baselines/` を削除（`bench_compile.sh` / `save_baseline.sh` は 2026-03 意図削除済みで README のみ孤立。計測は `-Xfrontend time-phases` + `PhaseTimer` / `FrontendParallelBenchmarkTests` で継続）
 - [ ] DEBT-SCRIPT-003: `Scripts/test_templates/`（diff / lexer / parser / sema の 4 サブディレクトリ）がスクリプト・CI・ソースのどこからも参照されていない。用途を調査し、README へ用途を明記するか削除する
 
 ### テスト衛生
-- [x] DEBT-TEST-001: 冒頭で無条件 `XCTSkip` する「未実装」プレースホルダーテストの skip 理由の鮮度を監査する。例: `CodegenBackendIntegrationTests+PropertyDelegateEdgeCases.swift:7` は「Property delegates ... are not yet implemented」とするが `HeaderHelpers+SyntheticPropertyDelegateStubs.swift`（2,741 行）等の実装が既に存在し stale の疑い。実装済みなら skip を解除し、未実装なら対応タスク ID を skip メッセージへ付記する（対象: PropertyDelegate / MathRuntime / CoroutineCancellation / CoroutineBase / EnumEdgeCoverage / Math / Annotation の各 EdgeCases 冒頭、KotlinTextEdgeCases L83・L1122、CharPredicates L113）
 - [ ] DEBT-TEST-002: `Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests.swift:548` と `LoweringABIAndPropertyRegressionTests.swift:6` に同一実装の `private func makeContext(...)` がコピー存在する。`Integration/TestSupport/Pipeline.swift` の `makeCompilationContext()` へ統一する
 - [ ] DEBT-TEST-003: `Tests/CompilerCoreTests/Sema/SemaCacheContextTests.swift:8` の `makeContextFromSourceWithCache()` を、`Pipeline.swift` の `makeContextFromSource()` へ `frontendFlags` 引数を追加して統合する
 - [ ] DEBT-TEST-004: KIR / Lowering テスト群に散在する `SemaModule(...)` 直接構築（計 90 箇所超: `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios` / `VirtualDispatchTests+InliningCoroutineAndDispatchResolution` / `RuntimeTypeCheckTokenTests` 等）を `makeSemaModule()` ヘルパー利用へ移行する（ファイル単位で分割実施可）
@@ -645,16 +605,14 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 > 完了ゲートは RF-GUARD-005 と同じ（全テスト + golden + `diff_kotlinc.sh` green）。
 
 ### Runtime: ファイル丸ごと削除可能（emit 経路なし・テスト参照なし）
-- [ ] DEADCODE-001: `RuntimeLogging.swift`（`kk_slf4j_*` 20 件が全て未到達）と `RuntimeLoggingAdvanced.swift`（`kk_adv_logger_*` / `kk_mdc_*` / appender 系 19 件が全て未到達）を削除する。SLF4J/MDC/Appender はターゲット外（「JVM 風ロギングフレームワーク互換」）で Sema 側 stub も存在せず、`Scripts/diff_cases/logging_basic.kt` は SKIP-DIFF のため実行経路なし。`kk_file_appender_new` / `kk_rolling_appender_new` / `kk_structured_appender_new` / `kk_async_appender_wrap_*` と `RuntimeABISpec+ABIParity.swift` の対応宣言（約 39 件）も同時に削除する
+- [x] DEADCODE-001: SLF4J/MDC/Appender 系の未到達シンボル 28 件を削除する（`kk_slf4j_*` 20 件、`kk_adv_logger_get`、`kk_mdc_clear` / `get` / `put` / `remove`、`kk_file_appender_new` / `kk_rolling_appender_new` / `kk_structured_appender_new`）。`@_cdecl` 実装（`RuntimeLogging.swift` / `RuntimeLoggingAdvanced.swift`）は先行 PR で既に削除済みのため、残存していた `RuntimeABISpec+ABIParity.swift` の spec 宣言と `ABIMismatchTests+RuntimeExportParity.swift` の allowlist エントリを削除して整合させた。SLF4J/MDC/Appender はターゲット外（「JVM 風ロギングフレームワーク互換」）で Sema 側 stub も存在せず、`Scripts/diff_cases/logging_basic.kt` は SKIP-DIFF のため実行経路なし
 - [ ] DEADCODE-002: `RuntimeFlowErrorHandling.swift` を削除する（`kk_flow_catch` / `on_completion` / `on_error_resume` / `on_error_return` / `retry` / `retry_when` の 6/6 件が未到達。kotlinx.coroutines 風 Flow エラー演算子はターゲット外）
 
 ### Runtime: 未到達 `@_cdecl` エクスポート（関数単位）
 - [ ] DEADCODE-003: Flow/Channel 系 12 件を削除する — `kk_callback_flow_await_close` / `kk_callback_flow_create`、`kk_channel_flow_create` / `kk_channel_flow_send` / `kk_channel_flow_try_send`、`kk_channel_pipeline_drain`、`kk_channel_send_suspending`、`kk_broadcast_channel_close` / `create` / `send` / `subscribe` / `unsubscribe`（主に `RuntimeCoroutineChannel.swift` / `RuntimeCoroutineFlow.swift`）
 - [ ] DEADCODE-004: リフレクション系 32 件を削除する — `kk_kconstructor_*` 全 12 件、`kk_kclass_get_field_count` / `get_instance_size_words` / `get_qualified_name` / `get_simple_name` / `get_superclass_name` / `is_data_class` / `is_sealed_class` / `is_value_class`、`kk_kproperty_get` / `set` / `stub_get_value` / `stub_getter` / `stub_set_getter` / `stub_set_setter` / `stub_set_value` / `stub_setter`、`kk_callable_ref_call_0..3`（主に `RuntimeReflection.swift`（55 件中 22 件）と `RuntimeDelegates.swift`。KClass/KProperty の生きている経路は別名で配線済み）
 - [ ] DEADCODE-005: `__string_*` ブリッジ 12 件を削除する — `__string_removePrefix` / `removeRange` / `removeRange_range` / `removeSuffix` / `removeSurrounding` / `removeSurrounding_pair` / `replace` / `replaceFirst` / `replaceRange` / `replace_char` / `replace_char_ignoreCase` / `replace_ignoreCase`（`RuntimeStringStdlib.swift`。同機能は `kk_string_*` 側が配線済みで `__` 版は .kt からも参照ゼロ。RF-RT-003 の「`__` ブリッジ降格」方針との整合を確認の上で削除）
-- [x] DEADCODE-006: java.time / JS Date 相互運用 14 件を削除する — `kk_java_duration_nano` / `of_millis` / `of_seconds` / `seconds` / `to_millis` / `to_string`、`kk_java_instant_epoch_seconds` / `nano_of_second` / `of_epoch_milli` / `of_epoch_second` / `to_epoch_milli` / `to_string`、`kk_js_date_from_epoch_millis` / `to_string`（`RuntimeTime.swift`。CLEANUP-STUB-022/023/047 の Runtime 側補完。JVM/JS 相互運用はターゲット外）
 - [ ] DEADCODE-007: HTTP/Network 系 6 件を削除する — `kk_http_client_clearAuthentication` / `get_async` / `post` / `setBasicAuth` / `setDefaultHeader`、`kk_http_response_contentType`（`RuntimeNetwork.swift`。HTTP 面全体がターゲット外だが、他の `kk_http_*` は Sema stub から emit されるため、まず未到達 6 件のみ。残りは DEADCODE-012 の棚卸しで判定）
-- [x] DEADCODE-008: コルーチン系 8 件を削除する — `kk_kxmini_async_await_throwing` / `async_with_dispatcher` / `run_loop`、`kk_coroutine_scope_cancel_propagate` / `scope_get_parent`、`kk_context_get_exception_handler`、`kk_await_all`、`kk_async_task_cancel`
 - [ ] DEADCODE-009: Array HOF 8 件を削除する — `kk_array_filterIndexed` / `filterNot` / `filterNotNull` / `first` / `firstOrNull` / `last` / `lastOrNull` / `mapIndexed`（`RuntimeCollectionHOFArray.swift`。Array 受信者のこれらは `StdlibSurfaceSpec.collectionHOF*` テーブルにも載っておらず別経路で lowering される）
 - [ ] DEADCODE-010: 数値・GC・その他散在 24 件を削除する — `kk_double_coerceAtLeast_range` / `coerceAtMost_range`、`kk_float_coerceAtLeast_range` / `coerceAtMost_range`、`kk_long_coerceAtLeast_range` / `coerceAtMost_range`、`kk_math_e` / `kk_math_pi`、`kk_char_get` / `kk_char_plus`、`kk_clock_gettime_realtime`、`kk_mem_scope_alloc` / `enter` / `exit`、`kk_native_alloc_bytes` / `heap_alloc` / `heap_free`、`kk_panic`、`kk_write_barrier`、`kk_hexformat_prefix` / `suffix`、`kk_timedvalue_toString`、`kk_path_equals`、`kk_sequence_builder_yieldAll_iterator`（`yieldAll` 3 オーバーロードは全て無印 `kk_sequence_builder_yieldAll` に束縛済み）
 

@@ -3966,13 +3966,13 @@ private func runtimeIsObjectPointer(_ pointer: UnsafeMutableRawPointer) -> Bool 
 
 // MARK: - STDLIB-TEXT-FN-083 / STDLIB-TEXT-FN-085: String.toBigDecimal() / String.toBigInteger()
 
-/// BigDecimal and BigInteger are represented as boxed strings in KSwiftK.
+/// BigDecimal is represented as a boxed string in KSwiftK.
 /// The runtime validates the format and stores the string representation.
 final class RuntimeBigNumberBox {
     let value: String
     let kind: BigNumberKind
 
-    enum BigNumberKind { case decimal, integer }
+    enum BigNumberKind { case decimal }
 
     init(value: String, kind: BigNumberKind) {
         self.value = value
@@ -4048,27 +4048,13 @@ public func kk_string_toBigInteger(_ strRaw: Int, _ outThrown: UnsafeMutablePoin
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_string_toBigInteger received invalid string handle")
     }
-    // Validate integer format: [+-]?\d+ (optional single leading sign, then digits).
     // No whitespace trimming: Kotlin/JVM throws NumberFormatException on
     // leading/trailing whitespace, so we validate the raw string as-is.
-    var idx = str.startIndex
-    guard idx < str.endIndex else {
+    guard let value = runtimeParseBigIntegerDecimalString(str) else {
         outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
-    if str[idx] == "+" || str[idx] == "-" {
-        idx = str.index(after: idx)
-    }
-    let digitStart = idx
-    while idx < str.endIndex, str[idx] >= "0", str[idx] <= "9" {
-        idx = str.index(after: idx)
-    }
-    let isValid = idx > digitStart && idx == str.endIndex
-    guard isValid else {
-        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
-        return 0
-    }
-    let box = RuntimeBigNumberBox(value: str, kind: .integer)
+    let box = RuntimeBigIntegerBox(value: value)
     return registerRuntimeObject(box)
 }
 
