@@ -11,6 +11,7 @@ extension CodegenBackendIntegrationTests {
             println('5'.digitToInt())
             println('9'.digitToInt())
             println('a'.digitToIntOrNull())
+            println('a'.digitToIntOrNull(16))
 
             try {
                 println('z'.digitToInt())
@@ -54,6 +55,7 @@ extension CodegenBackendIntegrationTests {
                 5
                 9
                 null
+                10
                 invalid-char
                 SS
                 ß

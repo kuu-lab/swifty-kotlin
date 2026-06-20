@@ -240,6 +240,12 @@ extension CollectionLiteralLoweringPass {
             return false
         }
 
+        // STDLIB-IO-PATH-FN-039: kk_path_walk result is a List<Path> (Sequence<Path> materialised)
+        if callee == lookup.kkPathWalkName {
+            if let result { state.listExprIDs.insert(result.rawValue) }
+            return false
+        }
+
         // kk_file_tree_walk_to_list: result is a List<File>
         if callee == lookup.kkFileTreeWalkToListName {
             if let result { state.listExprIDs.insert(result.rawValue) }
