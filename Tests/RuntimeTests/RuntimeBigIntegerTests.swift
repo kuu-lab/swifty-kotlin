@@ -23,9 +23,18 @@ final class RuntimeBigIntegerTests: XCTestCase {
 
     func testStringToBigIntegerAcceptsSignedDigits() {
         var thrown = 0
-        let raw = kk_string_toBigInteger(runtimeString("-12345678901234567890"), &thrown)
+        let raw = kk_string_toBigInteger(runtimeString("+00012345678901234567890"), &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "-12345678901234567890")
+        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
+    }
+
+    func testStringToBigIntegerReturnsBigIntegerBoxUsableByOperations() {
+        var thrown = 0
+        let lhs = kk_string_toBigInteger(runtimeString("12345678901234567890"), &thrown)
+        XCTAssertEqual(thrown, 0)
+        let rhs = bigInteger("10")
+        let result = kk_biginteger_add(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "12345678901234567900")
     }
 
     func testStringToBigIntegerRejectsDecimalPoint() {

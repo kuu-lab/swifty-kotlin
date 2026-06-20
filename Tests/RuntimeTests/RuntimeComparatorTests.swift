@@ -139,6 +139,10 @@ private func listElements(_ listRaw: Int) -> [Int] {
     return box.elements
 }
 
+private func originalIndexes(for elements: [Int], indexedByHandle: [Int: Int]) -> [Int] {
+    elements.compactMap { indexedByHandle[$0] }
+}
+
 private func withComparatorObject(mode: Int, body: (Int) -> Void) {
     let object = kk_object_new(1, 0)
     let payload = UnsafeMutableRawPointer(bitPattern: object)!
@@ -1038,8 +1042,8 @@ final class RuntimeComparatorTests: XCTestCase {
 
     func testStableSortPreservesOriginalOrderOfEqualReferenceObjects() {
         // Create three distinct RuntimeStringBox objects that all hold "b".
-        // Their raw Int values (heap addresses) are different — we use pointer identity
-        // to verify that a stable sort preserves the input order [b0, b1, b2].
+        // Use original positions as the assertion target so the stability check is
+        // explicit and independent from the raw pointer order.
         let b0 = makeRuntimeString("b")
         let b1 = makeRuntimeString("b")
         let b2 = makeRuntimeString("b")
@@ -1047,19 +1051,16 @@ final class RuntimeComparatorTests: XCTestCase {
         let source = makeList([b0, b1, b2])
         let sorted = kk_list_sorted(source)
 
-        let result = listElements(sorted)
-        XCTAssertEqual(result.count, 3)
-        // Stable: original relative order must be preserved for equal elements.
-        XCTAssertEqual(result[0], b0)
-        XCTAssertEqual(result[1], b1)
-        XCTAssertEqual(result[2], b2)
+        let originalIndexesByHandle = [b0: 0, b1: 1, b2: 2]
+        XCTAssertEqual(originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle), [0, 1, 2])
     }
 
     func testStableSortWithMixedElementsPreservesEqualGroupOrder() {
         // Input: [c, b_first, a, b_second, b_third]
         // Natural string order groups: a < b < c.
         // Within the "b" group the three objects are equal by value but distinct by identity.
-        // A stable sort must emit them in the same relative order they appeared in the input.
+        // A stable sort must emit them in the same relative order they appeared in the input,
+        // which we verify through their original indexes.
         let bFirst  = makeRuntimeString("b")
         let bSecond = makeRuntimeString("b")
         let bThird  = makeRuntimeString("b")
@@ -1069,15 +1070,16 @@ final class RuntimeComparatorTests: XCTestCase {
         let source = makeList([cStr, bFirst, aStr, bSecond, bThird])
         let sorted = kk_list_sorted(source)
 
-        let result = listElements(sorted)
-        XCTAssertEqual(result.count, 5)
-        // "a" group
-        XCTAssertEqual(result[0], aStr)
-        // "b" group — must match input order: bFirst(idx 1) < bSecond(idx 3) < bThird(idx 4)
-        XCTAssertEqual(result[1], bFirst)
-        XCTAssertEqual(result[2], bSecond)
-        XCTAssertEqual(result[3], bThird)
-        // "c" group
-        XCTAssertEqual(result[4], cStr)
+        let originalIndexesByHandle = [
+            cStr: 0,
+            bFirst: 1,
+            aStr: 2,
+            bSecond: 3,
+            bThird: 4,
+        ]
+        XCTAssertEqual(
+            originalIndexes(for: listElements(sorted), indexedByHandle: originalIndexesByHandle),
+            [2, 1, 3, 4, 0]
+        )
     }
 }

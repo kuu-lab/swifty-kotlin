@@ -1835,13 +1835,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        registerAtomicArrayAsKotlinAtomicArrayFunction(
+        registerAtomicIntArrayAsKotlinAtomicArrayFunction(
             packageFQName: packageFQName,
             javaPackageFQName: javaPackageFQName,
-            javaClassName: "AtomicIntegerArray",
-            kotlinClassName: "AtomicIntArray",
-            constructorLinkName: "kk_atomic_int_array_create",
-            externalLinkName: "kk_java_atomic_int_array_asKotlinAtomicArray",
             symbols: symbols,
             types: types,
             interner: interner
@@ -1855,19 +1851,15 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerAtomicArrayAsKotlinAtomicArrayFunction(
+    private func registerAtomicIntArrayAsKotlinAtomicArrayFunction(
         packageFQName: [InternedString],
         javaPackageFQName: [InternedString],
-        javaClassName: String,
-        kotlinClassName: String,
-        constructorLinkName: String,
-        externalLinkName: String,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
         guard let kotlinAtomicArraySymbol = symbols.lookup(
-            fqName: packageFQName + [interner.intern(kotlinClassName)]
+            fqName: packageFQName + [interner.intern("AtomicIntArray")]
         ) else {
             return
         }
@@ -1877,7 +1869,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let javaAtomicArraySymbol = ensureClassSymbol(
-            named: javaClassName,
+            named: "AtomicIntegerArray",
             in: javaPackageFQName,
             symbols: symbols,
             interner: interner
@@ -1894,7 +1886,7 @@ extension DataFlowSemaPhase {
         registerAtomicConstructor(
             ownerSymbol: javaAtomicArraySymbol,
             ownerType: javaAtomicArrayType,
-            externalLinkName: constructorLinkName,
+            externalLinkName: "kk_atomic_int_array_create",
             paramType: types.intType,
             symbols: symbols,
             interner: interner
@@ -1902,7 +1894,7 @@ extension DataFlowSemaPhase {
         registerAtomicExtensionFunction(
             packageFQName: packageFQName,
             name: "asKotlinAtomicArray",
-            externalLinkName: externalLinkName,
+            externalLinkName: nil,
             receiverType: javaAtomicArrayType,
             returnType: kotlinAtomicArrayType,
             symbols: symbols,
@@ -2041,7 +2033,7 @@ extension DataFlowSemaPhase {
     private func registerAtomicExtensionFunction(
         packageFQName: [InternedString],
         name: String,
-        externalLinkName: String,
+        externalLinkName: String?,
         receiverType: TypeID,
         returnType: TypeID,
         typeParameterSymbols: [SymbolID] = [],
@@ -2061,7 +2053,9 @@ extension DataFlowSemaPhase {
                 && signature.typeParameterSymbols == typeParameterSymbols
                 && signature.classTypeParameterCount == classTypeParameterCount
         }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
+            if let externalLinkName {
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+            }
             return
         }
 
@@ -2076,7 +2070,9 @@ extension DataFlowSemaPhase {
         if let packageSymbol = symbols.lookup(fqName: packageFQName) {
             symbols.setParentSymbol(packageSymbol, for: functionSymbol)
         }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        if let externalLinkName {
+            symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
+        }
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
