@@ -296,6 +296,11 @@ public extension RuntimeABISpec {
             p("radix", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_char_digitToIntOrNull_radix", parameters: [
+            p("value", .intptr),
+            p("radix", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_char_fromCode", parameters: [
             p("code", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -1013,10 +1018,6 @@ public extension RuntimeABISpec {
             p("strRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_string_toShortOrNull", parameters: [
-            p("strRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_suspend_coroutine", parameters: [
             p("fnPtr", .intptr),
             p("closureRaw", .intptr),

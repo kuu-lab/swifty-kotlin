@@ -664,6 +664,15 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toShortOrNull",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
         // SPEC-NUM-0007: no-arg unsigned parsers
         RuntimeABIFunctionSpec(
             name: "kk_string_toUByteOrNull",
