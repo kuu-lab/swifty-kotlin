@@ -39,7 +39,7 @@ extension DataFlowSemaPhase {
         registerSyntheticURIStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticLocaleConstructorStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticMetaprogStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBigIntegerStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeInvokeStubs(symbols: symbols, interner: interner)
