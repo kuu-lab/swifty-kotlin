@@ -418,6 +418,17 @@ extension CallLowerer {
             exprID, args: args, sema: sema, arena: arena, interner: interner,
             instructions: &instructions.instructions
         ) { return objProp }
+        if let atomicArrayIdentity = tryLowerAtomicIntArrayAsKotlinAtomicArrayIdentity(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            args: args,
+            driver: driver,
+            shared: shared,
+            emit: &instructions
+        ) {
+            return atomicArrayIdentity
+        }
         return lowerMemberLikeCallExpr(
             exprID,
             receiverExpr: receiverExpr,
@@ -432,5 +443,101 @@ extension CallLowerer {
             prependReceiverForUnresolvedCollectionCall: true,
             instructions: &instructions.instructions
         )
+    }
+
+    private func tryLowerAtomicIntArrayAsKotlinAtomicArrayIdentity(
+        _ exprID: ExprID,
+        receiverExpr: ExprID,
+        calleeName: InternedString,
+        args: [CallArgument],
+        driver: KIRLoweringDriver,
+        shared: KIRLoweringSharedContext,
+        emit instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID? {
+        let sema = shared.sema
+        let interner = shared.interner
+        let arena = shared.arena
+        guard args.isEmpty,
+              interner.resolve(calleeName) == "asKotlinAtomicArray",
+              let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+              isSyntheticAtomicIntArrayBridgeSymbol(chosen, sema: sema, interner: interner),
+              sema.symbols.externalLinkName(for: chosen) == nil,
+              let signature = sema.symbols.functionSignature(for: chosen),
+              let receiverType = signature.receiverType,
+              signature.parameterTypes.isEmpty,
+              isAtomicIntArrayBridgeIdentity(
+                  receiverType: receiverType,
+                  returnType: signature.returnType,
+                  sema: sema,
+                  interner: interner
+              )
+        else {
+            return nil
+        }
+
+        let loweredReceiver = driver.lowerExpr(
+            receiverExpr,
+            shared: shared,
+            emit: &instructions
+        )
+        let resultType = sema.bindings.exprTypes[exprID] ?? signature.returnType
+        let result = arena.appendExpr(
+            .temporary(Int32(arena.expressions.count)),
+            type: resultType
+        )
+        instructions.append(.copy(from: loweredReceiver, to: result))
+        return result
+    }
+
+    private func isSyntheticAtomicIntArrayBridgeSymbol(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.flags.contains(.synthetic)
+        else {
+            return false
+        }
+        return symbol.fqName.map(interner.resolve) == [
+            "kotlin",
+            "concurrent",
+            "atomics",
+            "asKotlinAtomicArray",
+        ]
+    }
+
+    private func isAtomicIntArrayBridgeIdentity(
+        receiverType: TypeID,
+        returnType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        classFQName(receiverType, sema: sema, interner: interner) == [
+            "java",
+            "util",
+            "concurrent",
+            "atomic",
+            "AtomicIntegerArray",
+        ] && classFQName(returnType, sema: sema, interner: interner) == [
+            "kotlin",
+            "concurrent",
+            "atomics",
+            "AtomicIntArray",
+        ]
+    }
+
+    private func classFQName(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [String]? {
+        let nonNullType = sema.types.makeNonNullable(type)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return nil
+        }
+        return symbol.fqName.map(interner.resolve)
     }
 }

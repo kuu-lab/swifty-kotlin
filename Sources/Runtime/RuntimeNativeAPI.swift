@@ -461,46 +461,6 @@ public func kk_native_byteArray_setDoubleAt(_ arrayRaw: Int, _ index: Int, _ val
     )
 }
 
-// MARK: - nativeHeap / nativeMemory allocation
-
-/// Tracks allocations made through `nativeHeap.alloc` / `nativeMemory`.
-final class RuntimeNativeHeapAllocationBox: @unchecked Sendable {
-    let rawPointer: UnsafeMutableRawPointer
-    let byteCount: Int
-
-    init(byteCount: Int) {
-        precondition(byteCount > 0, "nativeHeap allocation size must be positive")
-        self.byteCount = byteCount
-        self.rawPointer = UnsafeMutableRawPointer.allocate(byteCount: byteCount, alignment: 16)
-        self.rawPointer.initializeMemory(as: UInt8.self, repeating: 0, count: byteCount)
-    }
-
-    deinit {
-        rawPointer.deallocate()
-    }
-}
-
-@_cdecl("kk_native_heap_alloc")
-public func kk_native_heap_alloc(_ byteCount: Int) -> Int {
-    guard byteCount > 0 else {
-        return 0
-    }
-    return registerRuntimeObject(RuntimeNativeHeapAllocationBox(byteCount: byteCount))
-}
-
-@_cdecl("kk_native_heap_free")
-public func kk_native_heap_free(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {
-        return 0
-    }
-    // Release the box; its deinit frees the underlying C memory.
-    Unmanaged<RuntimeNativeHeapAllocationBox>.fromOpaque(ptr).release()
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.remove(UInt(bitPattern: ptr))
-    }
-    return 0
-}
-
 // MARK: - CValues<T> (STDLIB-CINTEROP-FN-018)
 
 /// Runtime backing for `kotlinx.cinterop.CValues<ByteVar>`.

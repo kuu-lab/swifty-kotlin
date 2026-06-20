@@ -1108,20 +1108,34 @@ extension CallLowerer {
             }
         }
 
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) — 1-arg overload
+        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType, interner.resolve(calleeName) == "digitToInt" {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_char_digitToInt_radix"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
-                return result
+            if nonNullReceiverType == sema.types.charType {
+                let calleeStr = interner.resolve(calleeName)
+                if calleeStr == "digitToInt" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToInt_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "digitToIntOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToIntOrNull_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
             }
         }
 
