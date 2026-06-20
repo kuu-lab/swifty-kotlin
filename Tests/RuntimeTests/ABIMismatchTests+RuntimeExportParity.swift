@@ -74,6 +74,7 @@ extension ABIMismatchTests {
             "kk_js_set_toMutableSet",
             "kk_js_boolean_toBoolean",
             "kk_js_number_toDouble",
+            "kk_js_set_toSet",
             "kk_jsclass_kotlin",
             "kk_kclass_has_annotation",
             "kk_kclass_js",
