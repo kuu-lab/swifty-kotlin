@@ -256,6 +256,32 @@ public func kk_char_digitToIntOrNull(_ value: Int) -> Int {
     return digitValue
 }
 
+// MARK: - STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
+
+/// fun Char.digitToIntOrNull(radix: Int): Int?
+/// Returns the numeric digit value of this Char in the given radix (2..36),
+/// or null if the Char is not a valid digit.
+/// Throws IllegalArgumentException if radix is out of range.
+@_cdecl("kk_char_digitToIntOrNull_radix")
+public func kk_char_digitToIntOrNull_radix(
+    _ value: Int,
+    _ radix: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard radix >= 2, radix <= 36 else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "IllegalArgumentException: radix \(radix) is out of the valid range 2..36"
+        )
+        return runtimeNullSentinelInt
+    }
+    let digitVal = charDigitValueForRadix(value)
+    guard digitVal >= 0, digitVal < radix else {
+        return runtimeNullSentinelInt
+    }
+    return digitVal
+}
+
 // Char arithmetic operators
 
 /// operator fun Char.minus(other: Char): Int
