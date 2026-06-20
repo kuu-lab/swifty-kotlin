@@ -1267,14 +1267,6 @@ extension ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             let sema = try XCTUnwrap(ctx.sema)
-            let userFileIDs = Set(ctx.sourceManager.fileIDs().filter { ctx.sourceManager.path(of: $0) == path })
-
-            func isUserExpr(_ exprID: ExprID) -> Bool {
-                guard let file = ast.arena.exprRange(exprID)?.start.file else {
-                    return false
-                }
-                return userFileIDs.contains(file)
-            }
 
             let expectedExternalLinks = [
                 "add": "kk_mutable_set_add",
