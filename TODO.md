@@ -80,7 +80,7 @@
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
-- [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
 
 #### kotlin.time 型の実装
@@ -381,11 +381,11 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [x] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
 - [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
 - [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
 - [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
-- [ ] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
+- [x] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
 - [ ] CLEANUP-STUB-090: JS Symbol stub削除（`HeaderHelpers+SyntheticJsSymbolStubs.swift` — `@JsSymbol` annotation surface）
 - [ ] CLEANUP-STUB-091: JS Date 系 stub削除（`kk_js_date_to_kotlin_instant` / `kk_js_date_epoch_millis` / `kk_js_date_from_epoch_millis` / `kk_js_date_to_string`。`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` の登録と `RuntimeTime.swift` 実装も削除）
 - [x] CLEANUP-STUB-092: `kk_java_instant_*` 合成サーフェス削除（`of_epoch_second` / `of_epoch_milli` / `epoch_seconds` / `nano_of_second` / `to_epoch_milli` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
@@ -404,7 +404,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 ## テスト改善タスク
 - [ ] TEST-SEQ-009: `kotlin.sequences` の `findLast` / `partition` に Runtime テストを追加する。`kk_sequence_findLast` / `kk_sequence_partition` は専用ランタイム実装があるのに `Tests/RuntimeTests/RuntimeSequenceTests*.swift` での参照が 0 件。カバー対象: 空シーケンス・単一要素・マッチなし（`findLast` は `null`）・全要素マッチ・`partition` の predicate による 2 分割（`Pair<List, List>`）。`count` は基本ケース（`testCountReturnsElementCount`）のみ存在のため、空シーケンスと `predicate` 版を補完する
-- [ ] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
+- [x] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
 - [x] TEST-CI-007: CI パイプラインの最適化（`smoke-tests` / `full-swift-tests` の重複 `swift build` を削除し、`swift test` に strict-concurrency 警告を集約）
 - [ ] TEST-SEQ-010: `kotlin.sequences` 既存関数のエッジケースを拡充する。`distinctBy`（空・全要素同一キー・キーセレクタ例外伝播）、`filterIsInstance`（空・全一致・全不一致）、`reduceIndexed` / `reduceRightIndexed`（単一要素で accumulator 未呼出）、および中間操作の遅延評価回数の検証（`RuntimeSequenceTests+BuilderAndAdvanced.swift` の `_lazyTestYieldCounter` 機構を活用）
 - [ ] TEST-COL-012: `kotlin.collections` の `Set` 高階関数の Runtime/Codegen テストを追加する。`kk_set_filter` / `filterNot` / `map` / `flatMap` / `all` / `any` / `first` / `last` / `lastOrNull` / `maxOrNull` / `minOrNull` / `sorted` / `sortedDescending` / `singleOrNull` / `count{}`（`kk_set_count_predicate`）/ `forEach` は実装の実体が `RuntimeCollectionHOF.swift` にあるが、Runtime テストも Codegen 統合テストも存在しない（Set 専用テストファイルが皆無）。カバー対象: 空 Set・単一要素・全一致/全不一致・要素順序・`first`/`last` の空 Set で例外。`none` と `mapNotNull` は既存カバー済みのため対象外
