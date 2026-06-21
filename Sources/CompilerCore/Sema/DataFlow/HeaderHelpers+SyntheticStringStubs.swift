@@ -189,6 +189,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "lowercase",
             externalLinkName: "kk_string_lowercase",
@@ -200,6 +201,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "uppercase",
             externalLinkName: "kk_string_uppercase",
@@ -211,26 +213,50 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // capitalize() — deprecated in Kotlin 1.5+ but still callable (STDLIB-GAP-PH1)
+        // --- STDLIB-TEXT-FN-010: CharSequence.codePointCount ---
+        //
+        // Kotlin/JVM defines the range in UTF-16 code units. KSwiftK's general
+        // String indexing helpers are scalar-oriented, so this family is backed
+        // by dedicated runtime entries.
         registerSyntheticStringExtensionFunction(
-            named: "capitalize",
-            externalLinkName: "kk_string_capitalize",
-            receiverType: stringType,
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount",
+            receiverType: charSequenceType,
             parameters: [],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use replaceFirstChar instead.\"",
-                        "replaceWith = ReplaceWith(\"replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }\")",
-                    ]
-                ),
-            ],
+            returnType: intType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_from",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_range",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, true, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
 
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
@@ -261,6 +287,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "lowercase",
             externalLinkName: "kk_string_lowercase_locale",
@@ -274,6 +301,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "uppercase",
             externalLinkName: "kk_string_uppercase_locale",
@@ -2683,17 +2711,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-315: String.replaceFirstChar ---
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirstChar",
-            externalLinkName: "kk_string_replaceFirstChar",
-            receiverType: stringType,
-            parameters: [("transform", charToCharType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087: String?.toBoolean / String.toBooleanStrict ---
 

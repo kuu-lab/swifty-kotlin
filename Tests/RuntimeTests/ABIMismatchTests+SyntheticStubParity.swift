@@ -135,6 +135,12 @@ extension ABIMismatchTests {
         "kk_string_toUShortOrNull_radix",
     ]
 
+    // MARK: Char radix conversion
+    private static let charRadixStubLinkNames: Set<String> = [
+        "kk_char_digitToInt_radix",
+        "kk_char_digitToIntOrNull_radix",
+    ]
+
     // MARK: System / timing / Stream toList
     private static let systemStubLinkNames: Set<String> = [
         "kk_synchronized",
@@ -343,8 +349,8 @@ extension ABIMismatchTests {
         "kk_atomic_ref_store",
         "kk_atomic_ref_updateAndGet",
         "kk_java_atomic_int_asKotlinAtomic",
+        "kk_java_atomic_long_array_asKotlinAtomicArray",
         "kk_java_atomic_long_asKotlinAtomic",
-        "kk_java_atomic_ref_array_asKotlinAtomicArray",
     ]
 
     // MARK: kotlin.native.ref (WeakReference, Cleaner, GC, debugging)
@@ -467,6 +473,7 @@ extension ABIMismatchTests {
         result.formUnion(collectionStubLinkNames)
         result.formUnion(binarySearchByStubLinkNames)
         result.formUnion(stringRadixStubLinkNames)
+        result.formUnion(charRadixStubLinkNames)
         result.formUnion(systemStubLinkNames)
         result.formUnion(uuidStubLinkNames)
         result.formUnion(instantStubLinkNames)
