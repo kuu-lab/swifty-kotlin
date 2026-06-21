@@ -104,18 +104,6 @@ fun String.uppercase(): String {
     return sb.toString()
 }
 
-fun String.capitalize(): String {
-    if (isEmpty()) return this
-    val sb = StringBuilder()
-    sb.append(this[0].uppercase())
-    var i = 1
-    while (i < length) {
-        sb.append(this[i])
-        i += 1
-    }
-    return sb.toString()
-}
-
 fun String.lowercase(locale: java.util.Locale): String =
     this.__kk_lowercase_locale(locale)
 
