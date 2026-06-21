@@ -297,6 +297,78 @@ public func kk_string_subSequence(
     kk_string_substring(strRaw, startRaw, endRaw, 1, outThrown)
 }
 
+private func runtimeStringCodePointCount(
+    units: [UInt16],
+    startIndex: Int,
+    endIndex: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= units.count else {
+        runtimeSetThrown(
+            outThrown,
+            message: "IndexOutOfBoundsException: startIndex=\(startIndex), endIndex=\(endIndex), length=\(units.count)"
+        )
+        return 0
+    }
+
+    var count = 0
+    var index = startIndex
+    while index < endIndex {
+        let unit = units[index]
+        if unit >= 0xD800, unit <= 0xDBFF, index + 1 < endIndex {
+            let next = units[index + 1]
+            if next >= 0xDC00, next <= 0xDFFF {
+                index += 2
+                count += 1
+                continue
+            }
+        }
+        index += 1
+        count += 1
+    }
+    return count
+}
+
+// MARK: - STDLIB-TEXT-FN-010: CharSequence.codePointCount
+
+@_cdecl("kk_string_codePointCount")
+public func kk_string_codePointCount(_ strRaw: Int) -> Int {
+    let units = runtimeStringUTF16CodeUnits(strRaw)
+    return runtimeStringCodePointCount(units: units, startIndex: 0, endIndex: units.count, outThrown: nil)
+}
+
+@_cdecl("kk_string_codePointCount_from")
+public func kk_string_codePointCount_from(
+    _ strRaw: Int,
+    _ startIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let units = runtimeStringUTF16CodeUnits(strRaw)
+    return runtimeStringCodePointCount(
+        units: units,
+        startIndex: startIndex,
+        endIndex: units.count,
+        outThrown: outThrown
+    )
+}
+
+@_cdecl("kk_string_codePointCount_range")
+public func kk_string_codePointCount_range(
+    _ strRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let units = runtimeStringUTF16CodeUnits(strRaw)
+    return runtimeStringCodePointCount(
+        units: units,
+        startIndex: startIndex,
+        endIndex: endIndex,
+        outThrown: outThrown
+    )
+}
+
 @_cdecl("kk_string_toList")
 public func kk_string_toList(_ strRaw: Int) -> Int {
     let charRaws = runtimeStringScalars(strRaw).map { kk_box_char(Int($0.value)) }
