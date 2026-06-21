@@ -1,9 +1,8 @@
-
 /// Synthetic Kotlin/JS `JsArray<T>` external class registration.
 ///
-/// Registers only the class shell (type parameter + supertype); no methods.
-/// The `toList` conversion was removed — this file ensures `kotlin.js.JsArray`
-/// remains discoverable as a typed external class for import and generic usage.
+/// Registers `kotlin.js.JsArray` as a generic open class with a single
+/// invariant type parameter `T` and supertype `JsAny`. No member functions
+/// are registered here; this only provides the class surface for type-checking.
 extension DataFlowSemaPhase {
     func registerSyntheticJsArrayExternalClassStubs(
         symbols: SymbolTable,
@@ -16,20 +15,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        _ = ensureJsArrayExternalClass(
-            kotlinJsPkg: kotlinJsPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
-    private func ensureJsArrayExternalClass(
-        kotlinJsPkg: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> (symbol: SymbolID, typeParameterSymbol: SymbolID) {
         let className = interner.intern("JsArray")
         let classFQName = kotlinJsPkg + [className]
         let classSymbol: SymbolID
@@ -94,7 +79,5 @@ extension DataFlowSemaPhase {
         }
         symbols.setDirectSupertypes([jsAnySymbol], for: classSymbol)
         types.setNominalDirectSupertypes([jsAnySymbol], for: classSymbol)
-
-        return (classSymbol, typeParamSymbol)
     }
 }

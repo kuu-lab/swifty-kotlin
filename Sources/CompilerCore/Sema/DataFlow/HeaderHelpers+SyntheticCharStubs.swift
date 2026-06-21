@@ -431,6 +431,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // DOCPARITY-CHAR-005: Int.digitToChar() / Int.digitToChar(radix: Int)
+        registerDigitToCharStubs(symbols: symbols, types: types, interner: interner)
         registerNativeCharCompanionHelpers(symbols: symbols, types: types, interner: interner)
     }
 
@@ -657,6 +659,36 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: [false]
             ),
             for: functionSymbol
+        )
+    }
+
+    private func registerDigitToCharStubs(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinTextPkg = ensureKotlinTextPackageForCharStubs(symbols: symbols, interner: interner)
+
+        registerSyntheticCharExtensionFunction(
+            named: "digitToChar",
+            externalLinkName: "kk_char_digitToChar_radix",
+            receiverType: types.intType,
+            returnType: types.charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticCharExtensionFunction(
+            named: "digitToChar",
+            externalLinkName: "kk_char_digitToChar_radix",
+            receiverType: types.intType,
+            parameters: [
+                ("radix", types.intType, false, false),
+            ],
+            returnType: types.charType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
         )
     }
 
