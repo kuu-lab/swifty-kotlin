@@ -203,6 +203,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
     }
 
+    func testCodePointCountStubsHaveCorrectExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount"),
+            "CharSequence.codePointCount() should link to kk_string_codePointCount"
+        )
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount_from"),
+            "CharSequence.codePointCount(startIndex) should link to kk_string_codePointCount_from"
+        )
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount_range"),
+            "CharSequence.codePointCount(startIndex, endIndex) should link to kk_string_codePointCount_range"
+        )
+    }
+
     func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
