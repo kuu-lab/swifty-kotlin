@@ -2092,13 +2092,6 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-
-        let charToCharType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: charType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
         let charToAnyType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: types.anyType,
@@ -2646,17 +2639,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // --- STDLIB-315: String.replaceFirstChar ---
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirstChar",
-            externalLinkName: "kk_string_replaceFirstChar",
-            receiverType: stringType,
-            parameters: [("transform", charToCharType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // MIGRATION-TEXT-010: String.replaceFirstChar is now provided by bundled Kotlin source.
+        // Do not register a synthetic stub here; doing so would create a duplicate JVM-erased
+        // callable conflict with the kotlin.text package definition in BundledKotlinStdlib.
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087: String?.toBoolean / String.toBooleanStrict ---
 
