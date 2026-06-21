@@ -69,7 +69,7 @@ extension ABIMismatchTests {
             "kk_int_to_int",
             "kk_js_reference_get",
             "kk_js_bigint_toLong",
-"kk_js_map_toMap",
+            "kk_js_map_toMap",
             "kk_js_set_toMutableSet",
             "kk_js_boolean_toBoolean",
             "kk_js_number_toDouble",
