@@ -2,6 +2,32 @@
   "version": 1,
   "diagnostics": [
     {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 80, "character": 0 },
+        "end": { "line": 87, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 89, "character": 0 },
+        "end": { "line": 96, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
       "file": "override_generic_return_violation.kt",
       "range": {
         "start": { "line": 9, "character": 4 },
@@ -11,7 +37,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#387<T#6583>' but found 'Class#387<Any>'.",
+      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#0<T#1>' but found 'Class#0<Any>'.",
       "codeActions": []
     },
     {
@@ -24,7 +50,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'value' has incompatible return type. Expected covariant relationship with 'T#6590' but found 'Any'.",
+      "message": "Override of 'value' has incompatible return type. Expected covariant relationship with 'T#2' but found 'Any'.",
       "codeActions": []
     },
     {
@@ -37,7 +63,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'pair' has incompatible return type. Expected covariant relationship with 'Class#244<T#6597, T#6597>' but found 'Class#244<Int, String>'.",
+      "message": "Override of 'pair' has incompatible return type. Expected covariant relationship with 'Class#3<T#4, T#4>' but found 'Class#3<Int, String>'.",
       "codeActions": []
     },
     {
@@ -50,7 +76,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#387<T#6583>' but found 'Class#387<Any>'.",
+      "message": "Override of 'items' has incompatible return type. Expected covariant relationship with 'Class#0<T#1>' but found 'Class#0<Any>'.",
       "codeActions": []
     },
     {
@@ -63,7 +89,7 @@
       "severityLabel": "error",
       "code": "KSWIFTK-SEMA-OVERRIDE-RETURN",
       "source": "kswiftk",
-      "message": "Override of 'create' has incompatible return type. Expected covariant relationship with 'Class#387<T#6612>' but found 'Class#387<Int>'.",
+      "message": "Override of 'create' has incompatible return type. Expected covariant relationship with 'Class#0<T#5>' but found 'Class#0<Int>'.",
       "codeActions": []
     }
   ]

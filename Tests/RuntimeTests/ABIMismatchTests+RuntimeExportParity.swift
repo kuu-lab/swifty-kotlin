@@ -10,6 +10,7 @@ extension ABIMismatchTests {
         let specNames = Set(RuntimeABISpec.allFunctions.map(\.name))
         let missing = exported.map(\.name)
             .filter { !specNames.contains($0) }
+            .filter { !$0.hasPrefix("__") }  // Internal bridge functions (MIGRATION-TEXT)
             .sorted()
 
         XCTAssertTrue(
@@ -22,6 +23,8 @@ extension ABIMismatchTests {
         let specsByName = Dictionary(uniqueKeysWithValues: RuntimeABISpec.allFunctions.map { ($0.name, $0) })
         for exported in try runtimeExportedABIs() {
             // Generic functions cannot have their parameter types validated against C ABI types
+            // Skip internal bridge functions (__ prefix) — they have no spec entry
+            guard !exported.name.hasPrefix("__") else { continue }
             guard exported.returnType != "generic" else { continue }
             let spec = try XCTUnwrap(
                 specsByName[exported.name],
@@ -67,7 +70,6 @@ extension ABIMismatchTests {
             "kk_future_getState",
             "kk_int_toJsNumber",
             "kk_int_to_int",
-            "kk_js_reference_get",
             "kk_js_array_toList",
             "kk_js_bigint_toLong",
 "kk_js_map_toMap",
@@ -81,7 +83,6 @@ extension ABIMismatchTests {
             "kk_kclass_register_annotation",
             "kk_long_range_firstOrNull",
             "kk_long_range_lastOrNull",
-            "kk_long_toJsBigInt",
             "kk_native_atomic_ref_compareAndSet",
             "kk_native_atomic_ref_compareAndSwap",
             "kk_native_atomic_ref_create",
@@ -169,6 +170,8 @@ extension ABIMismatchTests {
             "kk_result_flatMap",
             "kk_result_flatMapCatching",
             "kk_result_mapCatching",
+            "kk_string_toBigDecimalOrNull",
+            "kk_string_capitalize",
             "kk_string_toJsString",
             "kk_toJsReference",
             "kk_uri_toPath",

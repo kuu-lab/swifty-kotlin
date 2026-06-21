@@ -258,7 +258,7 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         XCTAssertFalse(boolValue(kk_char_isTitleCase(Int(("A" as UnicodeScalar).value))))
     }
 
-    // MARK: - digitToInt (base-10 only at runtime; radix variant is a gap — see below)
+    // MARK: - digitToInt / digitToIntOrNull (base-10 only)
 
     func testDigitToIntBoundariesAscii() {
         XCTAssertEqual(kk_char_digitToInt(Int(("0" as UnicodeScalar).value), nil), 0)

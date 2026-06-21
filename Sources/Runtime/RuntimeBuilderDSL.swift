@@ -463,10 +463,3 @@ public func kk_build_map(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) 
     return registerRuntimeObject(RuntimeMapBox(keys: frame.keys, values: frame.values))
 }
 
-private func runtimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cString in
-        cString.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}
