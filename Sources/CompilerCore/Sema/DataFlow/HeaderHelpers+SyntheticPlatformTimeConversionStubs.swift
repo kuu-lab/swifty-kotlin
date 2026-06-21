@@ -141,16 +141,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerPlatformTimeExtensionFunction(
-            named: "toKotlinInstant",
-            externalLinkName: "kk_js_date_to_kotlin_instant",
-            receiverType: jsDateType,
-            returnType: kotlinInstantType,
-            packageFQName: kotlinTimePkg,
-            symbols: symbols,
-            interner: interner
-        )
-
         if let durationUnitType {
             // STDLIB-TIME-FN-012: DurationUnit.toTimeUnit() -> java.util.concurrent.TimeUnit
             registerPlatformTimeExtensionFunction(
