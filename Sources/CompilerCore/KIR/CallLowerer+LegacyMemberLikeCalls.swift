@@ -1116,7 +1116,7 @@ extension CallLowerer {
                         callee: interner.intern("kk_char_digitToIntOrNull_radix"),
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
-                        canThrow: false,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                     return result
