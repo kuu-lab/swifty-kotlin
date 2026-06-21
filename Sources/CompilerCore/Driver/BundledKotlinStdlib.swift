@@ -116,6 +116,24 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     return sb.toString()
 }
 
+fun String.capitalize(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    sb.append(this[0].uppercase())
+    var i = 1
+    while (i < length) { sb.append(this[i]); i += 1 }
+    return sb.toString()
+}
+
+fun String.replaceFirstChar(transform: (Char) -> Char): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    sb.append(transform(this[0]))
+    var i = 1
+    while (i < length) { sb.append(this[i]); i += 1 }
+    return sb.toString()
+}
+
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 
 fun String.encodeToByteArray(): ByteArray = this.__kk_encodeToByteArray()

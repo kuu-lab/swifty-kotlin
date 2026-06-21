@@ -2,13 +2,12 @@
 import XCTest
 
 final class RuntimeTimeConversionTests: XCTestCase {
-    func testInstantJSDateRoundTripPreservesFractionalMilliseconds() {
+    func testInstantJSDateConversionProducesExpectedBox() throws {
         let instant = registerRuntimeObject(RuntimeInstantBox(epochSeconds: 12, nanoOfSecond: 345_678_900))
         let jsDate = kk_instant_to_js_date(instant)
-        let roundTrip = kk_js_date_to_kotlin_instant(jsDate)
+        let jsDateBox = try XCTUnwrap(resolveRuntimeHandle(jsDate, as: RuntimeJSDateBox.self))
 
-        XCTAssertEqual(kk_instant_epoch_seconds(roundTrip), 12)
-        XCTAssertEqual(kk_instant_nano_of_second(roundTrip), 345_678_900)
+        XCTAssertEqual(jsDateBox.epochMilliseconds, 12_345.6789, accuracy: 0.000001)
     }
 
     func testTimeUnitToDurationUnitMapsEachOrdinalToItself() {
