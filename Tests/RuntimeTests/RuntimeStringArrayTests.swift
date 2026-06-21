@@ -436,6 +436,40 @@ final class RuntimeStringArrayTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_string_lastIndexOf(textRaw, rawFromRuntimeString("é")), 1)
     }
 
+    func testStringCodePointCountUsesUTF16Ranges() {
+        let textRaw = rawFromRuntimeString("a😀b")
+
+        XCTAssertEqual(kk_string_codePointCount(textRaw), 3)
+
+        var thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_from(textRaw, 1, &thrown), 2)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 1, 3, &thrown), 1)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 0, 2, &thrown), 2)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testStringCodePointCountReportsRangeErrors() {
+        let textRaw = rawFromRuntimeString("abc")
+
+        var thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_range(textRaw, -1, 1, &thrown), 0)
+        XCTAssertNotEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 0, 4, &thrown), 0)
+        XCTAssertNotEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_string_codePointCount_range(textRaw, 2, 1, &thrown), 0)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     func testPairAndArrayRenderingStayDistinct() {
         let pairRaw = kk_pair_new(1, 2)
         XCTAssertEqual(runtimeElementToString(pairRaw), "(1, 2)")
