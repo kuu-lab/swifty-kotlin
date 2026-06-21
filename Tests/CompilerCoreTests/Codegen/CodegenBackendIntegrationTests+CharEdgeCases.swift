@@ -11,11 +11,20 @@ extension CodegenBackendIntegrationTests {
             println('5'.digitToInt())
             println('9'.digitToInt())
             println('a'.digitToIntOrNull())
+            println('a'.digitToIntOrNull(16))
 
             try {
                 println('z'.digitToInt())
             } catch (e: Throwable) {
                 println("invalid-char")
+            }
+
+            println(5.digitToChar())
+            println(10.digitToChar(16))
+            try {
+                println(10.digitToChar())
+            } catch (e: Throwable) {
+                println("invalid-digit-to-char")
             }
 
             println('ß'.uppercase())
@@ -54,7 +63,11 @@ extension CodegenBackendIntegrationTests {
                 5
                 9
                 null
+                10
                 invalid-char
+                5
+                A
+                invalid-digit-to-char
                 SS
                 ß
                 i\u{0307}

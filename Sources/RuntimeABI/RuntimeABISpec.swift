@@ -475,16 +475,8 @@ public enum RuntimeABISpec {
             returnType: .intptr,
             section: "System"
         ),
-RuntimeABIFunctionSpec(
-            name: "kk_js_set_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_set_toSet",
+            name: "kk_js_set_toMutableSet",
             parameters: [
                 RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
             ],
@@ -503,14 +495,6 @@ RuntimeABIFunctionSpec(
             name: "kk_jsclass_kotlin",
             parameters: [
                 RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_toJsBigInt",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .int64),
             ],
             returnType: .intptr,
             section: "System"

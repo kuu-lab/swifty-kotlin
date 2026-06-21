@@ -126,7 +126,7 @@ extension CallTypeChecker {
                 }
             }
         }
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) — 1-arg overload
+        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
         if args.count == 1, interner.resolve(calleeName) == "digitToInt" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
@@ -135,6 +135,18 @@ extension CallTypeChecker {
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
                 let intType = sema.types.intType
                 let finalType = safeCall ? sema.types.makeNullable(intType) : intType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
+        if args.count == 1, interner.resolve(calleeName) == "digitToIntOrNull" {
+            let receiverTypeForCheck = safeCall
+                ? sema.types.makeNonNullable(lookupReceiverType)
+                : lookupReceiverType
+            if receiverTypeForCheck == sema.types.charType {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                let resultType = sema.types.makeNullable(sema.types.intType)
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             }

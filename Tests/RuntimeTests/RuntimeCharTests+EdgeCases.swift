@@ -258,7 +258,7 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
         XCTAssertFalse(boolValue(kk_char_isTitleCase(Int(("A" as UnicodeScalar).value))))
     }
 
-    // MARK: - digitToInt (base-10 only at runtime; radix variant is a gap — see below)
+    // MARK: - digitToInt / digitToIntOrNull (base-10 only)
 
     func testDigitToIntBoundariesAscii() {
         XCTAssertEqual(kk_char_digitToInt(Int(("0" as UnicodeScalar).value), nil), 0)
@@ -285,6 +285,26 @@ final class RuntimeCharEdgeCaseTests: XCTestCase {
     func testDigitToIntOrNullReturnsNullForPunctuation() {
         let result = kk_char_digitToIntOrNull(Int(("!" as UnicodeScalar).value))
         XCTAssertEqual(result, runtimeNullSentinelInt)
+    }
+
+    func testDigitToIntOrNullRadixReturnsValueForValidDigit() {
+        var thrown: Int = 0
+        let result = kk_char_digitToIntOrNull_radix(Int(("a" as UnicodeScalar).value), 16, &thrown)
+        XCTAssertEqual(result, 10)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadixReturnsNullForInvalidDigit() {
+        var thrown: Int = 0
+        let result = kk_char_digitToIntOrNull_radix(Int(("z" as UnicodeScalar).value), 16, &thrown)
+        XCTAssertEqual(result, runtimeNullSentinelInt)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadixThrowsForOutOfRangeRadix() {
+        var thrown: Int = 0
+        _ = kk_char_digitToIntOrNull_radix(Int(("5" as UnicodeScalar).value), 1, &thrown)
+        XCTAssertNotEqual(thrown, 0, "Expected exception for radix < 2")
     }
 
     // MARK: - code property

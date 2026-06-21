@@ -80,7 +80,7 @@
 - [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
-- [ ] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-115: `withIndex` 関数の実装
 
 #### kotlin.time 型の実装
@@ -300,12 +300,12 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
 - [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
-- [ ] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
+- [x] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [x] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
 #### JS Map関連stub
 - [x] CLEANUP-STUB-007: `kk_js_map_toMap` stub削除
 #### JS Set関連stub
-- [ ] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
+- [x] CLEANUP-STUB-010: `kk_js_set_toMutableSet` stub削除
 #### JS型変換関連stub
 - [x] CLEANUP-STUB-012: `kk_js_number_toDouble` stub削除
 - [ ] CLEANUP-STUB-013: `kk_js_number_toInt` stub削除
@@ -355,7 +355,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-055: JS String stub削除（`HeaderHelpers+SyntheticJsStringStubs.swift`）
 - [ ] CLEANUP-STUB-056: JS StringInterop stub削除（`HeaderHelpers+SyntheticJsStringInteropStubs.swift`）
 - [ ] CLEANUP-STUB-057: JS Qualifier stub削除（`HeaderHelpers+SyntheticJsQualifierStubs.swift`）
-- [ ] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
+- [x] CLEANUP-STUB-058: JS BigIntInterop stub削除（`HeaderHelpers+SyntheticJsBigIntInteropStubs.swift`）
 - [ ] CLEANUP-STUB-060: JS ReferenceInterop stub削除（`HeaderHelpers+SyntheticJsReferenceInteropStubs.swift`）
 - [ ] CLEANUP-STUB-063: JS PrimitiveWrappers stub削除（`HeaderHelpers+SyntheticJsPrimitiveWrappers.swift`）
 - [ ] CLEANUP-STUB-064: JS CollectionsArray stub削除（`HeaderHelpers+SyntheticJsCollectionsArrayStubs.swift`）
@@ -364,6 +364,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-067: JS CollectionsReadonlyArray stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayStubs.swift`）
 - [ ] CLEANUP-STUB-066: JS CollectionsSet stub削除（`HeaderHelpers+SyntheticJsCollectionsSetStubs.swift`）
 - [ ] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
+- [x] CLEANUP-STUB-068: JS CollectionsReadonlySet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetStubs.swift`）
 - [ ] CLEANUP-STUB-069: JS CollectionsReadonlyMap stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyMapToMapStubs.swift`）
 - [ ] CLEANUP-STUB-072: JS Fun stub削除（`HeaderHelpers+SyntheticJsFunStubs.swift`）
 - [ ] CLEANUP-STUB-071: JS Any stub削除（`HeaderHelpers+SyntheticJsAnyStubs.swift`）
@@ -377,15 +378,15 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 - [ ] CLEANUP-STUB-078: JS Number stub削除（`HeaderHelpers+SyntheticJsNumberStubs.swift`）
 - [ ] CLEANUP-STUB-080: JS RegExp stub削除（`HeaderHelpers+SyntheticJsRegExpStubs.swift`）
 - [ ] CLEANUP-STUB-081: JS Stubs（メイン）削除（`HeaderHelpers+SyntheticJsStubs.swift`）
-- [ ] CLEANUP-STUB-082: JVM AnnotationProperty stub削除（`HeaderHelpers+SyntheticJvmAnnotationPropertyStubs.swift`）
+- [x] CLEANUP-STUB-082: JVM AnnotationProperty stub削除（`HeaderHelpers+SyntheticJvmAnnotationPropertyStubs.swift`）
 - [ ] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
 - [ ] CLEANUP-STUB-083: JVM Reflect stub削除（`HeaderHelpers+SyntheticJvmReflectStubs.swift`）
 - [x] CLEANUP-STUB-084: JVM Metaprog stub削除（`HeaderHelpers+SyntheticMetaprogStubs.swift`）
-- [ ] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
-- [ ] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
+- [x] CLEANUP-STUB-085: JS Array stub削除（`HeaderHelpers+SyntheticJsArrayStubs.swift` — `kk_js_array_toArray` の登録元。CLEANUP-STUB-001 と対）
+- [x] CLEANUP-STUB-086: JS ArrayToList stub削除（`HeaderHelpers+SyntheticJsArrayToListStubs.swift` — `kk_js_array_toList` の登録元。CLEANUP-STUB-005 と対）
 - [ ] CLEANUP-STUB-087: JS BooleanInterop stub削除（`HeaderHelpers+SyntheticJsBooleanInteropStubs.swift` — `JsBoolean` 変換 surface）
-- [ ] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
-- [ ] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
+- [x] CLEANUP-STUB-088: JS CollectionsReadonlyArrayToList stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlyArrayToListStubs.swift` — `kk_js_array_toList`/`kk_js_array_toMutableList` の登録元。CLEANUP-STUB-005/006 と対）
+- [x] CLEANUP-STUB-089: JS CollectionsReadonlySetToSet stub削除（`HeaderHelpers+SyntheticJsCollectionsReadonlySetToSetStubs.swift` — `kk_js_set_toSet` の登録元。CLEANUP-STUB-009 と対）
 - [ ] CLEANUP-STUB-090: JS Symbol stub削除（`HeaderHelpers+SyntheticJsSymbolStubs.swift` — `@JsSymbol` annotation surface）
 - [x] CLEANUP-STUB-091: JS Date 系 stub削除（`kk_js_date_to_kotlin_instant` / `kk_js_date_epoch_millis` / `kk_js_date_from_epoch_millis` / `kk_js_date_to_string`。`HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` の登録と `RuntimeTime.swift` 実装も削除）
 - [x] CLEANUP-STUB-092: `kk_java_instant_*` 合成サーフェス削除（`of_epoch_second` / `of_epoch_milli` / `epoch_seconds` / `nano_of_second` / `to_epoch_milli` / `to_string` の 6 関数。`RuntimeTime.swift` 実装も削除）
@@ -404,7 +405,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 ## テスト改善タスク
 - [ ] TEST-SEQ-009: `kotlin.sequences` の `findLast` / `partition` に Runtime テストを追加する。`kk_sequence_findLast` / `kk_sequence_partition` は専用ランタイム実装があるのに `Tests/RuntimeTests/RuntimeSequenceTests*.swift` での参照が 0 件。カバー対象: 空シーケンス・単一要素・マッチなし（`findLast` は `null`）・全要素マッチ・`partition` の predicate による 2 分割（`Pair<List, List>`）。`count` は基本ケース（`testCountReturnsElementCount`）のみ存在のため、空シーケンスと `predicate` 版を補完する
-- [ ] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
+- [x] TEST-CORO-003: 高度な Coroutine 機能テスト（29→40）
 - [x] TEST-CI-007: CI パイプラインの最適化（`smoke-tests` / `full-swift-tests` の重複 `swift build` を削除し、`swift test` に strict-concurrency 警告を集約）
 - [ ] TEST-SEQ-010: `kotlin.sequences` 既存関数のエッジケースを拡充する。`distinctBy`（空・全要素同一キー・キーセレクタ例外伝播）、`filterIsInstance`（空・全一致・全不一致）、`reduceIndexed` / `reduceRightIndexed`（単一要素で accumulator 未呼出）、および中間操作の遅延評価回数の検証（`RuntimeSequenceTests+BuilderAndAdvanced.swift` の `_lazyTestYieldCounter` 機構を活用）
 - [ ] TEST-COL-012: `kotlin.collections` の `Set` 高階関数の Runtime/Codegen テストを追加する。`kk_set_filter` / `filterNot` / `map` / `flatMap` / `all` / `any` / `first` / `last` / `lastOrNull` / `maxOrNull` / `minOrNull` / `sorted` / `sortedDescending` / `singleOrNull` / `count{}`（`kk_set_count_predicate`）/ `forEach` は実装の実体が `RuntimeCollectionHOF.swift` にあるが、Runtime テストも Codegen 統合テストも存在しない（Set 専用テストファイルが皆無）。カバー対象: 空 Set・単一要素・全一致/全不一致・要素順序・`first`/`last` の空 Set で例外。`none` と `mapNotNull` は既存カバー済みのため対象外
@@ -422,7 +423,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 Kotlin 公式 stdlib ドキュメントと実行時挙動を突き合わせて確認した結果を順次記録する。`[x]` は本リポジトリで修正済み、`[ ]` は未対応の残課題。検証は Swift Foundation の `CharacterSet` / `Unicode.Scalar.Properties` の実挙動を実機で確認した上で判断している。
 
 ### kotlin.text Char（2026-05-31 検証）
-- [ ] DOCPARITY-CHAR-005: `Int.digitToChar()` / `Int.digitToChar(radix)` が言語レベルに未配線。ランタイム `kk_char_digitToChar_radix` は存在するが Sema synthetic stub が無く、Kotlin ソースから `digit.digitToChar(radix)` を呼べない。`Char.digitToInt(radix)` 同様に `Int` 拡張の synthetic stub を `HeaderHelpers+SyntheticCharStubs.swift` 系へ追加する（無 radix 版 `digitToChar()` も含む）。
+- [x] DOCPARITY-CHAR-005: `Int.digitToChar()` / `Int.digitToChar(radix)` が言語レベルに未配線。ランタイム `kk_char_digitToChar_radix` は存在するが Sema synthetic stub が無く、Kotlin ソースから `digit.digitToChar(radix)` を呼べない。`Char.digitToInt(radix)` 同様に `Int` 拡張の synthetic stub を `HeaderHelpers+SyntheticCharStubs.swift` 系へ追加する（無 radix 版 `digitToChar()` も含む）。
 - [ ] DOCPARITY-CHAR-006: `Char.digitToIntOrNull(radix)` のランタイム/配線が無い（無 radix 版 `kk_char_digitToIntOrNull` のみ）。公式には `fun Char.digitToIntOrNull(radix: Int): Int?` が存在するため、`kk_char_digitToInt_radix` の非例外版を追加し synthetic stub を配線する。
 - [x] DOCPARITY-CHAR-007: `Char.isLetter()` 以外の `CharacterSet` 依存述語（`isDigit` は Nd で一致確認済み・問題なし）について、`isJavaIdentifierStart/Part` 等を公式カテゴリ規則と突き合わせ済み。`isJavaIdentifierPart` の surrogate / ignorable 判定、`isUnicodeIdentifierPart` の `Other_ID_*` / ignorable、`isWhitespace` の Kotlin/JVM 互換化を反映済み。
 
@@ -446,7 +447,7 @@ Kotlin 公式仕様 / stdlib ドキュメントを基準に挙動を照合し、
 - 採番は `SPEC-NUM-{NUMBER}`。修正できない大規模/横断要因は再現 diff ケースを `// SKIP-DIFF` で残し追跡する（修正後にマーカーを外せば回帰テストになる）。
 
 ### 数値・プリミティブ型（第1バッチ）
-- [ ] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt`（SKIP-DIFF）。
+- [x] SPEC-NUM-0002: 整数のゼロ除算・剰余が catch 可能な `ArithmeticException`（"/ by zero"）を投げず、ハードウェア SIGFPE でプロセスが異常終了する（catch 不能）。codegen で除数のゼロチェックを挿入する必要あり。浮動小数のゼロ除算（Infinity/NaN）は正しい。再現: `Scripts/diff_cases/num_div_by_zero.kt` と `Tests/CompilerCoreTests/Codegen/CodegenBackendIntegrationTests+NumericDivisionByZero.swift`。
 - [x] SPEC-NUM-0003: `Double`/`Float` の関係演算子（`<` `<=` `>` `>=`）が IEEE-754 比較（NaN は常に false）ではなく `Comparable.compareTo`（全順序、NaN 最大）経由になり、`1.0 < Double.NaN`→`true`（正: `false`）等。`compareTo` 束縛を外すと OperatorLoweringPass が被演算子の Double ランクを検出できず（`arena.exprType` が nil）整数比較 `kk_op_lt` に落ち、負の double 比較を壊すため、KIR 型伝播の改善（または専用 IEEE 比較 desugar）とセットで対応が必要。再現: `Scripts/diff_cases/num_nan_comparison.kt`（SKIP-DIFF）。
 - [x] SPEC-NUM-0006: `Double.MIN_VALUE`/`Float.MIN_VALUE` の最短10進表現を `java.lang.*.toString` と一致させる。Swift の最短表現と Java の FloatingDecimal の差は `runtimeFormatFloatingPoint` 側で吸収済み。subnormal 端の完全一致は別途。再現: `Scripts/diff_cases/num_float_min_value.kt`。
 - [ ] SPEC-NUM-0007: 符号なし型のコンパニオン定数 `UInt`/`ULong`/`UByte`/`UShort.MAX_VALUE`/`MIN_VALUE` が未解決（`KSWIFTK-SEMA-0024`）。加えて `UInt.toByte()` や `String.toUByteOrNull()` 等の一部変換/パーサが未配線。再現: `Scripts/diff_cases/num_unsigned_limits.kt`（SKIP-DIFF）。

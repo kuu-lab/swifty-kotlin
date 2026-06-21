@@ -66,6 +66,17 @@ final class JsArraySurfaceTests: XCTestCase {
         XCTAssertEqual(sema.symbols.directSupertypes(for: symbol), [jsAnySymbol])
     }
 
+    func testJsArrayDoesNotExposeToList() throws {
+        let source = """
+        import kotlin.js.JsArray
+
+        fun fail(value: JsArray<String>) = value.toList()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+
+        assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ctx)
+    }
+
     func testJsArrayCanBeImportedAndUsedAsGenericParameterType() {
         let source = """
         import kotlin.js.JsArray
