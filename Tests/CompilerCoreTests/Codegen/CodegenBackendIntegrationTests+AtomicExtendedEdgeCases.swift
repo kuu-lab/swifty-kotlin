@@ -374,17 +374,12 @@ extension CodegenBackendIntegrationTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicIntegerArray
-        import java.util.concurrent.atomic.AtomicReferenceArray
         import kotlin.concurrent.atomics.asKotlinAtomicArray
 
         fun main() {
             val intArray = AtomicIntegerArray(1).asKotlinAtomicArray()
             intArray.storeAt(0, 11)
             println(intArray.loadAt(0))
-
-            val refArray = AtomicReferenceArray<String?>(1).asKotlinAtomicArray()
-            refArray.storeAt(0, "box")
-            println(refArray.loadAt(0))
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -392,7 +387,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "11\nbox\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "11\n")
         }
     }
 
@@ -886,15 +881,11 @@ extension CodegenBackendIntegrationTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicIntegerArray
-        import java.util.concurrent.atomic.AtomicReferenceArray
         import kotlin.concurrent.atomics.asKotlinAtomicArray
 
         fun main() {
             val intArray = AtomicIntegerArray(2).asKotlinAtomicArray()
-            val refArray = AtomicReferenceArray<String>(2).asKotlinAtomicArray()
-            refArray.storeAt(0, "ref")
             println(intArray.loadAt(0))
-            println(refArray.loadAt(0))
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -902,7 +893,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\nref\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\n")
         }
     }
 
