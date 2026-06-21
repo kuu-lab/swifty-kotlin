@@ -443,50 +443,9 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_date_to_kotlin_instant",
-            parameters: [
-                RuntimeABIParameter(name: "dateRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_array_toList",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_bigint_toLong",
-            parameters: [
-                RuntimeABIParameter(name: "jsBigIntRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_reference_get",
-            parameters: [
-                RuntimeABIParameter(name: "jsRefRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_double_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .double),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_set_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "System"
