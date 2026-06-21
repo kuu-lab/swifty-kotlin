@@ -171,15 +171,19 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        XCTAssertEqual(
-            externalLink(for: "lowercase", sema: sema, interner: interner),
-            "kk_string_lowercase",
-            "String.lowercase should link to kk_string_lowercase"
+        // lowercase() and uppercase() are now bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
+        // The `externalLink(for:)` helper returns the first match in the symbol table; since
+        // Char.lowercase / Char.uppercase share the same FQN prefix, we verify via the String-receiver
+        // overloads specifically.
+        let lowercaseLinks = externalLinks(for: "lowercase", sema: sema, interner: interner)
+        XCTAssertFalse(
+            lowercaseLinks.contains("kk_string_lowercase"),
+            "String.lowercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
         )
-        XCTAssertEqual(
-            externalLink(for: "uppercase", sema: sema, interner: interner),
-            "kk_string_uppercase",
-            "String.uppercase should link to kk_string_uppercase"
+        let uppercaseLinks = externalLinks(for: "uppercase", sema: sema, interner: interner)
+        XCTAssertFalse(
+            uppercaseLinks.contains("kk_string_uppercase"),
+            "String.uppercase should be a bundled Kotlin function with no C external link (MIGRATION-TEXT-005)"
         )
         // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
         XCTAssertNil(
@@ -567,42 +571,29 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            // lowercase/uppercase still have C external links (native implementation).
-            // Use allExprIDs to find all calls with the given name (the bundled capitalize()
-            // implementation also calls Char.uppercase() internally, so firstExprID would pick
-            // the wrong overload).
-            let expectedLinks: [String: String] = [
-                "lowercase": "kk_string_lowercase",
-                "uppercase": "kk_string_uppercase",
-            ]
-            for (memberName, expectedExternalLink) in expectedLinks {
+            // lowercase, uppercase, capitalize, replaceFirstChar, repeat, reversed are now all
+            // bundled Kotlin functions (MIGRATION-TEXT-005) — no C external link.
+            // Use allExprIDs and filter by String receiver to avoid picking up internal
+            // Char.lowercase/Char.uppercase calls that the bundled implementations use.
+            for memberName in ["lowercase", "uppercase", "capitalize", "replaceFirstChar", "repeat", "reversed"] {
+                // Find a call that resolves to a callee with String receiver type.
                 let callExprs = allExprIDs(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 }
-                let hasExpectedLink = callExprs.contains { callExpr in
-                    guard let binding = sema.bindings.callBinding(for: callExpr) else { return false }
-                    return sema.symbols.externalLinkName(for: binding.chosenCallee) == expectedExternalLink
-                }
-                XCTAssertTrue(
-                    hasExpectedLink,
-                    "Expected a call to \(memberName) to resolve to \(expectedExternalLink)"
-                )
-            }
-
-            // capitalize, replaceFirstChar, repeat, reversed are bundled Kotlin functions — no C link.
-            for memberName in ["capitalize", "replaceFirstChar", "repeat", "reversed"] {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                    return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
+                let stringReceiverCallee = callExprs.compactMap { callExpr -> SymbolID? in
+                    guard let binding = sema.bindings.callBinding(for: callExpr) else { return nil }
+                    let sig = sema.symbols.functionSignature(for: binding.chosenCallee)
+                    guard sig?.receiverType == sema.types.stringType else { return nil }
+                    return binding.chosenCallee
+                }.first
                 let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
+                    stringReceiverCallee,
+                    "Expected a call to String.\(memberName) in AST"
                 )
                 XCTAssertNil(
                     sema.symbols.externalLinkName(for: chosenCallee),
-                    "Expected \(memberName) to be a bundled Kotlin function with no C external link"
+                    "Expected String.\(memberName) to be a bundled Kotlin function with no C external link"
                 )
             }
         }

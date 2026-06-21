@@ -189,30 +189,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
-        registerSyntheticStringExtensionFunction(
-            named: "lowercase",
-            externalLinkName: "kk_string_lowercase",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
-        registerSyntheticStringExtensionFunction(
-            named: "uppercase",
-            externalLinkName: "kk_string_uppercase",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
+        // lowercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+        // uppercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
         // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
 
 
