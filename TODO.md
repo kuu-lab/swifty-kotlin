@@ -187,7 +187,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 
 - [ ] MIGRATION-COL-003: List フィルタ HOF を Kotlin source に移行する（`filter`, `filterNot`, `filterNotNull`, `filterIndexed`, `filterIsInstance`）
 - [ ] MIGRATION-COL-004: List 集約 HOF を Kotlin source に移行する（`fold`, `foldRight`, `reduce`, `reduceOrNull`, `scan`, `runningFold`）
-- [ ] MIGRATION-COL-005: List 検索 HOF を Kotlin source に移行する（`first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `singleOrNull`, `find`, `findLast`, `indexOf`, `indexOfFirst`, `indexOfLast`）
+- [x] MIGRATION-COL-005: List 検索 HOF を Kotlin source に移行する（`first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `singleOrNull`, `find`, `findLast`, `indexOf`, `indexOfFirst`, `indexOfLast`）
 - [x] MIGRATION-COL-006: List ソート・比較 HOF を Kotlin source に移行する（`sorted`, `sortedBy`, `sortedByDescending`, `sortedWith`, `reversed`, `shuffled`）
 - [x] MIGRATION-COL-007: List グルーピング・関連付け HOF を Kotlin source に移行する（`groupBy`, `groupByTo`, `associate`, `associateBy`, `associateWith`, `partition`）
 - [x] MIGRATION-COL-008: List 集計 HOF を Kotlin source に移行する（`count`, `any`, `all`, `none`, `maxByOrNull`, `minByOrNull`, `maxWith`, `minWith`, `sumOf`）
