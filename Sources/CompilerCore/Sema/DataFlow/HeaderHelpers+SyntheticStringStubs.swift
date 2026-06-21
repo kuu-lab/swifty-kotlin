@@ -193,6 +193,49 @@ extension DataFlowSemaPhase {
         // provided by bundled Kotlin source. Do not register no-locale stubs here,
         // otherwise the synthetic linker would attach C ABI names to the source symbols.
 
+        // --- STDLIB-TEXT-FN-010: CharSequence.codePointCount ---
+        //
+        // Kotlin/JVM defines the range in UTF-16 code units. KSwiftK's general
+        // String indexing helpers are scalar-oriented, so this family is backed
+        // by dedicated runtime entries.
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_from",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_range",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, true, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,
