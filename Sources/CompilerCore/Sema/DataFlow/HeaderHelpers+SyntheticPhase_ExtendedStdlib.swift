@@ -2,7 +2,7 @@ import Foundation
 
 /// Extended stdlib batch of synthetic stub registrations from `registerSyntheticDelegateStubs`.
 ///
-/// This Phase covers a 65-call block that previously sat in the middle of the
+/// This Phase covers a 66-call block that previously sat in the middle of the
 /// central dispatch: Atomic/Enum/Uuid/Serialization/Networking/Logging/
 /// Locale/NumberFormat/Streams/Concurrency/Coroutines/JS-binding stubs.
 ///
@@ -52,6 +52,7 @@ extension DataFlowSemaPhase {
         registerSyntheticReadWriteLockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsBooleanInteropStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticJsArrayExternalClassStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeRefRuntimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBase64Stubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
