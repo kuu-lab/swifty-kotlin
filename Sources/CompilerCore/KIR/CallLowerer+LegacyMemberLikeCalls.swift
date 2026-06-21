@@ -1813,8 +1813,6 @@ extension CallLowerer {
                     ("kk_string_compareTo_member", [loweredReceiverID, loweredArgIDs[0]])
                 case "matches":
                     ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
-                case "replaceFirstChar":
-                    ("kk_string_replaceFirstChar", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
                     ("kk_string_mapIndexed", [loweredReceiverID] + normalizedArgIDs)
                 case "mapNotNull":
@@ -1893,8 +1891,7 @@ extension CallLowerer {
                     nil
                 }
                 if let runtimeCall {
-                    let stringHOFCanThrow = calleeStr == "replaceFirstChar"
-                        || calleeStr == "indexOfFirst"
+                    let stringHOFCanThrow = calleeStr == "indexOfFirst"
                         || calleeStr == "indexOfLast"
                         || calleeStr == "partition"
                         || calleeStr == "ifBlank"
