@@ -513,3 +513,25 @@ public func kk_string_removeRange_range(
     }
     return kk_string_removeRange(strRaw, range.first, range.last + 1, outThrown)
 }
+
+// MARK: - Bridge functions for substring/replace/remove operations (MIGRATION-TEXT-005)
+
+@_cdecl("__string_replaceFirst")
+public func __string_replaceFirst(_ strRaw: Int, _ oldRaw: Int, _ newRaw: Int) -> Int {
+    return kk_string_replaceFirst(strRaw, oldRaw, newRaw)
+}
+
+@_cdecl("__string_replaceRange")
+public func __string_replaceRange(_ strRaw: Int, _ rangeRaw: Int, _ replacementRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_replaceRange(strRaw, rangeRaw, replacementRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange")
+public func __string_removeRange(_ strRaw: Int, _ startRaw: Int, _ endRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange(strRaw, startRaw, endRaw, outThrown)
+}
+
+@_cdecl("__string_removeRange_range")
+public func __string_removeRange_range(_ strRaw: Int, _ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    return kk_string_removeRange_range(strRaw, rangeRaw, outThrown)
+}

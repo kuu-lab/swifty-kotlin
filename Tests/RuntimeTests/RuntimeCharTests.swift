@@ -119,6 +119,29 @@ final class RuntimeCharTests: XCTestCase {
         XCTAssertEqual(thrown, 0)
     }
 
+    // MARK: - STDLIB-003-ABI-001: Char.digitToIntOrNull(radix: Int)
+
+    func testDigitToIntOrNullRadix_base16() {
+        var thrown = 0
+        XCTAssertEqual(kk_char_digitToIntOrNull_radix(scalarValue(of: "a"), 16, &thrown), 10)
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadix_returnsNullForInvalidDigit() {
+        var thrown = 0
+        XCTAssertEqual(
+            kk_char_digitToIntOrNull_radix(scalarValue(of: "g"), 16, &thrown),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testDigitToIntOrNullRadix_throwsForInvalidRadix() {
+        var thrown = 0
+        _ = kk_char_digitToIntOrNull_radix(scalarValue(of: "5"), 1, &thrown)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
     /// A Unicode decimal digit whose value is not below the radix must be rejected.
     func testDigitToIntRadix_rejectsUnicodeDigitOutOfRadix() {
         var thrown = 0
