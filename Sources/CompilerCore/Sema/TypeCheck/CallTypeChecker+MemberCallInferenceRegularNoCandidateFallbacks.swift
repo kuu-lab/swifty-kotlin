@@ -126,7 +126,7 @@ extension CallTypeChecker {
                 }
             }
         }
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) — 1-arg overload
+        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
         if args.count == 1, interner.resolve(calleeName) == "digitToInt" {
             let receiverTypeForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)

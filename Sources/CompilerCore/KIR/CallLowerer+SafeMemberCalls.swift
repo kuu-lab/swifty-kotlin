@@ -615,6 +615,57 @@ extension CallLowerer {
             }
         }
 
+        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
+        if interner.resolve(effectiveCalleeName) == "digitToChar",
+           args.count <= 1
+        {
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if nonNullReceiverType == intType {
+                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.charType)
+                let nullableResultType = sema.types.makeNullable(callResultType)
+                let callLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                let nullExpr = arena.appendExpr(.unit, type: nullableResultType)
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
+                instructions.append(.constValue(result: nullExpr, value: .null))
+                instructions.append(.copy(from: nullExpr, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(callLabel))
+                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
+                if args.isEmpty {
+                    let radixExpr = arena.appendExpr(.intLiteral(10), type: intType)
+                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, radixExpr],
+                        result: nonNullResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                } else {
+                    let loweredRadixArg = driver.lowerExpr(
+                        args[0].expr,
+                        shared: shared,
+                        emit: &instructions
+                    )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, loweredRadixArg],
+                        result: nonNullResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
+                return result
+            }
+        }
+
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {

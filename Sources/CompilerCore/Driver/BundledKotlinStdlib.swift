@@ -170,6 +170,7 @@ public fun String.lowercase(locale: java.util.Locale): String =
 public fun String.uppercase(locale: java.util.Locale): String =
     this.__kk_uppercase_locale(locale)
 
+
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 
 fun String.encodeToByteArray(): ByteArray = this.__kk_encodeToByteArray()

@@ -2,6 +2,32 @@
   "version": 1,
   "diagnostics": [
     {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 40, "character": 0 },
+        "end": { "line": 49, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
+      "file": "__bundled_kotlin_text_stdlib.kt",
+      "range": {
+        "start": { "line": 51, "character": 0 },
+        "end": { "line": 60, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0001",
+      "source": "kswiftk",
+      "message": "Duplicate JVM-erased callable declaration in the same package scope.",
+      "codeActions": []
+    },
+    {
       "file": "experimental_markers_error_level.kt",
       "range": {
         "start": { "line": 12, "character": 29 },

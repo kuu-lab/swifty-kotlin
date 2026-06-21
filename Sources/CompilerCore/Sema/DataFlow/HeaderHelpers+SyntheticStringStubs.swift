@@ -189,6 +189,33 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
+        registerSyntheticStringExtensionFunction(
+            named: "lowercase",
+            externalLinkName: "kk_string_lowercase",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
+        registerSyntheticStringExtensionFunction(
+            named: "uppercase",
+            externalLinkName: "kk_string_uppercase",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+
+
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
             symbols: symbols,
@@ -232,6 +259,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
             named: "__kk_uppercase_locale",
             externalLinkName: "kk_string_uppercase_locale",
@@ -2632,6 +2660,9 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+
+        // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
+
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087: String?.toBoolean / String.toBooleanStrict ---
 

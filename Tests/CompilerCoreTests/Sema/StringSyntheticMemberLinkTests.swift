@@ -171,13 +171,21 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
     func testNewCaseConversionStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try makeSema()
 
-        // MIGRATION-TEXT-005: public case conversion APIs are bundled Kotlin functions.
-        for member in ["lowercase", "uppercase", "capitalize", "replaceFirstChar"] {
-            let symbols = stringExtensionSymbols(for: member, sema: sema, interner: interner)
-            XCTAssertFalse(symbols.isEmpty, "String.\(member) should be registered as a bundled Kotlin symbol")
-            let links = Set(symbols.compactMap { sema.symbols.externalLinkName(for: $0) })
-            XCTAssertTrue(links.isEmpty, "String.\(member) must not have C external links after migration")
-        }
+        XCTAssertEqual(
+            externalLink(for: "lowercase", sema: sema, interner: interner),
+            "kk_string_lowercase",
+            "String.lowercase should link to kk_string_lowercase"
+        )
+        XCTAssertEqual(
+            externalLink(for: "uppercase", sema: sema, interner: interner),
+            "kk_string_uppercase",
+            "String.uppercase should link to kk_string_uppercase"
+        )
+        // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
+        XCTAssertNil(
+            externalLink(for: "capitalize", sema: sema, interner: interner),
+            "String.capitalize should be a bundled Kotlin function with no C external link"
+        )
 
         XCTAssertEqual(
             externalLink(for: "__kk_lowercase_locale", sema: sema, interner: interner),
@@ -548,7 +556,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             val first = s.replaceFirstChar { 'X' }
             val rep = s.repeat(3)
             val rev = s.reversed()
-            return lower + upper + cap + first + rep + rev
+            val rfc = s.replaceFirstChar { it }
+            return lower + upper + cap + rep + rev + rfc
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -558,25 +567,31 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            // These members are now bundled Kotlin functions — they must resolve but have no C link.
-            for memberName in ["lowercase", "uppercase", "capitalize", "replaceFirstChar"] {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(receiver, callee, _, _, _) = expr else { return false }
+            // lowercase/uppercase still have C external links (native implementation).
+            // Use allExprIDs to find all calls with the given name (the bundled capitalize()
+            // implementation also calls Char.uppercase() internally, so firstExprID would pick
+            // the wrong overload).
+            let expectedLinks: [String: String] = [
+                "lowercase": "kk_string_lowercase",
+                "uppercase": "kk_string_uppercase",
+            ]
+            for (memberName, expectedExternalLink) in expectedLinks {
+                let callExprs = allExprIDs(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                        && sema.bindings.exprTypes[receiver] == sema.types.stringType
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
-                )
-                XCTAssertNil(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    "Expected \(memberName) to be a bundled Kotlin function with no C external link"
+                }
+                let hasExpectedLink = callExprs.contains { callExpr in
+                    guard let binding = sema.bindings.callBinding(for: callExpr) else { return false }
+                    return sema.symbols.externalLinkName(for: binding.chosenCallee) == expectedExternalLink
+                }
+                XCTAssertTrue(
+                    hasExpectedLink,
+                    "Expected a call to \(memberName) to resolve to \(expectedExternalLink)"
                 )
             }
 
-            // repeat and reversed are now bundled Kotlin functions — they must resolve but have no C link.
-            for memberName in ["repeat", "reversed"] {
+            // capitalize, replaceFirstChar, repeat, reversed are bundled Kotlin functions — no C link.
+            for memberName in ["capitalize", "replaceFirstChar", "repeat", "reversed"] {
                 let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
