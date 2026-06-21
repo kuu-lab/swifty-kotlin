@@ -7,14 +7,16 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
         for member: String,
         parameterCount: Int = 0,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        receiverType: TypeID? = nil
     ) -> String? {
         let fq = ["kotlin", "text", member].map { interner.intern($0) }
+        let targetReceiverType = receiverType ?? sema.types.charType
         let sym = sema.symbols.lookupAll(fqName: fq).first { symbolID in
             guard let signature = sema.symbols.functionSignature(for: symbolID) else {
                 return false
             }
-            return signature.receiverType == sema.types.charType
+            return signature.receiverType == targetReceiverType
                 && signature.parameterTypes.count == parameterCount
         } ?? sema.symbols.lookup(fqName: fq)
         guard let sym else { return nil }
@@ -63,6 +65,29 @@ final class CharSyntheticMemberLinkTests: XCTestCase {
                 externalLink(for: member, sema: sema, interner: interner),
                 expectedLink,
                 "Char.\(member) should link to \(expectedLink)"
+            )
+        }
+    }
+
+    func testIntDigitToCharStubsHaveCorrectExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let expected: [(parameterCount: Int, expectedLink: String)] = [
+            (parameterCount: 0, expectedLink: "kk_char_digitToChar_radix"),
+            (parameterCount: 1, expectedLink: "kk_char_digitToChar_radix"),
+        ]
+
+        for item in expected {
+            XCTAssertEqual(
+                externalLink(
+                    for: "digitToChar",
+                    parameterCount: item.parameterCount,
+                    sema: sema,
+                    interner: interner,
+                    receiverType: sema.types.intType
+                ),
+                item.expectedLink,
+                "Int.digitToChar overload with \(item.parameterCount) parameter(s) should link to \(item.expectedLink)"
             )
         }
     }

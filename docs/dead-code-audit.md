@@ -125,7 +125,7 @@ kk_mem_scope_enter
 kk_native_alloc_bytes kk_native_heap_free
 ```
 
-## B. テストのみが参照する `kk_*` 関数（128 個）→ RF-DEAD-002
+## B. テストのみが参照する `kk_*` 関数（127 個）→ RF-DEAD-002
 
 CompilerCore が emit できないため Kotlin プログラムからは到達不能だが、`Tests/RuntimeTests` が Swift から直接呼んで延命している。「(a) 配線予定 / (b) テスト支援 API / (c) 削除」のトリアージが必要。
 
@@ -152,7 +152,7 @@ kk_base64_encodeToByteArray_instance kk_base64_encode_instance
 kk_base64_withPadding_default kk_base64_withPadding_mime kk_base64_withPadding_urlsafe
 kk_byte_to_char kk_byte_to_uint kk_byte_to_ulong
 kk_channel_is_closed_token
-kk_char_digitToChar_radix kk_char_fromCode kk_char_minus
+kk_char_fromCode kk_char_minus
 kk_check_not_null_lazy
 kk_cleaner_clean
 kk_clock_gettime_monotonic_ns kk_clock_monotonic_mark_now
