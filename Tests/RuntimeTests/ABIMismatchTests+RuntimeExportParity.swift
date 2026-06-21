@@ -67,7 +67,6 @@ extension ABIMismatchTests {
             "kk_future_getState",
             "kk_int_toJsNumber",
             "kk_int_to_int",
-            "kk_js_reference_get",
             "kk_js_array_toList",
             "kk_js_bigint_toLong",
 "kk_js_map_toMap",
@@ -171,12 +170,6 @@ extension ABIMismatchTests {
             "kk_string_toJsString",
             "kk_toJsReference",
             "kk_uri_toPath",
-            "kk_java_instant_epoch_seconds",
-            "kk_java_instant_nano_of_second",
-            "kk_java_instant_of_epoch_milli",
-            "kk_java_instant_of_epoch_second",
-            "kk_java_instant_to_epoch_milli",
-            "kk_java_instant_to_string",
         ]
     }
 
