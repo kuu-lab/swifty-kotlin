@@ -1131,11 +1131,41 @@ extension CallLowerer {
                         callee: interner.intern("kk_char_digitToIntOrNull_radix"),
                         arguments: [loweredReceiverID, loweredArgIDs[0]],
                         result: result,
-                        canThrow: false,
+                        canThrow: true,
                         thrownResult: nil
                     ))
                     return result
                 }
+            }
+        }
+
+        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
+        if args.count <= 1 {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if nonNullReceiverType == sema.types.intType, interner.resolve(calleeName) == "digitToChar" {
+                if args.isEmpty {
+                    let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
+                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, radixExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                } else {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+                return result
             }
         }
 

@@ -167,14 +167,6 @@ public func kk_instant_to_js_date(_ instantRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_js_date_to_kotlin_instant")
-public func kk_js_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
-    guard let date = runtimeJSDateBox(from: dateRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_to_kotlin_instant received invalid JS Date handle")
-    }
-    return registerRuntimeObject(runtimeInstantFromEpochMilliseconds(date.epochMilliseconds))
-}
-
 /// Maps a java.util.concurrent.TimeUnit ordinal to the matching kotlin.time.DurationUnit ordinal.
 ///
 /// Kotlin/JVM: timeUnit.toDurationUnit()
