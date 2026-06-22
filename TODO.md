@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-17
+最終更新: 2026-06-23
 
 ---
 
@@ -255,7 +255,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeRegex.swift` (44 @_cdecl)
 > 移行先: `Stdlib/kotlin/text/Regex.kt`
 
-- [ ] MIGRATION-REGEX-001: `Regex` クラス API を Kotlin source に移行する（`find`, `findAll`, `matchEntire`, `matches`, `containsMatchIn`, `replace`, `replaceFirst`, `split`）
+- [x] MIGRATION-REGEX-001: `Regex` クラス API を Kotlin source に移行する（`find`, `findAll`, `matchEntire`, `matches`, `containsMatchIn`, `replace`, `replaceFirst`, `split`）
 
 ### Phase M12: kotlin.uuid
 > 移行元: `Sources/Runtime/RuntimeUuid.swift` (24 @_cdecl)
