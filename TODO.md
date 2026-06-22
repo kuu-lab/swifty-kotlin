@@ -47,7 +47,7 @@
 - [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
 - [ ] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
-- [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
+- [x] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
 - [ ] STDLIB-TEXT-FN-033: `iterator` 関数の実装
 - [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
 - [ ] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
