@@ -1042,7 +1042,6 @@ extension DataFlowSemaPhase {
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsParseIntStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsFunctionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticJsEvalStubs(symbols: symbols, types: types, interner: interner)
