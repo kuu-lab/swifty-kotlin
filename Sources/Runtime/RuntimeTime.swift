@@ -335,19 +335,6 @@ public func kk_test_time_source_read(_ sourceRaw: Int) -> Int {
     return Int(source.nanoseconds)
 }
 
-// MARK: - JS Date property accessors (STDLIB-TIME-181)
-
-/// Returns the epochMilliseconds of a JS Date handle.
-///
-/// Kotlin/JS: date.getTime()
-@_cdecl("kk_js_date_epoch_millis")
-public func kk_js_date_epoch_millis(_ dateRaw: Int) -> Int {
-    guard let date = runtimeJSDateBox(from: dateRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_epoch_millis received invalid JS Date handle")
-    }
-    return Int(date.epochMilliseconds)
-}
-
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
 
 /// Converts a kotlin.time.Instant to a Foundation.Date (Native/macOS bridge).
