@@ -1989,6 +1989,32 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-019: indent ---
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent_default",
+            receiverType: stringType,
+            parameters: [],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "indent",
+            externalLinkName: "kk_string_indent",
+            receiverType: stringType,
+            parameters: [
+                ("n", intType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-191: prependIndent / replaceIndent ---
 
         registerSyntheticStringExtensionFunction(
