@@ -398,8 +398,6 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_time_source_as_clock", section: "System", params: ["sourceRaw", "originRaw"],
             isThrowing: false),
-            // STDLIB-TIME-181: JS Date accessors
-            bridgeSpec("kk_js_date_epoch_millis", section: "System", params: ["dateRaw"]),
             // STDLIB-TIME-181: Native Foundation Date bridge
             bridgeSpec("kk_instant_to_foundation_date", section: "System", params: ["instantRaw"]),
             bridgeSpec("kk_foundation_date_to_kotlin_instant", section: "System", params: ["dateRaw"]),
