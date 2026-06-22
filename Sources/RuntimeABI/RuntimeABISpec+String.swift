@@ -1118,6 +1118,26 @@ public extension RuntimeABISpec {
             section: "String",
             isThrowing: false
         ),
+        // STDLIB-TEXT-FN-044
+        RuntimeABIFunctionSpec(
+            name: "kk_string_random",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_random_random",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "randomRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         // STDLIB-187
         RuntimeABIFunctionSpec(
             name: "kk_string_isEmpty",
