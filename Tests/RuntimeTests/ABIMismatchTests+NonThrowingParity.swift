@@ -129,6 +129,7 @@ extension ABIMismatchTests {
         "kk_callable_ref_tag_kfunction",
         "kk_callable_ref_tag_kproperty",
         "kk_char_compareTo",
+        "kk_comparable_compareTo",
         "kk_char_range_drop",
         "kk_char_range_isEmpty",
         "kk_char_range_sorted",

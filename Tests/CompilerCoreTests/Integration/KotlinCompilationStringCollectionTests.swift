@@ -297,6 +297,19 @@ final class KotlinCompilationStringCollectionTests: XCTestCase {
         """)
     }
 
+    func testCompile_collection_listSortingHOFs() throws {
+        try assertKotlinCompilesToKIR("""
+        fun main() {
+            val list = listOf(3, 1, 2)
+            val byValue = list.sortedBy { it }
+            val byDescending = list.sortedByDescending { it }
+            val withComparator = list.sortedWith { a, b -> b - a }
+            val shuffled = list.shuffled()
+            val reversed = list.reversed()
+        }
+        """)
+    }
+
     // MARK: - Chained string operations
 
     func testCompile_string_chainedOperations() throws {
