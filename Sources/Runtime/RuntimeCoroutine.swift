@@ -111,13 +111,13 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        (return via continuation instead of Bool) and restructuring the
 //        flow collect loop as a suspend-entry loop.
 //
-// [TODO] kk_with_context (RuntimeCoroutineContext.swift): block-internal
-//        suspension is already continuation-based, but the outer caller still
-//        blocks on a semaphore for the IO/Default dispatcher path.  Making
-//        withContext a full suspend point requires threading the *caller*
-//        continuation alongside the block continuation produced by
-//        rewriteWithContextCall, so the runtime can resume the caller when the
-//        dispatched block finishes.
+// [DONE] kk_with_context (RuntimeCoroutineContext.swift): caller-blocking
+//        semaphore removed for the IO/Default dispatcher path.  When called
+//        from inside a coroutine, RuntimeContinuationState.current is captured
+//        before the dispatch; the dispatched block calls callerState.resume()
+//        on completion, releasing the caller's GCD thread immediately.
+//        The non-coroutine fallback (runBlocking top-level, tests) retains the
+//        semaphore for backward compatibility.
 //
 // [TODO] Channel send/receive (RuntimeCoroutineChannel.swift): functionally
 //        correct but still blocks on the per-waiter DispatchSemaphore.  The
@@ -136,8 +136,8 @@ private final class RuntimeCallbackContinuation: KKContinuation, @unchecked Send
 //        builder lambdas so `yield()` / `hasNext()` / `next()` can install
 //        resume continuations instead of using the semaphore fallback.
 //
-// Priority order (remaining): Channel > withContext > sequence builders > flow
-// (await/join were completed in Phase 2.)
+// Priority order (remaining): Channel > sequence builders > flow
+// (await/join completed in Phase 2; withContext completed in Phase 3.)
 
 // MARK: - CORO-004: Cooperative Sync Gate
 
