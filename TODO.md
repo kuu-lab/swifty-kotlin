@@ -273,7 +273,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeDelegates.swift` (41 @_cdecl)
 > 移行先: `Stdlib/kotlin/properties/`
 
-- [ ] MIGRATION-PROP-001: Delegate プロパティを Kotlin source に移行する（`Delegates.observable`, `Delegates.vetoable`, `Delegates.notNull`）
+- [x] MIGRATION-PROP-001: Delegate プロパティを Kotlin source に移行する（`Delegates.observable`, `Delegates.vetoable`, `Delegates.notNull`）
 - [ ] MIGRATION-PROP-002: `lazy` 関数を Kotlin source に移行する（`lazy {}`, `LazyThreadSafetyMode` 各モード）
 
 ### Phase M15: kotlin.reflect
