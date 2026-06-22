@@ -131,9 +131,10 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
         }
-        // STDLIB-REFLECT-065 / 060: KClass collection-shaped properties.
+        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties.
         let kclassMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
+            knownNames.nestedClassesName,
             knownNames.propertiesName, knownNames.memberPropertiesName,
             knownNames.declaredMemberPropertiesName,
             knownNames.functionsName, knownNames.memberFunctionsName,
@@ -264,9 +265,10 @@ extension CallTypeChecker {
             sema.bindings.bindExprType(id, type: nullableStringType)
             return nullableStringType
         }
-        // STDLIB-REFLECT-065 / 060: KClass collection-shaped properties (via variable receiver).
+        // STDLIB-REFLECT-065 / 060 / MIGRATION-REFLECT-002: KClass collection-shaped properties (via variable receiver).
         let kclassVarMemberCollectionCallees: Set<InternedString> = [
             knownNames.membersName, knownNames.constructorsName,
+            knownNames.nestedClassesName,
             knownNames.propertiesName, knownNames.memberPropertiesName,
             knownNames.declaredMemberPropertiesName,
             knownNames.functionsName, knownNames.memberFunctionsName,

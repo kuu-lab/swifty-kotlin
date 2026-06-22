@@ -698,6 +698,10 @@ public extension RuntimeABISpec {
             p("kclassRaw", .intptr),
         ],
             isThrowing: false),
+        abiParitySpec("kk_kclass_nested_classes", parameters: [
+            p("kclassRaw", .intptr),
+        ],
+            isThrowing: false),
         abiParitySpec("kk_kclass_type_parameters", parameters: [
             p("kclassRaw", .intptr),
         ],
