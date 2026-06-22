@@ -12,7 +12,6 @@ extension LoweringPassRegressionTests {
         entryNames: [String],
         interner: StringInterner,
         symbols: SymbolTable,
-        types: TypeSystem,
         sema: SemaModule,
         moduleName: String
     ) throws -> (module: KIRModule, enumSymbol: SymbolID, ctx: CompilationContext) {
@@ -71,7 +70,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["RED", "GREEN", "BLUE"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesGetter"
         )
@@ -98,7 +96,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["NORTH", "SOUTH", "EAST", "WEST"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesRuntimeCalls"
         )
@@ -127,7 +124,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["MERCURY", "VENUS", "EARTH", "MARS", "JUPITER"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesCount"
         )
@@ -165,7 +161,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["SPRING", "SUMMER", "AUTUMN", "WINTER"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesOrder"
         )
@@ -195,7 +190,6 @@ extension LoweringPassRegressionTests {
             entryNames: [],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesEmpty"
         )
@@ -230,7 +224,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["ONLY"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesSingle"
         )
@@ -271,7 +264,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["LEFT", "RIGHT"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValuesAndEntries"
         )
@@ -301,7 +293,7 @@ extension LoweringPassRegressionTests {
                        "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
-    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals + kk_enum_valueOf_throw
+    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals_flat + kk_enum_valueOf_throw
 
     func testEnumValueOfSynthesizedWithStringComparisonAndThrow() throws {
         let interner = StringInterner()
@@ -314,7 +306,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["ACTIVE", "INACTIVE", "PENDING"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValueOf"
         )
@@ -322,8 +313,10 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        XCTAssertTrue(callees.contains("kk_string_equals"),
-                      "valueOf should call kk_string_equals; callees: \(callees)")
+        XCTAssertTrue(callees.contains("kk_string_equals_flat"),
+                      "valueOf should call kk_string_equals_flat; callees: \(callees)")
+        XCTAssertTrue(callees.contains("kk_unbox_bool"),
+                      "valueOf should unbox the flat String.equals result; callees: \(callees)")
         XCTAssertTrue(callees.contains("kk_enum_valueOf_throw"),
                       "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }
@@ -341,7 +334,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["HEADS", "TAILS"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValuesFreshArray"
         )
@@ -370,7 +362,6 @@ extension LoweringPassRegressionTests {
             entryNames: entryNames,
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumPerEntryHelpers"
         )
@@ -412,7 +403,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["APPLE", "BANANA"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumValueOfErrorPrefix"
         )
@@ -440,7 +430,6 @@ extension LoweringPassRegressionTests {
             entryNames: ["ON", "OFF"],
             interner: interner,
             symbols: symbols,
-            types: types,
             sema: sema,
             moduleName: "EnumEntriesZeroParams"
         )

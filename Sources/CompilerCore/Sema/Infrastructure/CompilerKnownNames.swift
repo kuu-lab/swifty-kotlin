@@ -35,6 +35,7 @@ enum KnownCompilerAnnotation {
     case experimentalTypeInference
     case overloadResolutionByLambdaReturnType
     case contextFunctionTypeParams
+    case kSwiftKRuntimeName
 
     var simpleName: String {
         switch self {
@@ -108,6 +109,8 @@ enum KnownCompilerAnnotation {
             "OverloadResolutionByLambdaReturnType"
         case .contextFunctionTypeParams:
             "ContextFunctionTypeParams"
+        case .kSwiftKRuntimeName:
+            "KSwiftKRuntimeName"
         }
     }
 
@@ -183,6 +186,8 @@ enum KnownCompilerAnnotation {
             "kotlin.OverloadResolutionByLambdaReturnType"
         case .contextFunctionTypeParams:
             "kotlin.ContextFunctionTypeParams"
+        case .kSwiftKRuntimeName:
+            "kswiftk.internal.KSwiftKRuntimeName"
         }
     }
 

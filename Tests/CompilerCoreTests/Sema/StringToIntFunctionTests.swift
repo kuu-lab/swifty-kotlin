@@ -30,24 +30,24 @@ final class StringToIntFunctionTests: XCTestCase {
     }
 
     /// Both `String.toInt()` and `String.toInt(radix)` must be registered with
-    /// their respective runtime ABI bridges (`kk_string_toInt` and
-    /// `kk_string_toInt_radix`).
+    /// their respective flattened runtime ABI bridges (`kk_string_toInt_flat`
+    /// and `kk_string_toInt_radix_flat`).
     func testStringToIntStubsRegistered() throws {
         let (sema, interner) = try makeSema()
 
         let links = externalLinks(for: "toInt", sema: sema, interner: interner)
         XCTAssertTrue(
-            links.contains("kk_string_toInt"),
-            "String.toInt() should link to kk_string_toInt — got: \(links.sorted())"
+            links.contains("kk_string_toInt_flat"),
+            "String.toInt() should link to kk_string_toInt_flat — got: \(links.sorted())"
         )
         XCTAssertTrue(
-            links.contains("kk_string_toInt_radix"),
-            "String.toInt(radix) should link to kk_string_toInt_radix — got: \(links.sorted())"
+            links.contains("kk_string_toInt_radix_flat"),
+            "String.toInt(radix) should link to kk_string_toInt_radix_flat — got: \(links.sorted())"
         )
     }
 
     /// Call expression `"42".toInt()` must resolve through sema to the
-    /// `kk_string_toInt` runtime entry and produce an `Int` result.
+    /// `kk_string_toInt_flat` runtime entry and produce an `Int` result.
     func testStringToIntCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parse(value: String): Int {
@@ -74,14 +74,14 @@ final class StringToIntFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt",
-                "String.toInt() should resolve to kk_string_toInt"
+                "kk_string_toInt_flat",
+                "String.toInt() should resolve to kk_string_toInt_flat"
             )
         }
     }
 
     /// Call expression `"ff".toInt(16)` must resolve to the radix-aware
-    /// runtime bridge `kk_string_toInt_radix`.
+    /// runtime bridge `kk_string_toInt_radix_flat`.
     func testStringToIntRadixCallResolvesToRuntimeBridge() throws {
         let source = """
         fun parseHex(value: String): Int {
@@ -108,8 +108,8 @@ final class StringToIntFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toInt_radix",
-                "String.toInt(16) should resolve to kk_string_toInt_radix"
+                "kk_string_toInt_radix_flat",
+                "String.toInt(16) should resolve to kk_string_toInt_radix_flat"
             )
         }
     }

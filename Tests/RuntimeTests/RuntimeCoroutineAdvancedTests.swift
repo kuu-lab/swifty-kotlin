@@ -12,14 +12,14 @@ private nonisolated(unsafe) var advCoroFailExcRaw: Int = 0
 
 /// Non-capturing C stub that writes `advCoroFailExcRaw` to outThrown.
 @_cdecl("advcoro_fail_with_exc")
-func advcoro_fail_with_exc(_ _closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_fail_with_exc(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = advCoroFailExcRaw
     return 0
 }
 
 /// Non-capturing C stub that returns 512 (success value for resumeWith test).
 @_cdecl("advcoro_return_512")
-func advcoro_return_512(_ _closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_return_512(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return 512
 }
@@ -30,14 +30,6 @@ func advcoro_add_constant(_ continuation: Int, _ outThrown: UnsafeMutablePointer
     let arg = kk_coroutine_launcher_arg_get(continuation, 0)
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, Int(arg) + 100)
-}
-
-/// A suspend function that records one iteration, then returns its iteration count.
-@_cdecl("advcoro_counter")
-func advcoro_counter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    advancedCoroTestState.recordIteration()
-    outThrown?.pointee = 0
-    return kk_coroutine_state_exit(continuation, advancedCoroTestState.iterationsSnapshot())
 }
 
 /// A suspend function that delays once, then returns 55.
@@ -72,7 +64,7 @@ func advcoro_spill_across_suspension(_ continuation: Int, _ outThrown: UnsafeMut
 
 /// A suspend function that immediately resumes with exception.
 @_cdecl("advcoro_throw_immediately")
-func advcoro_throw_immediately(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_throw_immediately(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let exc = runtimeAllocateThrowable(message: "advcoro-exception")
     outThrown?.pointee = exc
     return 0
@@ -83,14 +75,6 @@ func advcoro_throw_immediately(_ continuation: Int, _ outThrown: UnsafeMutablePo
 func advcoro_return_fixed(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, 42)
-}
-
-/// A suspend function that signals the test state and returns.
-@_cdecl("advcoro_signal_and_return")
-func advcoro_signal_and_return(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    advancedCoroTestState.recordIteration()
-    outThrown?.pointee = 0
-    return kk_coroutine_state_exit(continuation, 1)
 }
 
 /// Nested suspend: delays twice (two suspension labels), saving values across both points.
@@ -642,11 +626,6 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
 
 // MARK: - Private helpers
 
-private final class AdvResultBox: @unchecked Sendable {
-    var value: Int = -1
-    var thrown: Int = 0
-}
-
 /// Sendable capture box for a single Int value (used to capture state fields
 /// across @Sendable closures without making RuntimeContinuationState Sendable).
 private final class AdvThrownCapture: @unchecked Sendable {
@@ -681,15 +660,15 @@ private final class AdvancedCoroutineTestState: @unchecked Sendable {
         lock.unlock()
     }
 
-    func recordIteration() {
-        lock.lock()
-        _iterations += 1
-        lock.unlock()
-    }
-
     func iterationsSnapshot() -> Int {
         lock.lock()
         defer { lock.unlock() }
         return _iterations
+    }
+
+    func recordIteration() {
+        lock.lock()
+        _iterations += 1
+        lock.unlock()
     }
 }

@@ -4,7 +4,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-001: Validates that `CharSequence.all(predicate)` resolves
 /// through Sema for String receivers and lowers to the runtime helper
-/// `kk_string_all`. The synthetic surface signature is
+/// `kk_string_all_flat`. The synthetic surface signature is
 /// `String.all(predicate: (Char) -> Boolean): Boolean`.
 final class StringAllFunctionTests: XCTestCase {
     private func allMemberCallExprIDs(
@@ -63,7 +63,7 @@ final class StringAllFunctionTests: XCTestCase {
     }
 
     /// Sema should expose `String.all` as a synthetic extension function whose
-    /// external link name is `kk_string_all`.
+    /// external link name is `kk_string_all_flat`.
     func testStringAllLinksToRuntimeHelper() throws {
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -84,12 +84,12 @@ final class StringAllFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: stringReceiverSymbol),
-                "kk_string_all"
+                "kk_string_all_flat"
             )
         }
     }
 
-    /// Lowering should emit a `kk_string_all` call site for each invocation in
+    /// Lowering should emit a `kk_string_all_flat` call site for each invocation in
     /// the source program and propagate the throw flag so that thrown
     /// exceptions from the predicate can bubble up.
     func testStringAllLowersToRuntimeHelper() throws {
@@ -110,10 +110,10 @@ final class StringAllFunctionTests: XCTestCase {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             let allFlags = try XCTUnwrap(
-                throwFlags["kk_string_all"],
-                "Expected kk_string_all call sites to appear in main()"
+                throwFlags["kk_string_all_flat"],
+                "Expected kk_string_all_flat call sites to appear in main()"
             )
-            XCTAssertEqual(allFlags.count, 2, "Expected two kk_string_all invocations")
+            XCTAssertEqual(allFlags.count, 2, "Expected two kk_string_all_flat invocations")
         }
     }
 }

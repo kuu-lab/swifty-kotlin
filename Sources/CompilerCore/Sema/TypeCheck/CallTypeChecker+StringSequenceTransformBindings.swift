@@ -53,14 +53,14 @@ extension CallTypeChecker {
             interner.intern("text"),
             calleeName,
         ]).first(where: { candidate in
-            isSyntheticStringMemberCandidate(
+            return isSyntheticStringMemberCandidate(
                 candidate,
                 named: calleeName,
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
             )
-                && sema.symbols.externalLinkName(for: candidate) == "kk_string_chunked_sequence_transform"
+                && sema.symbols.externalLinkName(for: candidate) == "kk_string_chunked_sequence_transform_flat"
         }) else {
             return nil
         }
@@ -153,14 +153,14 @@ extension CallTypeChecker {
             interner.intern("text"),
             calleeName,
         ]).first(where: { candidate in
-            isSyntheticStringMemberCandidate(
+            return isSyntheticStringMemberCandidate(
                 candidate,
                 named: calleeName,
                 receiverType: receiverType,
                 sema: sema,
                 interner: interner
             )
-                && sema.symbols.externalLinkName(for: candidate) == "kk_string_windowedSequence_transform"
+                && sema.symbols.externalLinkName(for: candidate) == "kk_string_windowedSequence_transform_flat"
         }) else {
             return nil
         }

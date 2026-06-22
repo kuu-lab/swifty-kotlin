@@ -200,9 +200,12 @@ final class LambdaLowerer {
         // Runtime expects (closureRaw, ...valueParams, outThrown). Add closure param as first param.
         let lambdaParameters: [KIRParameter]
         if needsClosureParam {
+            let closureParamType = captureBindings.count == 1
+                ? captureBindings[0].param.type
+                : sema.types.intType
             let closureParam = KIRParameter(
                 symbol: syntheticLambdaClosureParamSymbol(lambdaExprID: exprID),
-                type: sema.types.intType
+                type: closureParamType
             )
             let valueParams = (0 ..< effectiveParamCount).map { index in
                 KIRParameter(
@@ -1191,7 +1194,7 @@ final class LambdaLowerer {
         // Emit the name string literal.
         let nameExpr = arena.appendExpr(
             .stringLiteral(memberName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         instructions.append(.constValue(result: nameExpr, value: .stringLiteral(memberName)))
 

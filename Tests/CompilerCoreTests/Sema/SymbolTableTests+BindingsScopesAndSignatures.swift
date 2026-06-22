@@ -125,7 +125,7 @@ final class BindingTableTests: XCTestCase {
         let bindings = BindingTable()
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         bindings.bindExprType(ExprID(rawValue: 0), type: intType)
         bindings.bindExprType(ExprID(rawValue: 1), type: stringType)

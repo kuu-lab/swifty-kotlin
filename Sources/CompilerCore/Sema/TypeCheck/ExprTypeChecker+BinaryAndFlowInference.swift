@@ -108,6 +108,10 @@ extension ExprTypeChecker {
         } else {
             []
         }
+        if op == .add, sema.types.isString(lhs) || sema.types.isString(rhs) {
+            sema.bindings.bindExprType(id, type: stringType)
+            return stringType
+        }
         // STDLIB-345: List/Sequence plus/minus operators
         if !lhsIsPrimitive, op == .add || op == .subtract {
             let isListLhs = driver.callChecker.isListLikeType(lhs, sema: sema, interner: interner)
@@ -255,7 +259,7 @@ extension ExprTypeChecker {
 
         switch op {
         case .add:
-            if lhs == stringType || rhs == stringType {
+            if sema.types.isString(lhs) || sema.types.isString(rhs) {
                 type = stringType
             } else if lhs == charType && rhs == intType {
                 // Char + Int -> Char

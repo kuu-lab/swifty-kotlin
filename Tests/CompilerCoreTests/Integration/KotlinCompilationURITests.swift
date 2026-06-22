@@ -1,4 +1,3 @@
-@testable import CompilerCore
 import XCTest
 
 final class KotlinCompilationURITests: XCTestCase {

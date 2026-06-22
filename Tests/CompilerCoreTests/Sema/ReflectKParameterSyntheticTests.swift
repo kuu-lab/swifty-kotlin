@@ -40,7 +40,7 @@ final class ReflectKParameterSyntheticTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let nullableStringType = sema.types.make(.primitive(.string, .nullable))
+        let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let propertyExpectations: [(name: String, type: TypeID, externalLinkName: String)] = [
             ("index", sema.types.intType, "kk_kparameter_get_index"),
             ("name", nullableStringType, "kk_kparameter_get_name"),

@@ -1,5 +1,5 @@
 
-struct TypeInferenceContext {
+struct TypeInferenceContext: CustomStringConvertible {
     let ast: ASTModule
     let sema: SemaModule
     let semaCtx: SemaModule
@@ -269,5 +269,9 @@ struct TypeInferenceContext {
         )))
         let parentDslMarkers = collectDslMarkerAnnotations(for: parentType)
         return !activeDslMarkerAnnotations.isDisjoint(with: parentDslMarkers)
+    }
+
+    var description: String {
+        return "\(useNewInference) \(useUnrestrictedBuilderInference) \(useProperTypeInferenceConstraintsProcessing)"
     }
 }

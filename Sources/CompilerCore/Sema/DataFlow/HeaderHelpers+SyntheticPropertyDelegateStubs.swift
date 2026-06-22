@@ -195,7 +195,7 @@ extension DataFlowSemaPhase {
         )
 
         // Register `name` property on KProperty (inherited from KCallable).
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         if let kPropertyInfo = symbols.symbol(kPropertySymbol) {
             let namePropName = interner.intern("name")
             let namePropFQ = kPropertyInfo.fqName + [namePropName]
@@ -831,7 +831,7 @@ extension DataFlowSemaPhase {
             ownerType: observableType,
             parameterNames: [],
             parameterTypes: [],
-            returnType: types.make(.primitive(.string, .nonNull)),
+            returnType: types.stringType,
             typeParameterSymbol: vSymbol,
             symbols: symbols,
             interner: interner
@@ -2042,7 +2042,7 @@ extension DataFlowSemaPhase {
         )
 
         guard let kTypeParameterInfo = symbols.symbol(kTypeParameterSymbol) else { return }
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let kVarianceType: TypeID = if let kVarianceSymbol = symbols.lookup(
             fqName: kotlinReflectPkg + [interner.intern("KVariance")]
@@ -2148,7 +2148,7 @@ extension DataFlowSemaPhase {
 
         let propertySpecs: [(name: String, type: TypeID, externalLinkName: String)] = [
             ("index", types.intType, "kk_kparameter_get_index"),
-            ("name", types.make(.primitive(.string, .nullable)), "kk_kparameter_get_name"),
+            ("name", types.makeNullable(types.stringType), "kk_kparameter_get_name"),
             ("type", kTypeType, "kk_kparameter_get_type"),
             ("isOptional", types.booleanType, "kk_kparameter_is_optional"),
             ("kind", types.intType, "kk_kparameter_get_kind"),

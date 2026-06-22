@@ -2,8 +2,8 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-052: Validates that `kotlin.text.CharSequence.removeSuffix(suffix)`
-/// resolves through Sema for `String` / `CharSequence` receivers, dispatching to the
-/// runtime link name `kk_string_removeSuffix`.
+/// resolves through Sema for `String` / `CharSequence` receivers. String overloads
+/// use the flattened runtime ABI.
 final class StringRemoveSuffixFunctionTests: XCTestCase {
     func testRemoveSuffixFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""

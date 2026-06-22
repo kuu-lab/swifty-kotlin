@@ -6,7 +6,7 @@ AI 向けの補足。プロジェクトのクイックリファレンスは [`CL
 
 ### 概要
 
-KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプリサーバーは不要。開発では **Swift 6.2**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
+KSwiftK は **SwiftPM の単一リポジトリ**で、エディタ連携のための LSP サーバー（`kswift-lsp`）を除き、長期稼働するアプリサーバーは不要。開発では **Swift 6.2**、**LLVM 開発パッケージ**、ビルド成果物 **`kswiftc`** を使う。Linux（Ubuntu 24.04）では CI と同様に ELF オブジェクト／リンクまで検証できるが、製品ターゲット OS は **macOS**（README / `Package.swift` の platforms）。
 
 ### 必須環境変数（Linux）
 

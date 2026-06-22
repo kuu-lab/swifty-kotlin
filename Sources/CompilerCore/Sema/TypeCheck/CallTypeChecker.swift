@@ -1011,7 +1011,12 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMillis",
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMillis"],
+               locals: locals,
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — the block's return type is
@@ -1033,7 +1038,12 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMicros",
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureTimeMicros"],
+               locals: locals,
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as
@@ -1054,7 +1064,12 @@ final class CallTypeChecker {
         if let calleeName,
            interner.resolve(calleeName) == "measureNanoTime",
            args.count == 1,
-           !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
+           shouldUseRuntimeStdlibSpecialCall(
+               calleeName,
+               fqComponents: ["kotlin", "system", "measureNanoTime"],
+               locals: locals,
+               ctx: ctx
+           )
         {
             let longType = sema.types.longType
             // Intentionally passing expectedType:nil — same rationale as

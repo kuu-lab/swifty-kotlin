@@ -2,7 +2,7 @@
 import XCTest
 
 /// STDLIB-TEXT-FN-037: Validates that `CharSequence.lines()` resolves through
-/// Sema on String receivers and links to the runtime helper `kk_string_lines`,
+/// Sema on String receivers and links to the runtime helper `kk_string_lines_flat`,
 /// returning `List<String>`.
 final class StringLinesFunctionTests: XCTestCase {
     func testLinesNoArgResolvesInSource() throws {

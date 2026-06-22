@@ -22,13 +22,11 @@ private final class EdgeCaseCallbackState: @unchecked Sendable {
 
     // Shared callback counters / captured values
     var observableCallCount: Int = 0
-    var observableCapturedProp: Int = 0
     var observableCapturedOld: Int = 0
     var observableCapturedNew: Int = 0
     var observableValueAtCallback: Int = -999  // value read *inside* callback
 
     var vetoableCallCount: Int = 0
-    var vetoableCapturedProp: Int = 0
     var vetoableCapturedOld: Int = 0
     var vetoableCapturedNew: Int = 0
     var vetoableValueAtCallback: Int = -999  // value read *inside* callback (should be old)
@@ -40,12 +38,10 @@ private final class EdgeCaseCallbackState: @unchecked Sendable {
     func reset() {
         lock.lock()
         observableCallCount = 0
-        observableCapturedProp = 0
         observableCapturedOld = 0
         observableCapturedNew = 0
         observableValueAtCallback = -999
         vetoableCallCount = 0
-        vetoableCapturedProp = 0
         vetoableCapturedOld = 0
         vetoableCapturedNew = 0
         vetoableValueAtCallback = -999
@@ -67,7 +63,6 @@ private let gEdgeState = EdgeCaseCallbackState()
 private let observableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new, _ in
     gEdgeState.withLock { s in
         s.observableCallCount += 1
-        s.observableCapturedProp = prop
         s.observableCapturedOld = old
         s.observableCapturedNew = new
         // Read box value while inside callback — must already be updated.
@@ -80,7 +75,6 @@ private let observableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, n
 private let vetoableEdgeCapture: KKDelegateObserverEntryPoint = { prop, old, new, _ in
     gEdgeState.withLock { s in
         s.vetoableCallCount += 1
-        s.vetoableCapturedProp = prop
         s.vetoableCapturedOld = old
         s.vetoableCapturedNew = new
         // Read box value while inside callback — must still be old (not yet changed).

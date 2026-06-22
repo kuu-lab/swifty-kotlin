@@ -6,7 +6,7 @@ import XCTest
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toDoubleOrNull` links to the
-///   runtime symbol `kk_string_toDoubleOrNull` declared in
+///   runtime symbol `kk_string_toDoubleOrNull_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - The extension resolves cleanly from source code and produces no Sema
 ///   diagnostics for a call returning `Double?`.
@@ -34,14 +34,14 @@ final class StringToDoubleOrNullFunctionTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLink(for: "toDoubleOrNull", sema: sema, interner: ctx.interner),
-                "kk_string_toDoubleOrNull",
-                "String.toDoubleOrNull should link to kk_string_toDoubleOrNull"
+                "kk_string_toDoubleOrNull_flat",
+                "String.toDoubleOrNull should link to kk_string_toDoubleOrNull_flat"
             )
 
             let links = externalLinks(for: "toDoubleOrNull", sema: sema, interner: ctx.interner)
             XCTAssertTrue(
-                links.contains("kk_string_toDoubleOrNull"),
-                "lookupAll for toDoubleOrNull must include kk_string_toDoubleOrNull; got: \(links)"
+                links.contains("kk_string_toDoubleOrNull_flat"),
+                "lookupAll for toDoubleOrNull must include kk_string_toDoubleOrNull_flat; got: \(links)"
             )
         }
     }

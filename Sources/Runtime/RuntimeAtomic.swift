@@ -1383,12 +1383,13 @@ final class AtomicRefArrayBox {
         return old
     }
 
-    /// Identity-based CAS: succeeds iff storage[index] == expect (pointer identity).
+    /// Identity-based CAS, with string boxes compared structurally because aggregate
+    /// string lowering may materialize an equivalent RuntimeStringBox at ABI edges.
     func compareAndSet(at index: Int, expect: Int, update: Int) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return false }
-        if storage[index] == expect {
+        if runtimeAtomicRefValuesMatch(storage[index], expect) {
             storage[index] = update
             return true
         }
@@ -1401,7 +1402,7 @@ final class AtomicRefArrayBox {
         defer { lock.unlock() }
         guard storage.indices.contains(index) else { return 0 }
         let old = storage[index]
-        if old == expect {
+        if runtimeAtomicRefValuesMatch(old, expect) {
             storage[index] = update
         }
         return old
@@ -1435,6 +1436,21 @@ private func registerAtomicRefArrayBox(_ box: AtomicRefArrayBox) -> Int {
         state.objectPointers.insert(UInt(bitPattern: ptr))
     }
     return Int(bitPattern: ptr)
+}
+
+private func runtimeAtomicRefValuesMatch(_ lhs: Int, _ rhs: Int) -> Bool {
+    if lhs == rhs {
+        return true
+    }
+    guard
+        let lhsPointer = UnsafeMutableRawPointer(bitPattern: lhs),
+        let rhsPointer = UnsafeMutableRawPointer(bitPattern: rhs),
+        let lhsString = tryCast(lhsPointer, to: RuntimeStringBox.self),
+        let rhsString = tryCast(rhsPointer, to: RuntimeStringBox.self)
+    else {
+        return false
+    }
+    return lhsString.value == rhsString.value
 }
 
 @_cdecl("kk_atomic_ref_array_new")

@@ -37,13 +37,13 @@ extension KIRLoweringDriver {
         let arena = shared.arena
         let propertyNameExprID = arena.appendExpr(
             .stringLiteral(propertyName),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: propertyNameExprID, value: .stringLiteral(propertyName)))
         let returnTypeSig = interner.intern(sema.types.renderType(propertyType))
         let returnTypeExprID = arena.appendExpr(
             .stringLiteral(returnTypeSig),
-            type: sema.types.make(.primitive(.string, .nonNull))
+            type: sema.types.stringType
         )
         body.append(.constValue(result: returnTypeExprID, value: .stringLiteral(returnTypeSig)))
         let kPropertyExprID = arena.appendExpr(

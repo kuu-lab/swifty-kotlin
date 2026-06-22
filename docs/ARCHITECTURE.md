@@ -12,7 +12,7 @@
 |---|---|
 | 言語 | Swift 5.9 / macOS 12+ |
 | ビルドシステム | SwiftPM (`Package.swift`) |
-| 実行バイナリ | `kswiftc` |
+| 実行バイナリ | `kswiftc`, `kswift-lsp` |
 | テストフレームワーク | XCTest |
 | CI | GitHub Actions (`.github/workflows/ci.yml`) |
 
@@ -25,14 +25,17 @@ Package.swift
  +-- RuntimeABI    (target)    Runtime ABI 契約と extern view の共有境界
  +-- CompilerCore  (library)   コンパイラ本体ロジック全般
  +-- KSwiftKCLI   (executable) CLI エントリポイント -> kswiftc
+ +-- LSPServer     (library)   Language Server Protocol 実装
+ +-- KSwiftLSPCLI (executable) LSP エントリポイント -> kswift-lsp
  +-- Runtime       (library)   GC / coroutine / boxing ヘルパー
- +-- CLLVM         (system)    LLVM C API ブリッジ (modulemap)
 ```
 
 ### 依存グラフ
 
 ```text
-KSwiftKCLI --> CompilerCore --> CLLVM
+KSwiftKCLI --> CompilerCore
+LSPServer --> CompilerCore
+KSwiftLSPCLI --> LSPServer
 RuntimeTests --> RuntimeABI
 Runtime (独立 — リンク時に結合)
 ```
@@ -83,6 +86,13 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `main.swift` | CLI 引数パース、`CompilerDriver` 呼び出し |
 
+### `Sources/LSPServer/` & `Sources/KSwiftLSPCLI/`
+
+| ディレクトリ/ファイル | 責務 |
+|---|---|
+| `LSPServer/` | JSON-RPC 通信、エディタ連携機能（診断、定義ジャンプ、ホバー等）の実装 |
+| `KSwiftLSPCLI/main.swift` | LSP サーバーのエントリポイント、標準入出力とのバインディング |
+
 ### `Sources/Runtime/`
 
 | ファイル | 責務 |
@@ -101,13 +111,6 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `RuntimeABISpec.swift` | Runtime ABI 仕様定数と C ヘッダ生成 |
 | `RuntimeABIExterns.swift` | `RuntimeABISpec` から導出される extern 宣言 view |
-
-### `Sources/CLLVM/`
-
-| ファイル | 責務 |
-|---|---|
-| `include/llvm_shim.h` | LLVM C API ヘッダブリッジ |
-| `module.modulemap` | SwiftPM 用モジュールマップ |
 
 ---
 

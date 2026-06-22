@@ -1,9 +1,13 @@
 
 extension TypeCheckHelpers {
-    private struct MemberDispatchKey: Hashable {
+    private struct MemberDispatchKey: Hashable, CustomStringConvertible {
         let name: InternedString
         let parameterTypes: [TypeID]
         let isSuspend: Bool
+
+        var description: String {
+            return "\(name):\(parameterTypes.count)"
+        }
     }
 
     func substituteAliasArg(
@@ -54,6 +58,8 @@ extension TypeCheckHelpers {
         switch types.kind(of: typeID) {
         case let .primitive(p, _):
             return types.make(.primitive(p, .nullable))
+        case .stringStruct:
+            return types.makeNullable(typeID)
         case let .classType(ct):
             return types.make(.classType(ClassType(classSymbol: ct.classSymbol, args: ct.args, nullability: .nullable)))
         case let .typeParam(tp):
@@ -248,7 +254,7 @@ extension TypeCheckHelpers {
                     range: range
                 )
             }
-        case .error, .unit, .nothing, .any, .primitive:
+        case .error, .unit, .nothing, .any, .primitive, .stringStruct:
             break
         }
     }

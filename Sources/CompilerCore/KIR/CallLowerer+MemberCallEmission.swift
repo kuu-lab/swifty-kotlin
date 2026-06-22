@@ -99,8 +99,8 @@ extension CallLowerer {
         }
         // String.length: extension needs receiver even when chosenCallee is nil
         // (e.g. mapIndexed { _, v -> v.length } where type inference may not bind).
-        // Always prepend receiver for "length" — codegen maps to kk_string_length when
-        // receiver is String; other types would be a type error at use site.
+        // Always prepend receiver for "length"; codegen extracts the aggregate length
+        // field when the receiver is String. Other types would be a type error at use site.
         if calleeText == "length" {
             arguments.insert(loweredReceiverID, at: 0)
             return
@@ -471,7 +471,7 @@ extension CallLowerer {
             finalArguments[2] = fnPtrExpr
             finalArguments.append(envPtrExpr)
         }
-        if loweredCallee == interner.intern("kk_string_zipTransform"),
+        if loweredCallee == interner.intern("kk_string_zipTransform_flat"),
            finalArguments.count == 3
         {
             // normalizedCallArguments drops the closure arg added by addCollectionHOFClosureArguments
@@ -1052,8 +1052,9 @@ extension CallLowerer {
             interner.intern("kk_sequence_flatMapTo"),
             interner.intern("kk_sequence_ifEmpty"),
             interner.intern("kk_string_ifBlank"),
+            interner.intern("kk_string_ifBlank_flat"),
             interner.intern("kk_string_ifEmpty"),
-            interner.intern("kk_string_chunked_sequence_transform"),
+            interner.intern("kk_string_ifEmpty_flat"),
             interner.intern("kk_sequence_first"),
             interner.intern("kk_sequence_random"),
             interner.intern("kk_sequence_last"),
@@ -1063,18 +1064,18 @@ extension CallLowerer {
             interner.intern("kk_sequence_singleOrNull"),
             interner.intern("kk_sequence_randomOrNull"),
             interner.intern("kk_sequence_count"),
-            interner.intern("kk_string_firstNotNullOf"),
-            interner.intern("kk_string_firstNotNullOfOrNull"),
-            interner.intern("kk_string_reduceOrNull"),
-            interner.intern("kk_string_reduceRightIndexed"),
-            interner.intern("kk_string_reduceRightIndexedOrNull"),
-            interner.intern("kk_string_reduceRightOrNull"),
-            interner.intern("kk_string_sumBy"),
-            interner.intern("kk_string_sumByDouble"),
-            interner.intern("kk_string_zipTransform"),
-            interner.intern("kk_string_zipWithNextTransform"),
-            interner.intern("kk_string_chunked_sequence_transform"),
-            interner.intern("kk_string_windowedSequence_transform"),
+            interner.intern("kk_string_firstNotNullOf_flat"),
+            interner.intern("kk_string_firstNotNullOfOrNull_flat"),
+            interner.intern("kk_string_reduceOrNull_flat"),
+            interner.intern("kk_string_reduceRightIndexed_flat"),
+            interner.intern("kk_string_reduceRightIndexedOrNull_flat"),
+            interner.intern("kk_string_reduceRightOrNull_flat"),
+            interner.intern("kk_string_sumBy_flat"),
+            interner.intern("kk_string_sumByDouble_flat"),
+            interner.intern("kk_string_zipTransform_flat"),
+            interner.intern("kk_string_zipWithNextTransform_flat"),
+            interner.intern("kk_string_chunked_sequence_transform_flat"),
+            interner.intern("kk_string_windowedSequence_transform_flat"),
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_list_windowed_transform"),
             interner.intern("kk_sequence_chunked_transform"),

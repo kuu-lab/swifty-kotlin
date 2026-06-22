@@ -19,6 +19,11 @@ extension LLVMCAPIBindings {
         buildCondBrFn(builder, condition, thenBlock, elseBlock)
     }
 
+    @discardableResult
+    func buildUnreachable(_ builder: LLVMBuilderRef?) -> LLVMValueRef? {
+        buildUnreachableFn(builder)
+    }
+
     func buildICmpEqual(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         name.withCString { buildICmpFn(builder, 32, lhs, rhs, $0) }
     }
@@ -98,6 +103,31 @@ extension LLVMCAPIBindings {
             return nil
         }
         return name.withCString { buildSelectFn(builder, condition, thenValue, elseValue, $0) }
+    }
+
+    func buildExtractValue(
+        _ builder: LLVMBuilderRef?,
+        aggregate: LLVMValueRef?,
+        index: UInt32,
+        name: String
+    ) -> LLVMValueRef? {
+        guard let buildExtractValueFn else {
+            return nil
+        }
+        return name.withCString { buildExtractValueFn(builder, aggregate, index, $0) }
+    }
+
+    func buildInsertValue(
+        _ builder: LLVMBuilderRef?,
+        aggregate: LLVMValueRef?,
+        element: LLVMValueRef?,
+        index: UInt32,
+        name: String
+    ) -> LLVMValueRef? {
+        guard let buildInsertValueFn else {
+            return nil
+        }
+        return name.withCString { buildInsertValueFn(builder, aggregate, element, index, $0) }
     }
 
     func buildGlobalStringPtr(_ builder: LLVMBuilderRef?, value: String, name: String) -> LLVMValueRef? {
@@ -227,6 +257,14 @@ extension LLVMCAPIBindings {
 
     func constPointerNull(_ type: LLVMTypeRef?) -> LLVMValueRef? {
         constPointerNullFn?(type)
+    }
+
+    func constStruct(context: LLVMContextRef?, values: [LLVMValueRef?], packed: Bool = false) -> LLVMValueRef? {
+        guard let constStructInContextFn else {
+            return nil
+        }
+        var mutable = values
+        return constStructInContextFn(context, &mutable, UInt32(mutable.count), packed ? 1 : 0)
     }
 
     /// Build a global string pointer that correctly handles embedded null bytes.

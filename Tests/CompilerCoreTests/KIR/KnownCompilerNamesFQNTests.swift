@@ -128,7 +128,7 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let regexCallee = interner.intern("Regex")
         let result = fixture.driver.callSupportLowerer.loweredRuntimeBuiltinCallee(
@@ -141,11 +141,11 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
         )
 
         // User-defined Set should NOT match set-like; should fall through
-        // to the single-option overload kk_regex_create_with_option.
+        // to the single-option overload kk_regex_create_with_option_flat.
         XCTAssertEqual(
             result.map { interner.resolve($0) },
-            "kk_regex_create_with_option",
-            "Regex(String, user-defined-Set) should NOT route to kk_regex_create_with_options"
+            "kk_regex_create_with_option_flat",
+            "Regex(String, user-defined-Set) should NOT route to kk_regex_create_with_options_flat"
         )
     }
 
@@ -172,7 +172,7 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let regexCallee = interner.intern("Regex")
         let result = fixture.driver.callSupportLowerer.loweredRuntimeBuiltinCallee(
@@ -186,8 +186,8 @@ final class KnownCompilerNamesFQNTests: XCTestCase {
 
         XCTAssertEqual(
             result.map { interner.resolve($0) },
-            "kk_regex_create_with_options",
-            "Regex(String, stdlib-Set) should route to kk_regex_create_with_options"
+            "kk_regex_create_with_options_flat",
+            "Regex(String, stdlib-Set) should route to kk_regex_create_with_options_flat"
         )
     }
 }

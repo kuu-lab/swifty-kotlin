@@ -41,10 +41,6 @@ final class RuntimeUuidGapTests: XCTestCase {
         extractRuntimeString(kk_throwable_message(raw))
     }
 
-    private func intFromBits(_ bits: UInt64) -> Int {
-        Int(bitPattern: UInt(truncatingIfNeeded: bits))
-    }
-
     private func makeByteArray(_ bytes: [UInt8]) -> Int {
         let box = RuntimeArrayBox(length: bytes.count)
         for (i, b) in bytes.enumerated() {

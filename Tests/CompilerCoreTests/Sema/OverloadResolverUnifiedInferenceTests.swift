@@ -64,7 +64,7 @@ extension OverloadResolverTests {
     func testUnifiedInference_VarargMixedElementTypeLUB() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let tSym = defineSymbol(kind: .typeParameter, name: "T", suffix: "uvx_T", symbols: symbols, interner: interner)
         let tType = types.make(.typeParam(TypeParamType(symbol: tSym)))
         let listClassSym = defineSymbol(kind: .class, name: "List", suffix: "uvx_List", symbols: symbols, interner: interner)
@@ -193,7 +193,7 @@ extension OverloadResolverTests {
     // P5-126: fun <K, V> mapOf(k: K, v: V): Map<K, V> – multiple type params
     func testUnifiedInference_MultipleTypeParamsFromNestedClassType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
         let kSym = defineSymbol(kind: .typeParameter, name: "K", suffix: "mtp_K", symbols: symbols, interner: interner)
         let vSym = defineSymbol(kind: .typeParameter, name: "V", suffix: "mtp_V", symbols: symbols, interner: interner)
@@ -226,7 +226,7 @@ extension OverloadResolverTests {
     // P5-126: backward inference from expected Map<String, Int> for return type Map<K, V>
     func testUnifiedInference_BackwardInferenceMultipleTypeParamsFromExpectedType() {
         let (resolver, types, symbols, interner, ctx) = makeEnv()
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let intType = types.make(.primitive(.int, .nonNull))
         let kSym = defineSymbol(kind: .typeParameter, name: "K", suffix: "bmt_K", symbols: symbols, interner: interner)
         let vSym = defineSymbol(kind: .typeParameter, name: "V", suffix: "bmt_V", symbols: symbols, interner: interner)

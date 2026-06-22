@@ -401,7 +401,7 @@ extension DataEnumSealedSynthesisPass {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let parameterName = interner.intern("$self")
         let fqName = owner.fqName + [name]
         let parameterSymbol = sema.symbols.define(
@@ -721,7 +721,7 @@ extension DataEnumSealedSynthesisPass {
             args: [],
             nullability: .nonNull
         )))
-        let stringType = sema.types.make(.primitive(.string, .nonNull))
+        let stringType = sema.types.stringType
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let builderType = sema.types.anyType
         let layout = sema.symbols.nominalLayout(for: owner.id)
@@ -780,7 +780,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [superToStringResult],
                 result: builderExpr,
                 canThrow: false,
@@ -801,7 +801,7 @@ extension DataEnumSealedSynthesisPass {
             )
             body.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_builder_new_from_string"),
+                callee: interner.intern("kk_string_builder_new_from_string_flat"),
                 arguments: [prefixExpr],
                 result: builderExpr,
                 canThrow: false,
@@ -1167,7 +1167,7 @@ extension DataEnumSealedSynthesisPass {
                 // to match Kotlin data class equals() semantics. Primitive types can use
                 // pointer/value equality via kk_op_eq.
                 let eqCallee: String = switch sema.types.kind(of: sema.types.makeNonNullable(propType)) {
-                case .primitive(.string, _), .classType, .any:
+                case .stringStruct, .classType, .any:
                     "kk_structural_eq"
                 case .primitive:
                     "kk_op_eq"

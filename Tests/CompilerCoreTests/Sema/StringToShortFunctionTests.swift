@@ -6,7 +6,7 @@ import XCTest
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toShort` links to the runtime
-///   symbol `kk_string_toShort` declared in
+///   symbol `kk_string_toShort_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift`.
 /// - The extension resolves cleanly from source code on both a parameter
 ///   receiver and a string-literal receiver (Short is widened to Int in ABI).
@@ -33,14 +33,14 @@ final class StringToShortFunctionTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLink(for: "toShort", sema: sema, interner: ctx.interner),
-                "kk_string_toShort",
-                "String.toShort should link to kk_string_toShort"
+                "kk_string_toShort_flat",
+                "String.toShort should link to kk_string_toShort_flat"
             )
 
             let links = externalLinks(for: "toShort", sema: sema, interner: ctx.interner)
             XCTAssertTrue(
-                links.contains("kk_string_toShort"),
-                "lookupAll for toShort must include kk_string_toShort; got: \(links)"
+                links.contains("kk_string_toShort_flat"),
+                "lookupAll for toShort must include kk_string_toShort_flat; got: \(links)"
             )
         }
     }

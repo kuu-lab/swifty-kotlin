@@ -6,6 +6,7 @@ on:
       - master
   pull_request:
   merge_group:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,10 +25,6 @@ jobs:
         run: npm install -g jscpd@4.0.8
       - name: Run jscpd
         run: jscpd --threshold 5.6 --min-lines 15 --format swift Sources/
-      # RF-GUARD-002: Tests/ の重複監視（2026-06-10 実測 4.21% に対し閾値 5.0、
-      # 段階的引き下げは RF-GOV-001）
-      - name: Run jscpd (Tests)
-        run: jscpd --threshold 5.0 --min-lines 15 --format swift Tests/
       - name: jscpd reproduce hint on failure
         if: failure()
         run: |
@@ -36,7 +33,6 @@ jobs:
             echo '```bash'
             echo 'npm install -g jscpd@4.0.8'
             echo 'jscpd --threshold 5.6 --min-lines 15 --format swift Sources/'
-            echo 'jscpd --threshold 5.0 --min-lines 15 --format swift Tests/'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

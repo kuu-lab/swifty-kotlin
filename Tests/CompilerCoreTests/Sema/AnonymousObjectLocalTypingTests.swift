@@ -213,68 +213,6 @@ final class AnonymousObjectLocalTypingTests: XCTestCase {
         return receiver
     }
 
-    private func findObjectLiteralInitializer(
-        in exprIDs: [ExprID],
-        ast: ASTModule
-    ) -> (ExprID, DeclID)? {
-        for exprID in exprIDs {
-            if let match = findObjectLiteralInitializer(in: exprID, ast: ast) {
-                return match
-            }
-        }
-        return nil
-    }
-
-    private func findObjectLiteralInitializer(
-        in exprID: ExprID,
-        ast: ASTModule
-    ) -> (ExprID, DeclID)? {
-        guard let expr = ast.arena.expr(exprID) else {
-            return nil
-        }
-        switch expr {
-        case let .localDecl(_, _, _, initializer, _, _):
-            guard let initializer,
-                  let objectExpr = ast.arena.expr(initializer),
-                  case let .objectLiteral(_, declID, _) = objectExpr,
-                  let declID
-            else {
-                return nil
-            }
-            return (initializer, declID)
-        case let .blockExpr(statements, trailingExpr, _):
-            if let match = findObjectLiteralInitializer(in: statements, ast: ast) {
-                return match
-            }
-            if let trailingExpr {
-                return findObjectLiteralInitializer(in: trailingExpr, ast: ast)
-            }
-            return nil
-        case let .call(callee, _, args, _):
-            if let match = findObjectLiteralInitializer(in: callee, ast: ast) {
-                return match
-            }
-            for arg in args {
-                if let match = findObjectLiteralInitializer(in: arg.expr, ast: ast) {
-                    return match
-                }
-            }
-            return nil
-        case let .memberCall(receiver, _, _, args, _):
-            if let match = findObjectLiteralInitializer(in: receiver, ast: ast) {
-                return match
-            }
-            for arg in args {
-                if let match = findObjectLiteralInitializer(in: arg.expr, ast: ast) {
-                    return match
-                }
-            }
-            return nil
-        default:
-            return nil
-        }
-    }
-
     private func firstObjectDeclID(in ast: ASTModule) -> DeclID? {
         for (index, decl) in ast.arena.declarations().enumerated() {
             guard case .objectDecl = decl else {

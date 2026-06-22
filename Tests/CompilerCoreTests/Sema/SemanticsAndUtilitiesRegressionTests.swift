@@ -3914,7 +3914,7 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         let sym = SymbolID(rawValue: 100)
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
 
         let trueState = DataFlowState(variables: [
             sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true),

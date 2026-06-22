@@ -25,15 +25,12 @@ let package = Package(
         )
     ],
     targets: [
-        .systemLibrary(
-            name: "CLLVM"
-        ),
         .target(
             name: "RuntimeABI"
         ),
         .target(
             name: "CompilerCore",
-            dependencies: ["CLLVM", "RuntimeABI"],
+            dependencies: ["RuntimeABI"],
             resources: [.process("Stdlib")]
         ),
         .target(

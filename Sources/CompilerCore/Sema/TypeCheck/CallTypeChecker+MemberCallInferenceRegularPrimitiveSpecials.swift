@@ -346,7 +346,7 @@ extension CallTypeChecker {
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
-            let stringType = sema.types.make(.primitive(.string, .nonNull))
+            let stringType = sema.types.stringType
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
@@ -365,7 +365,7 @@ extension CallTypeChecker {
             ? sema.types.makeNonNullable(lookupReceiverType)
             : lookupReceiverType
         let allowsAnyFallback: Bool = switch sema.types.kind(of: anyFallbackReceiverType) {
-        case .primitive(.string, _):
+        case .stringStruct:
             false
         case .primitive:
             true
@@ -387,7 +387,7 @@ extension CallTypeChecker {
 
         // Any.toString(): String (STDLIB-306)
         if interner.resolve(calleeName) == "toString", args.isEmpty, allowsAnyFallback {
-            let stringType = sema.types.make(.primitive(.string, .nonNull))
+            let stringType = sema.types.stringType
             let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
             sema.bindings.bindExprType(id, type: finalType)
             return finalType

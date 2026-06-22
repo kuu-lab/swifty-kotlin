@@ -7,7 +7,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     // MARK: - classify() Tests
 
     func testClassifyBuiltinTypes() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
         let sema = SemaModule(
@@ -22,7 +21,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             (.any(.nullable), .any, true),
             (.primitive(.int, .nonNull), .int, false),
             (.primitive(.int, .nullable), .int, true),
-            (.primitive(.string, .nonNull), .string, false),
+            (.stringStruct(.nonNull), .string, false),
             (.primitive(.boolean, .nonNull), .boolean, false),
             (.primitive(.uint, .nonNull), .uint, false),
             (.primitive(.ulong, .nonNull), .ulong, false),
@@ -43,7 +42,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyNothingType() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -93,7 +91,6 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
     }
 
     func testClassifyUnknownTypes() {
-        let interner = StringInterner()
         let types = TypeSystem()
         let sema = SemaModule(
             symbols: SymbolTable(),
@@ -132,7 +129,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
             .any(.nonNull),
             .any(.nullable),
             .primitive(.int, .nonNull),
-            .primitive(.string, .nullable),
+            .stringStruct(.nullable),
             .primitive(.boolean, .nonNull),
             .primitive(.uint, .nonNull),
             .primitive(.ulong, .nonNull),
@@ -231,7 +228,7 @@ final class RuntimeTypeCheckTokenTests: XCTestCase {
         let testCases: [(TypeKind, String)] = [
             (.any(.nonNull), "Any"),
             (.primitive(.int, .nonNull), "Int"),
-            (.primitive(.string, .nonNull), "String"),
+            (.stringStruct(.nonNull), "String"),
             (.primitive(.boolean, .nonNull), "Boolean"),
             (.primitive(.uint, .nonNull), "UInt"),
             (.primitive(.ulong, .nonNull), "ULong"),

@@ -154,9 +154,13 @@ public struct KIRGlobal: Sendable {
     }
 }
 
-public struct KIRNominalType: Sendable {
+public struct KIRNominalType: Sendable, CustomStringConvertible {
     public let symbol: SymbolID
     public let memberDecls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRNominalType(\(symbol.rawValue), members: \(memberDecls.count))"
+    }
 
     public init(symbol: SymbolID, memberDecls: [KIRDeclID] = []) {
         self.symbol = symbol
@@ -170,9 +174,13 @@ public enum KIRDecl: Sendable {
     case nominalType(KIRNominalType)
 }
 
-public struct KIRFile: Sendable {
+public struct KIRFile: Sendable, CustomStringConvertible {
     public let fileID: FileID
     public let decls: [KIRDeclID]
+
+    public var description: String {
+        return "KIRFile(\(fileID.rawValue), decls: \(decls.count))"
+    }
 
     public init(fileID: FileID, decls: [KIRDeclID]) {
         self.fileID = fileID

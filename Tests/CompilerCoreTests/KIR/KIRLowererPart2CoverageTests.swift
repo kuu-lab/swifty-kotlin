@@ -310,7 +310,6 @@ final class KIRLowererPart2CoverageTests: XCTestCase {
 
 struct DirectKIRFixture {
     let interner: StringInterner
-    let diagnostics: DiagnosticEngine
     let symbols: SymbolTable
     let types: TypeSystem
     let bindings: BindingTable
@@ -368,7 +367,6 @@ func makeDirectKIRFixture() -> DirectKIRFixture {
 
     return DirectKIRFixture(
         interner: interner,
-        diagnostics: diagnostics,
         symbols: symbols,
         types: types,
         bindings: bindings,

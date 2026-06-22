@@ -4,10 +4,10 @@ import XCTest
 /// STDLIB-TEXT-FN-074: Validates that `String.substringAfter(delimiter, missingDelimiterValue)`
 /// resolves through Sema for both `String` and `Char` delimiter overloads with optional
 /// `missingDelimiterValue` parameter.
-/// - 1-arg String delimiter: `kk_string_substringAfter` with default missingDelimiterValue = receiver.
-/// - 2-arg String delimiter + missingDelimiterValue: `kk_string_substringAfter`.
-/// - 1-arg Char delimiter: `kk_string_substringAfter_char`.
-/// - 2-arg Char delimiter + missingDelimiterValue: `kk_string_substringAfter_char`.
+/// - 1-arg String delimiter: `kk_string_substringAfter_flat` with default missingDelimiterValue = receiver.
+/// - 2-arg String delimiter + missingDelimiterValue: `kk_string_substringAfter_flat`.
+/// - 1-arg Char delimiter: `kk_string_substringAfter_char_flat`.
+/// - 2-arg Char delimiter + missingDelimiterValue: `kk_string_substringAfter_char_flat`.
 final class StringSubstringAfterFunctionTests: XCTestCase {
     func testSubstringAfterFunctionResolvesInSource() throws {
         let ctx = makeContextFromSource("""

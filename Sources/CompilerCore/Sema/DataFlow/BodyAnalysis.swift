@@ -644,7 +644,7 @@ extension DataFlowSemaPhase {
             )
             if newArg == kc.argument { return typeID }
             return types.make(.kClassType(KClassType(argument: newArg, nullability: kc.nullability)))
-        case .primitive, .any, .unit, .nothing, .error:
+        case .stringStruct, .primitive, .any, .unit, .nothing, .error:
             return typeID
         case let .intersection(parts):
             let newParts = parts.map {

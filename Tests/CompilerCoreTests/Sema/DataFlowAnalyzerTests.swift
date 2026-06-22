@@ -140,7 +140,7 @@ final class DataFlowAnalyzerTests: XCTestCase {
         let analyzer = DataFlowAnalyzer()
         let types = TypeSystem()
         let intType = types.make(.primitive(.int, .nonNull))
-        let stringType = types.make(.primitive(.string, .nonNull))
+        let stringType = types.stringType
         let sym = SymbolID(rawValue: 0)
 
         let lhs = DataFlowState(variables: [sym: VariableFlowState(possibleTypes: [intType], nullability: .nonNull, isStable: true)])

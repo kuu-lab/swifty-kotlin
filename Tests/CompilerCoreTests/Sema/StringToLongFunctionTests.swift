@@ -6,7 +6,7 @@ import XCTest
 ///
 /// Verifies:
 /// - The synthetic stub registered for `String.toLong` links to the
-///   runtime symbol `kk_string_toLong` declared in
+///   runtime symbol `kk_string_toLong_flat` declared in
 ///   `Sources/RuntimeABI/RuntimeABISpec+String.swift`.
 /// - A call expression `value.toLong()` resolves through sema to that bridge
 ///   and produces no diagnostics.
@@ -25,8 +25,8 @@ final class StringToLongFunctionTests: XCTestCase {
 
             XCTAssertEqual(
                 externalLink(for: "toLong", sema: sema, interner: ctx.interner),
-                "kk_string_toLong",
-                "String.toLong() should link to kk_string_toLong"
+                "kk_string_toLong_flat",
+                "String.toLong() should link to kk_string_toLong_flat"
             )
         }
     }
@@ -66,8 +66,8 @@ final class StringToLongFunctionTests: XCTestCase {
             )
             XCTAssertEqual(
                 sema.symbols.externalLinkName(for: chosenCallee),
-                "kk_string_toLong",
-                "String.toLong() should resolve to kk_string_toLong"
+                "kk_string_toLong_flat",
+                "String.toLong() should resolve to kk_string_toLong_flat"
             )
         }
     }

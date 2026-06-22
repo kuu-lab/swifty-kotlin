@@ -70,6 +70,8 @@ struct CollectionLiteralLookupTables {
     // Set predicate HOF ABI names (STDLIB-SET-PRED)
 
     let kkStringSplitName: InternedString
+    let kkStringChunkedName: InternedString
+    let kkStringWindowedName: InternedString
     let kkStringAsSequenceName: InternedString
     let kkStringAsIterableName: InternedString
     let kkStringIteratorName: InternedString
@@ -893,18 +895,20 @@ struct CollectionLiteralLookupTables {
         kkSetToStringName = interner.intern("kk_set_to_string")
         kkIterableToMutableSetName = interner.intern("kk_iterable_toMutableSet")
         kkSetToListName = interner.intern("kk_set_toList")
-        kkStringSplitName = interner.intern("kk_string_split")
-        kkStringAsSequenceName = interner.intern("kk_string_asSequence")
-        kkStringAsIterableName = interner.intern("kk_string_asIterable")
-        kkStringIteratorName = interner.intern("kk_string_iterator")
+        kkStringSplitName = interner.intern("kk_string_split_flat")
+        kkStringChunkedName = interner.intern("kk_string_chunked_flat")
+        kkStringWindowedName = interner.intern("kk_string_windowed_flat")
+        kkStringAsSequenceName = interner.intern("kk_string_asSequence_flat")
+        kkStringAsIterableName = interner.intern("kk_string_asIterable_flat")
+        kkStringIteratorName = interner.intern("kk_string_iterator_flat")
         kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
         kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
-        kkStringFilterName = interner.intern("kk_string_filter")
-        kkStringMapName = interner.intern("kk_string_map")
-        kkStringCountName = interner.intern("kk_string_count")
-        kkStringAnyName = interner.intern("kk_string_any")
-        kkStringAllName = interner.intern("kk_string_all")
-        kkStringNoneName = interner.intern("kk_string_none")
+        kkStringFilterName = interner.intern("kk_string_filter_flat")
+        kkStringMapName = interner.intern("kk_string_map_flat")
+        kkStringCountName = interner.intern("kk_string_count_flat")
+        kkStringAnyName = interner.intern("kk_string_any_flat")
+        kkStringAllName = interner.intern("kk_string_all_flat")
+        kkStringNoneName = interner.intern("kk_string_none_flat")
 
         kkListMapName = interner.intern("kk_list_map")
         kkListFilterName = interner.intern("kk_list_filter")
@@ -1498,7 +1502,7 @@ struct CollectionLiteralLookupTables {
         appendName = interner.intern("append")
         addAllName = interner.intern("addAll")
         putName = interner.intern("put")
-        kkStringBuilderAppendName = interner.intern("kk_string_builder_append")
+        kkStringBuilderAppendName = interner.intern("kk_string_builder_append_flat")
         kkBuilderListAddName = interner.intern("kk_builder_list_add")
         kkBuilderListAddAllName = interner.intern("kk_builder_list_addAll")
         kkBuilderSetAddName = interner.intern("kk_builder_set_add")
@@ -1513,12 +1517,12 @@ struct CollectionLiteralLookupTables {
         deleteName = interner.intern("delete")
         lengthName = interner.intern("length")
         appendRangeName = interner.intern("appendRange")
-        kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line")
+        kkStringBuilderAppendLineName = interner.intern("kk_string_builder_append_line_flat")
         kkStringBuilderAppendLineNoargName = interner.intern("kk_string_builder_append_line_noarg")
-        kkStringBuilderInsertName = interner.intern("kk_string_builder_insert")
+        kkStringBuilderInsertName = interner.intern("kk_string_builder_insert_flat")
         kkStringBuilderDeleteName = interner.intern("kk_string_builder_delete")
         kkStringBuilderLengthName = interner.intern("kk_string_builder_length")
-        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range")
+        kkStringBuilderAppendRangeName = interner.intern("kk_string_builder_append_range_flat")
 
         // File I/O names (STDLIB-565)
         fileConstructorName = interner.intern("File")
@@ -1647,43 +1651,44 @@ struct CollectionLiteralLookupTables {
         })
 
         stringProducingCallees = [
-            interner.intern("kk_string_concat"),
-            interner.intern("kk_string_trim"),
-            interner.intern("kk_string_lowercase"),
-            interner.intern("kk_string_uppercase"),
-            interner.intern("kk_string_replace"),
-            interner.intern("kk_string_replaceFirst"),
-            interner.intern("kk_string_replaceAfter"),
-            interner.intern("kk_string_replaceAfter_char"),
-            interner.intern("kk_string_replaceAfterLast"),
-            interner.intern("kk_string_replaceAfterLast_char"),
-            interner.intern("kk_string_replaceBefore"),
-            interner.intern("kk_string_replaceBefore_char"),
-            interner.intern("kk_string_replaceBeforeLast"),
-            interner.intern("kk_string_replaceBeforeLast_char"),
-            interner.intern("kk_string_substring"),
-            interner.intern("kk_string_take"),
-            interner.intern("kk_string_drop"),
-            interner.intern("kk_string_takeLast"),
-            interner.intern("kk_string_dropLast"),
-            interner.intern("kk_string_removePrefix"),
-            interner.intern("kk_string_removeSuffix"),
-            interner.intern("kk_string_removeSurrounding"),
-            interner.intern("kk_string_removeRange"),
-            interner.intern("kk_string_removeRange_range"),
-            interner.intern("kk_string_substringBefore"),
-            interner.intern("kk_string_substringBefore_char"),
-            interner.intern("kk_string_substringAfter"),
-            interner.intern("kk_string_substringAfter_char"),
-            interner.intern("kk_string_substringBeforeLast"),
-            interner.intern("kk_string_substringBeforeLast_char"),
-            interner.intern("kk_string_substringAfterLast"),
-            interner.intern("kk_string_substringAfterLast_char"),
-            interner.intern("kk_string_prependIndent_default"),
-            interner.intern("kk_string_prependIndent"),
-            interner.intern("kk_string_replaceIndent_default"),
-            interner.intern("kk_string_replaceIndent"),
-            interner.intern("kk_string_replaceIndentByMargin"),
+            interner.intern("kk_string_concat_flat"),
+            interner.intern("kk_string_trim_flat"),
+            interner.intern("kk_string_lowercase_flat"),
+            interner.intern("kk_string_uppercase_flat"),
+            interner.intern("kk_string_replace_flat"),
+            interner.intern("kk_string_replaceFirst_flat"),
+            interner.intern("kk_string_replaceAfter_flat"),
+            interner.intern("kk_string_replaceAfter_char_flat"),
+            interner.intern("kk_string_replaceAfterLast_flat"),
+            interner.intern("kk_string_replaceAfterLast_char_flat"),
+            interner.intern("kk_string_replaceBefore_flat"),
+            interner.intern("kk_string_replaceBefore_char_flat"),
+            interner.intern("kk_string_replaceBeforeLast_flat"),
+            interner.intern("kk_string_replaceBeforeLast_char_flat"),
+            interner.intern("kk_string_substring_flat"),
+            interner.intern("kk_string_take_flat"),
+            interner.intern("kk_string_drop_flat"),
+            interner.intern("kk_string_takeLast_flat"),
+            interner.intern("kk_string_dropLast_flat"),
+            interner.intern("kk_string_removePrefix_flat"),
+            interner.intern("kk_string_removeSuffix_flat"),
+            interner.intern("kk_string_removeSurrounding_flat"),
+            interner.intern("kk_string_removeSurrounding_pair_flat"),
+            interner.intern("kk_string_removeRange_flat"),
+            interner.intern("kk_string_removeRange_range_flat"),
+            interner.intern("kk_string_substringBefore_flat"),
+            interner.intern("kk_string_substringBefore_char_flat"),
+            interner.intern("kk_string_substringAfter_flat"),
+            interner.intern("kk_string_substringAfter_char_flat"),
+            interner.intern("kk_string_substringBeforeLast_flat"),
+            interner.intern("kk_string_substringBeforeLast_char_flat"),
+            interner.intern("kk_string_substringAfterLast_flat"),
+            interner.intern("kk_string_substringAfterLast_char_flat"),
+            interner.intern("kk_string_prependIndent_default_flat"),
+            interner.intern("kk_string_prependIndent_flat"),
+            interner.intern("kk_string_replaceIndent_default_flat"),
+            interner.intern("kk_string_replaceIndent_flat"),
+            interner.intern("kk_string_replaceIndentByMargin_flat"),
             kkStringFilterName,
             interner.intern("kk_build_string"),
             interner.intern("kk_build_string_with_capacity"),
@@ -1701,8 +1706,12 @@ struct CollectionLiteralLookupTables {
 
 // swiftformat:enable redundantMemberwiseInit
 
-private struct CollectionHOFRuntimeKey: Hashable {
+private struct CollectionHOFRuntimeKey: Hashable, CustomStringConvertible {
     let ownerKind: StdlibSurfaceOwnerKind
     let memberName: InternedString
     let arity: Int
+
+    var description: String {
+        return "\(ownerKind) \(memberName) \(arity)"
+    }
 }

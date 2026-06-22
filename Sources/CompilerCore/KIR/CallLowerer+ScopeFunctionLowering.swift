@@ -142,6 +142,14 @@ extension CallLowerer {
                 type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
+                let lambdaResult = if scopeKind == .scopeAlso {
+                    arena.appendExpr(
+                        .temporary(Int32(arena.expressions.count)),
+                        type: sema.types.unitType
+                    )
+                } else {
+                    result
+                }
                 let callArgs: [KIRExprID]
                 if info.hasClosureParam {
                     let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
@@ -154,7 +162,7 @@ extension CallLowerer {
                     symbol: info.symbol,
                     callee: info.callee,
                     arguments: callArgs,
-                    result: result,
+                    result: lambdaResult,
                     canThrow: false,
                     thrownResult: nil
                 ))
@@ -197,11 +205,19 @@ extension CallLowerer {
                 type: boundType
             )
             if let info = driver.ctx.callableValueInfo(for: loweredLambdaID) {
+                let lambdaResult = if scopeKind == .scopeApply {
+                    arena.appendExpr(
+                        .temporary(Int32(arena.expressions.count)),
+                        type: sema.types.unitType
+                    )
+                } else {
+                    result
+                }
                 instructions.append(.call(
                     symbol: info.symbol,
                     callee: info.callee,
                     arguments: info.captureArguments,
-                    result: result,
+                    result: lambdaResult,
                     canThrow: false,
                     thrownResult: nil
                 ))

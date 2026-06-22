@@ -60,6 +60,7 @@ public struct SymbolFlags: OptionSet, Sendable {
     /// The ABI lowering pass must NOT add this symbol to nonThrowingCallees.
     public static let throwingFunction = SymbolFlags(rawValue: 1 << 20)
     public static let readOnlyProperty = SymbolFlags(rawValue: 1 << 21)
+    public static let importedLibrary = SymbolFlags(rawValue: 1 << 22)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -201,13 +202,17 @@ public enum ContractReturnsEffect: Equatable, Sendable {
 
 /// STDLIB-592: `contract { callsInPlace(block, InvocationKind.EXACTLY_ONCE) }` effect.
 /// Records that a lambda parameter is guaranteed to be invoked a specific number of times.
-public struct ContractCallsInPlaceEffect: Equatable, Sendable {
+public struct ContractCallsInPlaceEffect: Equatable, Sendable, CustomStringConvertible {
     public let parameterSymbol: SymbolID
     public let kind: InvocationKind
 
     public init(parameterSymbol: SymbolID, kind: InvocationKind) {
         self.parameterSymbol = parameterSymbol
         self.kind = kind
+    }
+
+    public var description: String {
+        return "\(parameterSymbol.rawValue) \(kind.rawValue)"
     }
 }
 
@@ -223,7 +228,7 @@ public enum InvocationKind: String, Equatable, Sendable {
 /// is a Boolean parameter.  After normal return, the argument expression at
 /// `conditionParameterIndex` is guaranteed true, enabling smart casts derived from
 /// that expression (e.g. `require(x != null)` narrows `x` to non-null).
-public struct ContractConditionEffect: Equatable, Sendable {
+public struct ContractConditionEffect: Equatable, Sendable, CustomStringConvertible {
     /// Index into the function signature's value-parameter list whose argument
     /// expression is guaranteed true on normal return.
     public let conditionParameterIndex: Int
@@ -237,6 +242,10 @@ public struct ContractConditionEffect: Equatable, Sendable {
     public init(conditionParameterIndex: Int, returnsValue: Bool? = nil) {
         self.conditionParameterIndex = conditionParameterIndex
         self.returnsValue = returnsValue
+    }
+
+    public var description: String {
+        return "\(conditionParameterIndex) \(String(describing: returnsValue))"
     }
 }
 
@@ -594,12 +603,17 @@ public final class SymbolTable {
         flags: SymbolFlags,
         existingSymbols: [SemanticSymbol]
     ) -> Bool {
-        guard kind == .property, flags.contains(.synthetic) else {
+        guard kind == .property else {
             return false
         }
         let existingNonPackageSymbols = existingSymbols.filter { $0.kind != .package }
         guard !existingNonPackageSymbols.isEmpty else {
             return false
+        }
+        if !flags.contains(.synthetic) {
+            return existingNonPackageSymbols.allSatisfy {
+                $0.kind == .property && $0.flags.contains(.synthetic)
+            }
         }
         return existingNonPackageSymbols.allSatisfy { symbol in
             switch symbol.kind {

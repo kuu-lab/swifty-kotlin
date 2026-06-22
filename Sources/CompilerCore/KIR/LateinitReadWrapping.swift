@@ -20,7 +20,7 @@ func wrapLateinitReadIfNeeded(
     }
     let propertyNameExpr = arena.appendExpr(
         .stringLiteral(symbolInfo.name),
-        type: sema.types.make(.primitive(.string, .nonNull))
+        type: sema.types.stringType
     )
     instructions.append(.constValue(result: propertyNameExpr, value: .stringLiteral(symbolInfo.name)))
     let result = arena.appendExpr(

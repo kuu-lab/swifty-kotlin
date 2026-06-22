@@ -4,7 +4,6 @@ import XCTest
 
 struct KIRDirectLoweringFixture {
     let interner: StringInterner
-    let diagnostics: DiagnosticEngine
     let symbols: SymbolTable
     let types: TypeSystem
     let bindings: BindingTable
@@ -59,7 +58,6 @@ func makeKIRDirectLoweringFixture() -> KIRDirectLoweringFixture {
     let driver = KIRLoweringDriver(ctx: loweringContext)
     return KIRDirectLoweringFixture(
         interner: interner,
-        diagnostics: diagnostics,
         symbols: symbols,
         types: types,
         bindings: bindings,

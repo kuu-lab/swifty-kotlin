@@ -3,7 +3,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_selector",
             parameters: [
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -12,7 +12,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_selector_descending",
             parameters: [
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -21,7 +21,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_selector_primitive",
             parameters: [
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
                 RuntimeABIParameter(name: "kindRaw", type: .int32),
             ],
@@ -31,7 +31,7 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_selector_primitive_descending",
             parameters: [
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
                 RuntimeABIParameter(name: "kindRaw", type: .int32),
             ],
@@ -86,7 +86,7 @@ public extension RuntimeABISpec {
             name: "kk_comparator_from_comparator_selector",
             parameters: [
                 RuntimeABIParameter(name: "comparatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -107,7 +107,7 @@ public extension RuntimeABISpec {
             name: "kk_comparator_from_comparator_selector_descending",
             parameters: [
                 RuntimeABIParameter(name: "comparatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -127,9 +127,9 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_multi_selectors",
             parameters: [
-                RuntimeABIParameter(name: "sel1Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel1Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel1Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel2Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel2Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel2Closure", type: .intptr),
             ],
             returnType: .intptr,
@@ -138,11 +138,11 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(
             name: "kk_comparator_from_multi_selectors3",
             parameters: [
-                RuntimeABIParameter(name: "sel1Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel1Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel1Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel2Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel2Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel2Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel3Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel3Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel3Closure", type: .intptr),
             ],
             returnType: .intptr,
@@ -172,7 +172,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "c1Fn", type: .intptr),
                 RuntimeABIParameter(name: "c1Closure", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -183,7 +183,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "c1Fn", type: .intptr),
                 RuntimeABIParameter(name: "c1Closure", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -195,7 +195,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "c1Fn", type: .intptr),
                 RuntimeABIParameter(name: "c1Closure", type: .intptr),
                 RuntimeABIParameter(name: "keyComparator", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -229,7 +229,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "c1Fn", type: .intptr),
                 RuntimeABIParameter(name: "c1Closure", type: .intptr),
                 RuntimeABIParameter(name: "keyComparator", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
             ],
             returnType: .intptr,
@@ -425,7 +425,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -437,9 +437,9 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
-                RuntimeABIParameter(name: "sel1Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel1Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel1Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel2Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel2Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel2Closure", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -451,11 +451,11 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
-                RuntimeABIParameter(name: "sel1Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel1Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel1Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel2Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel2Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel2Closure", type: .intptr),
-                RuntimeABIParameter(name: "sel3Fn", type: .intptr),
+                RuntimeABIParameter(name: "sel3Fnptr", type: .intptr),
                 RuntimeABIParameter(name: "sel3Closure", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
@@ -479,7 +479,7 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "a", type: .intptr),
                 RuntimeABIParameter(name: "b", type: .intptr),
                 RuntimeABIParameter(name: "comparator", type: .intptr),
-                RuntimeABIParameter(name: "selectorFn", type: .intptr),
+                RuntimeABIParameter(name: "selectorFnptr", type: .intptr),
                 RuntimeABIParameter(name: "selectorClosure", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],

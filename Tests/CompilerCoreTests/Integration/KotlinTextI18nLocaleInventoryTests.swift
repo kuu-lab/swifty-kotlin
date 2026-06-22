@@ -1,4 +1,3 @@
-@testable import CompilerCore
 import XCTest
 
 // MARK: - STDLIB-I18N-COMMON-001: kotlin.text / common formatting and locale inventory
@@ -6,17 +5,17 @@ import XCTest
 // This file documents which Kotlin common-scope i18n / locale APIs are implemented
 // in the KSwiftK runtime and which are absent (gaps).
 //
-// Implemented (common scope):
-//   - String.lowercase()                   -> bundled Kotlin source
-//   - String.uppercase()                   -> bundled Kotlin source
-//   - String.lowercase(Locale)             -> bundled Kotlin wrapper + kk_string_lowercase_locale
-//   - String.uppercase(Locale)             -> bundled Kotlin wrapper + kk_string_uppercase_locale
-//   - String.compareTo(String, Locale)     → kk_string_compareTo_locale
+// Implemented (common scope, backed by runtime functions):
+//   - String.lowercase()                   → kk_string_lowercase_flat
+//   - String.uppercase()                   → kk_string_uppercase_flat
+//   - String.lowercase(Locale)             → kk_string_lowercase_locale_flat
+//   - String.uppercase(Locale)             → kk_string_uppercase_locale_flat
+//   - String.compareTo(String, Locale)     → kk_string_compareTo_locale_flat
 //   - String.toInt(radix)                  → kk_string_toInt_radix  (throwing)
 //   - String.toIntOrNull()                 → kk_string_toIntOrNull  (no-radix variant)
 //   - String.toIntOrNull(radix)            → kk_string_toIntOrNull_radix
-//   - String.format(format, vararg args)   → kk_string_format  (platform fmt, no locale overload)
-//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale
+//   - String.format(format, vararg args)   → kk_string_format_flat  (platform fmt, no locale overload)
+//   - String.Companion.format(locale, format, vararg args) → kk_string_format_locale_flat
 //   - Char.uppercase()                     → kk_char_uppercase  (returns String per Kotlin spec)
 //   - Char.uppercase(Locale)               → kk_char_uppercase_locale
 //   - Char.lowercase()                     → kk_char_lowercase  (returns String per Kotlin spec)

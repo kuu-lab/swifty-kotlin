@@ -1,6 +1,6 @@
 // STDLIB-TEXT-FN-092: End-to-end execution tests for String.toByteArray().
-// toByteArray() is typed as List<Int> by Sema (via kk_string_toByteArray), so
-// .size and [i] use the list accessor path, not the ByteArray/array path.
+// toByteArray() is typed as ByteArray by Sema, so .size and [i] use the
+// primitive-array accessor path.
 @testable import CompilerCore
 import Foundation
 import XCTest

@@ -3,7 +3,7 @@ import XCTest
 
 /// STDLIB-TEXT-FN-073: Validates that `CharSequence.substring(startIndex, endIndex)`
 /// resolves through Sema for String receivers across multiple call sites and
-/// links to the runtime helper `kk_string_substring` (see
+/// links to the runtime helper `kk_string_substring_flat` (see
 /// `Sources/Runtime/RuntimeStringStdlib.swift`).
 final class StringSubstringFunctionTests: XCTestCase {
     func testStringSubstringResolvesInSource() throws {
@@ -58,7 +58,7 @@ final class StringSubstringFunctionTests: XCTestCase {
                 "String.substring(startIndex, endIndex) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_substring")
+        XCTAssertEqual(resolvedLink, "kk_string_substring_flat")
     }
 
     func testSubstringOneArgOverloadResolvesToRuntimeLink() throws {
@@ -83,6 +83,31 @@ final class StringSubstringFunctionTests: XCTestCase {
                 "String.substring(startIndex) should return String"
             )
         }
-        XCTAssertEqual(resolvedLink, "kk_string_substring")
+        XCTAssertEqual(resolvedLink, "kk_string_substring_flat")
+    }
+
+    func testSubSequenceOverloadResolvesToFlatRuntimeLink() throws {
+        var resolvedLink: String?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try XCTUnwrap(ctx.sema)
+            let fq = ["kotlin", "text", "subSequence"].map { ctx.interner.intern($0) }
+            let symbol = try XCTUnwrap(sema.symbols.lookupAll(fqName: fq).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+                    return false
+                }
+                return signature.receiverType == sema.types.stringType
+                    && signature.parameterTypes.count == 2
+                    && signature.parameterTypes.allSatisfy { $0 == sema.types.intType }
+            })
+            resolvedLink = sema.symbols.externalLinkName(for: symbol)
+            XCTAssertEqual(
+                sema.symbols.functionSignature(for: symbol)?.returnType,
+                sema.types.stringType,
+                "String.subSequence(startIndex, endIndex) should return String"
+            )
+        }
+        XCTAssertEqual(resolvedLink, "kk_string_subSequence_flat")
     }
 }

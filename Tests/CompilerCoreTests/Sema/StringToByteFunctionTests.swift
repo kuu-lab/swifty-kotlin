@@ -4,8 +4,8 @@ import XCTest
 /// STDLIB-TEXT-FN-090: Validates that `String.toByte()` and `String.toByte(radix)`
 /// resolve through Sema as extension functions in `kotlin.text`.
 ///
-/// - The no-arg overload links to `kk_string_toByte`.
-/// - The radix overload links to `kk_string_toByte_radix`.
+/// - The no-arg overload links to `kk_string_toByte_flat`.
+/// - The radix overload links to `kk_string_toByte_radix_flat`.
 final class StringToByteFunctionTests: XCTestCase {
     func testToByteNoArgResolvesInSource() throws {
         let ctx = makeContextFromSource("""
