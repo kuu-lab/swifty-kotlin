@@ -1769,19 +1769,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerAtomicAsKotlinAtomicFunction(
-            packageFQName: packageFQName,
-            receiverPackageFQName: receiverPackageFQName,
-            javaPackageFQName: javaAtomicPackage,
-            javaClassName: "AtomicLong",
-            kotlinClassName: "AtomicLong",
-            constructorLinkName: "kk_atomic_long_create",
-            valueType: types.longType,
-            externalLinkName: "kk_java_atomic_long_asKotlinAtomic",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     private func registerAtomicAsKotlinAtomicFunction(
