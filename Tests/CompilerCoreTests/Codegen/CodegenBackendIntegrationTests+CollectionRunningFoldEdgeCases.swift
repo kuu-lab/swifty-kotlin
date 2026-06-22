@@ -3,7 +3,7 @@ import Foundation
 import XCTest
 
 extension CodegenBackendIntegrationTests {
-    func testCodegenCollectionRunningFoldUsesListRuntime() throws {
+    func testCodegenCollectionRunningFoldIncludesInitialAccumulator() throws {
         let source = """
         fun main() {
             val values = listOf(1, 2, 3)

@@ -1214,7 +1214,7 @@ final class CodegenBackendIntegrationTests: XCTestCase {
         }
     }
 
-    func testCodegenListFlattenProducesCorrectOutput() throws {
+    func testCodegenListFlattenUsesBundledSource() throws {
         let source = """
         fun main() {
             val nested = listOf(listOf(1, 2), listOf(3))
@@ -1226,11 +1226,18 @@ final class CodegenBackendIntegrationTests: XCTestCase {
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
             let ctx = try runCodegenPipeline(
                 inputPath: path,
-                moduleName: "ListFlattenRuntime",
+                moduleName: "ListFlattenBundled",
                 emit: .executable,
                 outputPath: outputBase
             )
             try LinkPhase().run(ctx)
+
+            let kirCtx = makeCompilationContext(inputs: [path], moduleName: "ListFlattenBundled", emit: .kirDump)
+            try runToLowering(kirCtx)
+            let module = try XCTUnwrap(kirCtx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: kirCtx.interner)
+            let callees = extractCallees(from: body, interner: kirCtx.interner)
+            XCTAssertFalse(callees.contains("kk_list_flatten"), "flatten should use bundled Kotlin source, not runtime helper")
 
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
