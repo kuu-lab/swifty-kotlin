@@ -2553,6 +2553,23 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // --- STDLIB-TEXT-FN-039: String.onEach(action: (Char) -> Unit): String ---
+        let charToUnitType = types.make(.functionType(FunctionType(
+            params: [charType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSyntheticStringExtensionFunction(
+            named: "onEach",
+            externalLinkName: "kk_string_onEach",
+            receiverType: stringType,
+            parameters: [("action", charToUnitType, false, false)],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
 
         // --- STDLIB-144: String.trimStart / trimEnd (0-arg and predicate overloads) ---
         // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
