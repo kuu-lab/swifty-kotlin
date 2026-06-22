@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-17
+最終更新: 2026-06-22
 
 ---
 
@@ -16,8 +16,8 @@
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
+- [x] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
+- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
