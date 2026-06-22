@@ -1275,6 +1275,43 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // STDLIB-TEXT-FN-033: CharSequence.iterator() — returns CharIterator
+        let charIteratorType: TypeID = {
+            let charIteratorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("CharIterator"),
+            ]
+            if let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) {
+                return types.make(.classType(ClassType(
+                    classSymbol: charIteratorSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            }
+            return iterableCharType
+        }()
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: stringType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticStringExtensionFunction(
+            named: "iterator",
+            externalLinkName: "kk_string_iterator",
+            receiverType: charSequenceType,
+            parameters: [],
+            returnType: charIteratorType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringSliceTrim.kt (MIGRATION-TEXT-001)
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(

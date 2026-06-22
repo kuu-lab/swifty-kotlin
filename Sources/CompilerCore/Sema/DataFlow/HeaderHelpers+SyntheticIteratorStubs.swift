@@ -270,29 +270,36 @@ extension DataFlowSemaPhase {
             )
         }
 
-        func registerFunction(name: String, flags: SymbolFlags, returnType: TypeID) {
+        func registerFunction(name: String, flags: SymbolFlags, returnType: TypeID, externalLinkName: String? = nil) {
             let memberName = interner.intern(name)
             let memberFQName = classFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: flags
-            )
-            symbols.setParentSymbol(classSymbol, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: classType,
-                    parameterTypes: [],
-                    returnType: returnType,
-                    typeParameterSymbols: [],
-                    classTypeParameterCount: 0
-                ),
-                for: memberSymbol
-            )
+            let memberSymbol: SymbolID
+            if let existing = symbols.lookup(fqName: memberFQName) {
+                memberSymbol = existing
+            } else {
+                memberSymbol = symbols.define(
+                    kind: .function,
+                    name: memberName,
+                    fqName: memberFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: flags
+                )
+                symbols.setParentSymbol(classSymbol, for: memberSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: classType,
+                        parameterTypes: [],
+                        returnType: returnType,
+                        typeParameterSymbols: [],
+                        classTypeParameterCount: 0
+                    ),
+                    for: memberSymbol
+                )
+            }
+            if let linkName = externalLinkName {
+                symbols.setExternalLinkName(linkName, for: memberSymbol)
+            }
         }
 
         registerFunction(
@@ -303,7 +310,8 @@ extension DataFlowSemaPhase {
         registerFunction(
             name: "next",
             flags: [.synthetic, .openType, .overrideMember, .operatorFunction],
-            returnType: elementType
+            returnType: elementType,
+            externalLinkName: "kk_iterator_next"
         )
     }
 
