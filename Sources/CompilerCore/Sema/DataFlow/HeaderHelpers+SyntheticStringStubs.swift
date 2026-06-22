@@ -2984,6 +2984,17 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticStringExtensionFunction(
+            named: "toBigDecimalOrNull",
+            externalLinkName: "kk_string_toBigDecimalOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: types.makeNullable(bigDecimalType),
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
             named: "toBigInteger",
             externalLinkName: "kk_string_toBigInteger",
             receiverType: stringType,

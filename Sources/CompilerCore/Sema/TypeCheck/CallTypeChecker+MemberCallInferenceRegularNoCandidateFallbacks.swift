@@ -415,6 +415,13 @@ extension CallTypeChecker {
                         interner: interner,
                         fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
                     )
+                case "toBigDecimalOrNull":
+                    sema.types.makeNullable(makeSyntheticNominalType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigDecimal")]
+                    ))
                 case "toBigInteger":
                     makeSyntheticNominalType(
                         symbols: sema.symbols,
