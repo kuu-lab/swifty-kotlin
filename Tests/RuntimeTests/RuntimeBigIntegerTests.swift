@@ -43,6 +43,18 @@ final class RuntimeBigIntegerTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testStringToBigIntegerOrNullAcceptsSignedDigits() {
+        let raw = kk_string_toBigIntegerOrNull(runtimeString("+00012345678901234567890"))
+        XCTAssertNotEqual(raw, runtimeNullSentinelInt)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
+    }
+
+    func testStringToBigIntegerOrNullRejectsInvalidInput() {
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("12.5")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString(" 12 ")), runtimeNullSentinelInt)
+    }
+
     func testBigIntegerAndHandlesPositiveOperands() {
         let lhs = bigInteger("12")
         let rhs = bigInteger("10")

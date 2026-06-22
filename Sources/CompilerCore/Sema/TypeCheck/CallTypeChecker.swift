@@ -3734,6 +3734,13 @@ final class CallTypeChecker {
                     case "toIntOrNull": sema.types.make(.primitive(.int, .nullable))
                     case "toDouble": sema.types.make(.primitive(.double, .nonNull))
                     case "toDoubleOrNull": sema.types.make(.primitive(.double, .nullable))
+                    case "toBigIntegerOrNull":
+                        sema.types.makeNullable(makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigInteger")]
+                        ))
                     case "indexOf", "lastIndexOf": sema.types.intType
                     case "reversed": sema.types.stringType
                     case "toList": listCharType
