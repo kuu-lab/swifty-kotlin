@@ -25,6 +25,8 @@ enum BundledKotlinStdlib {
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
+import kotlin.random.Random
+
 // MIGRATION-COL-005
 
 public fun <T> List<T>.first(): T {
