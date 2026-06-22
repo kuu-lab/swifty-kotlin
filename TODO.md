@@ -77,7 +77,7 @@
 - [x] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
 - [x] STDLIB-TEXT-FN-086: `toBigIntegerOrNull` 関数の実装
-- [ ] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
+- [x] STDLIB-TEXT-FN-091: `toByteOrNull` 関数の実装
 - [x] STDLIB-TEXT-FN-094: `toCollection` 関数の実装
 - [x] STDLIB-TEXT-FN-095: `toDouble` 関数の実装
 - [x] STDLIB-TEXT-FN-107: `toShortOrNull` 関数の実装
