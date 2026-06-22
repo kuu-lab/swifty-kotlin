@@ -17,7 +17,7 @@
 
 #### kotlin.io.path 関数の実装
 - [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
+- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
