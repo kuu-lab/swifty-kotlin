@@ -107,7 +107,9 @@ final class NativeCInteropCPointerPlusFunctionTests: XCTestCase {
         let plusExprs = ast.arena.exprs.indices.compactMap { index -> ExprID? in
             let exprID = ExprID(rawValue: Int32(index))
             guard let expr = ast.arena.expr(exprID),
-                  case .binary(.add, _, _, _) = expr
+                  case .binary(.add, _, _, _) = expr,
+                  let range = ast.arena.exprRange(exprID),
+                  range.start.file.rawValue == 0  // user source file only (bundled stdlibs are FileID 1+)
             else {
                 return nil
             }

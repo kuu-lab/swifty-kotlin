@@ -4,12 +4,7 @@
 /// so these functions go through the full Lex → Parse → Sema → KIR → Codegen
 /// pipeline and are available as internal LLVM functions at link time.
 enum BundledKotlinStdlib {
-    // MIGRATION-COL-005: List search HOFs
-    // These Kotlin-source definitions are injected as top-level extension functions.
-    // Runtime ABI entry points remain registered as compatibility bridges while
-    // member-dispatch lowering migrates incrementally.
-    //
-    // MIGRATION-COL-008: List 集計 HOF
+    // MIGRATION-COL-008: List aggregate HOFs
     // count / any / all / none — currently Sema-unresolved (no synthetic stub), so these
     // extension functions are the first resolved definitions and will be called directly.
     // sumOf / maxByOrNull / minByOrNull — synthetic stubs exist in
@@ -21,165 +16,7 @@ enum BundledKotlinStdlib {
     static let kotlinCollectionsSource = """
 package kotlin.collections
 
-// MIGRATION-COL-005
-
-public fun <T> List<T>.first(): T {
-    if (isEmpty()) throw NoSuchElementException("Collection is empty.")
-    return this[0]
-}
-
-public fun <T> List<T>.first(predicate: (T) -> Boolean): T {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i++
-    }
-    throw NoSuchElementException("Collection contains no element matching the predicate.")
-}
-
-public fun <T> List<T>.firstOrNull(): T? {
-    if (isEmpty()) return null
-    return this[0]
-}
-
-public fun <T> List<T>.firstOrNull(predicate: (T) -> Boolean): T? {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i++
-    }
-    return null
-}
-
-public fun <T> List<T>.find(predicate: (T) -> Boolean): T? {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i++
-    }
-    return null
-}
-
-public fun <T> List<T>.last(): T {
-    if (isEmpty()) throw NoSuchElementException("Collection is empty.")
-    return this[size - 1]
-}
-
-public fun <T> List<T>.last(predicate: (T) -> Boolean): T {
-    var i = size - 1
-    while (i >= 0) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i--
-    }
-    throw NoSuchElementException("Collection contains no element matching the predicate.")
-}
-
-public fun <T> List<T>.lastOrNull(): T? {
-    if (isEmpty()) return null
-    return this[size - 1]
-}
-
-public fun <T> List<T>.lastOrNull(predicate: (T) -> Boolean): T? {
-    var i = size - 1
-    while (i >= 0) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i--
-    }
-    return null
-}
-
-public fun <T> List<T>.findLast(predicate: (T) -> Boolean): T? {
-    var i = size - 1
-    while (i >= 0) {
-        val element = this[i]
-        if (predicate(element)) return element
-        i--
-    }
-    return null
-}
-
-public fun <T> List<T>.single(): T {
-    val sz = size
-    if (sz == 1) return this[0]
-    if (sz == 0) throw NoSuchElementException("Collection is empty.")
-    throw IllegalArgumentException("Collection has more than one element.")
-}
-
-public fun <T> List<T>.single(predicate: (T) -> Boolean): T {
-    var matchIndex = -1
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        if (predicate(this[i])) {
-            if (matchIndex >= 0) {
-                throw IllegalArgumentException("Collection contains more than one matching element.")
-            }
-            matchIndex = i
-        }
-        i++
-    }
-    if (matchIndex >= 0) return this[matchIndex]
-    throw NoSuchElementException("Collection contains no element matching the predicate.")
-}
-
-public fun <T> List<T>.singleOrNull(): T? {
-    if (size == 1) return this[0]
-    return null
-}
-
-public fun <T> List<T>.singleOrNull(predicate: (T) -> Boolean): T? {
-    var matchIndex = -1
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        if (predicate(this[i])) {
-            if (matchIndex >= 0) return null
-            matchIndex = i
-        }
-        i++
-    }
-    if (matchIndex >= 0) return this[matchIndex]
-    return null
-}
-
-public fun <T> List<T>.indexOf(element: T): Int {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        if (this[i] == element) return i
-        i++
-    }
-    return -1
-}
-
-public fun <T> List<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
-    var i = 0
-    val sz = size
-    while (i < sz) {
-        if (predicate(this[i])) return i
-        i++
-    }
-    return -1
-}
-
-public fun <T> List<T>.indexOfLast(predicate: (T) -> Boolean): Int {
-    var i = size - 1
-    while (i >= 0) {
-        if (predicate(this[i])) return i
-        i--
-    }
-    return -1
-}
-
-// MIGRATION-COL-008
+import kotlin.random.Random
 
 public fun <T> List<T>.count(predicate: (T) -> Boolean): Int {
     var count = 0
@@ -240,6 +77,103 @@ public fun <T, R : Comparable<R>> List<T>.minByOrNull(selector: (T) -> R): T? {
     }
     return bestElem
 }
+
+public fun <T> List<T>.reversed(): List<T> {
+    val result = mutableListOf<T>()
+    var i = size - 1
+    while (i >= 0) {
+        result.add(this[i])
+        i--
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> List<T>.sorted(): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && result[insertAt - 1].compareTo(element) > 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): List<T> {
+    val result = mutableListOf<T>()
+    val keys = mutableListOf<R>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        val key = selector(element)
+        var insertAt = keys.size
+        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) > 0) {
+            insertAt--
+        }
+        keys.add(insertAt, key)
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R): List<T> {
+    val result = mutableListOf<T>()
+    val keys = mutableListOf<R>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        val key = selector(element)
+        var insertAt = keys.size
+        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) < 0) {
+            insertAt--
+        }
+        keys.add(insertAt, key)
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T> List<T>.sortedWith(comparator: (T, T) -> Int): List<T> {
+    val result = mutableListOf<T>()
+    var i = 0
+    while (i < size) {
+        val element = this[i]
+        var insertAt = result.size
+        while (insertAt > 0 && comparator(result[insertAt - 1], element) > 0) {
+            insertAt--
+        }
+        result.add(insertAt, element)
+        i++
+    }
+    return result
+}
+
+public fun <T> List<T>.shuffled(): List<T> = shuffled(Random.Default)
+
+public fun <T> List<T>.shuffled(random: Random): List<T> {
+    val result = mutableListOf<T>()
+    var copyIndex = 0
+    while (copyIndex < size) {
+        result.add(this[copyIndex])
+        copyIndex++
+    }
+
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val tmp = result[i]
+        result[i] = result[j]
+        result[j] = tmp
+        i--
+    }
+    return result
+}
 """
 
     static let kotlinTextSource = """
@@ -281,60 +215,23 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     return sb.toString()
 }
 
-// MIGRATION-TEXT-005: String case conversion and locale wrappers
-
-public fun String.lowercase(): String {
-    if (isEmpty()) return this
-    val sb = StringBuilder()
-    var i = 0
-    while (i < length) {
-        sb.append(this[i].lowercase())
-        i += 1
-    }
-    return sb.toString()
-}
-
-public fun String.uppercase(): String {
-    if (isEmpty()) return this
-    val sb = StringBuilder()
-    var i = 0
-    while (i < length) {
-        sb.append(this[i].uppercase())
-        i += 1
-    }
-    return sb.toString()
-}
-
-public fun String.capitalize(): String {
+fun String.capitalize(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
-    while (i < length) {
-        sb.append(this[i])
-        i += 1
-    }
+    while (i < length) { sb.append(this[i]); i += 1 }
     return sb.toString()
 }
 
-public fun String.replaceFirstChar(transform: (Char) -> Char): String {
+fun String.replaceFirstChar(transform: (Char) -> Char): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1
-    while (i < length) {
-        sb.append(this[i])
-        i += 1
-    }
+    while (i < length) { sb.append(this[i]); i += 1 }
     return sb.toString()
 }
-
-public fun String.lowercase(locale: java.util.Locale): String =
-    this.__kk_lowercase_locale(locale)
-
-public fun String.uppercase(locale: java.util.Locale): String =
-    this.__kk_uppercase_locale(locale)
-
 
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 

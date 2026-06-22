@@ -88,6 +88,14 @@ extension CallLowerer {
             }
         }
 
+        // Generic Comparable<T>.compareTo — emitted when the receiver is a type parameter
+        // bounded by Comparable<T> and no concrete stub covers it (e.g. sorted() in the
+        // bundled stdlib).  String is excluded above; Char and primitives are excluded by
+        // tryLowerPrimitiveCompareTo which runs before this path.
+        if memberName == "compareTo", argumentCount == 1 {
+            return interner.intern("kk_comparable_compareTo")
+        }
+
         if memberName == "binarySearch",
            let runtimeName = arrayBinarySearchRuntimeName(
                for: nonNullReceiverType,
