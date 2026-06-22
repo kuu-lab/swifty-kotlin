@@ -131,6 +131,8 @@ public func kk_base64_padding_present_optional() -> Int { Base64PaddingOption.pr
 public func kk_base64_padding_absent_optional() -> Int { Base64PaddingOption.absentOptional.rawValue }
 
 // MARK: - Configured Base64 instances
+// (a) RF-DEAD-002: 配線予定 → MIGRATION-ENC-001 (Base64 instance / withPadding API)
+// 以下 kk_base64_withPadding_* / kk_base64_{encode,encodeToByteArray}_instance は全て同タスクに紐付く。
 
 @_cdecl("kk_base64_withPadding_default")
 public func kk_base64_withPadding_default(_ paddingOptionRaw: Int) -> Int {

@@ -202,6 +202,63 @@ kk_write_barrier
 - `kk_write_barrier` / `kk_register_global_root` / `kk_unregister_global_root` / `kk_panic` は GC・ランタイム基盤の名前だが現行 codegen は emit していない（global root は `kk_global_root_slot_*` 動的名で処理）。設計上の予約か取り残しかの判断が必要
 - `kk_set_*` HOF 群は TEST-COL-012（TODO.md テスト改善タスク）が Codegen 統合テスト追加を予定している領域と重なる。削除ではなく配線が正解の可能性あり
 
+> **注**: `kk_hexformat_prefix` / `kk_hexformat_suffix` / `kk_panic` / `kk_write_barrier` は監査時点でソースに存在せず（既削除またはリスト誤記）。実際に存在するのは 123 個。
+
+### RF-DEAD-002 トリアージ結果（2026-06-23 実施）
+
+#### (b) テスト支援 API — 5 個（コメント追記済み）
+
+| 関数 | ファイル | 用途 |
+|---|---|---|
+| `kk_assertions_enabled` | `RuntimeDebug.swift` | テスト間 assert 状態検査 |
+| `kk_assertions_reset` | `RuntimeDebug.swift` | テスト間 assert 状態リセット |
+| `kk_assertions_set_enabled` | `RuntimeDebug.swift` | テスト間 assert 有効/無効切替 |
+| `kk_runtime_force_reset` | `RuntimeGC.swift` | テスト間ランタイム全状態リセット |
+| `kk_runtime_heap_object_count` | `RuntimeGC.swift` | テスト間ヒープオブジェクト数検査 |
+
+#### (c) 削除 — 3 個（HTTP クライアント。ターゲット外）
+
+| 関数 | 削除済みファイル |
+|---|---|
+| `kk_http_client_new` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
+| `kk_http_client_get` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
+| `kk_http_client_post_async` | `RuntimeNetwork.swift` + `RuntimeABISpec+Network.swift` |
+
+テスト: `Tests/RuntimeTests/RuntimeHTTPClientTests.swift` 全削除。
+
+#### (a) 配線予定 — 115 個
+
+| タスク / 領域 | 関数群 | ファイル |
+|---|---|---|
+| **MIGRATION-ATOMIC-001** (AtomicIntArray) | `kk_atomic_int_array_create/size/loadAt/storeAt/exchangeAt/compareAndSetAt/compareAndExchangeAt/fetchAndUpdateAt/fetchAndAddAt/addAndFetchAt/fetchAndIncrementAt/incrementAndFetchAt/fetchAndDecrementAt/decrementAndFetchAt` | `RuntimeAtomic.swift` |
+| **MIGRATION-ATOMIC-001** (AtomicLongArray) | 同上 `long` 版 | `RuntimeAtomic.swift` |
+| **MIGRATION-ATOMIC-001** (getAndUpdate/updateAndGet) | `kk_atomic_{int,long,bool,ref}_{getAndUpdate,updateAndGet}` | `RuntimeAtomic.swift` |
+| **STDLIB-PERF-155** | `kk_parallel_pool_new` / `kk_parallel_stream_{from_collection,to_list,map,forEach,reduce}` | `RuntimeParallel.swift` |
+| **TEST-COL-012** (Set HOF) | `kk_set_{map,forEach,filterNot,mapNotNull,flatMap,count_predicate}` | `RuntimeCollectionHOF.swift` |
+| **Flow API 完全実装** | `kk_flow_{count,fold,reduce,emit_with_timestamp}` | `RuntimeCoroutineFlow.swift` |
+| **STDLIB-CINTEROP-FN-009/042** | `kk_pinned_get` / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
+| **MIGRATION-ENC-001** (Base64) | `kk_base64_{encode,encodeToByteArray}_instance` / `kk_base64_withPadding_{default,mime,urlsafe}` | `RuntimeBase64.swift` |
+| **数値型変換** | `kk_byte_to_{char,uint,ulong}` / `kk_short_to_{char,uint,ulong}` | `RuntimeNumericCoercion.swift` |
+| **Char 演算** | `kk_char_fromCode` / `kk_char_minus` | `RuntimeChar.swift` |
+| **coroutine channel** | `kk_channel_is_closed_token` | `RuntimeCoroutineChannel.swift` |
+| **lazy not-null** | `kk_check_not_null_lazy` / `kk_require_not_null_lazy` | `RuntimePreconditions.swift` |
+| **TimeSource.Monotonic** | `kk_clock_gettime_monotonic_ns` / `kk_clock_monotonic_mark_now` | `RuntimeTime.swift` |
+| **kotlin.time.Instant** | `kk_instant_from_epoch_seconds` | `RuntimeTime.swift` |
+| **coroutine context** | `kk_context_{get_name,release}` / `kk_exception_handler_invoke` | `RuntimeCoroutineContext.swift` |
+| **coroutine scope** | `kk_coroutine_{cancel,name_get}` / `kk_coroutine_scope_{is_active,is_cancelled}` | `RuntimeCoroutine.swift` |
+| **MIGRATION-PROP-001** | `kk_delegate_{get,set}_value` / `kk_kproperty_stub_{create_full,is_const,is_lateinit,visibility}` | `RuntimeDelegates.swift` |
+| **数値コンパニオン定数** | `kk_double_{max,min}_value` / `kk_double_{nan,negative_infinity,positive_infinity}` / `kk_float_*` 同様 / `kk_int_{max,min}_value` / `kk_long_{max,min}_value` | `RuntimeMath.swift` |
+| **FreezableAtomicRef** | `kk_freezable_atomic_ref_{is_frozen,store}` | `RuntimeNativeConcurrentABI.swift` |
+| **STDLIB-REFLECT-067** | `kk_kclass_get_arity` | `RuntimeReflection.swift` |
+| **List HOF** | `kk_list_firstOrNull_predicate` | `RuntimeCollectionHOF.swift` |
+| **Array HOF** | `kk_array_mapNotNull` | `RuntimeCollectionHOFArray.swift` |
+| **IO** | `kk_output_stream_bufferedWriter_default` | `RuntimeFileIO.swift` |
+| **Platform** | `kk_platform_isDebugBinary` | `RuntimePlatform.swift` |
+| **GC global root** | `kk_register_global_root` / `kk_unregister_global_root` | `RuntimeGC.swift` |
+| **String HOF** | `kk_string_joinToString` | `RuntimeStringHOF.swift` |
+| **MIGRATION-RANGE-003** | `kk_ulong_downTo` | `RuntimeRangeUIntULongRange.swift` |
+| **URI / URL** | `kk_url_{decode,encode}` | `RuntimeNetwork.swift` |
+
 ## C. 参照ゼロの Swift 関数（6 個）→ RF-DEAD-003
 
 | 関数 | 場所 | 備考 |
