@@ -328,11 +328,6 @@ public func kk_atomic_long_compareAndExchange(_ receiver: Int, _ expect: Int, _ 
     return box.compareAndExchange(expect: expect, update: update)
 }
 
-@_cdecl("kk_java_atomic_long_asKotlinAtomic")
-public func kk_java_atomic_long_asKotlinAtomic(_ receiver: Int) -> Int {
-    receiver
-}
-
 @_cdecl("kk_atomic_long_asJavaAtomic")
 public func kk_atomic_long_asJavaAtomic(_ receiver: Int) -> Int {
     receiver
