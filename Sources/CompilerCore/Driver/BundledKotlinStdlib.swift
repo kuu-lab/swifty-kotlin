@@ -4,14 +4,14 @@
 /// so these functions go through the full Lex → Parse → Sema → KIR → Codegen
 /// pipeline and are available as internal LLVM functions at link time.
 enum BundledKotlinStdlib {
+    // MIGRATION-COL-004 / MIGRATION-COL-008: List aggregate HOF
+    // count / any / all / none / fold / foldRight / reduce / reduceOrNull / scan / runningFold
+    // are resolved to these bundled source definitions by Sema migration hooks.
+    //
     // MIGRATION-COL-005: List search HOFs
     // These Kotlin-source definitions are injected as top-level extension functions.
     // Runtime ABI entry points remain registered as compatibility bridges while
     // member-dispatch lowering migrates incrementally.
-    //
-    // MIGRATION-COL-008: List 集計 HOF
-    // count / any / all / none — currently Sema-unresolved (no synthetic stub), so these
-    // extension functions are the first resolved definitions and will be called directly.
     // sumOf / maxByOrNull / minByOrNull — synthetic stubs exist in
     // HeaderHelpers+SyntheticListAggregateMembers.swift (member > extension in resolution
     // priority), so these serve as the migration-target definitions; stub removal and
@@ -204,6 +204,74 @@ public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
     var i = 0
     while (i < size) { if (predicate(this[i])) return false; i += 1 }
     return true
+}
+
+public fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
+    var accumulator = initial
+    var i = size - 1
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
+    if (isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
+    if (isEmpty()) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T, R> List<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> List<T>.runningFold(initial: R, operation: (R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
 }
 
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
