@@ -314,6 +314,11 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "String.toBigDecimal should link to kk_string_toBigDecimal"
         )
         XCTAssertEqual(
+            externalLink(for: "toBigDecimalOrNull", sema: sema, interner: interner),
+            "kk_string_toBigDecimalOrNull",
+            "String.toBigDecimalOrNull should link to kk_string_toBigDecimalOrNull"
+        )
+        XCTAssertEqual(
             externalLink(for: "toBigInteger", sema: sema, interner: interner),
             "kk_string_toBigInteger",
             "String.toBigInteger should link to kk_string_toBigInteger"
