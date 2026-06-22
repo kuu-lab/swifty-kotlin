@@ -201,7 +201,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeSequence.swift` (105), `RuntimeSequenceBuilders.swift` (20), `RuntimeSequenceAssociation.swift` (25), `RuntimeSequenceFoldScan.swift` (9)
 > 移行先: `Stdlib/kotlin/sequences/`
 
-- [ ] MIGRATION-SEQ-001: Sequence ファクトリを Kotlin source に移行する（`sequenceOf`, `emptySequence`, `generateSequence`, `sequence { }` builder）
+- [x] MIGRATION-SEQ-001: Sequence ファクトリを Kotlin source に移行する（`sequenceOf`, `emptySequence`, `generateSequence`, `sequence { }` builder）
 - [ ] MIGRATION-SEQ-002: Sequence 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`, `filter`, `filterNot`, `filterNotNull`）
 - [ ] MIGRATION-SEQ-003: Sequence 端末 HOF を Kotlin source に移行する（`toList`, `toSet`, `toMutableList`, `first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `count`, `any`, `all`, `none`）
 - [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
