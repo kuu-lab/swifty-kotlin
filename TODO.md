@@ -248,7 +248,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行元: `Sources/Runtime/RuntimeBase64.swift` (26), `RuntimeHexFormat.swift` (18)
 > 移行先: `Stdlib/kotlin/io/encoding/`
 
-- [ ] MIGRATION-ENC-001: Base64 encode/decode を Kotlin source に移行する（`Base64.encode`, `Base64.decode`, `Base64.UrlSafe`, `Base64.Mime`）
+- [x] MIGRATION-ENC-001: Base64 encode/decode を Kotlin source に移行する（`Base64.encode`, `Base64.decode`, `Base64.UrlSafe`, `Base64.Mime`）
 - [ ] MIGRATION-ENC-002: HexFormat を Kotlin source に移行する（`HexFormat`, `toHexString`, `hexToByteArray`）
 
 ### Phase M11: kotlin.text Regex
