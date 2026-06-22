@@ -12,6 +12,8 @@ final class RuntimeStringEqualsTests: XCTestCase {
     }
 
     private func boolValue(_ raw: Int) -> Bool {
+        // kk_string_equals returns raw 0/1 (not a boxed Bool); kk_unbox_bool
+        // correctly handles both raw integers and RuntimeBoolBox pointers.
         kk_unbox_bool(raw) != 0
     }
 
