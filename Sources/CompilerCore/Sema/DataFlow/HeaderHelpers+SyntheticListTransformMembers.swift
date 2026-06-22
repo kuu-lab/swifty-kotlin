@@ -156,8 +156,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        registerMember(name: "flatten", parameterTypes: [], externalLinkName: "kk_list_flatten")
-
         let listPredicateType = types.make(.functionType(FunctionType(
             params: [listTypeParamType],
             returnType: types.booleanType,

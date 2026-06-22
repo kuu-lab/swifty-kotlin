@@ -40,6 +40,7 @@ final class LibraryMetadataImportIntegrationTests: XCTestCase {
                         symbol.flags.contains(.synthetic)
                 }
                 XCTAssertNotNil(importedPlus)
+                XCTAssertFalse(appCtx.diagnostics.hasError, "Unexpected errors: \(appCtx.diagnostics.diagnostics.map(\.message).joined(separator: "\n"))")
                 let appFileDiagnostics = appCtx.diagnostics.diagnostics.filter { diag in
                     guard let range = diag.primaryRange else { return false }
                     return appCtx.sourceManager.path(of: range.start.file) == appPath
