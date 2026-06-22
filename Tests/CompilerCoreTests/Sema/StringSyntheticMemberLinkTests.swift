@@ -150,6 +150,12 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 .contains("kk_string_replaceBeforeLast_char"),
             "String.replaceBeforeLast(Char, replacement, missingDelimiterValue) should link to kk_string_replaceBeforeLast_char"
         )
+        // STDLIB-TEXT-FN-043: plus overloads (String and String? receiver)
+        XCTAssertTrue(
+            externalLinks(for: "plus", sema: sema, interner: interner)
+                .contains("kk_string_plus"),
+            "String?.plus(other: Any?) should link to kk_string_plus"
+        )
         // STDLIB-TEXT-FN-055: replace overloads
         XCTAssertTrue(
             externalLinks(for: "replace", sema: sema, interner: interner)
