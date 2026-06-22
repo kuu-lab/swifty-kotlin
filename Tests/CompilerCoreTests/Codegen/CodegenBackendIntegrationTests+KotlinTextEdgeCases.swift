@@ -1621,6 +1621,47 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // STDLIB-TEXT-FN-021: indexOfAny with default arguments (startIndex=0, ignoreCase=false)
+    func testKotlinTextIndexOfAnyDefaultArgs() throws {
+        let source = """
+        fun main() {
+            val text = "Kotlin"
+            println(text.indexOfAny(charArrayOf('t', 'K')))
+            println(text.indexOfAny(charArrayOf('t', 'K'), 2))
+            println(text.indexOfAny(listOf("otl", "zz")))
+            println(text.indexOfAny(listOf("otl"), 2))
+            println("abc".indexOfAny(charArrayOf('x')))
+            println("abc".indexOfAny(listOf("bc")))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextIndexOfAnyDefaultArgs",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                0
+                2
+                1
+                -1
+                -1
+                1
+                """
+                + "\n"
+            )
+        }
+    }
+
     func testKotlinTextLastIndexOfAnyCharsEdgeCases() throws {
         let source = """
         fun lastAny(value: CharSequence, chars: CharArray, start: Int, ignore: Boolean): Int {
