@@ -4,14 +4,14 @@
 /// so these functions go through the full Lex → Parse → Sema → KIR → Codegen
 /// pipeline and are available as internal LLVM functions at link time.
 enum BundledKotlinStdlib {
+    // MIGRATION-COL-004 / MIGRATION-COL-008: List aggregate HOF
+    // count / any / all / none / fold / foldRight / reduce / reduceOrNull / scan / runningFold
+    // are resolved to these bundled source definitions by Sema migration hooks.
+    //
     // MIGRATION-COL-005: List search HOFs
     // These Kotlin-source definitions are injected as top-level extension functions.
     // Runtime ABI entry points remain registered as compatibility bridges while
     // member-dispatch lowering migrates incrementally.
-    //
-    // MIGRATION-COL-008: List 集計 HOF
-    // count / any / all / none — currently Sema-unresolved (no synthetic stub), so these
-    // extension functions are the first resolved definitions and will be called directly.
     // sumOf / maxByOrNull / minByOrNull — synthetic stubs exist in
     // HeaderHelpers+SyntheticListAggregateMembers.swift (member > extension in resolution
     // priority), so these serve as the migration-target definitions; stub removal and
@@ -206,6 +206,74 @@ public fun <T> List<T>.none(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
+public fun <T, R> List<T>.fold(initial: R, operation: (R, T) -> R): R {
+    var accumulator = initial
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T, R> List<T>.foldRight(initial: R, operation: (T, R) -> R): R {
+    var accumulator = initial
+    var i = size - 1
+    while (i >= 0) {
+        accumulator = operation(this[i], accumulator)
+        i -= 1
+    }
+    return accumulator
+}
+
+public fun <T> List<T>.reduce(operation: (T, T) -> T): T {
+    if (isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = this[0]
+    var i = 1
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> List<T>.reduceOrNull(operation: (T, T) -> T): T? {
+    if (isEmpty()) return null
+    var accumulator = this[0]
+    var i = 1
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T, R> List<T>.scan(initial: R, operation: (R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
+public fun <T, R> List<T>.runningFold(initial: R, operation: (R, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var accumulator = initial
+    result.add(accumulator)
+    var i = 0
+    while (i < size) {
+        accumulator = operation(accumulator, this[i])
+        result.add(accumulator)
+        i += 1
+    }
+    return result
+}
+
 public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     var sum = 0
     var i = 0
@@ -281,23 +349,60 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     return sb.toString()
 }
 
-fun String.capitalize(): String {
+// MIGRATION-TEXT-005: String case conversion and locale wrappers
+
+public fun String.lowercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].lowercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+public fun String.uppercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].uppercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+public fun String.capitalize(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
-    while (i < length) { sb.append(this[i]); i += 1 }
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
     return sb.toString()
 }
 
-fun String.replaceFirstChar(transform: (Char) -> Char): String {
+public fun String.replaceFirstChar(transform: (Char) -> Char): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1
-    while (i < length) { sb.append(this[i]); i += 1 }
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
     return sb.toString()
 }
+
+public fun String.lowercase(locale: java.util.Locale): String =
+    this.__kk_lowercase_locale(locale)
+
+public fun String.uppercase(locale: java.util.Locale): String =
+    this.__kk_uppercase_locale(locale)
+
 
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 
