@@ -162,6 +162,7 @@ extension CallLowerer {
 
         if args.count == 1,
            calleeName == interner.intern("plusElement") || calleeName == interner.intern("minusElement")
+               || calleeName == interner.intern("minus")
         {
             let chosenLinkName = chosenBase64Callee.flatMap { sema.symbols.externalLinkName(for: $0) }
             let returnsList = boundType.map { resultType in
@@ -181,10 +182,15 @@ extension CallLowerer {
                     interner.intern("Iterable"),
                 ]
             }()
-            let runtimeCallee = calleeName == interner.intern("plusElement")
+            let isPlusCallee = calleeName == interner.intern("plusElement")
+            let isMinusCallee = calleeName == interner.intern("minusElement")
+                || calleeName == interner.intern("minus")
+            let runtimeCallee = isPlusCallee
                 ? "kk_list_plus_element"
                 : "kk_list_minus_element"
-            if chosenLinkName == runtimeCallee || returnsList || receiverIsIterable {
+            if isPlusCallee || isMinusCallee,
+               chosenLinkName == runtimeCallee || returnsList || receiverIsIterable
+            {
                 instructions.append(.call(
                     symbol: chosenBase64Callee,
                     callee: interner.intern(runtimeCallee),
