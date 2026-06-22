@@ -559,3 +559,10 @@ public func kk_bignum_toString(_ numRaw: Int) -> Int {
     }
     return runtimeMakeStringRaw(box.value)
 }
+
+@_cdecl("kk_string_toBigIntegerOrNull")
+public func kk_string_toBigIntegerOrNull(_ strRaw: Int) -> Int {
+    var thrown = 0
+    let raw = kk_string_toBigInteger(strRaw, &thrown)
+    return thrown == 0 ? raw : runtimeNullSentinelInt
+}
