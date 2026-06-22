@@ -129,6 +129,88 @@ extension DataFlowSemaPhase {
                     filesByID: filesByID
                 )
             }
+            // Validate primary constructor annotations
+            for annotation in classDecl.primaryConstructorAnnotations {
+                validateAnnotationTarget(
+                    annotation: annotation,
+                    site: .constructor,
+                    ownerRange: ownerRange(for: decl),
+                    decl: decl,
+                    file: file,
+                    propertySymbol: nil,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    filesByID: filesByID
+                )
+            }
+            // Validate primary constructor value parameter annotations
+            for param in classDecl.primaryConstructorParams {
+                for annotation in param.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: .valueParameter,
+                        ownerRange: ownerRange(for: decl),
+                        decl: decl,
+                        file: file,
+                        propertySymbol: nil,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+            // Validate secondary constructor annotations and their parameters
+            for ctor in classDecl.secondaryConstructors {
+                for annotation in ctor.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: .constructor,
+                        ownerRange: ownerRange(for: decl),
+                        decl: decl,
+                        file: file,
+                        propertySymbol: nil,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+                for param in ctor.valueParams {
+                    for annotation in param.annotations {
+                        validateAnnotationTarget(
+                            annotation: annotation,
+                            site: .valueParameter,
+                            ownerRange: ownerRange(for: decl),
+                            decl: decl,
+                            file: file,
+                            propertySymbol: nil,
+                            symbols: symbols,
+                            diagnostics: diagnostics,
+                            interner: interner,
+                            filesByID: filesByID
+                        )
+                    }
+                }
+            }
+            // Validate enum entry annotations
+            for entry in classDecl.enumEntries {
+                for annotation in entry.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: .enumEntry,
+                        ownerRange: ownerRange(for: decl),
+                        decl: decl,
+                        file: file,
+                        propertySymbol: nil,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
         case let .interfaceDecl(interfaceDecl):
             validateMemberAnnotationTargets(
                 declIDs: interfaceDecl.memberFunctions + interfaceDecl.memberProperties + interfaceDecl.nestedClasses + interfaceDecl.nestedObjects,
@@ -163,7 +245,24 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 filesByID: filesByID
             )
-        case .funDecl, .propertyDecl, .typeAliasDecl, .enumEntryDecl:
+        case let .funDecl(funDecl):
+            for param in funDecl.valueParams {
+                for annotation in param.annotations {
+                    validateAnnotationTarget(
+                        annotation: annotation,
+                        site: .valueParameter,
+                        ownerRange: ownerRange(for: decl),
+                        decl: decl,
+                        file: file,
+                        propertySymbol: nil,
+                        symbols: symbols,
+                        diagnostics: diagnostics,
+                        interner: interner,
+                        filesByID: filesByID
+                    )
+                }
+            }
+        case .propertyDecl, .typeAliasDecl, .enumEntryDecl:
             break
         }
     }
@@ -283,7 +382,8 @@ extension DataFlowSemaPhase {
             }
             return .typeAlias
         case .enumEntryDecl:
-            return nil
+            guard useSiteTarget == nil else { return nil }
+            return .enumEntry
         }
     }
 
@@ -476,6 +576,12 @@ extension DataFlowSemaPhase {
             return kind == .annotationClass && allowedTargets.contains("ANNOTATION_CLASS")
         case .function:
             return allowedTargets.contains("FUNCTION")
+        case .constructor:
+            return allowedTargets.contains("CONSTRUCTOR")
+        case .valueParameter:
+            return allowedTargets.contains("VALUE_PARAMETER")
+        case .enumEntry:
+            return allowedTargets.contains("FIELD") || allowedTargets.contains("CLASS")
         case let .property(explicitUseSiteTarget):
             if allowedTargets.contains("PROPERTY") {
                 return true
@@ -541,6 +647,12 @@ extension DataFlowSemaPhase {
             }
         case .function:
             return "a function"
+        case .constructor:
+            return "a constructor"
+        case .valueParameter:
+            return "a value parameter"
+        case .enumEntry:
+            return "an enum entry"
         case .property:
             return "a property"
         case .getter:
@@ -615,6 +727,9 @@ extension DataFlowSemaPhase {
     private enum AnnotationUsageSite {
         case classLike(SymbolKind)
         case function
+        case constructor
+        case valueParameter
+        case enumEntry
         case property(explicitUseSiteTarget: Bool)
         case getter
         case setter

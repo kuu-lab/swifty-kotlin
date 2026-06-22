@@ -20,8 +20,8 @@ extension DataFlowSemaPhase {
             propertyDecl.annotations
         case let .typeAliasDecl(typeAliasDecl):
             typeAliasDecl.annotations
-        default:
-            []
+        case let .enumEntryDecl(enumEntryDecl):
+            enumEntryDecl.annotations
         }
     }
 
