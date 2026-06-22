@@ -23,7 +23,6 @@ extension CallLowerer {
             "sortedByDescending", "sortedWith", "partition", "zip", "zipWithNext",
             "sortedArrayWith",
             "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "filterNot", "findLast", "replaceAll", "removeIf",
-            "replaceFirstChar",
             "trim", "trimStart", "trimEnd",
             "sortWith", "sortBy", "sortByDescending",
             "onEach", "onEachIndexed",

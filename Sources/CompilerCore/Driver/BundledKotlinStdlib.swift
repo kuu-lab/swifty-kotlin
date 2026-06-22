@@ -349,23 +349,60 @@ fun String.padEnd(length: Int, padChar: Char = ' '): String {
     return sb.toString()
 }
 
-fun String.capitalize(): String {
+// MIGRATION-TEXT-005: String case conversion and locale wrappers
+
+public fun String.lowercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].lowercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+public fun String.uppercase(): String {
+    if (isEmpty()) return this
+    val sb = StringBuilder()
+    var i = 0
+    while (i < length) {
+        sb.append(this[i].uppercase())
+        i += 1
+    }
+    return sb.toString()
+}
+
+public fun String.capitalize(): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(this[0].uppercase())
     var i = 1
-    while (i < length) { sb.append(this[i]); i += 1 }
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
     return sb.toString()
 }
 
-fun String.replaceFirstChar(transform: (Char) -> Char): String {
+public fun String.replaceFirstChar(transform: (Char) -> Char): String {
     if (isEmpty()) return this
     val sb = StringBuilder()
     sb.append(transform(this[0]))
     var i = 1
-    while (i < length) { sb.append(this[i]); i += 1 }
+    while (i < length) {
+        sb.append(this[i])
+        i += 1
+    }
     return sb.toString()
 }
+
+public fun String.lowercase(locale: java.util.Locale): String =
+    this.__kk_lowercase_locale(locale)
+
+public fun String.uppercase(locale: java.util.Locale): String =
+    this.__kk_uppercase_locale(locale)
+
 
 // MIGRATION-TEXT-007: String.encodeToByteArray — delegate to private C-bridge primitives
 

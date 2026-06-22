@@ -299,28 +299,7 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) {
                 let calleeStr = interner.resolve(calleeName)
-                if calleeStr == "lowercase" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_lowercase"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "uppercase" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_uppercase"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
+
                 if calleeStr == "toInt" {
                     instructions.append(.call(
                         symbol: nil,
@@ -369,6 +348,17 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_string_toFloatOrNull"),
+                        arguments: [loweredReceiverID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "toBigIntegerOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_string_toBigIntegerOrNull"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
