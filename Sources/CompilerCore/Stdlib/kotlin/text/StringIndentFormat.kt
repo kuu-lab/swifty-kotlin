@@ -77,6 +77,7 @@ public fun String.trimIndent(): String {
  * and removes the first and the last lines if they are blank.
  */
 public fun String.trimMargin(marginPrefix: String = "|"): String {
+    require(!marginPrefix.isBlank()) { "marginPrefix must be non-blank string." }
     val lines = trimBlankEdges(splitIntoLines())
     if (lines.isEmpty()) return ""
     val sb = StringBuilder()
