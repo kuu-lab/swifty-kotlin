@@ -3946,6 +3946,38 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // --- STDLIB-TEXT-FN-043: String?.plus(other: Any?) ---
+        // `operator fun String.plus(other: Any?): String` and the nullable-receiver
+        // variant `operator fun String?.plus(other: Any?): String`. Both delegate to
+        // kk_string_plus which converts receiver and argument via runtimeElementToString.
+        // Primitive `other` values are boxed by the ABI lowering pass before the call,
+        // so runtimeElementToString correctly renders Boolean/Char/Float/Double.
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: stringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "plus",
+            externalLinkName: "kk_string_plus",
+            receiverType: nullableStringType,
+            parameters: [
+                ("other", types.nullableAnyType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
         // --- STDLIB-TEXT-FN-116: CharSequence.zip(other) / zip(other, transform) ---
 
         let zipFQName = kotlinTextPkg + [interner.intern("zip")]

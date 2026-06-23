@@ -996,6 +996,7 @@ extension ABIMismatchTests {
         "kk_string_matches_regex",
         "kk_string_normalize",
         "kk_string_orEmpty",
+        "kk_string_plus",
         "kk_string_prependIndent",
         "kk_string_prependIndent_default",
         "kk_string_removePrefix",
