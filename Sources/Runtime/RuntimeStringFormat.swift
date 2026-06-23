@@ -506,6 +506,41 @@ public func kk_string_replaceIndentByMargin(
     )
 }
 
+// MARK: - STDLIB-TEXT-FN-019: indent
+
+private func runtimeIndentLine(_ line: String, n: Int) -> String {
+    if n > 0 {
+        return String(repeating: " ", count: n) + line
+    }
+    let leadingCount = line.prefix { $0.isWhitespace }.count
+    return String(line.dropFirst(min(-n, leadingCount)))
+}
+
+private func runtimeIndent(_ source: String, n: Int) -> String {
+    if n == 0 { return source }
+    let lines = runtimeNormalizedMultilineString(source)
+    var result = ""
+    for (index, line) in lines.enumerated() {
+        if index < lines.count - 1 {
+            result += runtimeIndentLine(line, n: n) + "\n"
+        } else if !line.isEmpty {
+            result += runtimeIndentLine(line, n: n)
+        }
+    }
+    return result
+}
+
+@_cdecl("kk_string_indent_default")
+public func kk_string_indent_default(_ strRaw: Int) -> Int {
+    kk_string_indent(strRaw, 4)
+}
+
+@_cdecl("kk_string_indent")
+public func kk_string_indent(_ strRaw: Int, _ n: Int) -> Int {
+    let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
+    return runtimeMakeStringRaw(runtimeIndent(source, n: n))
+}
+
 // MARK: - MIGRATION-TEXT-006: Internal bridge functions for Kotlin stdlib source
 
 @_cdecl("__string_trimIndent")

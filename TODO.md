@@ -1,6 +1,6 @@
 # Kotlin Compiler Remaining Tasks
 
-最終更新: 2026-06-17
+最終更新: 2026-06-22
 
 ---
 
@@ -16,8 +16,8 @@
 - Runtime/API 差分は `Scripts/diff_kotlinc.sh` と `RuntimeABISpec` / ABI テストを起点に確認
 
 #### kotlin.io.path 関数の実装
-- [ ] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
-- [ ] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
+- [x] STDLIB-IO-PATH-FN-019: `forEachDirectoryEntry` 関数の実装
+- [x] STDLIB-IO-PATH-FN-039: `walk` 関数の実装
 
 #### kotlin.system 関数の実装
 - [x] STDLIB-SYSTEM-FN-004: `getTimeNanos` 関数の実装
@@ -31,7 +31,7 @@
 
 #### kotlin.text 関数の実装
 - [x] STDLIB-TEXT-FN-003: `append` 関数の実装
-- [ ] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
+- [x] STDLIB-TEXT-FN-004: `appendLine` 関数の実装
 - [x] STDLIB-TEXT-FN-005: `appendRange` 関数の実装
 - [x] STDLIB-TEXT-FN-006: `buildString` 関数の実装
 - [x] STDLIB-TEXT-FN-007: `buildStringAppend` 関数の実装
@@ -39,22 +39,22 @@
 - [ ] STDLIB-TEXT-FN-010: `codePointCount` 関数の実装
 - [x] STDLIB-TEXT-FN-013: `decodeToString` 関数の実装
 - [ ] STDLIB-TEXT-FN-016: `equals` 関数の実装
-- [ ] STDLIB-TEXT-FN-019: `indent` 関数の実装
+- [x] STDLIB-TEXT-FN-019: `indent` 関数の実装
 - [ ] STDLIB-TEXT-FN-021: `indexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-022: `indexOfFirst` 関数の実装
-- [ ] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
+- [x] STDLIB-TEXT-FN-023: `indexOfLast` 関数の実装
 - [ ] STDLIB-TEXT-FN-024: `insert` 関数の実装
-- [ ] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
+- [x] STDLIB-TEXT-FN-025: `insertRange` 関数の実装
 - [ ] STDLIB-TEXT-FN-026: `intern` 関数の実装
-- [ ] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
+- [x] STDLIB-TEXT-FN-027: `isBlank` 関数の実装
 - [ ] STDLIB-TEXT-FN-031: `isNullOrEmpty` 関数の実装
-- [ ] STDLIB-TEXT-FN-033: `iterator` 関数の実装
+- [x] STDLIB-TEXT-FN-033: `iterator` 関数の実装
 - [ ] STDLIB-TEXT-FN-034: `lastIndexOf` 関数の実装
-- [ ] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
+- [x] STDLIB-TEXT-FN-035: `lastIndexOfAny` 関数の実装
 - [ ] STDLIB-TEXT-FN-038: `minus` 関数の実装
 - [ ] STDLIB-TEXT-FN-039: `onEach` 関数の実装
 - [ ] STDLIB-TEXT-FN-040: `onEachIndexed` 関数の実装
-- [ ] STDLIB-TEXT-FN-042: `padStart` 関数の実装
+- [x] STDLIB-TEXT-FN-042: `padStart` 関数の実装
 - [x] STDLIB-TEXT-FN-043: `plus` 関数の実装
 - [ ] STDLIB-TEXT-FN-044: `random` 関数の実装
 - [ ] STDLIB-TEXT-FN-046: `reduce` 関数の実装
@@ -72,7 +72,7 @@
 - [ ] STDLIB-TEXT-FN-070: `splitToSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-072: `subSequence` 関数の実装
 - [ ] STDLIB-TEXT-FN-079: `takeIf` 関数の実装
-- [ ] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
+- [x] STDLIB-TEXT-FN-081: `takeLastWhile` 関数の実装
 - [x] STDLIB-TEXT-FN-083: `toBigDecimal` 関数の実装
 - [x] STDLIB-TEXT-FN-084: `toBigDecimalOrNull` 関数の実装
 - [ ] STDLIB-TEXT-FN-085: `toBigInteger` 関数の実装
@@ -131,7 +131,7 @@
 ### Phase 5: 非スコープ/高度領域
 - [ ] STDLIB-JS-COLLECTIONS-FN-006: `JsReadonlySet<E>.toSet()` を追加する
 - [ ] STDLIB-JS-COLLECTIONS-FN-005: `JsReadonlySet<E>.toMutableSet()` を追加する
-- [ ] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
+- [x] STDLIB-CINTEROP-TYPE-020: `kotlinx.cinterop.CPointerVarOf<T>` class surface を追加する
 - [ ] STDLIB-CINTEROP-FN-010: `place(value)` を追加する
 - [ ] STDLIB-CINTEROP-FN-009: `pin()` を追加する
 - [ ] STDLIB-CINTEROP-FN-011: `CPointer<T>.plus(index)` を追加する
@@ -202,7 +202,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 > 移行先: `Stdlib/kotlin/sequences/`
 
 - [ ] MIGRATION-SEQ-001: Sequence ファクトリを Kotlin source に移行する（`sequenceOf`, `emptySequence`, `generateSequence`, `sequence { }` builder）
-- [ ] MIGRATION-SEQ-002: Sequence 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`, `filter`, `filterNot`, `filterNotNull`）
+- [x] MIGRATION-SEQ-002: Sequence 変換 HOF を Kotlin source に移行する（`map`, `mapIndexed`, `mapNotNull`, `flatMap`, `flatten`, `filter`, `filterNot`, `filterNotNull`）
 - [ ] MIGRATION-SEQ-003: Sequence 端末 HOF を Kotlin source に移行する（`toList`, `toSet`, `toMutableList`, `first`, `firstOrNull`, `last`, `lastOrNull`, `single`, `count`, `any`, `all`, `none`）
 - [ ] MIGRATION-SEQ-004: Sequence 集約 HOF を Kotlin source に移行する（`fold`, `reduce`, `scan`, `associate`, `associateBy`, `groupBy`, `sumOf`, `maxByOrNull`, `minByOrNull`）
 - [ ] MIGRATION-SEQ-005: Sequence ウィンドウ・制限 HOF を Kotlin source に移行する（`take`, `takeWhile`, `drop`, `dropWhile`, `chunked`, `windowed`, `zip`, `zipWithNext`, `distinct`, `distinctBy`）
@@ -299,7 +299,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 ### JS/Wasm/JVM固有のstub削除（Nativeターゲット専用コンパイラのため不要）
 #### JS Array関連stub
 - [ ] CLEANUP-STUB-004: `kk_js_array_create` stub削除
-- [ ] CLEANUP-STUB-003: `kk_js_array_set` stub削除
+- [x] CLEANUP-STUB-003: `kk_js_array_set` stub削除
 - [x] CLEANUP-STUB-005: `kk_js_array_toList` stub削除
 - [x] CLEANUP-STUB-006: `kk_js_array_toMutableList` stub削除
 #### JS Map関連stub
@@ -316,7 +316,7 @@ PR #3754 で導入した `Stdlib/` ディレクトリへの移行パターン（
 #### Wasm Unsafe Annotation stub
 #### Wasm Unsafe Memory Allocator stub
 #### Wasm Unsafe Pointer stub
-- [ ] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
+- [x] CLEANUP-STUB-020: Wasm Unsafe Pointer stub削除（`HeaderHelpers+SyntheticWasmUnsafePointerStubs.swift`）
 #### Wasm Unsafe Scoped Allocator stub
 - [x] CLEANUP-STUB-021: Wasm Unsafe Scoped Allocator stub削除（`HeaderHelpers+SyntheticWasmUnsafeScopedAllocatorStubs.swift`）
 #### JVM Time相互運用stub
