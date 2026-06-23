@@ -1,7 +1,7 @@
 @testable import CompilerCore
 import XCTest
 
-final class ASTModelsTestsPart2: XCTestCase {
+extension ASTModelsTests {
     func testConstructorDeclAndDelegationCallInitializers() {
         let interner = StringInterner()
         let range = makeRange(start: 10, end: 50)
