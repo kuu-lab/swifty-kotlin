@@ -76,6 +76,7 @@ final class LoadSourcesPhase: CompilerPhase {
         let sources: [(path: String, source: String)] = [
             ("__bundled_kotlin_collections_stdlib.kt", BundledKotlinStdlib.kotlinCollectionsSource),
             ("__bundled_kotlin_text_stdlib.kt", BundledKotlinStdlib.kotlinTextSource),
+            ("__bundled_kotlin_random_stdlib.kt", BundledKotlinStdlib.kotlinRandomSource),
         ]
         for (path, source) in sources {
             guard !sourceManager.containsFile(path: path) else { continue }

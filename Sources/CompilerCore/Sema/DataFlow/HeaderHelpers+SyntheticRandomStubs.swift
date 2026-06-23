@@ -69,24 +69,9 @@ extension DataFlowSemaPhase {
         let intType = types.intType
         let longType = types.longType
         let ulongType = types.ulongType
-        let floatType = types.floatType
-        let doubleType = types.doubleType
         let uintType = types.uintType
-        let boolType = types.make(.primitive(.boolean, .nonNull))
         let ulongRangeType = makeRangeType(
             named: "ULongRange",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        let longRangeType = makeRangeType(
-            named: "LongRange",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        let intRangeType = makeRangeType(
-            named: "IntRange",
             symbols: symbols,
             types: types,
             interner: interner
@@ -114,101 +99,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt",
-            returnType: intType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt_until",
-            returnType: intType,
-            parameters: [(name: "until", type: intType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt_range",
-            returnType: intType,
-            parameters: [
-                (name: "from", type: intType),
-                (name: "until", type: intType),
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextInt",
-            externalLinkName: "kk_random_nextInt_rangeObject",
-            returnType: intType,
-            parameters: [(name: "range", type: intRangeType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong",
-            returnType: longType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong_rangeObject",
-            returnType: longType,
-            parameters: [(name: "range", type: longRangeType)],
-            canThrow: true,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong_until",
-            returnType: longType,
-            parameters: [(name: "until", type: longType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextLong",
-            externalLinkName: "kk_random_nextLong_range",
-            returnType: longType,
-            parameters: [
-                (name: "from", type: longType),
-                (name: "until", type: longType),
-            ],
-            symbols: symbols,
-            interner: interner
-        )
+        // nextInt / nextLong / nextFloat / nextDouble / nextBoolean / nextBytes
+        // are migrated to Kotlin source (MIGRATION-RANDOM-001).
+        // Their implementations live in BundledKotlinStdlib.kotlinRandomSource and
+        // resolve via extension-function lookup; no synthetic stubs needed here.
 
         registerSyntheticRandomMember(
             ownerSymbol: randomSymbol,
@@ -313,93 +207,14 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat",
-            returnType: floatType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
+        // nextFloat / nextDouble / nextBoolean / nextBytes — migrated to
+        // BundledKotlinStdlib.kotlinRandomSource (MIGRATION-RANDOM-001).
 
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat_until",
-            returnType: floatType,
-            parameters: [(name: "until", type: floatType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-655: nextFloat(from, until)
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextFloat",
-            externalLinkName: "kk_random_nextFloat_range",
-            returnType: floatType,
-            parameters: [
-                (name: "from", type: floatType),
-                (name: "until", type: floatType),
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble",
-            returnType: doubleType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble_until",
-            returnType: doubleType,
-            parameters: [(name: "until", type: doubleType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextDouble",
-            externalLinkName: "kk_random_nextDouble_range",
-            returnType: doubleType,
-            parameters: [
-                (name: "from", type: doubleType),
-                (name: "until", type: doubleType),
-            ],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-653: nextBytes(array: ByteArray): ByteArray
+        // byteArrayType is needed for the remaining nextBytes_range stub and
+        // for the SecureRandom nextBytes stub below.
         let byteArrayType = makeListIntType(
             symbols: symbols,
             types: types,
-            interner: interner
-        )
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextBytes",
-            externalLinkName: "kk_random_nextBytes",
-            returnType: byteArrayType,
-            parameters: [(name: "array", type: byteArrayType)],
-            symbols: symbols,
             interner: interner
         )
 
@@ -446,6 +261,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // nextBytes(size), nextBytes(range) — kept as synthetic stubs because
+        // ByteArray construction in bundled Kotlin source is not yet supported.
         registerSyntheticRandomMember(
             ownerSymbol: randomSymbol,
             ownerType: randomType,
@@ -474,16 +291,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticRandomMember(
-            ownerSymbol: randomSymbol,
-            ownerType: randomType,
-            name: "nextBoolean",
-            externalLinkName: "kk_random_nextBoolean",
-            returnType: boolType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
+        // nextBoolean / nextFloat / nextDouble / nextInt / nextLong / nextBytes(array)
+        // are migrated to Kotlin source; no stubs here.
 
         registerSyntheticRandomMember(
             ownerSymbol: randomSymbol,
