@@ -21,68 +21,6 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
         registerRuntimeObject(RuntimeListBox(elements: elements))
     }
 
-    private func withFlatString<T>(
-        _ value: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        Array(value.utf8).withUnsafeBufferPointer { buffer in
-            body(buffer.baseAddress, value.unicodeScalars.count, value.utf8.count, 0)
-        }
-    }
-
-    private func withFlatStrings<T>(
-        _ value: String,
-        _ other: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int, UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        withFlatString(value) { data, length, byteCount, hash in
-            withFlatString(other) { otherData, otherLength, otherByteCount, otherHash in
-                body(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash)
-            }
-        }
-    }
-
-    private func zipWithNext(_ value: String) -> Int {
-        withFlatString(value) { data, length, byteCount, hash in
-            kk_string_zipWithNext_flat(data, length, byteCount, hash)
-        }
-    }
-
-    private func zip(_ value: String, _ other: String) -> Int {
-        withFlatStrings(value, other) { data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash in
-            kk_string_zip_flat(data, length, byteCount, hash, otherData, otherLength, otherByteCount, otherHash)
-        }
-    }
-
-    private func split(_ value: String, delimiter: String) -> Int {
-        withFlatStrings(value, delimiter) { data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
-            kk_string_split_flat(data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
-        }
-    }
-
-    private func splitToSequence(_ value: String, delimiter: String) -> Int {
-        withFlatStrings(value, delimiter) { data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
-            kk_string_splitToSequence_flat(data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash)
-        }
-    }
-
-    private func splitLimit(_ value: String, delimiter: String, ignoreCase: Int, limit: Int) -> Int {
-        withFlatStrings(value, delimiter) { data, length, byteCount, hash, delimiterData, delimiterLength, delimiterByteCount, delimiterHash in
-            kk_string_split_limit_flat(
-                data,
-                length,
-                byteCount,
-                hash,
-                delimiterData,
-                delimiterLength,
-                delimiterByteCount,
-                delimiterHash,
-                ignoreCase,
-                limit
-            )
-        }
-    }
-
     // MARK: - chunked tests
 
     func testChunkedTransformFunctionExists() {
@@ -102,54 +40,49 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
     // MARK: - zipWithNext tests
 
     func testZipWithNextEmpty() {
-        let result = zipWithNext("")
+        let result = kk_string_zipWithNext(runtimeMakeStringRaw(""))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 0)
     }
 
     func testZipWithNextSingleChar() {
-        let result = zipWithNext("a")
+        let result = kk_string_zipWithNext(runtimeMakeStringRaw("a"))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 0)
     }
 
     func testZipWithNextBasic() {
-        let result = zipWithNext("abc")
+        let result = kk_string_zipWithNext(runtimeMakeStringRaw("abc"))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 2)
     }
 
     func testZipWithNextTransformFunctionExists() {
-        let fn: (UnsafePointer<UInt8>?, Int, Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int =
-            kk_string_zipWithNextTransform_flat
+        let fn: (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_string_zipWithNextTransform
         XCTAssertNotNil(fn as Any)
     }
 
     // MARK: - zip tests
 
     func testZipBasic() {
-        let result = zip("abc", "xyz")
+        let result = kk_string_zip(runtimeMakeStringRaw("abc"), runtimeMakeStringRaw("xyz"))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 3)
     }
 
     func testZipLengthMismatch() {
-        let result = zip("abc", "xy")
+        let result = kk_string_zip(runtimeMakeStringRaw("abc"), runtimeMakeStringRaw("xy"))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 2) // Shorter side
     }
 
     func testZipTransformFunctionExists() {
-        let fn: (
-            UnsafePointer<UInt8>?, Int, Int, Int,
-            UnsafePointer<UInt8>?, Int, Int, Int,
-            Int, Int, UnsafeMutablePointer<Int>?
-        ) -> Int = kk_string_zipTransform_flat
+        let fn: (Int, Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = kk_string_zipTransform
         XCTAssertNotNil(fn as Any)
     }
 
@@ -182,34 +115,44 @@ final class RuntimeStringSplitJoinTests: XCTestCase {
     // MARK: - splitToSequence tests
 
     func testSplitToSequenceBasic() {
-        let result = splitToSequence("a,b,c", delimiter: ",")
+        let result = kk_string_splitToSequence(runtimeMakeStringRaw("a,b,c"), runtimeMakeStringRaw(","))
         XCTAssertNotNil(result)
         // Should return a sequence
     }
 
     func testSplitToSequenceEmptyDelimiter() {
-        let result = splitToSequence("abc", delimiter: "")
+        let result = kk_string_splitToSequence(runtimeMakeStringRaw("abc"), runtimeMakeStringRaw(""))
         XCTAssertNotNil(result)
     }
 
     // MARK: - split tests (existing bridge functions)
 
     func testSplitBasic() {
-        let result = split("a,b,c", delimiter: ",")
+        let result = kk_string_split(runtimeMakeStringRaw("a,b,c"), runtimeMakeStringRaw(","))
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 3)
     }
 
     func testSplitWithLimit() {
-        let result = splitLimit("a,b,c,d", delimiter: ",", ignoreCase: 0, limit: 2)
+        let result = kk_string_split_limit(
+            runtimeMakeStringRaw("a,b,c,d"),
+            runtimeMakeStringRaw(","),
+            0, // ignoreCase
+            2  // limit
+        )
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 2)
     }
 
     func testSplitWithIgnoreCase() {
-        let result = splitLimit("A,B,C", delimiter: ",", ignoreCase: 1, limit: 0)
+        let result = kk_string_split_limit(
+            runtimeMakeStringRaw("A,B,C"),
+            runtimeMakeStringRaw(","),
+            1, // ignoreCase
+            0  // limit
+        )
         let list = runtimeListBox(from: result)
         XCTAssertNotNil(list)
         XCTAssertEqual(list?.elements.count, 3)

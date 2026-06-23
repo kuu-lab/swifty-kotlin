@@ -692,7 +692,7 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
     }
 
     // MARK: - log(x, base) domain edge cases (Double)
-    // Implementation: ln(rawX) / ln(rawBase), so IEEE 754 rules apply directly.
+    // Kotlin defines explicit special cases for invalid bases and zero / infinity inputs.
 
     func testLogDoubleNegativeX() {
         // ln of a negative number is NaN; NaN / finite == NaN
@@ -711,16 +711,19 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(4.0), doubleToBits(-2.0))).isNaN)
     }
 
+    func testLogDoubleZeroBase() {
+        // b <= 0 is invalid for kotlin.math.log(x, base)
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(4.0), doubleToBits(0.0))).isNaN)
+    }
+
     func testLogDoubleBaseOneXEqualsOne() {
-        // ln(1) / ln(1) == 0.0 / 0.0 == NaN
+        // base == 1 is invalid for kotlin.math.log(x, base)
         XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(1.0), doubleToBits(1.0))).isNaN)
     }
 
-    func testLogDoubleBaseOneXGreaterThanOne() {
-        // ln(2) / ln(1) == positive / 0.0 == +Inf  (IEEE 754 nonzero/zero)
-        let result = doubleFromBits(kk_math_log(doubleToBits(2.0), doubleToBits(1.0)))
-        XCTAssertTrue(result.isInfinite)
-        XCTAssertGreaterThan(result, 0)
+    func testLogDoubleBaseOneXGreaterThanOneIsNaN() {
+        // base == 1 remains NaN regardless of x
+        XCTAssertTrue(doubleFromBits(kk_math_log(doubleToBits(2.0), doubleToBits(1.0))).isNaN)
     }
 
     func testLogDoublePositiveInfinityX() {
@@ -755,16 +758,19 @@ final class RuntimeMathEdgeCaseTests: XCTestCase {
         XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(4.0), floatToBits(-2.0))).isNaN)
     }
 
+    func testLogFloatZeroBase() {
+        // b <= 0 is invalid for kotlin.math.log(x, base)
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(4.0), floatToBits(0.0))).isNaN)
+    }
+
     func testLogFloatBaseOneXEqualsOne() {
-        // 0.0f / 0.0f == NaN
+        // base == 1 is invalid for kotlin.math.log(x, base)
         XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(1.0), floatToBits(1.0))).isNaN)
     }
 
-    func testLogFloatBaseOneXGreaterThanOne() {
-        // positive_finite / 0.0f == +Inf
-        let result = floatFromBits(kk_math_log_float(floatToBits(2.0), floatToBits(1.0)))
-        XCTAssertTrue(result.isInfinite)
-        XCTAssertGreaterThan(result, 0)
+    func testLogFloatBaseOneXGreaterThanOneIsNaN() {
+        // base == 1 remains NaN regardless of x
+        XCTAssertTrue(floatFromBits(kk_math_log_float(floatToBits(2.0), floatToBits(1.0))).isNaN)
     }
 
     func testLogFloatPositiveInfinityX() {

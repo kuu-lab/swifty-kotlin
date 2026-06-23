@@ -121,11 +121,17 @@ public struct KIRFunction: Sendable {
     public let isTailrec: Bool
     public let sourceRange: SourceRange? // function-level source location
     public internal(set) var instructionLocations: [SourceRange?] // per-instruction source locations, parallel to body
+    /// When true, this function is a HOF callback invoked by C runtime with raw Int ABI.
+    /// All parameters and the return value use i64 at the LLVM level regardless of their
+    /// Kotlin types; string params are bridged raw→flat at entry, and string returns are
+    /// bridged flat→raw at each return site.
+    public let usesRawCallbackABI: Bool
 
     public init(
         symbol: SymbolID, name: InternedString, params: [KIRParameter], returnType: TypeID,
         body: [KIRInstruction], isSuspend: Bool, isInline: Bool, isInlineOnly: Bool = false, isTailrec: Bool = false,
-        sourceRange: SourceRange? = nil, instructionLocations: [SourceRange?] = []
+        sourceRange: SourceRange? = nil, instructionLocations: [SourceRange?] = [],
+        usesRawCallbackABI: Bool = false
     ) {
         self.symbol = symbol; self.name = name; self.params = params
         self.returnType = returnType; self.body = body
@@ -133,6 +139,7 @@ public struct KIRFunction: Sendable {
         self.isInlineOnly = isInlineOnly
         self.isTailrec = isTailrec; self.sourceRange = sourceRange
         self.instructionLocations = instructionLocations
+        self.usesRawCallbackABI = usesRawCallbackABI
     }
 
     public mutating func replaceBody(_ body: [KIRInstruction]) {

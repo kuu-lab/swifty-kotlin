@@ -1,5 +1,4 @@
 import Foundation
-import RuntimeABI
 
 struct NativeEmitter {
     /// DWARF constants used across the emitter.
@@ -74,46 +73,6 @@ struct NativeEmitter {
         self.reflectionMetadataRecords = reflectionMetadataRecords
         self.reflectionMetadataSymbolPrefix = reflectionMetadataSymbolPrefix
         self.linkOnceODRSymbols = linkOnceODRSymbols
-    }
-
-    private func collectRuntimeCallbackRawABISymbols() -> Set<SymbolID> {
-        let callbackArgumentPositionsByCallee = runtimeCallbackArgumentPositionsByCallee()
-        guard !callbackArgumentPositionsByCallee.isEmpty else {
-            return []
-        }
-
-        var symbols: Set<SymbolID> = []
-        for declaration in module.arena.declarations {
-            guard case let .function(function) = declaration else {
-                continue
-            }
-            for instruction in function.body {
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      let callbackPositions = callbackArgumentPositionsByCallee[callee]
-                else {
-                    continue
-                }
-                for position in callbackPositions where arguments.indices.contains(position) {
-                    if case let .symbolRef(symbol)? = module.arena.expr(arguments[position]) {
-                        symbols.insert(symbol)
-                    }
-                }
-            }
-        }
-        return symbols
-    }
-
-    private func runtimeCallbackArgumentPositionsByCallee() -> [InternedString: [Int]] {
-        var positionsByCallee: [InternedString: [Int]] = [:]
-        for spec in RuntimeABISpec.allFunctions {
-            let positions = spec.parameters.enumerated().compactMap { index, parameter -> Int? in
-                parameter.name.lowercased().contains("fnptr") ? index : nil
-            }
-            if !positions.isEmpty {
-                positionsByCallee[interner.intern(spec.name)] = positions
-            }
-        }
-        return positionsByCallee
     }
 
     func emitLLVMIR(outputPath: String) throws {
@@ -194,17 +153,6 @@ struct NativeEmitter {
             throw LLVMBackendError.nativeEmissionFailed("LLVMPointerType returned null")
         }
         let typeLowering = makeLLVMTypeLowering(context: context, int64Type: int64Type)
-        let runtimeCallbackRawABISymbols = collectRuntimeCallbackRawABISymbols()
-
-        func isStringAggregateType(_ type: TypeID?) -> Bool {
-            guard let type,
-                  let typeSystem,
-                  case .stringStruct = typeSystem.kind(of: type)
-            else {
-                return false
-            }
-            return typeLowering != nil
-        }
 
         do {
             try defineWeakFrameRuntimeStubs(
@@ -237,7 +185,7 @@ struct NativeEmitter {
         var internalFunctions: [SymbolID: LLVMFunction] = [:]
 
         for declaration in module.arena.declarations {
-            guard case let .function(function) = declaration,
+guard case let .function(function) = declaration,
                   !function.isInlineOnly
             else {
                 continue
@@ -247,28 +195,19 @@ struct NativeEmitter {
                 interner: interner,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
-            let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
-            var parameterTypes = function.params.map {
-                if usesRuntimeCallbackRawABI {
-                    return int64Type
-                }
-                return loweredLLVMType(
-                    for: $0.type,
-                    lowering: typeLowering,
-                    defaultType: int64Type
-                )
+            // HOF callbacks (closureRaw, value..., outThrown) -> result are called by the
+            // C runtime with all arguments as raw i64 values regardless of their Kotlin types.
+            // Force every parameter and the return type to i64; emitFunctionBody bridges
+            // string arguments raw→flat at entry and flat→raw at each return site.
+            var parameterTypes = function.params.map { param in
+                function.usesRawCallbackABI
+                    ? int64Type
+                    : loweredLLVMType(for: param.type, lowering: typeLowering, defaultType: int64Type)
             }
             parameterTypes.append(outThrownPointerType)
-            let returnsRawStringRuntimeCallback = usesRuntimeCallbackRawABI && isStringAggregateType(function.returnType)
-            let returnType = if returnsRawStringRuntimeCallback {
-                int64Type
-            } else {
-                loweredLLVMType(
-                    for: function.returnType,
-                    lowering: typeLowering,
-                    defaultType: int64Type
-                )
-            }
+            let returnType = function.usesRawCallbackABI
+                ? int64Type
+                : loweredLLVMType(for: function.returnType, lowering: typeLowering, defaultType: int64Type)
 
             guard let functionType = bindings.functionType(returnType: returnType, parameters: parameterTypes, isVarArg: false),
                   let functionValue = bindings.addFunction(module: llvmModule, name: functionName, functionType: functionType)
@@ -311,10 +250,8 @@ struct NativeEmitter {
                     outThrownPointerType: outThrownPointerType,
                     internalFunctions: internalFunctions,
                     globalVariables: llvmGlobalVariables,
-                    runtimeCallbackRawReturnSymbols: runtimeCallbackRawABISymbols,
-                    usesRuntimeCallbackRawABI: runtimeCallbackRawABISymbols.contains(function.symbol),
-                    returnsRawStringRuntimeCallback: runtimeCallbackRawABISymbols.contains(function.symbol)
-                        && isStringAggregateType(function.returnType),
+                    usesRuntimeCallbackRawABI: function.usesRawCallbackABI,
+                    returnsRawStringRuntimeCallback: function.usesRawCallbackABI,
                     diContext: diContext
                 )
             } catch {

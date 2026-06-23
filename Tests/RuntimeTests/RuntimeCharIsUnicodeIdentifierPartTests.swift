@@ -2,7 +2,8 @@
 // Tests that kk_char_isUnicodeIdentifierPart matches Unicode identifier-part semantics.
 // Unicode identifier part includes: letters (Lu/Ll/Lt/Lm/Lo), letter numbers (Nl),
 // non-spacing marks (Mn), spacing marks (Mc), enclosing marks (Me),
-// decimal digits (Nd), connector punctuation (Pc), and format characters (Cf).
+// decimal digits (Nd), connector punctuation (Pc), format characters (Cf),
+// identifier-ignorable control characters, and Unicode Other_ID_* characters.
 // Unlike isJavaIdentifierPart, currency symbols (Sc) and surrogates are NOT included.
 
 @testable import Runtime
@@ -65,6 +66,28 @@ final class RuntimeCharIsUnicodeIdentifierPartTests: XCTestCase {
     func testFormatCharIsIdentifierPart() {
         // U+200C ZERO WIDTH NON-JOINER (Cf) - identifier-ignorable
         XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x200C)))
+    }
+
+    // MARK: - Other_ID_Start / Other_ID_Continue characters
+
+    func testOtherIdStartCharactersAreIdentifierPart() {
+        // U+2118 SCRIPT CAPITAL P (Other_ID_Start)
+        XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x2118)))
+        // U+309B KATAKANA-HIRAGANA VOICED SOUND MARK (Other_ID_Start)
+        XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x309B)))
+    }
+
+    func testOtherIdContinueCharactersAreIdentifierPart() {
+        // U+00B7 MIDDLE DOT (Other_ID_Continue)
+        XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x00B7)))
+        // U+0387 GREEK ANO TELEIA (Other_ID_Continue)
+        XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x0387)))
+    }
+
+    // MARK: - Ignorable control characters
+
+    func testIgnorableControlIsIdentifierPart() {
+        XCTAssertTrue(boolValue(kk_char_isUnicodeIdentifierPart(0x0001)))
     }
 
     // MARK: - Characters NOT in isUnicodeIdentifierPart (differ from isJavaIdentifierPart)

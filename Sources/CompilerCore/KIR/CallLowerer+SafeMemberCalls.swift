@@ -9,11 +9,104 @@ extension CallLowerer {
         shared: KIRLoweringSharedContext,
         emit instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
+        let ast = shared.ast
         let sema = shared.sema
         let arena = shared.arena
         let interner = shared.interner
         let propertyConstantInitializers = shared.propertyConstantInitializers
         let boundType = sema.bindings.exprTypes[exprID]
+
+        if let lateinitStatus = tryLowerLateinitIsInitialized(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return lateinitStatus
+        }
+
+        // takeIf / takeUnless with safe call (STDLIB-160)
+        if sema.bindings.takeIfTakeUnlessKind(for: exprID) != nil {
+            let takeBoundType = boundType ?? sema.types.anyType
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: takeBoundType
+            )
+            let loweredReceiver = driver.lowerExpr(
+                receiverExpr,
+                shared: shared,
+                emit: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
+            let nullVal = arena.appendExpr(.unit, type: takeBoundType)
+            instructions.append(.constValue(result: nullVal, value: .null))
+            instructions.append(.copy(from: nullVal, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            if let takeResult = tryTakeIfTakeUnlessLowering(
+                exprID,
+                receiverExpr: receiverExpr,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions,
+                precomputedReceiver: loweredReceiver
+            ) {
+                instructions.append(.copy(from: takeResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
+        }
+
+        // Scope functions with safe call: ?.let, ?.run, etc. (STDLIB-004)
+        if sema.bindings.scopeFunctionKind(for: exprID) != nil {
+            let scopeBoundType = boundType ?? sema.types.anyType
+            let nullableResultType = sema.types.makeNullable(scopeBoundType)
+            let result = arena.appendExpr(
+                .temporary(Int32(arena.expressions.count)),
+                type: nullableResultType
+            )
+            let loweredReceiver = driver.lowerExpr(
+                receiverExpr,
+                shared: shared,
+                emit: &instructions
+            )
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            instructions.append(.jumpIfNotNull(value: loweredReceiver, target: nonNullLabel))
+            let nullVal = arena.appendExpr(.unit, type: nullableResultType)
+            instructions.append(.constValue(result: nullVal, value: .null))
+            instructions.append(.copy(from: nullVal, to: result))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            if let scopeResult = tryScopeFunctionLowering(
+                exprID,
+                receiverExpr: receiverExpr,
+                args: args,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions.instructions,
+                precomputedReceiver: loweredReceiver
+            ) {
+                instructions.append(.copy(from: scopeResult, to: result))
+            }
+            instructions.append(.label(endLabel))
+            return result
+        }
 
         // const val member property folding (P5-109): check before lowering
         // receiver so no dead instructions are emitted.
@@ -522,6 +615,57 @@ extension CallLowerer {
             }
         }
 
+        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
+        if interner.resolve(effectiveCalleeName) == "digitToChar",
+           args.count <= 1
+        {
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if nonNullReceiverType == intType {
+                let callResultType = sema.types.makeNonNullable(boundType ?? sema.types.charType)
+                let nullableResultType = sema.types.makeNullable(callResultType)
+                let callLabel = driver.ctx.makeLoopLabel()
+                let endLabel = driver.ctx.makeLoopLabel()
+                let nullExpr = arena.appendExpr(.unit, type: nullableResultType)
+                instructions.append(.jumpIfNotNull(value: loweredReceiverID, target: callLabel))
+                instructions.append(.constValue(result: nullExpr, value: .null))
+                instructions.append(.copy(from: nullExpr, to: result))
+                instructions.append(.jump(endLabel))
+                instructions.append(.label(callLabel))
+                let nonNullResult = arena.appendExpr(.temporary(Int32(arena.expressions.count)), type: callResultType)
+                if args.isEmpty {
+                    let radixExpr = arena.appendExpr(.intLiteral(10), type: intType)
+                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, radixExpr],
+                        result: nonNullResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                } else {
+                    let loweredRadixArg = driver.lowerExpr(
+                        args[0].expr,
+                        shared: shared,
+                        emit: &instructions
+                    )
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, loweredRadixArg],
+                        result: nonNullResult,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
+                instructions.append(.copy(from: nonNullResult, to: result))
+                instructions.append(.label(endLabel))
+                return result
+            }
+        }
+
         let anyFallbackReceiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullAnyFallbackReceiverType = sema.types.makeNonNullable(anyFallbackReceiverType)
         let allowsAnyFallback: Bool = switch sema.types.kind(of: nonNullAnyFallbackReceiverType) {
@@ -869,8 +1013,18 @@ extension CallLowerer {
         }
 
         let isSuperCall = sema.bindings.isSuperCallExpr(exprID)
-        let callBinding = sema.bindings.callBindings[exprID]
-        let chosen = callBinding?.chosenCallee
+        let callBinding = recoverMemberCallBinding(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            calleeName: effectiveCalleeName,
+            argumentExprs: args.map(\.expr),
+            sema: sema
+        ) ?? sema.bindings.callBindings[exprID]
+        let chosen: SymbolID? = if let chosenCallee = callBinding?.chosenCallee, chosenCallee != .invalid {
+            chosenCallee
+        } else {
+            nil
+        }
 
         // Emit null-check BEFORE lowering arguments so that
         // receiver?.f(sideEffect()) does not evaluate sideEffect()
@@ -883,6 +1037,27 @@ extension CallLowerer {
         instructions.append(.copy(from: nullExpr, to: result))
         instructions.append(.jump(endLabel))
         instructions.append(.label(callLabel))
+
+        // External member property read (e.g. MatchResult?.value → kk_match_result_value).
+        // When the expr is bound via identifierSymbol (set by lookupMemberProperty in sema)
+        // to a property with an externalLinkName, emit the runtime call directly.
+        // This mirrors tryLowerExternalMemberPropertyRead used by lowerMemberLikeCallExpr.
+        if args.isEmpty,
+           let propSym = sema.bindings.identifierSymbol(for: exprID),
+           let extLink = sema.symbols.externalLinkName(for: propSym),
+           !extLink.isEmpty
+        {
+            instructions.append(.call(
+                symbol: propSym,
+                callee: interner.intern(extLink),
+                arguments: [loweredReceiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.label(endLabel))
+            return result
+        }
 
         // Lower arguments only on the non-null path.
         let loweredArgIDs = args.map { argument in
@@ -981,8 +1156,10 @@ extension CallLowerer {
                 effectiveCalleeName
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
+            let hasExternalLink = chosen.flatMap { sema.symbols.externalLinkName(for: $0) }.map { !$0.isEmpty } ?? false
             if !isSuperCall,
                let chosen,
+               !hasExternalLink,
                let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema)
             {
                 var vcArguments = finalArguments

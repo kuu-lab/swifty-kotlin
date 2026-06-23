@@ -45,7 +45,6 @@ final class LLVMCAPIBindings {
     typealias LLVMBuildRetFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?) -> LLVMValueRef?
     typealias LLVMBuildBrFn = @convention(c) (LLVMBuilderRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
     typealias LLVMBuildCondBrFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMBasicBlockRef?, LLVMBasicBlockRef?) -> LLVMValueRef?
-    typealias LLVMBuildUnreachableFn = @convention(c) (LLVMBuilderRef?) -> LLVMValueRef?
     typealias LLVMBuildAddFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildSubFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
     typealias LLVMBuildMulFn = @convention(c) (LLVMBuilderRef?, LLVMValueRef?, LLVMValueRef?, UnsafePointer<CChar>?) -> LLVMValueRef?
@@ -260,7 +259,6 @@ final class LLVMCAPIBindings {
     let buildRetFn: LLVMBuildRetFn
     let buildBrFn: LLVMBuildBrFn
     let buildCondBrFn: LLVMBuildCondBrFn
-    let buildUnreachableFn: LLVMBuildUnreachableFn
     let buildAddFn: LLVMBuildAddFn
     let buildSubFn: LLVMBuildSubFn
     let buildMulFn: LLVMBuildMulFn
@@ -362,7 +360,6 @@ final class LLVMCAPIBindings {
         buildRetFn: @escaping LLVMBuildRetFn,
         buildBrFn: @escaping LLVMBuildBrFn,
         buildCondBrFn: @escaping LLVMBuildCondBrFn,
-        buildUnreachableFn: @escaping LLVMBuildUnreachableFn,
         buildAddFn: @escaping LLVMBuildAddFn,
         buildSubFn: @escaping LLVMBuildSubFn,
         buildMulFn: @escaping LLVMBuildMulFn,
@@ -464,7 +461,6 @@ final class LLVMCAPIBindings {
         self.buildRetFn = buildRetFn
         self.buildBrFn = buildBrFn
         self.buildCondBrFn = buildCondBrFn
-        self.buildUnreachableFn = buildUnreachableFn
         self.buildAddFn = buildAddFn
         self.buildSubFn = buildSubFn
         self.buildMulFn = buildMulFn

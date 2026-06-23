@@ -242,10 +242,10 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             "kk_string_uppercase_flat",
             "String.uppercase should link to kk_string_uppercase_flat"
         )
-        XCTAssertEqual(
+        // capitalize() is now a bundled Kotlin function (MIGRATION-TEXT-005) — no C external link.
+        XCTAssertNil(
             externalLink(for: "capitalize", sema: sema, interner: interner),
-            "kk_string_capitalize",
-            "String.capitalize should link to kk_string_capitalize"
+            "String.capitalize should be a bundled Kotlin function with no C external link"
         )
 
         let lowercaseFQ = ["kotlin", "text", "lowercase"].map { interner.intern($0) }
@@ -261,6 +261,24 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
         )
         XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_flat"))
         XCTAssertTrue(uppercaseLinks.contains("kk_string_uppercase_locale_flat"))
+    }
+
+    func testCodePointCountStubsHaveCorrectExternalLinks() throws {
+        let (sema, interner) = try makeSema()
+
+        let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount"),
+            "CharSequence.codePointCount() should link to kk_string_codePointCount"
+        )
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount_from"),
+            "CharSequence.codePointCount(startIndex) should link to kk_string_codePointCount_from"
+        )
+        XCTAssertTrue(
+            codePointCountLinks.contains("kk_string_codePointCount_range"),
+            "CharSequence.codePointCount(startIndex, endIndex) should link to kk_string_codePointCount_range"
+        )
     }
 
     func testStringNormalizationStubsHaveCorrectExternalLinks() throws {
@@ -824,7 +842,8 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             val cap = s.capitalize()
             val rep = s.repeat(3)
             val rev = s.reversed()
-            return lower + upper + cap + rep + rev
+            val rfc = s.replaceFirstChar { it }
+            return lower + upper + cap + rep + rev + rfc
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -834,30 +853,31 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
             let ast = try XCTUnwrap(ctx.ast)
             let sema = try XCTUnwrap(ctx.sema)
 
-            // lowercase/uppercase/capitalize still have C external links.
+            // lowercase/uppercase still have C external links (native implementation).
+            // Use allExprIDs to find all calls with the given name (the bundled capitalize()
+            // implementation also calls Char.uppercase() internally, so firstExprID would pick
+            // the wrong overload).
             let expectedLinks: [String: String] = [
                 "lowercase": "kk_string_lowercase",
                 "uppercase": "kk_string_uppercase",
-                "capitalize": "kk_string_capitalize",
             ]
-            for (memberName, externalLinkName) in expectedLinks {
-                let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
+            for (memberName, expectedExternalLink) in expectedLinks {
+                let callExprs = allExprIDs(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
-                }, "Expected member call to \(memberName) in AST")
-                let chosenCallee = try XCTUnwrap(
-                    sema.bindings.callBinding(for: callExpr)?.chosenCallee,
-                    "Expected call binding for \(memberName)"
-                )
-                XCTAssertEqual(
-                    sema.symbols.externalLinkName(for: chosenCallee),
-                    externalLinkName,
-                    "Expected \(memberName) to resolve to \(externalLinkName)"
+                }
+                let hasExpectedLink = callExprs.contains { callExpr in
+                    guard let binding = sema.bindings.callBinding(for: callExpr) else { return false }
+                    return sema.symbols.externalLinkName(for: binding.chosenCallee) == expectedExternalLink
+                }
+                XCTAssertTrue(
+                    hasExpectedLink,
+                    "Expected a call to \(memberName) to resolve to \(expectedExternalLink)"
                 )
             }
 
-            // repeat and reversed are now bundled Kotlin functions — they must resolve but have no C link.
-            for memberName in ["repeat", "reversed"] {
+            // capitalize, replaceFirstChar, repeat, reversed are bundled Kotlin functions — no C link.
+            for memberName in ["capitalize", "replaceFirstChar", "repeat", "reversed"] {
                 let callExpr = try XCTUnwrap(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
@@ -1758,6 +1778,40 @@ final class StringSyntheticMemberLinkTests: XCTestCase {
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_deleteRange"
             }
             XCTAssertEqual(deleteRangeBindings.count, 2)
+        }
+    }
+
+    // STDLIB-TEXT-FN-005: appendRange
+    func testStringBuilderAppendRangeResolvesInCallExpressions() throws {
+        let source = """
+        import kotlin.text.StringBuilder
+
+        fun appendMiddle(): StringBuilder {
+            return StringBuilder("ab").appendRange("WXYZ", 1, 3)
+        }
+
+        fun appendWithReceiver(): String {
+            return with(StringBuilder("ab")) {
+                appendRange("WXYZ", 0, 2)
+                toString()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "Expected StringBuilder.appendRange surface to resolve cleanly, got: \(diagnosticSummary)"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let appendRangeBindings = sema.bindings.callBindings.values.filter { binding in
+                sema.symbols.externalLinkName(for: binding.chosenCallee) == "kk_string_builder_appendRange_obj"
+            }
+            XCTAssertEqual(appendRangeBindings.count, 2)
         }
     }
 

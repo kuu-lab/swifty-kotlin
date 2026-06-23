@@ -190,8 +190,7 @@ extension CallTypeChecker {
                 interner: interner,
                 elementType: sema.types.charType
             )
-        case ("replaceFirstChar", 1),
-             ("trim", 1),
+        case ("trim", 1),
              ("trimStart", 1),
              ("trimEnd", 1):
             sema.types.stringType
@@ -347,35 +346,6 @@ extension CallTypeChecker {
         }
         if memberName == "replace" || memberName == "replaceFirst", args.indices.contains(1) {
             _ = driver.inferExpr(args[1].expr, ctx: ctx, locals: &locals, expectedType: sema.types.stringType)
-        }
-        if memberName == "replaceFirstChar", args.indices.contains(0) {
-            let charType = sema.types.make(.primitive(.char, .nonNull))
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [charType],
-                returnType: charType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            if let lambdaExpr = ctx.ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-            }
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: expectedType)
-            let fqName = [
-                interner.intern("kotlin"),
-                interner.intern("text"),
-                calleeName,
-            ]
-            if let chosen = sema.symbols.lookup(fqName: fqName) {
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: chosen,
-                        substitutedTypeArguments: [],
-                        parameterMapping: [0: 0]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-            }
         }
         if memberName == "ifBlank" || memberName == "ifEmpty", args.indices.contains(0) {
             let expectedType = sema.types.make(.functionType(FunctionType(

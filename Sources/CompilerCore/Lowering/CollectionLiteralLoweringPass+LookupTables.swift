@@ -683,11 +683,14 @@ struct CollectionLiteralLookupTables {
 
     // Builder DSL names (STDLIB-002)
     let buildStringName: InternedString
+    let buildStringBuilderName: InternedString
     let buildListName: InternedString
     let buildSetName: InternedString
     let buildMapName: InternedString
     let kkBuildStringName: InternedString
     let kkBuildStringWithCapacityName: InternedString
+    let kkBuildStringBuilderName: InternedString
+    let kkBuildStringBuilderWithCapacityName: InternedString
     let kkBuildListName: InternedString
     let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
@@ -757,6 +760,8 @@ struct CollectionLiteralLookupTables {
     let kkPathUseLinesDefaultName: InternedString
     let kkPathNewName: InternedString
     let kkPathGetName: InternedString
+    // STDLIB-IO-PATH-FN-039: Path.walk(options) → kk_path_walk
+    let kkPathWalkName: InternedString
     let bufferedReaderName: InternedString
     let kkFileBufferedReaderName: InternedString
     let bufferedWriterName: InternedString
@@ -1481,11 +1486,14 @@ struct CollectionLiteralLookupTables {
         kkTripleNewName = interner.intern("kk_triple_new")
 
         buildStringName = interner.intern("buildString")
+        buildStringBuilderName = interner.intern("buildStringBuilder")
         buildListName = interner.intern("buildList")
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
         kkBuildStringName = interner.intern("kk_build_string")
         kkBuildStringWithCapacityName = interner.intern("kk_build_string_with_capacity")
+        kkBuildStringBuilderName = interner.intern("kk_build_string_builder")
+        kkBuildStringBuilderWithCapacityName = interner.intern("kk_build_string_builder_with_capacity")
         kkBuildListName = interner.intern("kk_build_list")
         kkBuildListWithCapacityName = interner.intern("kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("kk_build_set")
@@ -1554,6 +1562,8 @@ struct CollectionLiteralLookupTables {
         kkPathUseLinesDefaultName = interner.intern("kk_path_useLines_default")
         kkPathNewName = interner.intern("kk_path_new")
         kkPathGetName = interner.intern("kk_path_get")
+        // STDLIB-IO-PATH-FN-039
+        kkPathWalkName = interner.intern("kk_path_walk")
         bufferedReaderName = interner.intern("bufferedReader")
         kkFileBufferedReaderName = interner.intern("kk_file_bufferedReader")
         bufferedWriterName = interner.intern("bufferedWriter")
@@ -1620,7 +1630,13 @@ struct CollectionLiteralLookupTables {
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
         mutableMapConstructorNames = [hashMapName, linkedHashMapName]
         arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
-        builderDSLNames = [buildStringName, buildListName, buildSetName, buildMapName]
+        builderDSLNames = [
+            buildStringName,
+            buildStringBuilderName,
+            buildListName,
+            buildSetName,
+            buildMapName,
+        ]
         collectionHOFRuntimeNames = Dictionary(uniqueKeysWithValues: StdlibSurfaceSpec.collectionHOFMembers.flatMap { spec in
             (spec.arity.minimum ... spec.arity.maximum).map { arity in
                 (
@@ -1649,12 +1665,12 @@ struct CollectionLiteralLookupTables {
             interner.intern("kk_string_replaceBefore_char_flat"),
             interner.intern("kk_string_replaceBeforeLast_flat"),
             interner.intern("kk_string_replaceBeforeLast_char_flat"),
-            interner.intern("kk_string_substring_flat"),
+            interner.intern("kk_string_substring"),
+            interner.intern("kk_string_removePrefix_flat"),
             interner.intern("kk_string_take_flat"),
             interner.intern("kk_string_drop_flat"),
             interner.intern("kk_string_takeLast_flat"),
             interner.intern("kk_string_dropLast_flat"),
-            interner.intern("kk_string_removePrefix_flat"),
             interner.intern("kk_string_removeSuffix_flat"),
             interner.intern("kk_string_removeSurrounding_flat"),
             interner.intern("kk_string_removeSurrounding_pair_flat"),

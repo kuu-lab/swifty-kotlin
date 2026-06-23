@@ -15,20 +15,41 @@ final class RuntimeBigDecimalTests: XCTestCase {
         }
     }
 
+    private func runtimeString(_ text: String) -> Int {
+        text.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, text.utf8.count)) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
+            }
+        }
+    }
+
     func testStringToBigDecimalAcceptsScientificNotation() {
         var thrown = 0
-        let raw = withFlatString("1.25e3") { data, length, byteCount, hash in
-            kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
-        }
+        let raw = kk_string_toBigDecimal(runtimeString("1.25e3"), &thrown)
         XCTAssertEqual(thrown, 0)
         XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "1.25e3")
     }
 
+    func testStringToBigDecimalAcceptsDecimalPointEdgeForms() {
+        for value in [".5", "1.", "-.25", "+12.0E-3"] {
+            var thrown = 0
+            let raw = kk_string_toBigDecimal(runtimeString(value), &thrown)
+            XCTAssertEqual(thrown, 0, "Expected \(value) to parse as BigDecimal")
+            XCTAssertEqual(stringValue(kk_bignum_toString(raw)), value)
+        }
+    }
+
     func testStringToBigDecimalRejectsWhitespaceWrappedInput() {
         var thrown = 0
-        _ = withFlatString(" 12.5 ") { data, length, byteCount, hash in
-            kk_string_toBigDecimal_flat(data, length, byteCount, hash, &thrown)
-        }
+        _ = kk_string_toBigDecimal(runtimeString(" 12.5 "), &thrown)
         XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testStringToBigDecimalRejectsMalformedInputs() {
+        for value in ["", ".", "+", "-", "1e", "1e+", "e10", "NaN"] {
+            var thrown = 0
+            _ = kk_string_toBigDecimal(runtimeString(value), &thrown)
+            XCTAssertNotEqual(thrown, 0, "Expected \(value) to throw NumberFormatException")
+        }
     }
 }

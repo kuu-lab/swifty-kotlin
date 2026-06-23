@@ -37,8 +37,6 @@ final class RuntimeInstantTests: XCTestCase {
         let instant = kk_instant_from_epoch_seconds(-1, 250_000_000)
         let foundationDate = kk_instant_to_foundation_date(instant)
 
-        XCTAssertEqual(kk_js_date_epoch_millis(foundationDate), -750)
-
         let roundTripped = kk_foundation_date_to_kotlin_instant(foundationDate)
         XCTAssertEqual(kk_instant_compare(roundTripped, instant), 0)
         XCTAssertEqual(kk_instant_to_epoch_millis(roundTripped), -750)

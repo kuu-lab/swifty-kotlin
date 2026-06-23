@@ -1503,6 +1503,11 @@ private func runtimeInputStreamBox(from raw: Int) -> RuntimeInputStreamBox? {
     return tryCast(ptr, to: RuntimeInputStreamBox.self)
 }
 
+private func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -> Int {
+    let strRaw = runtimeMakeStringRaw(source)
+    return kk_string_toByteArray_charset(strRaw, charsetTag)
+}
+
 private func runtimeByteArrayBytes(from raw: Int) -> [UInt8]? {
     if let array = runtimeArrayBox(from: raw) {
         return array.elements.map { UInt8(truncatingIfNeeded: $0) }

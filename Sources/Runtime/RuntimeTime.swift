@@ -167,14 +167,6 @@ public func kk_instant_to_js_date(_ instantRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_js_date_to_kotlin_instant")
-public func kk_js_date_to_kotlin_instant(_ dateRaw: Int) -> Int {
-    guard let date = runtimeJSDateBox(from: dateRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_to_kotlin_instant received invalid JS Date handle")
-    }
-    return registerRuntimeObject(runtimeInstantFromEpochMilliseconds(date.epochMilliseconds))
-}
-
 /// Maps a java.util.concurrent.TimeUnit ordinal to the matching kotlin.time.DurationUnit ordinal.
 ///
 /// Kotlin/JVM: timeUnit.toDurationUnit()
@@ -341,19 +333,6 @@ public func kk_test_time_source_read(_ sourceRaw: Int) -> Int {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_read received invalid TestTimeSource handle")
     }
     return Int(source.nanoseconds)
-}
-
-// MARK: - JS Date property accessors (STDLIB-TIME-181)
-
-/// Returns the epochMilliseconds of a JS Date handle.
-///
-/// Kotlin/JS: date.getTime()
-@_cdecl("kk_js_date_epoch_millis")
-public func kk_js_date_epoch_millis(_ dateRaw: Int) -> Int {
-    guard let date = runtimeJSDateBox(from: dateRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_js_date_epoch_millis received invalid JS Date handle")
-    }
-    return Int(date.epochMilliseconds)
 }
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)

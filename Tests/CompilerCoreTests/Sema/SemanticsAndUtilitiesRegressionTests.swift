@@ -289,6 +289,49 @@ final class SemanticsAndUtilitiesRegressionTests: XCTestCase {
         }
     }
 
+    func testJavaAtomicIntegerArrayAsKotlinAtomicArrayResolvesWithoutRuntimeLink() throws {
+        let source = """
+        @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
+
+        import java.util.concurrent.atomic.AtomicIntegerArray
+        import kotlin.concurrent.atomics.asKotlinAtomicArray
+
+        fun main() {
+            val values = AtomicIntegerArray(1).asKotlinAtomicArray()
+            println(values.loadAt(0))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            XCTAssertFalse(
+                ctx.diagnostics.hasError,
+                "AtomicIntegerArray.asKotlinAtomicArray should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let sema = try XCTUnwrap(ctx.sema)
+            let ast = try XCTUnwrap(ctx.ast)
+            let callExpr = try XCTUnwrap(
+                memberCallExprIDs(named: "asKotlinAtomicArray", in: ast, interner: ctx.interner).first
+            )
+            let chosenCallee = try XCTUnwrap(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let chosenSymbol = try XCTUnwrap(sema.symbols.symbol(chosenCallee))
+            XCTAssertTrue(
+                chosenSymbol.flags.contains(.synthetic),
+                "AtomicIntegerArray.asKotlinAtomicArray should bind to the synthetic stdlib bridge"
+            )
+            XCTAssertEqual(
+                chosenSymbol.fqName.map(ctx.interner.resolve),
+                ["kotlin", "concurrent", "atomics", "asKotlinAtomicArray"]
+            )
+            XCTAssertNil(
+                sema.symbols.externalLinkName(for: chosenCallee),
+                "AtomicIntegerArray.asKotlinAtomicArray should lower as an identity copy, not a runtime ABI call"
+            )
+        }
+    }
+
     func testCopyActionContextInIOPathPackageSurfaceIsResolved() throws {
         let source = """
         import kotlin.io.path.CopyActionContext

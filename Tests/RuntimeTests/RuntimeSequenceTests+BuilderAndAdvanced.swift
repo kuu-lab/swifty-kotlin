@@ -341,6 +341,96 @@ extension RuntimeSequenceTests {
         XCTAssertEqual(thrown, 0)
     }
 
+    func testSequenceFindLastHandlesEmptySingleNoMatchAndAllMatchCases() {
+        let matchesEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value.isMultiple(of: 2) ? 1 : 0
+        }
+        let matchesGreaterThanTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value > 10 ? 1 : 0
+        }
+        let matchesPositive: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value > 0 ? 1 : 0
+        }
+        let matchesSeven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value == 7 ? 1 : 0
+        }
+
+        var thrown = 0
+        XCTAssertEqual(
+            kk_sequence_findLast(makeSequence([]), unsafeBitCast(matchesEven, to: Int.self), 0, &thrown),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(kk_sequence_findLast(makeSequence([7]), unsafeBitCast(matchesSeven, to: Int.self), 0, &thrown), 7)
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(
+            kk_sequence_findLast(makeSequence([1, 2, 3]), unsafeBitCast(matchesGreaterThanTen, to: Int.self), 0, &thrown),
+            runtimeNullSentinelInt
+        )
+        XCTAssertEqual(thrown, 0)
+
+        thrown = 0
+        XCTAssertEqual(
+            kk_sequence_findLast(makeSequence([2, 4, 6]), unsafeBitCast(matchesPositive, to: Int.self), 0, &thrown),
+            6
+        )
+        XCTAssertEqual(thrown, 0)
+    }
+
+    func testSequencePartitionSplitsMatchingAndNonMatchingElements() {
+        let isEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+            value.isMultiple(of: 2) ? 1 : 0
+        }
+
+        var thrown = 0
+        let split = kk_sequence_partition(
+            makeSequence([1, 2, 3, 4, 5]),
+            unsafeBitCast(isEven, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_pair_first(split)), [2, 4])
+        XCTAssertEqual(listElements(kk_pair_second(split)), [1, 3, 5])
+
+        thrown = 0
+        let emptySplit = kk_sequence_partition(
+            makeSequence([]),
+            unsafeBitCast(isEven, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_pair_first(emptySplit)), [])
+        XCTAssertEqual(listElements(kk_pair_second(emptySplit)), [])
+
+        thrown = 0
+        let allMatchSplit = kk_sequence_partition(
+            makeSequence([2, 4, 6]),
+            unsafeBitCast(isEven, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_pair_first(allMatchSplit)), [2, 4, 6])
+        XCTAssertEqual(listElements(kk_pair_second(allMatchSplit)), [])
+
+        thrown = 0
+        let noneMatchSplit = kk_sequence_partition(
+            makeSequence([1, 3, 5]),
+            unsafeBitCast(isEven, to: Int.self),
+            0,
+            &thrown
+        )
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(listElements(kk_pair_first(noneMatchSplit)), [])
+        XCTAssertEqual(listElements(kk_pair_second(noneMatchSplit)), [1, 3, 5])
+    }
+
     func testSequenceAsIterable() {
         let seq = makeSequence([1, 2, 3])
         let iterable = kk_sequence_asIterable(seq)

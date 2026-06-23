@@ -86,6 +86,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_append_char",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", charType, false, false)],
@@ -95,6 +96,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_append_obj",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [("value", nullableCharSequenceType, false, false)],
@@ -104,6 +106,7 @@ extension DataFlowSemaPhase {
         )
         registerAppendableMemberFunction(
             named: "append",
+            externalLinkName: "kk_string_builder_appendRange_obj",
             ownerSymbol: appendableSymbol,
             ownerType: appendableType,
             parameters: [
@@ -163,11 +166,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "length",
-            externalLinkName: "__string_struct_get_length",
+            externalLinkName: "kk_string_length",
             receiverType: stringType,
             parameters: [],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -178,7 +180,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trim",
-            externalLinkName: "kk_string_trim_flat",
+            externalLinkName: "kk_string_trim",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -187,48 +189,54 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // lowercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+        // uppercase() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+
+        // --- STDLIB-TEXT-FN-010: CharSequence.codePointCount ---
+        //
+        // Kotlin/JVM defines the range in UTF-16 code units. KSwiftK's general
+        // String indexing helpers are scalar-oriented, so this family is backed
+        // by dedicated runtime entries.
         registerSyntheticStringExtensionFunction(
-            named: "lowercase",
-            externalLinkName: "kk_string_lowercase_flat",
-            receiverType: stringType,
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount",
+            receiverType: charSequenceType,
             parameters: [],
-            returnType: stringType,
+            returnType: intType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
 
         registerSyntheticStringExtensionFunction(
-            named: "uppercase",
-            externalLinkName: "kk_string_uppercase_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // capitalize() — deprecated in Kotlin 1.5+ but still callable (STDLIB-GAP-PH1)
-        registerSyntheticStringExtensionFunction(
-            named: "capitalize",
-            externalLinkName: "kk_string_capitalize",
-            receiverType: stringType,
-            parameters: [],
-            returnType: stringType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use replaceFirstChar instead.\"",
-                        "replaceWith = ReplaceWith(\"replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }\")",
-                    ]
-                ),
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_from",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, false, false),
             ],
+            returnType: intType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
+
+        registerSyntheticStringExtensionFunction(
+            named: "codePointCount",
+            externalLinkName: "kk_string_codePointCount_range",
+            receiverType: charSequenceType,
+            parameters: [
+                ("startIndex", intType, true, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: intType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // capitalize() — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005)
+
 
         let javaUtilPkg = ensurePackage(
             path: ["java", "util"],
@@ -254,14 +262,15 @@ extension DataFlowSemaPhase {
             ownerSymbol: localeSymbol,
             ownerType: localeType,
             parameters: [("identifier", stringType)],
-            externalLinkName: "kk_locale_new_flat",
+            externalLinkName: "kk_locale_new",
             symbols: symbols,
             interner: interner
         )
 
+        // MIGRATION-TEXT-005: private primitives called from bundled Kotlin wrappers.
         registerSyntheticStringExtensionFunction(
-            named: "lowercase",
-            externalLinkName: "kk_string_lowercase_locale_flat",
+            named: "__kk_lowercase_locale",
+            externalLinkName: "kk_string_lowercase_locale",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),
@@ -272,9 +281,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
+        // NOTE: Kotlin source exists in Stdlib/kotlin/text/StringCaseConversion.kt (MIGRATION-TEXT-005)
         registerSyntheticStringExtensionFunction(
-            named: "uppercase",
-            externalLinkName: "kk_string_uppercase_locale_flat",
+            named: "__kk_uppercase_locale",
+            externalLinkName: "kk_string_uppercase_locale",
             receiverType: stringType,
             parameters: [
                 ("locale", localeType, false, false),
@@ -287,7 +297,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "compareTo",
-            externalLinkName: "kk_string_compareTo_locale_flat",
+            externalLinkName: "kk_string_compareTo_locale",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -334,7 +344,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "normalize",
-            externalLinkName: "kk_string_normalize_flat",
+            externalLinkName: "kk_string_normalize",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -347,7 +357,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNormalized",
-            externalLinkName: "kk_string_isNormalized_flat",
+            externalLinkName: "kk_string_isNormalized",
             receiverType: stringType,
             parameters: [
                 ("form", normalizationFormType, false, false),
@@ -360,7 +370,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_flat",
+            externalLinkName: "kk_string_split",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -374,7 +384,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-EDGE-001: split with limit / ignoreCase ---
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit_flat",
+            externalLinkName: "kk_string_split_limit",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -388,7 +398,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit_flat",
+            externalLinkName: "kk_string_split_limit",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -402,7 +412,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_limit_flat",
+            externalLinkName: "kk_string_split_limit",
             receiverType: stringType,
             parameters: [
                 ("delimiters", stringType, false, false),
@@ -417,7 +427,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_flat",
+            externalLinkName: "kk_string_replace",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -432,7 +442,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar) — Char/Char overload
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char_flat",
+            externalLinkName: "kk_string_replace_char",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),
@@ -447,7 +457,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldValue, newValue, ignoreCase) — String/String with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_ignoreCase_flat",
+            externalLinkName: "kk_string_replace_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -463,7 +473,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-055: replace(oldChar, newChar, ignoreCase) — Char/Char with ignoreCase
         registerSyntheticStringExtensionFunction(
             named: "replace",
-            externalLinkName: "kk_string_replace_char_ignoreCase_flat",
+            externalLinkName: "kk_string_replace_char_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("oldChar", charType, false, false),
@@ -478,13 +488,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "startsWith",
-            externalLinkName: "kk_string_startsWith_flat",
+            externalLinkName: "kk_string_startsWith",
             receiverType: stringType,
             parameters: [
                 ("prefix", stringType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -492,13 +501,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "endsWith",
-            externalLinkName: "kk_string_endsWith_flat",
+            externalLinkName: "kk_string_endsWith",
             receiverType: stringType,
             parameters: [
                 ("suffix", stringType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -506,32 +514,30 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_str_flat",
+            externalLinkName: "kk_string_contains_str",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
             ],
             returnType: boolType,
             flags: [.synthetic, .operatorFunction],
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
 
         // STDLIB-TEXT-FN-012: CharSequence.contains(other, ignoreCase) overload.
-        // Routes to `kk_string_contains_ignoreCase_flat` so callers can opt into
+        // Routes to `kk_string_contains_ignoreCase` so callers can opt into
         // case-insensitive substring matching by passing `ignoreCase = true`.
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_ignoreCase_flat",
+            externalLinkName: "kk_string_contains_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -539,11 +545,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toInt",
-            externalLinkName: "kk_string_toInt_flat",
+            externalLinkName: "kk_string_toInt",
             receiverType: stringType,
             parameters: [],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -552,13 +557,12 @@ extension DataFlowSemaPhase {
         // String.toInt(radix: Int) (STDLIB-152)
         registerSyntheticStringExtensionFunction(
             named: "toInt",
-            externalLinkName: "kk_string_toInt_radix_flat",
+            externalLinkName: "kk_string_toInt_radix",
             receiverType: stringType,
             parameters: [
                 ("radix", intType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -566,11 +570,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toIntOrNull",
-            externalLinkName: "kk_string_toIntOrNull_flat",
+            externalLinkName: "kk_string_toIntOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableIntType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -578,13 +581,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toIntOrNull",
-            externalLinkName: "kk_string_toIntOrNull_radix_flat",
+            externalLinkName: "kk_string_toIntOrNull_radix",
             receiverType: stringType,
             parameters: [
                 ("radix", intType, false, false),
             ],
             returnType: nullableIntType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -604,13 +606,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toUByteOrNull",
-            externalLinkName: "kk_string_toUByteOrNull_radix_flat",
+            externalLinkName: "kk_string_toUByteOrNull_radix",
             receiverType: stringType,
             parameters: [
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.ubyteType),
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -635,7 +636,6 @@ extension DataFlowSemaPhase {
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.ushortType),
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -660,7 +660,6 @@ extension DataFlowSemaPhase {
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.uintType),
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -685,7 +684,6 @@ extension DataFlowSemaPhase {
                 ("radix", intType, false, false),
             ],
             returnType: types.makeNullable(types.ulongType),
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -693,11 +691,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toDouble",
-            externalLinkName: "kk_string_toDouble_flat",
+            externalLinkName: "kk_string_toDouble",
             receiverType: stringType,
             parameters: [],
             returnType: doubleType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -705,11 +702,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toDoubleOrNull",
-            externalLinkName: "kk_string_toDoubleOrNull_flat",
+            externalLinkName: "kk_string_toDoubleOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableDoubleType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -719,7 +715,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "subSequence",
-            externalLinkName: "kk_string_subSequence_flat",
+            externalLinkName: "kk_string_subSequence",
             receiverType: stringType,
             parameters: [("startIndex", intType, false, false), ("endIndex", intType, false, false)],
             returnType: stringType,
@@ -740,11 +736,10 @@ extension DataFlowSemaPhase {
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
         registerSyntheticStringExtensionFunction(
             named: "toLong",
-            externalLinkName: "kk_string_toLong_flat",
+            externalLinkName: "kk_string_toLong",
             receiverType: stringType,
             parameters: [],
             returnType: longType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -752,11 +747,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toLongOrNull",
-            externalLinkName: "kk_string_toLongOrNull_flat",
+            externalLinkName: "kk_string_toLongOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableLongType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -764,11 +758,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toFloat",
-            externalLinkName: "kk_string_toFloat_flat",
+            externalLinkName: "kk_string_toFloat",
             receiverType: stringType,
             parameters: [],
             returnType: floatType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -776,11 +769,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toFloatOrNull",
-            externalLinkName: "kk_string_toFloatOrNull_flat",
+            externalLinkName: "kk_string_toFloatOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableFloatType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -790,7 +782,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "substring",
-            externalLinkName: "kk_string_substring_flat",
+            externalLinkName: "kk_string_substring",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -803,7 +795,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substring",
-            externalLinkName: "kk_string_substring_flat",
+            externalLinkName: "kk_string_substring",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -817,7 +809,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "kk_string_format",
             receiverType: stringType,
             parameters: [
                 ("args", types.nullableAnyType, false, true),
@@ -856,7 +848,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "trimIndent",
-            externalLinkName: "kk_string_trimIndent_flat",
+            externalLinkName: "kk_string_trimIndent",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -867,7 +859,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "trimMargin",
-            externalLinkName: "kk_string_trimMargin_default_flat",
+            externalLinkName: "kk_string_trimMargin_default",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -878,7 +870,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "trimMargin",
-            externalLinkName: "kk_string_trimMargin_flat",
+            externalLinkName: "kk_string_trimMargin",
             receiverType: stringType,
             parameters: [
                 ("marginPrefix", stringType, false, false),
@@ -891,7 +883,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceIndentByMargin",
-            externalLinkName: "kk_string_replaceIndentByMargin_flat",
+            externalLinkName: "kk_string_replaceIndentByMargin",
             receiverType: stringType,
             parameters: [
                 ("newIndent", stringType, true, false),
@@ -905,13 +897,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOf",
-            externalLinkName: "kk_string_indexOf_flat",
+            externalLinkName: "kk_string_indexOf",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -919,13 +910,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf_flat",
+            externalLinkName: "kk_string_lastIndexOf",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -933,14 +923,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOf",
-            externalLinkName: "kk_string_indexOf_from_flat",
+            externalLinkName: "kk_string_indexOf_from",
             receiverType: stringType,
             parameters: [
                 ("string", stringType, false, false),
                 ("startIndex", intType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -950,7 +939,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOf",
-            externalLinkName: "kk_string_indexOf_ignoreCase_flat",
+            externalLinkName: "kk_string_indexOf_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("string", stringType, false, false),
@@ -958,7 +947,6 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -968,7 +956,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOf",
-            externalLinkName: "kk_string_indexOf_char_flat",
+            externalLinkName: "kk_string_indexOf_char",
             receiverType: charSequenceType,
             parameters: [
                 ("char", charType, false, false),
@@ -985,7 +973,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_chars_flat",
+            externalLinkName: "kk_string_indexOfAny_chars",
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
@@ -1002,7 +990,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "indexOfAny",
-            externalLinkName: "kk_string_indexOfAny_strings_flat",
+            externalLinkName: "kk_string_indexOfAny_strings",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1019,7 +1007,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_chars_flat",
+            externalLinkName: "kk_string_lastIndexOfAny_chars",
             receiverType: charSequenceType,
             parameters: [
                 ("chars", charArrayType, false, false),
@@ -1036,7 +1024,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOfAny",
-            externalLinkName: "kk_string_lastIndexOfAny_strings_flat",
+            externalLinkName: "kk_string_lastIndexOfAny_strings",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1053,7 +1041,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "findAnyOf",
-            externalLinkName: "kk_string_findAnyOf_flat",
+            externalLinkName: "kk_string_findAnyOf",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1070,7 +1058,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "findLastAnyOf",
-            externalLinkName: "kk_string_findLastAnyOf_flat",
+            externalLinkName: "kk_string_findLastAnyOf",
             receiverType: charSequenceType,
             parameters: [
                 ("strings", collectionStringType, false, false),
@@ -1085,7 +1073,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf_ignoreCase_flat",
+            externalLinkName: "kk_string_lastIndexOf_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("string", stringType, false, false),
@@ -1093,7 +1081,6 @@ extension DataFlowSemaPhase {
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1103,7 +1090,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastIndexOf",
-            externalLinkName: "kk_string_lastIndexOf_char_flat",
+            externalLinkName: "kk_string_lastIndexOf_char",
             receiverType: charSequenceType,
             parameters: [
                 ("char", charType, false, false),
@@ -1118,7 +1105,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toList",
-            externalLinkName: "kk_string_toList_flat",
+            externalLinkName: "kk_string_toList",
             receiverType: stringType,
             parameters: [],
             returnType: listCharType,
@@ -1127,10 +1114,10 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         // Kotlin declares toList on CharSequence; the runtime treats every
-        // CharSequence as string-backed, so the flat implementation applies.
+        // CharSequence as string-backed, so the same kk_string_toList applies.
         registerSyntheticStringExtensionFunction(
             named: "toList",
-            externalLinkName: "kk_string_toList_flat",
+            externalLinkName: "kk_string_toList",
             receiverType: charSequenceType,
             parameters: [],
             returnType: listCharType,
@@ -1189,7 +1176,7 @@ extension DataFlowSemaPhase {
         }()
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet_flat",
+            externalLinkName: "kk_string_toSortedSet",
             receiverType: stringType,
             parameters: [],
             returnType: setCharType,
@@ -1199,7 +1186,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "toSortedSet",
-            externalLinkName: "kk_string_toSortedSet_flat",
+            externalLinkName: "kk_string_toSortedSet",
             receiverType: charSequenceType,
             parameters: [],
             returnType: setCharType,
@@ -1210,7 +1197,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCharArray",
-            externalLinkName: "kk_string_toCharArray_flat",
+            externalLinkName: "kk_string_toCharArray",
             receiverType: stringType,
             parameters: [],
             returnType: charArrayType,
@@ -1232,7 +1219,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "toTypedArray",
-            externalLinkName: "kk_string_toTypedArray_flat",
+            externalLinkName: "kk_string_toTypedArray",
             receiverType: stringType,
             parameters: [],
             returnType: arrayCharType,
@@ -1246,7 +1233,7 @@ extension DataFlowSemaPhase {
         // The destination type is erased to `Any` in the ABI (type parameter C).
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection_flat",
+            externalLinkName: "kk_string_toCollection",
             receiverType: charSequenceType,
             parameters: [
                 ("destination", types.anyType, false, false),
@@ -1259,7 +1246,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toCollection",
-            externalLinkName: "kk_string_toCollection_flat",
+            externalLinkName: "kk_string_toCollection",
             receiverType: stringType,
             parameters: [
                 ("destination", types.anyType, false, false),
@@ -1279,11 +1266,10 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable_flat",
+            externalLinkName: "kk_string_asIterable",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1293,7 +1279,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "drop",
-            externalLinkName: "kk_string_drop_flat",
+            externalLinkName: "kk_string_drop",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1306,7 +1292,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "take",
-            externalLinkName: "kk_string_take_flat",
+            externalLinkName: "kk_string_take",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1319,7 +1305,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "dropLast",
-            externalLinkName: "kk_string_dropLast_flat",
+            externalLinkName: "kk_string_dropLast",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1332,7 +1318,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "takeLast",
-            externalLinkName: "kk_string_takeLast_flat",
+            externalLinkName: "kk_string_takeLast",
             receiverType: stringType,
             parameters: [
                 ("n", intType, false, false),
@@ -1345,64 +1331,9 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-185: removePrefix / removeSuffix / removeSurrounding ---
 
-        // Register exact String overloads before CharSequence fallbacks so overload
-        // resolution keeps the most precise surface type while sharing the flat ABI.
         registerSyntheticStringExtensionFunction(
             named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix_flat",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix_flat",
-            receiverType: stringType,
-            parameters: [
-                ("suffix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_flat",
-            receiverType: stringType,
-            parameters: [
-                ("delimiter", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair_flat",
-            receiverType: stringType,
-            parameters: [
-                ("prefix", stringType, false, false),
-                ("suffix", stringType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "removePrefix",
-            externalLinkName: "kk_string_removePrefix_flat",
+            externalLinkName: "kk_string_removePrefix",
             receiverType: charSequenceType,
             parameters: [
                 ("prefix", charSequenceType, false, false),
@@ -1415,7 +1346,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSuffix",
-            externalLinkName: "kk_string_removeSuffix_flat",
+            externalLinkName: "kk_string_removeSuffix",
             receiverType: charSequenceType,
             parameters: [
                 ("suffix", charSequenceType, false, false),
@@ -1428,7 +1359,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_flat",
+            externalLinkName: "kk_string_removeSurrounding",
             receiverType: charSequenceType,
             parameters: [
                 ("delimiter", charSequenceType, false, false),
@@ -1441,11 +1372,64 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeSurrounding",
-            externalLinkName: "kk_string_removeSurrounding_pair_flat",
+            externalLinkName: "kk_string_removeSurrounding_pair",
             receiverType: charSequenceType,
             parameters: [
                 ("prefix", charSequenceType, false, false),
                 ("suffix", charSequenceType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removePrefix",
+            externalLinkName: "kk_string_removePrefix",
+            receiverType: stringType,
+            parameters: [
+                ("prefix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSuffix",
+            externalLinkName: "kk_string_removeSuffix",
+            receiverType: stringType,
+            parameters: [
+                ("suffix", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding",
+            receiverType: stringType,
+            parameters: [
+                ("delimiter", stringType, false, false),
+            ],
+            returnType: stringType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "removeSurrounding",
+            externalLinkName: "kk_string_removeSurrounding_pair",
+            receiverType: stringType,
+            parameters: [
+                ("prefix", stringType, false, false),
+                ("suffix", stringType, false, false),
             ],
             returnType: stringType,
             packageFQName: kotlinTextPkg,
@@ -1465,7 +1449,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore_flat",
+            externalLinkName: "kk_string_substringBefore",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1479,7 +1463,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBefore",
-            externalLinkName: "kk_string_substringBefore_char_flat",
+            externalLinkName: "kk_string_substringBefore_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1494,7 +1478,7 @@ extension DataFlowSemaPhase {
         // STDLIB-TEXT-FN-074: String.substringAfter(delimiter, missingDelimiterValue)
         registerSyntheticStringExtensionFunction(
             named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter_flat",
+            externalLinkName: "kk_string_substringAfter",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1508,7 +1492,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfter",
-            externalLinkName: "kk_string_substringAfter_char_flat",
+            externalLinkName: "kk_string_substringAfter_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1522,7 +1506,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast_flat",
+            externalLinkName: "kk_string_substringBeforeLast",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1536,7 +1520,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringBeforeLast",
-            externalLinkName: "kk_string_substringBeforeLast_char_flat",
+            externalLinkName: "kk_string_substringBeforeLast_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1550,7 +1534,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast_flat",
+            externalLinkName: "kk_string_substringAfterLast",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1564,7 +1548,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "substringAfterLast",
-            externalLinkName: "kk_string_substringAfterLast_char_flat",
+            externalLinkName: "kk_string_substringAfterLast_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1580,7 +1564,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter_flat",
+            externalLinkName: "kk_string_replaceAfter",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1595,7 +1579,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfter",
-            externalLinkName: "kk_string_replaceAfter_char_flat",
+            externalLinkName: "kk_string_replaceAfter_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1612,7 +1596,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast_flat",
+            externalLinkName: "kk_string_replaceAfterLast",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1627,7 +1611,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceAfterLast",
-            externalLinkName: "kk_string_replaceAfterLast_char_flat",
+            externalLinkName: "kk_string_replaceAfterLast_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1644,7 +1628,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore_flat",
+            externalLinkName: "kk_string_replaceBefore",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1659,7 +1643,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBefore",
-            externalLinkName: "kk_string_replaceBefore_char_flat",
+            externalLinkName: "kk_string_replaceBefore_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1676,7 +1660,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast_flat",
+            externalLinkName: "kk_string_replaceBeforeLast",
             receiverType: stringType,
             parameters: [
                 ("delimiter", stringType, false, false),
@@ -1691,7 +1675,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceBeforeLast",
-            externalLinkName: "kk_string_replaceBeforeLast_char_flat",
+            externalLinkName: "kk_string_replaceBeforeLast_char",
             receiverType: stringType,
             parameters: [
                 ("delimiter", charType, false, false),
@@ -1716,7 +1700,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "matches",
-            externalLinkName: "kk_string_matches_regex_flat",
+            externalLinkName: "kk_string_matches_regex",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1729,7 +1713,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contains",
-            externalLinkName: "kk_string_contains_regex_flat",
+            externalLinkName: "kk_string_contains_regex",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1756,7 +1740,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "split",
-            externalLinkName: "kk_string_split_regex_flat",
+            externalLinkName: "kk_string_split_regex",
             receiverType: stringType,
             parameters: [
                 ("regex", regexType, false, false),
@@ -1769,7 +1753,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toRegex",
-            externalLinkName: "kk_string_toRegex_flat",
+            externalLinkName: "kk_string_toRegex",
             receiverType: stringType,
             parameters: [],
             returnType: regexType,
@@ -1782,14 +1766,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "get",
-            externalLinkName: "kk_string_get_flat",
+            externalLinkName: "kk_string_get",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
             ],
             returnType: charType,
             flags: [.synthetic, .operatorFunction],
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1799,13 +1782,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "compareTo",
-            externalLinkName: "kk_string_compareTo_flat",
+            externalLinkName: "kk_string_compareTo_member",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1813,14 +1795,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "compareTo",
-            externalLinkName: "kk_string_compareToIgnoreCase_flat",
+            externalLinkName: "kk_string_compareToIgnoreCase",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1830,11 +1811,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isEmpty",
-            externalLinkName: "kk_string_isEmpty_flat",
+            externalLinkName: "kk_string_isEmpty",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1842,11 +1822,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
+            externalLinkName: "kk_string_isNotEmpty",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1854,7 +1833,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotEmpty",
-            externalLinkName: "kk_string_isNotEmpty_flat",
+            externalLinkName: "kk_string_isNotEmpty",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1865,11 +1844,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isBlank",
-            externalLinkName: "kk_string_isBlank_flat",
+            externalLinkName: "kk_string_isBlank",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1877,11 +1855,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
+            externalLinkName: "kk_string_isNotBlank",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1890,7 +1867,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-029: CharSequence.isNotBlank ---
         registerSyntheticStringExtensionFunction(
             named: "isNotBlank",
-            externalLinkName: "kk_string_isNotBlank_flat",
+            externalLinkName: "kk_string_isNotBlank",
             receiverType: charSequenceType,
             parameters: [],
             returnType: boolType,
@@ -1933,11 +1910,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "first",
-            externalLinkName: "kk_string_first_flat",
+            externalLinkName: "kk_string_first",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1945,11 +1921,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "last",
-            externalLinkName: "kk_string_last_flat",
+            externalLinkName: "kk_string_last",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1957,11 +1932,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "single",
-            externalLinkName: "kk_string_single_flat",
+            externalLinkName: "kk_string_single",
             receiverType: stringType,
             parameters: [],
             returnType: charType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1969,11 +1943,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "firstOrNull",
-            externalLinkName: "kk_string_firstOrNull_flat",
+            externalLinkName: "kk_string_firstOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1981,11 +1954,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lastOrNull",
-            externalLinkName: "kk_string_lastOrNull_flat",
+            externalLinkName: "kk_string_lastOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -1993,11 +1965,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "singleOrNull",
-            externalLinkName: "kk_string_singleOrNull_flat",
+            externalLinkName: "kk_string_singleOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2007,13 +1978,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "getOrNull",
-            externalLinkName: "kk_string_getOrNull_flat",
+            externalLinkName: "kk_string_getOrNull",
             receiverType: stringType,
             parameters: [
                 ("index", intType, false, false),
             ],
             returnType: nullableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2023,7 +1993,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "prependIndent",
-            externalLinkName: "kk_string_prependIndent_default_flat",
+            externalLinkName: "kk_string_prependIndent_default",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2034,7 +2004,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "prependIndent",
-            externalLinkName: "kk_string_prependIndent_flat",
+            externalLinkName: "kk_string_prependIndent",
             receiverType: stringType,
             parameters: [
                 ("indent", stringType, false, false),
@@ -2047,7 +2017,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceIndent",
-            externalLinkName: "kk_string_replaceIndent_default_flat",
+            externalLinkName: "kk_string_replaceIndent_default",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2058,7 +2028,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceIndent",
-            externalLinkName: "kk_string_replaceIndent_flat",
+            externalLinkName: "kk_string_replaceIndent",
             receiverType: stringType,
             parameters: [
                 ("newIndent", stringType, false, false),
@@ -2071,17 +2041,16 @@ extension DataFlowSemaPhase {
 
         // --- STDLIB-192: equals(other, ignoreCase) ---
 
-        let nullableStringType = types.makeNullable(types.stringType)
+        let nullableStringType = types.make(.stringStruct(.nullable))
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
-            externalLinkName: "kk_string_equals_flat",
+            externalLinkName: "kk_string_equals",
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2089,14 +2058,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "equals",
-            externalLinkName: "kk_string_equalsIgnoreCase_flat",
+            externalLinkName: "kk_string_equalsIgnoreCase",
             receiverType: stringType,
             parameters: [
                 ("other", nullableStringType, false, false),
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2106,7 +2074,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceFirst",
-            externalLinkName: "kk_string_replaceFirst_flat",
+            externalLinkName: "kk_string_replaceFirst",
             receiverType: stringType,
             parameters: [
                 ("oldValue", stringType, false, false),
@@ -2120,7 +2088,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "replaceRange",
-            externalLinkName: "kk_string_replaceRange_flat",
+            externalLinkName: "kk_string_replaceRange",
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
@@ -2136,7 +2104,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeRange",
-            externalLinkName: "kk_string_removeRange_flat",
+            externalLinkName: "kk_string_removeRange",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
@@ -2150,7 +2118,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "removeRange",
-            externalLinkName: "kk_string_removeRange_range_flat",
+            externalLinkName: "kk_string_removeRange_range",
             receiverType: stringType,
             parameters: [
                 ("range", intType, false, false),
@@ -2165,14 +2133,6 @@ extension DataFlowSemaPhase {
         let charToBoolType = types.make(.functionType(FunctionType(
             params: [charType],
             returnType: boolType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-
-
-        let charToCharType = types.make(.functionType(FunctionType(
-            params: [charType],
-            returnType: charType,
             isSuspend: false,
             nullability: .nonNull
         )))
@@ -2238,7 +2198,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "filter",
-            externalLinkName: "kk_string_filter_flat",
+            externalLinkName: "kk_string_filter",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2250,7 +2210,7 @@ extension DataFlowSemaPhase {
         // and Any return type to allow arbitrary mapping.
         registerSyntheticStringExtensionFunction(
             named: "map",
-            externalLinkName: "kk_string_map_flat",
+            externalLinkName: "kk_string_map",
             receiverType: stringType,
             parameters: [("transform", charToAnyType, false, false)],
             returnType: types.anyType,
@@ -2260,95 +2220,47 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "count",
-            externalLinkName: "kk_string_count_flat",
+            externalLinkName: "kk_string_count",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "count",
-            externalLinkName: "kk_string_count_flat",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "any",
-            externalLinkName: "kk_string_any_flat",
+            externalLinkName: "kk_string_any",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "any",
-            externalLinkName: "kk_string_any_flat",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "all",
-            externalLinkName: "kk_string_all_flat",
+            externalLinkName: "kk_string_all",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "all",
-            externalLinkName: "kk_string_all_flat",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "none",
-            externalLinkName: "kk_string_none_flat",
+            externalLinkName: "kk_string_none",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "none",
-            externalLinkName: "kk_string_none_flat",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "mapIndexed",
-            externalLinkName: "kk_string_mapIndexed_flat",
+            externalLinkName: "kk_string_mapIndexed",
             receiverType: stringType,
             parameters: [("transform", intCharToAnyType, false, false)],
             returnType: listAnyType,
@@ -2358,7 +2270,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "mapNotNull",
-            externalLinkName: "kk_string_mapNotNull_flat",
+            externalLinkName: "kk_string_mapNotNull",
             receiverType: stringType,
             parameters: [("transform", charToNullableAnyType, false, false)],
             returnType: listAnyType,
@@ -2367,33 +2279,24 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        func registerFirstNotNullOfLike(
-            named name: String,
-            fqName: [InternedString],
-            receiverType: TypeID,
-            externalLinkName: String,
-            returnsNullable: Bool
-        ) {
-            guard !symbols.lookupAll(fqName: fqName).contains(where: { symID in
-                guard let sig = symbols.functionSignature(for: symID) else {
-                    return false
-                }
-                return sig.receiverType == receiverType && sig.parameterTypes.count == 1
-            }) else {
-                return
+        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
+        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
+        if !symbols.lookupAll(fqName: firstNotNullOfFQName).contains(where: { symID in
+            guard let sig = symbols.functionSignature(for: symID) else {
+                return false
             }
-
+            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
+        }) {
             let rName = interner.intern("R")
             let rSymbol = symbols.define(
                 kind: .typeParameter,
                 name: rName,
-                fqName: fqName + [rName],
+                fqName: firstNotNullOfFQName + [rName],
                 declSite: nil,
                 visibility: .private,
                 flags: []
             )
             let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
-            let returnType = returnsNullable ? types.makeNullable(rType) : rType
             let transformType = types.make(.functionType(FunctionType(
                 params: [charType],
                 returnType: types.makeNullable(rType),
@@ -2402,8 +2305,8 @@ extension DataFlowSemaPhase {
             )))
             let memberSymbol = symbols.define(
                 kind: .function,
-                name: interner.intern(name),
-                fqName: fqName,
+                name: interner.intern("firstNotNullOf"),
+                fqName: firstNotNullOfFQName,
                 declSite: nil,
                 visibility: .public,
                 flags: [.synthetic, .inlineFunction]
@@ -2411,13 +2314,13 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            symbols.setExternalLinkName("kk_string_firstNotNullOf", for: memberSymbol)
 
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
                 kind: .valueParameter,
                 name: transformParamName,
-                fqName: fqName + [transformParamName],
+                fqName: firstNotNullOfFQName + [transformParamName],
                 declSite: nil,
                 visibility: .private,
                 flags: [.synthetic]
@@ -2426,9 +2329,9 @@ extension DataFlowSemaPhase {
 
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: receiverType,
+                    receiverType: charSequenceType,
                     parameterTypes: [transformType],
-                    returnType: returnType,
+                    returnType: rType,
                     valueParameterSymbols: [transformParamSymbol],
                     valueParameterHasDefaultValues: [false],
                     valueParameterIsVararg: [false],
@@ -2439,42 +2342,75 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // --- STDLIB-TEXT-HOF-001: CharSequence.firstNotNullOf(transform) ---
-        let firstNotNullOfFQName = kotlinTextPkg + [interner.intern("firstNotNullOf")]
-        registerFirstNotNullOfLike(
-            named: "firstNotNullOf",
-            fqName: firstNotNullOfFQName,
-            receiverType: charSequenceType,
-            externalLinkName: "kk_string_firstNotNullOf_flat",
-            returnsNullable: false
-        )
-
         // --- STDLIB-TEXT-HOF-002: CharSequence.firstNotNullOfOrNull(transform) ---
         let firstNotNullOfOrNullFQName = kotlinTextPkg + [interner.intern("firstNotNullOfOrNull")]
-        registerFirstNotNullOfLike(
-            named: "firstNotNullOfOrNull",
-            fqName: firstNotNullOfOrNullFQName,
-            receiverType: charSequenceType,
-            externalLinkName: "kk_string_firstNotNullOfOrNull_flat",
-            returnsNullable: true
-        )
+        if !symbols.lookupAll(fqName: firstNotNullOfOrNullFQName).contains(where: { symID in
+            guard let sig = symbols.functionSignature(for: symID) else {
+                return false
+            }
+            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 1
+        }) {
+            let rName = interner.intern("R")
+            let rSymbol = symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: firstNotNullOfOrNullFQName + [rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let nullableRType = types.makeNullable(rType)
+            let transformType = types.make(.functionType(FunctionType(
+                params: [charType],
+                returnType: nullableRType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            let memberSymbol = symbols.define(
+                kind: .function,
+                name: interner.intern("firstNotNullOfOrNull"),
+                fqName: firstNotNullOfOrNullFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .inlineFunction]
+            )
+            if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
+                symbols.setParentSymbol(packageSymbol, for: memberSymbol)
+            }
+            symbols.setExternalLinkName("kk_string_firstNotNullOfOrNull", for: memberSymbol)
+
+            let transformParamName = interner.intern("transform")
+            let transformParamSymbol = symbols.define(
+                kind: .valueParameter,
+                name: transformParamName,
+                fqName: firstNotNullOfOrNullFQName + [transformParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(memberSymbol, for: transformParamSymbol)
+
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: charSequenceType,
+                    parameterTypes: [transformType],
+                    returnType: nullableRType,
+                    valueParameterSymbols: [transformParamSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false],
+                    typeParameterSymbols: [rSymbol],
+                    classTypeParameterCount: 0
+                ),
+                for: memberSymbol
+            )
+        }
 
         // --- STDLIB-TEXT-HOF-003: CharSequence.reduceRightIndexed(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexed",
-            externalLinkName: "kk_string_reduceRightIndexed_flat",
+            externalLinkName: "kk_string_reduceRightIndexed",
             receiverType: charSequenceType,
-            parameters: [("operation", intCharCharToCharType, false, false)],
-            returnType: charType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightIndexed",
-            externalLinkName: "kk_string_reduceRightIndexed_flat",
-            receiverType: stringType,
             parameters: [("operation", intCharCharToCharType, false, false)],
             returnType: charType,
             flags: [.synthetic, .inlineFunction],
@@ -2486,19 +2422,8 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-004: CharSequence.reduceRightIndexedOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightIndexedOrNull",
-            externalLinkName: "kk_string_reduceRightIndexedOrNull_flat",
+            externalLinkName: "kk_string_reduceRightIndexedOrNull",
             receiverType: charSequenceType,
-            parameters: [("operation", intCharCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightIndexedOrNull",
-            externalLinkName: "kk_string_reduceRightIndexedOrNull_flat",
-            receiverType: stringType,
             parameters: [("operation", intCharCharToCharType, false, false)],
             returnType: nullableCharType,
             flags: [.synthetic, .inlineFunction],
@@ -2510,19 +2435,8 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-005: CharSequence.reduceRightOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceRightOrNull",
-            externalLinkName: "kk_string_reduceRightOrNull_flat",
+            externalLinkName: "kk_string_reduceRightOrNull",
             receiverType: charSequenceType,
-            parameters: [("operation", charCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "reduceRightOrNull",
-            externalLinkName: "kk_string_reduceRightOrNull_flat",
-            receiverType: stringType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
             flags: [.synthetic, .inlineFunction],
@@ -2534,19 +2448,8 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-049: CharSequence.reduceOrNull(operation) ---
         registerSyntheticStringExtensionFunction(
             named: "reduceOrNull",
-            externalLinkName: "kk_string_reduceOrNull_flat",
+            externalLinkName: "kk_string_reduceOrNull",
             receiverType: charSequenceType,
-            parameters: [("operation", charCharToCharType, false, false)],
-            returnType: nullableCharType,
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "reduceOrNull",
-            externalLinkName: "kk_string_reduceOrNull_flat",
-            receiverType: stringType,
             parameters: [("operation", charCharToCharType, false, false)],
             returnType: nullableCharType,
             flags: [.synthetic, .inlineFunction],
@@ -2558,28 +2461,8 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-006: CharSequence.sumBy(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
             named: "sumBy",
-            externalLinkName: "kk_string_sumBy_flat",
+            externalLinkName: "kk_string_sumBy",
             receiverType: charSequenceType,
-            parameters: [("selector", charToIntType, false, false)],
-            returnType: intType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use sumOf instead.\"",
-                        "replaceWith = ReplaceWith(\"sumOf(selector)\")",
-                    ]
-                ),
-            ],
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "sumBy",
-            externalLinkName: "kk_string_sumBy_flat",
-            receiverType: stringType,
             parameters: [("selector", charToIntType, false, false)],
             returnType: intType,
             annotations: [
@@ -2600,28 +2483,8 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-HOF-007: CharSequence.sumByDouble(selector) deprecated surface ---
         registerSyntheticStringExtensionFunction(
             named: "sumByDouble",
-            externalLinkName: "kk_string_sumByDouble_flat",
+            externalLinkName: "kk_string_sumByDouble",
             receiverType: charSequenceType,
-            parameters: [("selector", charToDoubleType, false, false)],
-            returnType: doubleType,
-            annotations: [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Use sumOf instead.\"",
-                        "replaceWith = ReplaceWith(\"sumOf(selector)\")",
-                    ]
-                ),
-            ],
-            flags: [.synthetic, .inlineFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "sumByDouble",
-            externalLinkName: "kk_string_sumByDouble_flat",
-            receiverType: stringType,
             parameters: [("selector", charToDoubleType, false, false)],
             returnType: doubleType,
             annotations: [
@@ -2641,7 +2504,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "filterIndexed",
-            externalLinkName: "kk_string_filterIndexed_flat",
+            externalLinkName: "kk_string_filterIndexed",
             receiverType: stringType,
             parameters: [("predicate", intCharToBoolType, false, false)],
             returnType: stringType,
@@ -2651,7 +2514,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "filterNot",
-            externalLinkName: "kk_string_filterNot_flat",
+            externalLinkName: "kk_string_filterNot",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2661,7 +2524,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "takeWhile",
-            externalLinkName: "kk_string_takeWhile_flat",
+            externalLinkName: "kk_string_takeWhile",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2672,7 +2535,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-081: CharSequence.takeLastWhile(predicate: (Char) -> Boolean): String ---
         registerSyntheticStringExtensionFunction(
             named: "takeLastWhile",
-            externalLinkName: "kk_string_takeLastWhile_flat",
+            externalLinkName: "kk_string_takeLastWhile",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2682,7 +2545,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "dropWhile",
-            externalLinkName: "kk_string_dropWhile_flat",
+            externalLinkName: "kk_string_dropWhile",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2696,7 +2559,7 @@ extension DataFlowSemaPhase {
         // but is not yet wired into the compiler pipeline (RF-STDLIB-005). Keep stubs until then.
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart_flat",
+            externalLinkName: "kk_string_trimStart",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2706,7 +2569,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimStart",
-            externalLinkName: "kk_string_trimStart_predicate_flat",
+            externalLinkName: "kk_string_trimStart_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2716,7 +2579,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_flat",
+            externalLinkName: "kk_string_trimEnd",
             receiverType: stringType,
             parameters: [],
             returnType: stringType,
@@ -2726,7 +2589,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "trimEnd",
-            externalLinkName: "kk_string_trimEnd_predicate_flat",
+            externalLinkName: "kk_string_trimEnd_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2737,7 +2600,7 @@ extension DataFlowSemaPhase {
         // --- STDLIB-144: String.trim (predicate overload) ---
         registerSyntheticStringExtensionFunction(
             named: "trim",
-            externalLinkName: "kk_string_trim_predicate_flat",
+            externalLinkName: "kk_string_trim_predicate",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: stringType,
@@ -2748,27 +2611,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "find",
-            externalLinkName: "kk_string_find_flat",
-            receiverType: stringType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "find",
-            externalLinkName: "kk_string_find_flat",
-            receiverType: charSequenceType,
-            parameters: [("predicate", charToBoolType, false, false)],
-            returnType: nullableCharType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "findLast",
-            externalLinkName: "kk_string_findLast_flat",
+            externalLinkName: "kk_string_find",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
@@ -2778,8 +2621,8 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "findLast",
-            externalLinkName: "kk_string_findLast_flat",
-            receiverType: charSequenceType,
+            externalLinkName: "kk_string_findLast",
+            receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: nullableCharType,
             packageFQName: kotlinTextPkg,
@@ -2788,7 +2631,7 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "splitToSequence",
-            externalLinkName: "kk_string_splitToSequence_flat",
+            externalLinkName: "kk_string_splitToSequence",
             receiverType: stringType,
             parameters: [("delimiter", stringType, false, false)],
             returnType: sequenceStringType,
@@ -2800,22 +2643,20 @@ extension DataFlowSemaPhase {
         // --- String.indexOfFirst / indexOfLast ---
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst_flat",
+            externalLinkName: "kk_string_indexOfFirst",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast_flat",
+            externalLinkName: "kk_string_indexOfLast",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2823,38 +2664,27 @@ extension DataFlowSemaPhase {
         // CharSequence.indexOfFirst / indexOfLast — delegate to the same runtime functions.
         registerSyntheticStringExtensionFunction(
             named: "indexOfFirst",
-            externalLinkName: "kk_string_indexOfFirst_flat",
+            externalLinkName: "kk_string_indexOfFirst",
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "indexOfLast",
-            externalLinkName: "kk_string_indexOfLast_flat",
+            externalLinkName: "kk_string_indexOfLast",
             receiverType: charSequenceType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
 
-        // --- STDLIB-315: String.replaceFirstChar ---
-        registerSyntheticStringExtensionFunction(
-            named: "replaceFirstChar",
-            externalLinkName: "kk_string_replaceFirstChar_flat",
-            receiverType: stringType,
-            parameters: [("transform", charToCharType, false, false)],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // --- STDLIB-315: String.replaceFirstChar — migrated to BundledKotlinStdlib (MIGRATION-TEXT-005) ---
+
 
         // --- STDLIB-142 / STDLIB-TEXT-FN-087: String?.toBoolean / String.toBooleanStrict ---
 
@@ -2866,11 +2696,10 @@ extension DataFlowSemaPhase {
         // in this function for STDLIB-192 (equals) so we reuse it here.
         registerSyntheticStringExtensionFunction(
             named: "toBoolean",
-            externalLinkName: "kk_string_toBoolean_flat",
+            externalLinkName: "kk_string_toBoolean",
             receiverType: nullableStringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2878,11 +2707,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBooleanStrict",
-            externalLinkName: "kk_string_toBooleanStrict_flat",
+            externalLinkName: "kk_string_toBooleanStrict",
             receiverType: stringType,
             parameters: [],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2890,11 +2718,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBooleanStrictOrNull",
-            externalLinkName: "kk_string_toBooleanStrictOrNull_flat",
+            externalLinkName: "kk_string_toBooleanStrictOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableBoolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2902,11 +2729,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toShort",
-            externalLinkName: "kk_string_toShort_flat",
+            externalLinkName: "kk_string_toShort",
             receiverType: stringType,
             parameters: [],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2914,11 +2740,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toShortOrNull",
-            externalLinkName: "kk_string_toShortOrNull_flat",
+            externalLinkName: "kk_string_toShortOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableIntType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2926,11 +2751,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByte",
-            externalLinkName: "kk_string_toByte_flat",
+            externalLinkName: "kk_string_toByte",
             receiverType: stringType,
             parameters: [],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2939,13 +2763,12 @@ extension DataFlowSemaPhase {
         // String.toByte(radix: Int) (STDLIB-TEXT-FN-090)
         registerSyntheticStringExtensionFunction(
             named: "toByte",
-            externalLinkName: "kk_string_toByte_radix_flat",
+            externalLinkName: "kk_string_toByte_radix",
             receiverType: stringType,
             parameters: [
                 ("radix", intType, false, false),
             ],
             returnType: intType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2953,11 +2776,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteOrNull",
-            externalLinkName: "kk_string_toByteOrNull_flat",
+            externalLinkName: "kk_string_toByteOrNull",
             receiverType: stringType,
             parameters: [],
             returnType: nullableIntType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2967,11 +2789,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lines",
-            externalLinkName: "kk_string_lines_flat",
+            externalLinkName: "kk_string_lines",
             receiverType: stringType,
             parameters: [],
             returnType: listStringType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2981,11 +2802,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "lineSequence",
-            externalLinkName: "kk_string_lineSequence_flat",
+            externalLinkName: "kk_string_lineSequence",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceStringType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -2999,7 +2819,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: intType
         )
-        let byteArrayType = makeNominalType(
+        let byteArrayTypeForEncode = makeNominalType(
             symbols: symbols,
             types: types,
             fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
@@ -3007,10 +2827,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_flat",
+            externalLinkName: "kk_string_toByteArray",
             receiverType: stringType,
             parameters: [],
-            returnType: byteArrayType,
+            returnType: listIntType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3055,12 +2875,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_toByteArray_charset_flat",
+            externalLinkName: "kk_string_toByteArray_charset",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
             ],
-            returnType: byteArrayType,
+            returnType: listIntType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3069,13 +2889,13 @@ extension DataFlowSemaPhase {
         // STDLIB-145: String.toByteArray(startIndex, endIndex) — shares range function with encodeToByteArray
         registerSyntheticStringExtensionFunction(
             named: "toByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_range_flat",
+            externalLinkName: "kk_string_encodeToByteArray_range",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
                 ("endIndex", intType, false, false),
             ],
-            returnType: byteArrayType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3084,21 +2904,10 @@ extension DataFlowSemaPhase {
         // MIGRATION-TEXT-007: Private primitives — called from BundledKotlinStdlib encodeToByteArray wrappers
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_flat",
+            externalLinkName: "kk_string_encodeToByteArray",
             receiverType: stringType,
             parameters: [],
-            returnType: byteArrayType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticStringExtensionFunction(
-            named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_flat",
-            receiverType: stringType,
-            parameters: [],
-            returnType: byteArrayType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3106,13 +2915,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_range",
-            externalLinkName: "kk_string_encodeToByteArray_range_flat",
+            externalLinkName: "kk_string_encodeToByteArray_range",
             receiverType: stringType,
             parameters: [
                 ("startIndex", intType, false, false),
                 ("endIndex", intType, false, false),
             ],
-            returnType: byteArrayType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3120,43 +2929,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "__kk_encodeToByteArray_charset",
-            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
+            externalLinkName: "kk_string_encodeToByteArray_charset",
             receiverType: stringType,
             parameters: [
                 ("charset", charsetType, false, false),
             ],
-            returnType: byteArrayType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // STDLIB-573: String.encodeToByteArray(startIndex, endIndex)
-        for functionName in ["encodeToByteArray", "toByteArray"] {
-            registerSyntheticStringExtensionFunction(
-                named: functionName,
-                externalLinkName: "kk_string_encodeToByteArray_range_flat",
-                receiverType: stringType,
-                parameters: [
-                    ("startIndex", intType, false, false),
-                    ("endIndex", intType, false, false),
-                ],
-                returnType: byteArrayType,
-                packageFQName: kotlinTextPkg,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // STDLIB-573: String.encodeToByteArray(charset) — charset-aware overload
-        registerSyntheticStringExtensionFunction(
-            named: "encodeToByteArray",
-            externalLinkName: "kk_string_encodeToByteArray_charset_flat",
-            receiverType: stringType,
-            parameters: [
-                ("charset", charsetType, false, false),
-            ],
-            returnType: byteArrayType,
+            returnType: byteArrayTypeForEncode,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3192,10 +2970,11 @@ extension DataFlowSemaPhase {
             classSymbol: bigIntegerSymbol, args: [], nullability: .nonNull
         )))
         symbols.setPropertyType(bigIntegerType, for: bigIntegerSymbol)
+        let nullableBigIntegerType = types.makeNullable(bigIntegerType)
 
         registerSyntheticStringExtensionFunction(
             named: "toBigDecimal",
-            externalLinkName: "kk_string_toBigDecimal_flat",
+            externalLinkName: "kk_string_toBigDecimal",
             receiverType: stringType,
             parameters: [],
             returnType: bigDecimalType,
@@ -3206,10 +2985,21 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "toBigInteger",
-            externalLinkName: "kk_string_toBigInteger_flat",
+            externalLinkName: "kk_string_toBigInteger",
             receiverType: stringType,
             parameters: [],
             returnType: bigIntegerType,
+            packageFQName: kotlinTextPkg,
+            symbols: symbols,
+            interner: interner
+        )
+
+        registerSyntheticStringExtensionFunction(
+            named: "toBigIntegerOrNull",
+            externalLinkName: "kk_string_toBigIntegerOrNull",
+            receiverType: stringType,
+            parameters: [],
+            returnType: nullableBigIntegerType,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3236,7 +3026,11 @@ extension DataFlowSemaPhase {
         )
 
         // STDLIB-574: ByteArray / List<Int> internal representation
-        // Note: byteArrayType already declared above in STDLIB-145 block
+        let byteArrayType = makeNominalType(
+            symbols: symbols,
+            types: types,
+            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
+        )
 
         // Register decodeToString on List<Int> only — ByteArray variant is now in BundledKotlinStdlib (MIGRATION-TEXT-007)
         registerSyntheticStringExtensionFunction(
@@ -3409,7 +3203,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_flat",
+            externalLinkName: "kk_string_format",
             returnType: stringType,
             parameters: [
                 (name: "format", type: stringType),
@@ -3422,7 +3216,7 @@ extension DataFlowSemaPhase {
         )
         registerStringCompanionMethod(
             named: "format",
-            externalLinkName: "kk_string_format_locale_flat",
+            externalLinkName: "kk_string_format_locale",
             returnType: stringType,
             parameters: [
                 (name: "locale", type: types.makeNullable(localeType)),
@@ -3439,7 +3233,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "chunked",
-            externalLinkName: "kk_string_chunked_flat",
+            externalLinkName: "kk_string_chunked",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3453,9 +3247,7 @@ extension DataFlowSemaPhase {
         for receiverType in [charSequenceType, stringType] {
             registerSyntheticStringExtensionFunction(
                 named: "chunkedSequence",
-                externalLinkName: receiverType == stringType
-                    ? "kk_string_chunked_sequence_flat"
-                    : "kk_string_chunked_sequence_flat",
+                externalLinkName: "kk_string_chunked_sequence",
                 receiverType: receiverType,
                 parameters: [
                     ("size", intType, false, false),
@@ -3521,12 +3313,7 @@ extension DataFlowSemaPhase {
                 if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                     symbols.setParentSymbol(packageSymbol, for: functionSymbol)
                 }
-                symbols.setExternalLinkName(
-                    receiverType == stringType
-                        ? "kk_string_chunked_sequence_transform_flat"
-                        : "kk_string_chunked_sequence_transform_flat",
-                    for: functionSymbol
-                )
+                symbols.setExternalLinkName("kk_string_chunked_sequence_transform", for: functionSymbol)
                 let sizeParameter = symbols.define(
                     kind: .valueParameter,
                     name: interner.intern("size"),
@@ -3563,7 +3350,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed_default_flat",
+            externalLinkName: "kk_string_windowed_default",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3576,7 +3363,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed_flat",
+            externalLinkName: "kk_string_windowed",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3590,7 +3377,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowed",
-            externalLinkName: "kk_string_windowed_partial_flat",
+            externalLinkName: "kk_string_windowed_partial",
             receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
@@ -3607,22 +3394,8 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "windowedSequence",
-            externalLinkName: "kk_string_windowedSequence_partial_flat",
+            externalLinkName: "kk_string_windowedSequence_partial",
             receiverType: charSequenceType,
-            parameters: [
-                ("size", intType, false, false),
-                ("step", intType, false, false),
-                ("partialWindows", boolType, false, false),
-            ],
-            returnType: sequenceStringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "windowedSequence",
-            externalLinkName: "kk_string_windowedSequence_partial_flat",
-            receiverType: stringType,
             parameters: [
                 ("size", intType, false, false),
                 ("step", intType, false, false),
@@ -3667,16 +3440,13 @@ extension DataFlowSemaPhase {
             interner: interner,
             elementType: windowedSequenceRType
         )
-        func registerWindowedSequenceTransform(receiverType: TypeID, externalLinkName: String) {
-            let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
-                guard let sig = symbols.functionSignature(for: symID) else {
-                    return false
-                }
-                return sig.receiverType == receiverType && sig.parameterTypes.count == 4
+        let hasWindowedSequenceTransform = symbols.lookupAll(fqName: windowedSequenceTransformFQName).contains { symID in
+            guard let sig = symbols.functionSignature(for: symID) else {
+                return false
             }
-            if hasWindowedSequenceTransform {
-                return
-            }
+            return sig.receiverType == charSequenceType && sig.parameterTypes.count == 4
+        }
+        if !hasWindowedSequenceTransform {
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: interner.intern("windowedSequence"),
@@ -3688,7 +3458,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+            symbols.setExternalLinkName("kk_string_windowedSequence_transform", for: memberSymbol)
 
             let sizeParamName = interner.intern("size")
             let sizeParamSymbol = symbols.define(
@@ -3736,7 +3506,7 @@ extension DataFlowSemaPhase {
 
             symbols.setFunctionSignature(
                 FunctionSignature(
-                    receiverType: receiverType,
+                    receiverType: charSequenceType,
                     parameterTypes: [intType, intType, boolType, windowedSequenceTransformType],
                     returnType: windowedSequenceTransformReturnType,
                     valueParameterSymbols: [
@@ -3753,20 +3523,12 @@ extension DataFlowSemaPhase {
                 for: memberSymbol
             )
         }
-        registerWindowedSequenceTransform(
-            receiverType: charSequenceType,
-            externalLinkName: "kk_string_windowedSequence_transform_flat"
-        )
-        registerWindowedSequenceTransform(
-            receiverType: stringType,
-            externalLinkName: "kk_string_windowedSequence_transform_flat"
-        )
 
         // --- STDLIB-318: String.commonPrefixWith / commonSuffixWith ---
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_flat",
+            externalLinkName: "kk_string_commonPrefixWith",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3779,7 +3541,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_flat",
+            externalLinkName: "kk_string_commonSuffixWith",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3794,7 +3556,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonPrefixWith",
-            externalLinkName: "kk_string_commonPrefixWith_ignoreCase_flat",
+            externalLinkName: "kk_string_commonPrefixWith_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3808,7 +3570,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "commonSuffixWith",
-            externalLinkName: "kk_string_commonSuffixWith_ignoreCase_flat",
+            externalLinkName: "kk_string_commonSuffixWith_ignoreCase",
             receiverType: stringType,
             parameters: [
                 ("other", stringType, false, false),
@@ -3845,7 +3607,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext_flat",
+            externalLinkName: "kk_string_zipWithNext",
             receiverType: stringType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3856,7 +3618,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zipWithNext",
-            externalLinkName: "kk_string_zipWithNext_flat",
+            externalLinkName: "kk_string_zipWithNext",
             receiverType: charSequenceType,
             parameters: [],
             returnType: listPairCharCharType,
@@ -3875,12 +3637,7 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 1
             }
             if let existingZipWithNextTransform {
-                symbols.setExternalLinkName(
-                    receiverType == stringType
-                        ? "kk_string_zipWithNextTransform_flat"
-                        : "kk_string_zipWithNextTransform_flat",
-                    for: existingZipWithNextTransform
-                )
+                symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: existingZipWithNextTransform)
                 return
             }
 
@@ -3917,12 +3674,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: transformMemberSymbol)
             }
-            symbols.setExternalLinkName(
-                receiverType == stringType
-                    ? "kk_string_zipWithNextTransform_flat"
-                    : "kk_string_zipWithNextTransform_flat",
-                for: transformMemberSymbol
-            )
+            symbols.setExternalLinkName("kk_string_zipWithNextTransform", for: transformMemberSymbol)
             let transformParamName = interner.intern("transform")
             let transformParamSymbol = symbols.define(
                 kind: .valueParameter,
@@ -3963,7 +3715,7 @@ extension DataFlowSemaPhase {
         }
         registerSyntheticStringExtensionFunction(
             named: "partition",
-            externalLinkName: "kk_string_partition_flat",
+            externalLinkName: "kk_string_partition",
             receiverType: stringType,
             parameters: [("predicate", charToBoolType, false, false)],
             returnType: pairStringStringType,
@@ -3983,11 +3735,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asSequence",
-            externalLinkName: "kk_string_asSequence_flat",
+            externalLinkName: "kk_string_asSequence",
             receiverType: stringType,
             parameters: [],
             returnType: sequenceCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -3995,11 +3746,10 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "asIterable",
-            externalLinkName: "kk_string_asIterable_flat",
+            externalLinkName: "kk_string_asIterable",
             receiverType: stringType,
             parameters: [],
             returnType: iterableCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4030,22 +3780,20 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex_flat",
+            externalLinkName: "kk_string_withIndex",
             receiverType: stringType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
         )
         registerSyntheticStringExtensionFunction(
             named: "withIndex",
-            externalLinkName: "kk_string_withIndex_flat",
+            externalLinkName: "kk_string_withIndex",
             receiverType: charSequenceType,
             parameters: [],
             returnType: iterableIndexedValueCharType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4055,7 +3803,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "orEmpty",
-            externalLinkName: "kk_string_orEmpty_flat",
+            externalLinkName: "kk_string_orEmpty",
             receiverType: nullableStringType,
             parameters: [],
             returnType: stringType,
@@ -4068,13 +3816,12 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_flat",
+            externalLinkName: "kk_string_contentEquals",
             receiverType: nullableStringType,
             parameters: [
                 ("other", nullableStringType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4082,14 +3829,13 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "contentEquals",
-            externalLinkName: "kk_string_contentEquals_ignoreCase_flat",
+            externalLinkName: "kk_string_contentEquals_ignoreCase",
             receiverType: nullableStringType,
             parameters: [
                 ("other", nullableStringType, false, false),
                 ("ignoreCase", boolType, false, false),
             ],
             returnType: boolType,
-            skipWhenImportedLibraryFunctionExists: true,
             packageFQName: kotlinTextPkg,
             symbols: symbols,
             interner: interner
@@ -4098,12 +3844,12 @@ extension DataFlowSemaPhase {
         // --- STDLIB-TEXT-FN-011: String.concat(str) ---
         // Kotlin exposes `String.concat(str: String): String` as a member function
         // on java.lang.String that appends the given string.  The backing runtime
-        // helper `kk_string_concat_flat` (receiver + argument as flattened String
-        // aggregates) is already used for the `+` operator; we simply surface it here as the named
+        // helper `kk_string_concat` (receiver + argument as opaque pointers) is
+        // already used for the `+` operator; we simply surface it here as the named
         // member so that call-sites that use `.concat(…)` resolve correctly.
         registerSyntheticStringExtensionFunction(
             named: "concat",
-            externalLinkName: "kk_string_concat_flat",
+            externalLinkName: "kk_string_concat",
             receiverType: stringType,
             parameters: [
                 ("str", stringType, false, false),
@@ -4121,7 +3867,7 @@ extension DataFlowSemaPhase {
         // zip(other: CharSequence): List<Pair<Char, Char>>
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip_flat",
+            externalLinkName: "kk_string_zip",
             receiverType: stringType,
             parameters: [
                 ("other", charSequenceType, false, false),
@@ -4134,7 +3880,7 @@ extension DataFlowSemaPhase {
 
         registerSyntheticStringExtensionFunction(
             named: "zip",
-            externalLinkName: "kk_string_zip_flat",
+            externalLinkName: "kk_string_zip",
             receiverType: charSequenceType,
             parameters: [
                 ("other", charSequenceType, false, false),
@@ -4152,12 +3898,7 @@ extension DataFlowSemaPhase {
                 return sig.receiverType == receiverType && sig.parameterTypes.count == 2
             }
             if let existingZipTransform {
-                symbols.setExternalLinkName(
-                    receiverType == stringType
-                        ? "kk_string_zipTransform_flat"
-                        : "kk_string_zipTransform_flat",
-                    for: existingZipTransform
-                )
+                symbols.setExternalLinkName("kk_string_zipTransform", for: existingZipTransform)
                 return
             }
 
@@ -4194,12 +3935,7 @@ extension DataFlowSemaPhase {
             if let packageSymbol = symbols.lookup(fqName: kotlinTextPkg) {
                 symbols.setParentSymbol(packageSymbol, for: memberSymbol)
             }
-            symbols.setExternalLinkName(
-                receiverType == stringType
-                    ? "kk_string_zipTransform_flat"
-                    : "kk_string_zipTransform_flat",
-                for: memberSymbol
-            )
+            symbols.setExternalLinkName("kk_string_zipTransform", for: memberSymbol)
             let otherParamName = interner.intern("other")
             let otherParamSymbol = symbols.define(
                 kind: .valueParameter,
@@ -4270,213 +4006,6 @@ extension DataFlowSemaPhase {
         )))
     }
 
-    private func makeSequenceType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let sequenceSymbol = ensureSequenceSymbol(
-            symbols: symbols, types: types, interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func ensureSequenceSymbol(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID {
-        let sequenceName = interner.intern("Sequence")
-        let sequenceFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("sequences"),
-            sequenceName,
-        ]
-        if let existing = symbols.lookup(fqName: sequenceFQName) {
-            return existing
-        }
-        // Ensure the kotlin.sequences package exists
-        let sequencesPkg: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("sequences"),
-        ]
-        if symbols.lookup(fqName: sequencesPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("sequences"),
-                fqName: sequencesPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let sym = symbols.define(
-            kind: .interface,
-            name: sequenceName,
-            fqName: sequenceFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        // Register type parameter T for Sequence<T>
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = sequenceFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
-        types.setNominalTypeParameterVariances([.out], for: sym)
-        return sym
-    }
-
-    private func makeIterableType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let iterableSymbol = ensureIterableSymbol(
-            symbols: symbols, types: types, interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func makeCollectionType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        elementType: TypeID
-    ) -> TypeID {
-        let collectionSymbol = ensureCollectionSymbol(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: collectionSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func ensureCollectionSymbol(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID {
-        let collectionName = interner.intern("Collection")
-        let collectionFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            collectionName,
-        ]
-        if let existing = symbols.lookup(fqName: collectionFQName) {
-            return existing
-        }
-        let collectionsPkg: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-        ]
-        if symbols.lookup(fqName: collectionsPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("collections"),
-                fqName: collectionsPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let sym = symbols.define(
-            kind: .interface,
-            name: collectionName,
-            fqName: collectionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = collectionFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
-        types.setNominalTypeParameterVariances([.out], for: sym)
-        return sym
-    }
-
-    private func ensureIterableSymbol(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID {
-        let iterableName = interner.intern("Iterable")
-        let iterableFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            iterableName,
-        ]
-        if let existing = symbols.lookup(fqName: iterableFQName) {
-            return existing
-        }
-        // Ensure the kotlin.collections package exists
-        let collectionsPkg: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-        ]
-        if symbols.lookup(fqName: collectionsPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("collections"),
-                fqName: collectionsPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let sym = symbols.define(
-            kind: .interface,
-            name: iterableName,
-            fqName: iterableFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        // Register type parameter T for Iterable<T>
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = iterableFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sym)
-        types.setNominalTypeParameterVariances([.out], for: sym)
-        return sym
-    }
-
     private func makeListOfStringType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -4485,344 +4014,6 @@ extension DataFlowSemaPhase {
         makeListType(symbols: symbols, types: types, interner: interner, elementType: types.stringType)
     }
 
-    private func makeNominalType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        fqName: [InternedString]
-    ) -> TypeID {
-        if let symbol = symbols.lookup(fqName: fqName) {
-            return types.make(.classType(ClassType(
-                classSymbol: symbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        }
-
-        guard let name = fqName.last else {
-            return types.anyType
-        }
-
-        var packagePath: [InternedString] = []
-        for packageName in fqName.dropLast() {
-            packagePath.append(packageName)
-            if symbols.lookup(fqName: packagePath) == nil {
-                _ = symbols.define(
-                    kind: .package,
-                    name: packageName,
-                    fqName: packagePath,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-        }
-
-        let symbol = symbols.define(
-            kind: .class,
-            name: name,
-            fqName: fqName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        return types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func ensureListSymbol(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) -> SymbolID {
-        let collectionsPkg: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-        ]
-        if symbols.lookup(fqName: collectionsPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("collections"),
-                fqName: collectionsPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let listName = interner.intern("List")
-        let listFQName = collectionsPkg + [listName]
-        if let existing = symbols.lookup(fqName: listFQName) {
-            return existing
-        }
-        let interfaceSymbol = symbols.define(
-            kind: .interface,
-            name: listName,
-            fqName: listFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        let typeParamName = interner.intern("E")
-        let typeParamFQName = listFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: interfaceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: interfaceSymbol)
-        return interfaceSymbol
-    }
-
-    func registerSyntheticStringExtensionFunction(
-        named name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
-        returnType: TypeID,
-        annotations: [MetadataAnnotationRecord] = [],
-        flags: SymbolFlags = [.synthetic],
-        skipWhenImportedLibraryFunctionExists: Bool = false,
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        if skipWhenImportedLibraryFunctionExists,
-           hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols)
-        {
-            return
-        }
-        if let existing = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == receiverType
-                && existingSignature.parameterTypes == parameters.map(\.type)
-        }) {
-            let existingFlags = symbols.symbol(existing)?.flags ?? []
-            if existingFlags.contains(.synthetic) && !existingFlags.contains(.importedLibrary) {
-                symbols.setExternalLinkName(externalLinkName, for: existing)
-            }
-            if !annotations.isEmpty {
-                symbols.setAnnotations(annotations, for: existing)
-            }
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: flags
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        if !annotations.isEmpty {
-            symbols.setAnnotations(annotations, for: functionSymbol)
-        }
-
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        var parameterVarargs: [Bool] = []
-        parameterTypes.reserveCapacity(parameters.count)
-        parameterSymbols.reserveCapacity(parameters.count)
-        parameterDefaults.reserveCapacity(parameters.count)
-        parameterVarargs.reserveCapacity(parameters.count)
-
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-            parameterVarargs.append(parameter.isVararg)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: parameterVarargs,
-                typeParameterSymbols: []
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerAppendableMemberFunction(
-        named name: String,
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
-        returnType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let functionName = interner.intern(name)
-        let functionFQName = ownerInfo.fqName + [functionName]
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.receiverType == ownerType
-                && existingSignature.parameterTypes == parameters.map(\.type)
-        }) {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-
-        var parameterTypes: [TypeID] = []
-        var parameterSymbols: [SymbolID] = []
-        var parameterDefaults: [Bool] = []
-        var parameterVarargs: [Bool] = []
-
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            parameterTypes.append(parameter.type)
-            parameterSymbols.append(parameterSymbol)
-            parameterDefaults.append(parameter.hasDefault)
-            parameterVarargs.append(parameter.isVararg)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: parameterDefaults,
-                valueParameterIsVararg: parameterVarargs,
-                typeParameterSymbols: []
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private var typographyCharConstants: [(name: String, scalar: UInt32)] {
-        [
-            ("almostEqual", 0x2248),
-            ("amp", 0x0026),
-            ("bullet", 0x2022),
-            ("cent", 0x00A2),
-            ("copyright", 0x00A9),
-            ("dagger", 0x2020),
-            ("degree", 0x00B0),
-            ("dollar", 0x0024),
-            ("doubleDagger", 0x2021),
-            ("doublePrime", 0x2033),
-            ("ellipsis", 0x2026),
-            ("euro", 0x20AC),
-            ("greater", 0x003E),
-            ("greaterOrEqual", 0x2265),
-            ("half", 0x00BD),
-            ("leftDoubleQuote", 0x201C),
-            ("leftGuillemet", 0x00AB),
-            ("leftGuillemete", 0x00AB),
-            ("leftSingleQuote", 0x2018),
-            ("less", 0x003C),
-            ("lessOrEqual", 0x2264),
-            ("lowDoubleQuote", 0x201E),
-            ("lowSingleQuote", 0x201A),
-            ("mdash", 0x2014),
-            ("middleDot", 0x00B7),
-            ("nbsp", 0x00A0),
-            ("ndash", 0x2013),
-            ("notEqual", 0x2260),
-            ("paragraph", 0x00B6),
-            ("plusMinus", 0x00B1),
-            ("pound", 0x00A3),
-            ("prime", 0x2032),
-            ("quote", 0x0022),
-            ("registered", 0x00AE),
-            ("rightDoubleQuote", 0x201D),
-            ("rightGuillemet", 0x00BB),
-            ("rightGuillemete", 0x00BB),
-            ("rightSingleQuote", 0x2019),
-            ("section", 0x00A7),
-            ("times", 0x00D7),
-            ("tm", 0x2122),
-        ]
-    }
-
-    private func registerTypographyCharConstant(
-        ownerSymbol: SymbolID,
-        name: String,
-        scalar: UInt32,
-        charType: TypeID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: {
-            symbols.symbol($0)?.kind == .property
-        }) {
-            symbols.setPropertyType(charType, for: existing)
-            symbols.setConstValueExprKind(.charLiteral(scalar), for: existing)
-            symbols.insertFlags([.synthetic, .constValue], for: existing)
-            return
-        }
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .constValue]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(charType, for: propertySymbol)
-        symbols.setConstValueExprKind(.charLiteral(scalar), for: propertySymbol)
-    }
 
     private func registerSyntheticObjectProperty(
         ownerSymbol: SymbolID,
@@ -4852,242 +4043,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(propertyType, for: propertySymbol)
     }
 
-    private func registerSyntheticStringTopLevelProperty(
-        named name: String,
-        packageFQName: [InternedString],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let propertyName = interner.intern(name)
-        let propertyFQName = packageFQName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setExternalLinkName(externalLinkName, for: existing)
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: propertySymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
-    }
-
-    private func registerSyntheticBigNumberMemberFunction(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        name: String,
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let memberName = interner.intern(name)
-        let memberFQName = ownerInfo.fqName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).isEmpty else {
-            return
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [],
-                returnType: returnType,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: []
-            ),
-            for: functionSymbol
-        )
-    }
-
-    private func registerStringConstructorFromBytes(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerInfo.fqName + [initName]
-        let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == parameters.map(\.type)
-        }
-        guard !hasMatchingConstructor else {
-            return
-        }
-
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: ctorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: ctorSymbol
-        )
-    }
-
-    // MARK: - String Companion Helpers
-
-    private func ensureStringCompanionSymbol(
-        ownerSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        if let existingCompanion = symbols.companionObjectSymbol(for: ownerSymbol),
-           let companionInfo = symbols.symbol(existingCompanion)
-        {
-            return companionInfo.fqName
-        }
-
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return []
-        }
-        let companionName = interner.intern("Companion")
-        let companionFQName = ownerInfo.fqName + [companionName]
-        let companionSymbol = symbols.define(
-            kind: .object,
-            name: companionName,
-            fqName: companionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .static]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
-        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-        return companionFQName
-    }
-
-    private func registerStringCompanionMethod(
-        named name: String,
-        externalLinkName: String,
-        returnType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        isVararg: [Bool],
-        companionFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let memberName = interner.intern(name)
-        let memberFQName = companionFQName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            guard let existingSignature = symbols.functionSignature(for: symbolID) else {
-                return false
-            }
-            return existingSignature.parameterTypes == parameters.map(\.type) &&
-                existingSignature.returnType == returnType
-        }) == nil else {
-            return
-        }
-
-        guard let companionSymbol = symbols.lookup(fqName: companionFQName) else {
-            return
-        }
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(companionSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-
-        let hasDefaults = Array(repeating: false, count: parameters.count)
-        let varargFlags = isVararg.count == parameters.count
-            ? isVararg
-            : Array(repeating: false, count: parameters.count)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: hasDefaults,
-                valueParameterIsVararg: varargFlags
-            ),
-            for: memberSymbol
-        )
-    }
 
     private func registerSyntheticLocaleConstructor(
         ownerSymbol: SymbolID,

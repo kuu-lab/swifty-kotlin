@@ -913,6 +913,76 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
+    // MARK: - codePointCount
+
+    func testKotlinTextCodePointCountEdgeCases() throws {
+        let source = """
+        fun main() {
+            val text = "a😀b"
+
+            println("abc".codePointCount())
+            println("😀".codePointCount())
+            println(text.codePointCount())
+            println(text.codePointCount(1))
+            println(text.codePointCount(1, 3))
+            println(text.codePointCount(0, 2))
+            println(text.codePointCount(endIndex = 3))
+
+            val asSequence: CharSequence = text
+            println(asSequence.codePointCount(1, 3))
+
+            try {
+                println(text.codePointCount(-1, 1))
+            } catch (e: Throwable) {
+                println("oob-codepoint-start")
+            }
+
+            try {
+                println(text.codePointCount(0, 99))
+            } catch (e: Throwable) {
+                println("oob-codepoint-end")
+            }
+
+            try {
+                println(text.codePointCount(3, 1))
+            } catch (e: Throwable) {
+                println("oob-codepoint-order")
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextCodePointCountEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                3
+                1
+                3
+                2
+                1
+                2
+                2
+                1
+                oob-codepoint-start
+                oob-codepoint-end
+                oob-codepoint-order
+                """
+                + "\n"
+            )
+        }
+    }
+
     // MARK: - trim / trimStart / trimEnd
 
     func testKotlinTextTrimEdgeCases() throws {
@@ -2546,6 +2616,54 @@ extension CodegenBackendIntegrationTests {
                 hH
                 eI
                 b2
+                """
+                + "\n"
+            )
+        }
+    }
+
+    // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
+    func testKotlinTextToCollectionEdgeCases() throws {
+        let source = """
+        fun main() {
+            val list = mutableListOf<Char>('x')
+            val returnedList: MutableList<Char> = "ab".toCollection(list)
+            println(returnedList)
+            println(list)
+            println(returnedList.size)
+
+            val cs: CharSequence = "cda"
+            val set = mutableSetOf<Char>('c')
+            val returnedSet: MutableSet<Char> = cs.toCollection(set)
+            println(returnedSet)
+            println(returnedSet.size)
+
+            val empty = mutableListOf<Char>('q')
+            println("".toCollection(empty))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+            let ctx = try runCodegenPipeline(
+                inputPath: path,
+                moduleName: "KotlinTextToCollectionEdgeCases",
+                emit: .executable,
+                outputPath: outputBase
+            )
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let out = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
+            XCTAssertEqual(
+                out,
+                """
+                [x, a, b]
+                [x, a, b]
+                3
+                [c, d, a]
+                3
+                [q]
                 """
                 + "\n"
             )

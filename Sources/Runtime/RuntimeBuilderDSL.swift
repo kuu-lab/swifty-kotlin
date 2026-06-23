@@ -224,6 +224,11 @@ private final class RuntimeBuilderState: @unchecked Sendable {
 
 private let runtimeBuilderState = RuntimeBuilderState()
 
+public func kk_string_builder_append(_ valueRaw: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
+    return 0
+}
+
 @_cdecl("kk_string_builder_append_flat")
 public func kk_string_builder_append_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -231,13 +236,18 @@ public func kk_string_builder_append_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    runtimeBuildStringAppend(
+    runtimeBuilderState.appendString(
         runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     )
+    return 0
 }
 
-private func runtimeBuildStringAppend(_ string: String) -> Int {
-    runtimeBuilderState.appendString(string)
+// NOTE: The PR description originally referenced "kk_string_builder_appendLine" (camelCase),
+// but the actual exported symbol uses snake_case ("kk_string_builder_append_line") to match
+// the project's prevailing C ABI naming convention (e.g. kk_string_builder_append).
+public func kk_string_builder_append_line(_ valueRaw: Int) -> Int {
+    runtimeBuilderState.appendString(runtimeElementToString(valueRaw))
+    runtimeBuilderState.appendString("\n")
     return 0
 }
 
@@ -248,13 +258,9 @@ public func kk_string_builder_append_line_flat(
     _ byteCount: Int,
     _ hash: Int
 ) -> Int {
-    runtimeBuildStringAppendLine(
+    runtimeBuilderState.appendString(
         runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     )
-}
-
-private func runtimeBuildStringAppendLine(_ string: String) -> Int {
-    runtimeBuilderState.appendString(string)
     runtimeBuilderState.appendString("\n")
     return 0
 }
@@ -316,14 +322,17 @@ public func kk_string_builder_length() -> Int {
     return runtimeBuilderState.stringLength()
 }
 
-@_cdecl("kk_build_string")
-public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+private func runtimeExecuteStringBuilderAction(
+    _ fnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?,
+    functionName: String
+) -> RuntimeStringBuilderFrame {
     outThrown?.pointee = 0
     guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_string called with null function pointer")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) called with null function pointer")
     }
     guard runtimeBuilderState.pushStringFrame() else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_build_string nesting depth exceeded (max 16)")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(functionName) nesting depth exceeded (max 16)")
     }
 
     let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (UnsafeMutablePointer<Int>?) -> Int).self)
@@ -334,7 +343,12 @@ public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>
         outThrown?.pointee = thrown
     }
 
-    let frame = runtimeBuilderState.popStringFrame() ?? RuntimeStringBuilderFrame()
+    return runtimeBuilderState.popStringFrame() ?? RuntimeStringBuilderFrame()
+}
+
+@_cdecl("kk_build_string")
+public func kk_build_string(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string")
     return runtimeMakeStringRaw(frame.value)
 }
 
@@ -350,6 +364,25 @@ public func kk_build_string_with_capacity(
         return 0
     }
     return kk_build_string(fnPtr, outThrown)
+}
+
+@_cdecl("kk_build_string_builder")
+public func kk_build_string_builder(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let frame = runtimeExecuteStringBuilderAction(fnPtr, outThrown, functionName: "kk_build_string_builder")
+    return registerRuntimeObject(RuntimeStringBuilderBox(frame.value))
+}
+
+@_cdecl("kk_build_string_builder_with_capacity")
+public func kk_build_string_builder_with_capacity(
+    _ capacity: Int,
+    _ fnPtr: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    if capacity < 0 {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "IllegalArgumentException: capacity must be non-negative.")
+        return 0
+    }
+    return kk_build_string_builder(fnPtr, outThrown)
 }
 
 @_cdecl("kk_builder_list_add")
@@ -474,10 +507,3 @@ public func kk_build_map(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) 
     return registerRuntimeObject(RuntimeMapBox(keys: frame.keys, values: frame.values))
 }
 
-private func runtimeMakeStringRaw(_ value: String) -> Int {
-    Int(bitPattern: value.withCString { cString in
-        cString.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
-            kk_string_from_utf8(pointer, Int32(value.utf8.count))
-        }
-    })
-}

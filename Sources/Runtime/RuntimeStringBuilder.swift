@@ -57,6 +57,10 @@ public func kk_string_builder_new_from_string_flat(
     )
 }
 
+public func kk_string_builder_new_from_string(_ valueRaw: Int) -> Int {
+    runtimeStringBuilderNew(initial: runtimeElementToString(valueRaw))
+}
+
 private func runtimeStringBuilderNew(initial: String) -> Int {
     registerRuntimeObject(RuntimeStringBuilderBox(initial))
 }
@@ -149,9 +153,23 @@ public func kk_string_builder_append_line_noarg_obj(_ sbRaw: Int) -> Int {
     return sbRaw
 }
 
-@_cdecl("kk_string_builder_insert_obj")
 public func kk_string_builder_insert_obj(_ sbRaw: Int, _ index: Int, _ valueRaw: Int) -> Int {
     runtimeStringBuilderInsert(sbRaw, index: index, value: runtimeElementToString(valueRaw), outThrown: nil)
+}
+
+@_cdecl("kk_string_builder_insert_obj")
+public func kk_string_builder_insert_obj(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringBuilderInsert(
+        sbRaw,
+        index: index,
+        value: runtimeElementToString(valueRaw),
+        outThrown: outThrown
+    )
 }
 
 @_cdecl("kk_string_builder_insert_obj_flat")
@@ -291,7 +309,21 @@ private func runtimeStringBuilderAppendRange(
     return sbRaw
 }
 
-@_cdecl("kk_string_builder_insertRange_obj")
+@_cdecl("kk_string_builder_appendRange_obj")
+public func kk_string_builder_appendRange_obj(
+    _ sbRaw: Int,
+    _ csqRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int
+) -> Int {
+    runtimeStringBuilderAppendRange(
+        sbRaw,
+        csq: runtimeElementToString(csqRaw),
+        startIndex: startIndex,
+        endIndex: endIndex
+    )
+}
+
 public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqRaw: Int, _ startIndex: Int, _ endIndex: Int) -> Int {
     runtimeStringBuilderInsertRange(
         sbRaw,
@@ -300,6 +332,25 @@ public func kk_string_builder_insertRange_obj(_ sbRaw: Int, _ index: Int, _ csqR
         startIndex: startIndex,
         endIndex: endIndex,
         outThrown: nil
+    )
+}
+
+@_cdecl("kk_string_builder_insertRange_obj")
+public func kk_string_builder_insertRange_obj(
+    _ sbRaw: Int,
+    _ index: Int,
+    _ csqRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringBuilderInsertRange(
+        sbRaw,
+        index: index,
+        csq: runtimeElementToString(csqRaw),
+        startIndex: startIndex,
+        endIndex: endIndex,
+        outThrown: outThrown
     )
 }
 
@@ -345,7 +396,6 @@ private func runtimeStringBuilderInsertRange(
     return sbRaw
 }
 
-@_cdecl("kk_string_builder_setRange")
 public func kk_string_builder_setRange(_ sbRaw: Int, _ startIndex: Int, _ endIndex: Int, _ valueRaw: Int) -> Int {
     runtimeStringBuilderSetRange(
         sbRaw,
@@ -353,6 +403,23 @@ public func kk_string_builder_setRange(_ sbRaw: Int, _ startIndex: Int, _ endInd
         endIndex: endIndex,
         value: runtimeElementToString(valueRaw),
         outThrown: nil
+    )
+}
+
+@_cdecl("kk_string_builder_setRange")
+public func kk_string_builder_setRange(
+    _ sbRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeStringBuilderSetRange(
+        sbRaw,
+        startIndex: startIndex,
+        endIndex: endIndex,
+        value: runtimeElementToString(valueRaw),
+        outThrown: outThrown
     )
 }
 

@@ -1990,6 +1990,29 @@ final class RuntimeSequenceTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(count, 3)
     }
 
+    func testCountReturnsZeroForEmptySequence() {
+        var thrown = 0
+        let count = kk_sequence_count(makeSequence([]), &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(count, 0)
+    }
+
+    func testCountCountsElementsMatchingPredicateViaFilter() {
+        let seq = makeSequence([1, 2, 3, 4])
+        let filtered = kk_sequence_filter(
+            seq,
+            unsafeBitCast(sequenceLessThanThree, to: Int.self),
+            0
+        )
+
+        var thrown = 0
+        let count = kk_sequence_count(filtered, &thrown)
+
+        XCTAssertEqual(thrown, 0)
+        XCTAssertEqual(count, 2)
+    }
+
     func testElementAtOrNullReturnsIndexedValueOrNullSentinel() {
         XCTAssertEqual(kk_sequence_elementAtOrNull(makeSequence([10, 20, 30]), 1), 20)
         XCTAssertEqual(kk_sequence_elementAtOrNull(makeSequence([10]), 3), runtimeNullSentinelInt)

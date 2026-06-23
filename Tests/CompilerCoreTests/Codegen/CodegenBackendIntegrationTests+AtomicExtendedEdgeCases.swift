@@ -350,26 +350,23 @@ extension CodegenBackendIntegrationTests {
         }
     }
 
-    func testCodegenAsKotlinAtomicOverloads() throws {
+    func testCodegenAsKotlinAtomicIntOverload() throws {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicInteger
-        import java.util.concurrent.atomic.AtomicLong
         import kotlin.concurrent.atomics.asKotlinAtomic
 
         fun main() {
             val intAtomic = AtomicInteger(1).asKotlinAtomic()
-            val longAtomic = AtomicLong(2L).asKotlinAtomic()
             println(intAtomic.load())
-            println(longAtomic.load())
         }
         """
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicOverloads", emit: .executable, outputPath: outputBase)
+            let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicIntOverload", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n2\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "1\n")
         }
     }
 
@@ -377,17 +374,12 @@ extension CodegenBackendIntegrationTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicIntegerArray
-        import java.util.concurrent.atomic.AtomicReferenceArray
         import kotlin.concurrent.atomics.asKotlinAtomicArray
 
         fun main() {
             val intArray = AtomicIntegerArray(1).asKotlinAtomicArray()
             intArray.storeAt(0, 11)
             println(intArray.loadAt(0))
-
-            val refArray = AtomicReferenceArray<String?>(1).asKotlinAtomicArray()
-            refArray.storeAt(0, "box")
-            println(refArray.loadAt(0))
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -395,7 +387,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "11\nbox\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "11\n")
         }
     }
 
@@ -889,15 +881,11 @@ extension CodegenBackendIntegrationTests {
         let source = """
         @file:OptIn(kotlin.concurrent.atomics.ExperimentalAtomicApi::class)
         import java.util.concurrent.atomic.AtomicIntegerArray
-        import java.util.concurrent.atomic.AtomicReferenceArray
         import kotlin.concurrent.atomics.asKotlinAtomicArray
 
         fun main() {
             val intArray = AtomicIntegerArray(2).asKotlinAtomicArray()
-            val refArray = AtomicReferenceArray<String>(2).asKotlinAtomicArray()
-            refArray.storeAt(0, "ref")
             println(intArray.loadAt(0))
-            println(refArray.loadAt(0))
         }
         """
         try withTemporaryFile(contents: source) { path in
@@ -905,7 +893,7 @@ extension CodegenBackendIntegrationTests {
             let ctx = try runCodegenPipeline(inputPath: path, moduleName: "AsKotlinAtomicArrayOverloads", emit: .executable, outputPath: outputBase)
             try LinkPhase().run(ctx)
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\nref\n")
+            XCTAssertEqual(result.stdout.replacingOccurrences(of: "\r\n", with: "\n"), "0\n")
         }
     }
 

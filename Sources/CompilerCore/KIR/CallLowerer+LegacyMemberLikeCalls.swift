@@ -1107,19 +1107,63 @@ extension CallLowerer {
             }
         }
 
-        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) — 1-arg overload
+        // STDLIB-003-ABI-001: Char.digitToInt(radix: Int) / Char.digitToIntOrNull(radix: Int) — 1-arg overloads
         if args.count == 1 {
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if nonNullReceiverType == sema.types.charType, interner.resolve(calleeName) == "digitToInt" {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_char_digitToInt_radix"),
-                    arguments: [loweredReceiverID, loweredArgIDs[0]],
-                    result: result,
-                    canThrow: true,
-                    thrownResult: nil
-                ))
+            if nonNullReceiverType == sema.types.charType {
+                let calleeStr = interner.resolve(calleeName)
+                if calleeStr == "digitToInt" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToInt_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+                if calleeStr == "digitToIntOrNull" {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToIntOrNull_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+            }
+        }
+
+        // Int.digitToChar() / Int.digitToChar(radix: Int) (DOCPARITY-CHAR-005)
+        if args.count <= 1 {
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+            if nonNullReceiverType == sema.types.intType, interner.resolve(calleeName) == "digitToChar" {
+                if args.isEmpty {
+                    let radixExpr = arena.appendExpr(.intLiteral(10), type: sema.types.intType)
+                    instructions.append(.constValue(result: radixExpr, value: .intLiteral(10)))
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, radixExpr],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                } else {
+                    instructions.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_char_digitToChar_radix"),
+                        arguments: [loweredReceiverID, loweredArgIDs[0]],
+                        result: result,
+                        canThrow: true,
+                        thrownResult: nil
+                    ))
+                }
                 return result
             }
         }
@@ -1360,7 +1404,7 @@ extension CallLowerer {
                 if calleeStr == "toFloatOrNull" {
                     instructions.append(.call(
                         symbol: nil,
-                        callee: interner.intern("kk_string_toFloatOrNull"),
+                        callee: interner.intern("kk_string_toFloatOrNull_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1799,8 +1843,10 @@ extension CallLowerer {
                     ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "compareTo":
                     ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
+                case "toJsString":
+                    ("kk_string_toJsString_flat", [loweredReceiverID])
                 case "matches":
-                    ("kk_string_matches_regex", [loweredReceiverID, loweredArgIDs[0]])
+                    ("kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "replaceFirstChar":
                     ("kk_string_replaceFirstChar_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "mapIndexed":
@@ -1838,12 +1884,9 @@ extension CallLowerer {
                 case "partition":
                     ("kk_string_partition_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "ifBlank":
-                    (
-                        usesStringFlatABI ? "kk_string_ifBlank_flat" : "kk_string_ifBlank",
-                        [loweredReceiverID] + normalizedArgIDs
-                    )
+                    ("kk_string_ifBlank_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "ifEmpty":
-                    ("kk_string_ifEmpty", [loweredReceiverID] + normalizedArgIDs)
+                    ("kk_string_ifEmpty_flat", [loweredReceiverID] + normalizedArgIDs)
                 case "chunked":
                     ("kk_string_chunked_flat", [loweredReceiverID, loweredArgIDs[0]])
                 case "chunkedSequence":
@@ -2480,7 +2523,7 @@ extension CallLowerer {
                 } else if sema.types.isSubtype(firstArgType, sema.types.charType) {
                     runtimeCallee = "kk_string_replace_char_flat"
                 } else {
-                    runtimeCallee = "kk_string_replace"
+                    runtimeCallee = "kk_string_replace_flat"
                 }
                 instructions.append(.call(
                     symbol: nil,

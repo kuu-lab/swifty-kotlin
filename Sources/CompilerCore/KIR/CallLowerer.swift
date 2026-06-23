@@ -35,6 +35,54 @@ final class CallLowerer {
         return nil
     }
 
+    func boxBuildStringTextArgumentIfNeeded(
+        _ argument: KIRExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let argumentType = arena.exprType(argument) else {
+            return argument
+        }
+        let boxCallee: String? = switch sema.types.kind(of: argumentType) {
+        case .primitive(.int, .nonNull),
+             .primitive(.uint, .nonNull),
+             .primitive(.ubyte, .nonNull),
+             .primitive(.ushort, .nonNull):
+            "kk_box_int"
+        case .primitive(.boolean, .nonNull):
+            "kk_box_bool"
+        case .primitive(.long, .nonNull),
+             .primitive(.ulong, .nonNull):
+            "kk_box_long"
+        case .primitive(.float, .nonNull):
+            "kk_box_float"
+        case .primitive(.double, .nonNull):
+            "kk_box_double"
+        case .primitive(.char, .nonNull):
+            "kk_box_char"
+        default:
+            nil
+        }
+        guard let boxCallee else {
+            return argument
+        }
+        let boxedArgument = arena.appendExpr(
+            .temporary(Int32(arena.expressions.count)),
+            type: sema.types.anyType
+        )
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern(boxCallee),
+            arguments: [argument],
+            result: boxedArgument,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return boxedArgument
+    }
+
     /// Shared helper for coerceIn(range) lowering (STDLIB-525, STDLIB-CONV-006).
     /// Decomposes a range argument into first/last bounds and emits a call to
     /// kk_{int,long,uint,ulong}_coerceIn. Used by both normal and safe-call member lowering
@@ -654,20 +702,64 @@ final class CallLowerer {
             ))
             return result
         }
-        if sema.bindings.builderDSLKind(for: exprID) == .buildString {
-            let builderRuntimeCallee: String? = switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
-            case ("append", 1):
-                "kk_string_builder_append_flat"
-            case ("appendLine", 0):
-                "kk_string_builder_append_line_noarg"
-            case ("appendLine", 1):
-                "kk_string_builder_append_line_flat"
-            case ("appendRange", 3):
-                "kk_string_builder_append_range_flat"
-            default:
-                nil
+        if let builderKind = sema.bindings.builderDSLKind(for: exprID) {
+            let sourceName = interner.resolve(sourceCalleeName)
+            let builderRuntimeCallee: String? = switch builderKind {
+            case .buildString, .buildStringBuilder:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("append", 1):
+                    "kk_string_builder_append_flat"
+                case ("appendLine", 0):
+                    "kk_string_builder_append_line_noarg"
+                case ("appendLine", 1):
+                    "kk_string_builder_append_line_flat"
+                case ("appendRange", 3):
+                    "kk_string_builder_append_range_flat"
+                default:
+                    nil
+                }
+            case .buildList:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("add", 1):
+                    "kk_builder_list_add"
+                case ("addAll", 1):
+                    "kk_builder_list_addAll"
+                default:
+                    nil
+                }
+            case .buildSet:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("add", 1):
+                    "kk_builder_set_add"
+                case ("addAll", 1):
+                    "kk_builder_set_addAll"
+                default:
+                    nil
+                }
+            case .buildMap:
+                switch (sourceName, loweredArgIDs.count) {
+                case ("put", 2):
+                    "kk_builder_map_put"
+                default:
+                    nil
+                }
             }
             if let builderRuntimeCallee {
+                let runtimeArguments: [KIRExprID]
+                switch (interner.resolve(sourceCalleeName), loweredArgIDs.count) {
+                case ("append", 1), ("appendLine", 1):
+                    runtimeArguments = [
+                        boxBuildStringTextArgumentIfNeeded(
+                            loweredArgIDs[0],
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        ),
+                    ]
+                default:
+                    runtimeArguments = loweredArgIDs
+                }
                 let result = arena.appendExpr(
                     .temporary(Int32(arena.expressions.count)),
                     type: boundType ?? sema.types.anyType
@@ -675,7 +767,7 @@ final class CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(builderRuntimeCallee),
-                    arguments: loweredArgIDs,
+                    arguments: runtimeArguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil

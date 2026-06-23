@@ -14,15 +14,6 @@ final class RuntimeBigIntegerTests: XCTestCase {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
 
-    private func withFlatString<T>(
-        _ text: String,
-        _ body: (UnsafePointer<UInt8>?, Int, Int, Int) -> T
-    ) -> T {
-        Array(text.utf8).withUnsafeBufferPointer { buffer in
-            body(buffer.baseAddress, text.unicodeScalars.count, text.utf8.count, 0)
-        }
-    }
-
     private func bigInteger(_ text: String) -> Int {
         var thrown = 0
         let raw = kk_biginteger_fromString(runtimeString(text), &thrown)
@@ -32,19 +23,36 @@ final class RuntimeBigIntegerTests: XCTestCase {
 
     func testStringToBigIntegerAcceptsSignedDigits() {
         var thrown = 0
-        let raw = withFlatString("-12345678901234567890") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
-        }
+        let raw = kk_string_toBigInteger(runtimeString("+00012345678901234567890"), &thrown)
         XCTAssertEqual(thrown, 0)
-        XCTAssertEqual(stringValue(kk_bignum_toString(raw)), "-12345678901234567890")
+        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
+    }
+
+    func testStringToBigIntegerReturnsBigIntegerBoxUsableByOperations() {
+        var thrown = 0
+        let lhs = kk_string_toBigInteger(runtimeString("12345678901234567890"), &thrown)
+        XCTAssertEqual(thrown, 0)
+        let rhs = bigInteger("10")
+        let result = kk_biginteger_add(lhs, rhs)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(result)), "12345678901234567900")
     }
 
     func testStringToBigIntegerRejectsDecimalPoint() {
         var thrown = 0
-        _ = withFlatString("12.5") { data, length, byteCount, hash in
-            kk_string_toBigInteger_flat(data, length, byteCount, hash, &thrown)
-        }
+        _ = kk_string_toBigInteger(runtimeString("12.5"), &thrown)
         XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testStringToBigIntegerOrNullAcceptsSignedDigits() {
+        let raw = kk_string_toBigIntegerOrNull(runtimeString("+00012345678901234567890"))
+        XCTAssertNotEqual(raw, runtimeNullSentinelInt)
+        XCTAssertEqual(stringValue(kk_biginteger_toString(raw)), "12345678901234567890")
+    }
+
+    func testStringToBigIntegerOrNullRejectsInvalidInput() {
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("12.5")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString("")), runtimeNullSentinelInt)
+        XCTAssertEqual(kk_string_toBigIntegerOrNull(runtimeString(" 12 ")), runtimeNullSentinelInt)
     }
 
     func testBigIntegerAndHandlesPositiveOperands() {

@@ -153,7 +153,7 @@ final class CallTypeChecker {
                shouldUseBuilderDSLSpecialHandling(calleeName: calleeName, ctx: ctx, locals: locals)
             {
                 let lambdaArgumentIndex: Int? = switch builderKind {
-                case .buildString:
+                case .buildString, .buildStringBuilder:
                     switch args.count {
                     case 1: 0
                     case 2: 1
@@ -177,7 +177,11 @@ final class CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.errorType)
                     return sema.types.errorType
                 }
-                if builderKind == .buildList || builderKind == .buildString, args.count == 2 {
+                if builderKind == .buildList
+                    || builderKind == .buildString
+                    || builderKind == .buildStringBuilder,
+                    args.count == 2
+                {
                     _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
                 }
                 let argumentExprID = args[lambdaArgumentIndex].expr
@@ -203,6 +207,8 @@ final class CallTypeChecker {
                 let returnType: TypeID = switch builderKind {
                 case .buildString:
                     sema.types.stringType
+                case .buildStringBuilder:
+                    receiverType
                 case .buildList:
                     builderDSLBuildListReturnType(receiverType: receiverType, sema: sema, interner: interner)
                 case .buildSet:
@@ -1028,7 +1034,7 @@ final class CallTypeChecker {
             return longType
         }
 
-        // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-007) ---
+        // --- Stdlib measureTimeMicros { ... } (STDLIB-SYSTEM-FN-006) ---
         if let calleeName,
            interner.resolve(calleeName) == "measureTimeMicros",
            args.count == 1,
@@ -3028,7 +3034,7 @@ final class CallTypeChecker {
         if let calleeName, ctx.isBuilderLambdaScope, let activeBuilderKind = ctx.builderKind {
             let name = interner.resolve(calleeName)
             let isBuilderMember: Bool = switch activeBuilderKind {
-            case .buildString:
+            case .buildString, .buildStringBuilder:
                 (name == "append" && args.count == 1)
                     || (name == "appendLine" && args.count <= 1)
                     || (name == "appendRange" && args.count == 3)
@@ -3743,6 +3749,13 @@ final class CallTypeChecker {
                     case "toIntOrNull": sema.types.make(.primitive(.int, .nullable))
                     case "toDouble": sema.types.make(.primitive(.double, .nonNull))
                     case "toDoubleOrNull": sema.types.make(.primitive(.double, .nullable))
+                    case "toBigIntegerOrNull":
+                        sema.types.makeNullable(makeSyntheticNominalType(
+                            symbols: sema.symbols,
+                            types: sema.types,
+                            interner: interner,
+                            fqName: [interner.intern("java"), interner.intern("math"), interner.intern("BigInteger")]
+                        ))
                     case "indexOf", "lastIndexOf": sema.types.intType
                     case "reversed": sema.types.stringType
                     case "toList": listCharType

@@ -602,11 +602,15 @@ extension CollectionLiteralLoweringPass {
             return true
         }
 
-        // --- Rewrite buildString/buildList/buildMap → kk_build_* (STDLIB-002) ---
-        if symbol == nil, lookup.builderDSLNames.contains(callee) {
+        // --- Rewrite builder DSL calls to kk_build_* runtime helpers (STDLIB-002) ---
+        if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let kkCallee: InternedString = switch callee {
             case lookup.buildStringName:
                 arguments.count == 2 ? lookup.kkBuildStringWithCapacityName : lookup.kkBuildStringName
+            case lookup.buildStringBuilderName:
+                arguments.count == 2
+                    ? lookup.kkBuildStringBuilderWithCapacityName
+                    : lookup.kkBuildStringBuilderName
             case lookup.buildListName:
                 arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
             case lookup.buildSetName: lookup.kkBuildSetName
@@ -647,19 +651,21 @@ extension CollectionLiteralLoweringPass {
         // matching the correct builder kind to avoid cross-kind rewrites.
         if let builderCallee = builderLambdaKinds[function.name] {
             var rewrittenCallee: InternedString?
-            if builderCallee == lookup.buildStringName, callee == lookup.appendName, arguments.count == 1 {
+            let isStringBuilderCallee = builderCallee == lookup.buildStringName
+                || builderCallee == lookup.buildStringBuilderName
+            if isStringBuilderCallee, callee == lookup.appendName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkStringBuilderAppendName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.appendLineName, arguments.count == 1 {
+            } else if isStringBuilderCallee, callee == lookup.appendLineName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkStringBuilderAppendLineName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.appendLineName, arguments.count == 0 {
+            } else if isStringBuilderCallee, callee == lookup.appendLineName, arguments.count == 0 {
                 rewrittenCallee = lookup.kkStringBuilderAppendLineNoargName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.insertName, arguments.count == 2 {
+            } else if isStringBuilderCallee, callee == lookup.insertName, arguments.count == 2 {
                 rewrittenCallee = lookup.kkStringBuilderInsertName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.deleteName, arguments.count == 2 {
+            } else if isStringBuilderCallee, callee == lookup.deleteName, arguments.count == 2 {
                 rewrittenCallee = lookup.kkStringBuilderDeleteName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.lengthName, arguments.count == 0 {
+            } else if isStringBuilderCallee, callee == lookup.lengthName, arguments.count == 0 {
                 rewrittenCallee = lookup.kkStringBuilderLengthName
-            } else if builderCallee == lookup.buildStringName, callee == lookup.appendRangeName, arguments.count == 3 {
+            } else if isStringBuilderCallee, callee == lookup.appendRangeName, arguments.count == 3 {
                 rewrittenCallee = lookup.kkStringBuilderAppendRangeName
             } else if builderCallee == lookup.buildListName, callee == lookup.addName, arguments.count == 1 {
                 rewrittenCallee = lookup.kkBuilderListAddName
@@ -673,10 +679,26 @@ extension CollectionLiteralLoweringPass {
                 rewrittenCallee = lookup.kkBuilderMapPutName
             }
             if let target = rewrittenCallee {
+                let runtimeArguments: [KIRExprID]
+                if builderCallee == lookup.buildStringName,
+                   (callee == lookup.appendName || callee == lookup.appendLineName),
+                   arguments.count == 1
+                {
+                    runtimeArguments = [
+                        boxedBuildStringTextArgumentIfNeeded(
+                            arguments[0],
+                            module: module,
+                            ctx: ctx,
+                            loweredBody: &loweredBody
+                        ),
+                    ]
+                } else {
+                    runtimeArguments = arguments
+                }
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: target,
-                    arguments: arguments,
+                    arguments: runtimeArguments,
                     result: result,
                     canThrow: canThrow,
                     thrownResult: thrownResult

@@ -14,7 +14,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "kind", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kparameter_get_index",
@@ -22,7 +23,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kparameter_get_name",
@@ -30,7 +32,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kparameter_get_type",
@@ -38,7 +41,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kparameter_is_optional",
@@ -46,7 +50,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kparameter_get_kind",
@@ -54,7 +59,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
     ]
 
@@ -71,7 +77,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_create_full",
@@ -86,7 +93,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "typeStringRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_name",
@@ -94,7 +102,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_arity",
@@ -102,7 +111,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_return_type",
@@ -110,7 +120,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_is_suspend",
@@ -118,7 +129,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_parameters",
@@ -126,7 +138,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_value_parameters",
@@ -134,7 +147,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_get_type",
@@ -142,7 +156,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_kfunction_call_0",
@@ -223,7 +238,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "isSuspend", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_callable_ref_tag_kproperty",
@@ -233,7 +249,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "arity", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_callable_ref_name",
@@ -241,7 +258,8 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "tagged", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Reflection"
+            section: "Reflection",
+            isThrowing: false
         ),
     ]
 }

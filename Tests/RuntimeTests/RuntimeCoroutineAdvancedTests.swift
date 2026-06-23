@@ -12,14 +12,14 @@ private nonisolated(unsafe) var advCoroFailExcRaw: Int = 0
 
 /// Non-capturing C stub that writes `advCoroFailExcRaw` to outThrown.
 @_cdecl("advcoro_fail_with_exc")
-func advcoro_fail_with_exc(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_fail_with_exc(_ _closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = advCoroFailExcRaw
     return 0
 }
 
 /// Non-capturing C stub that returns 512 (success value for resumeWith test).
 @_cdecl("advcoro_return_512")
-func advcoro_return_512(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_return_512(_ _closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return 512
 }
@@ -30,6 +30,14 @@ func advcoro_add_constant(_ continuation: Int, _ outThrown: UnsafeMutablePointer
     let arg = kk_coroutine_launcher_arg_get(continuation, 0)
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, Int(arg) + 100)
+}
+
+/// A suspend function that records one iteration, then returns its iteration count.
+@_cdecl("advcoro_counter")
+func advcoro_counter(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    advancedCoroTestState.recordIteration()
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, advancedCoroTestState.iterationsSnapshot())
 }
 
 /// A suspend function that delays once, then returns 55.
@@ -64,7 +72,7 @@ func advcoro_spill_across_suspension(_ continuation: Int, _ outThrown: UnsafeMut
 
 /// A suspend function that immediately resumes with exception.
 @_cdecl("advcoro_throw_immediately")
-func advcoro_throw_immediately(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+func advcoro_throw_immediately(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     let exc = runtimeAllocateThrowable(message: "advcoro-exception")
     outThrown?.pointee = exc
     return 0
@@ -75,6 +83,14 @@ func advcoro_throw_immediately(_ _: Int, _ outThrown: UnsafeMutablePointer<Int>?
 func advcoro_return_fixed(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     return kk_coroutine_state_exit(continuation, 42)
+}
+
+/// A suspend function that signals the test state and returns.
+@_cdecl("advcoro_signal_and_return")
+func advcoro_signal_and_return(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    advancedCoroTestState.recordIteration()
+    outThrown?.pointee = 0
+    return kk_coroutine_state_exit(continuation, 1)
 }
 
 /// Nested suspend: delays twice (two suspension labels), saving values across both points.
@@ -100,6 +116,43 @@ func advcoro_nested_two_delays(_ continuation: Int, _ outThrown: UnsafeMutablePo
         outThrown?.pointee = 0
         return kk_coroutine_state_exit(continuation, result)
     }
+}
+
+private let advCoroCancelLoopFunctionID = 8804
+
+/// A cancellable suspend function that keeps looping until cancellation is observed.
+@_cdecl("advcoro_cancel_loop")
+func advcoro_cancel_loop(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let label = kk_coroutine_state_enter(continuation, advCoroCancelLoopFunctionID)
+    advancedCoroTestState.recordIteration()
+    if label == 0 {
+        _ = kk_coroutine_state_set_label(continuation, 1)
+    }
+    if kk_coroutine_check_cancellation(continuation, outThrown) != 0 {
+        return kk_coroutine_state_exit(continuation, 0)
+    }
+    return kk_kxmini_delay(50, continuation)
+}
+
+/// Probes that `kk_with_context_full` propagates the coroutine name and dispatcher.
+@_cdecl("advcoro_probe_with_context_full")
+func advcoro_probe_with_context_full(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    let nameMatches = RuntimeCoroutineScope.current?.name == "full-context" ? 1 : 0
+    let dispatcherMatches = RuntimeDispatcher.current?.tag == kk_dispatcher_io() ? 1 : 0
+    return kk_coroutine_state_exit(continuation, nameMatches * 10 + dispatcherMatches)
+}
+
+/// Produces three values into the channel received from `produce { ... }`.
+@_cdecl("advcoro_produce_values")
+func advcoro_produce_values(_ continuation: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    let channel = Int(kk_coroutine_launcher_arg_get(continuation, 0))
+    let seed = Int(kk_coroutine_launcher_arg_get(continuation, 1))
+    outThrown?.pointee = 0
+    _ = kk_channel_send(channel, seed, continuation)
+    _ = kk_channel_send(channel, seed + 1, continuation)
+    _ = kk_channel_send(channel, seed + 2, continuation)
+    return kk_coroutine_state_exit(continuation, 0)
 }
 
 // MARK: - Advanced Coroutine Tests (TEST-CORO-003)
@@ -165,7 +218,6 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
 
         let sem = DispatchSemaphore(value: 0)
 
-
         let ptr = UnsafeMutableRawPointer(bitPattern: cont)!
         let state = Unmanaged<RuntimeContinuationState>.fromOpaque(ptr).takeUnretainedValue()
         // Capture thrownException via a separate nonisolated variable to avoid
@@ -202,7 +254,6 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(kk_result_isSuccess(resultRaw), 1)
 
         let sem = DispatchSemaphore(value: 0)
-
 
         let ptr = UnsafeMutableRawPointer(bitPattern: cont)!
         let state = Unmanaged<RuntimeContinuationState>.fromOpaque(ptr).takeUnretainedValue()
@@ -414,9 +465,187 @@ final class RuntimeCoroutineAdvancedTests: IsolatedRuntimeXCTestCase {
         XCTAssertEqual(result2, 107, "Second concurrent launch must return arg(7)+100=107")
         _ = baseline // suppress unused warning
     }
+
+    // MARK: - Test 16: withContext_full propagates scope name and dispatcher
+
+    func testWithContextFullPropagatesScopeNameAndDispatcher() {
+        let nameBox = RuntimeStringBox("full-context")
+        let namePtr = runtimeRegisterAdvStringBox(nameBox)
+        let nameHandle = kk_coroutine_name_create(namePtr)
+        let contextHandle = kk_context_plus(kk_dispatcher_io(), nameHandle)
+        defer { kk_context_release(contextHandle) }
+
+        let continuation = kk_coroutine_continuation_new(8821)
+        let scope = RuntimeCoroutineScope()
+        let savedScope = RuntimeCoroutineScope.current
+        RuntimeCoroutineScope.current = scope
+        defer { RuntimeCoroutineScope.current = savedScope }
+
+        if let state = runtimeContinuationState(from: continuation) {
+            state.scope = scope
+        }
+
+        let entryRaw = unsafeBitCast(
+            advcoro_probe_with_context_full as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let result = kk_with_context_full(contextHandle, entryRaw, continuation)
+        XCTAssertEqual(result, 11, "withContext_full should propagate both CoroutineName and dispatcher")
+    }
+
+    // MARK: - Test 17: coroutineScope run with continuation returns captured value
+
+    func testCoroutineScopeRunWithContReturnsCapturedValue() {
+        let continuation = kk_coroutine_continuation_new(8822)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 7)
+        let entryRaw = unsafeBitCast(
+            advcoro_add_constant as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+
+        var outThrown = 0
+        let result = kk_coroutine_scope_run_with_cont(entryRaw, continuation, &outThrown)
+        XCTAssertEqual(outThrown, 0, "coroutineScope run with cont should not throw")
+        XCTAssertEqual(result, 107, "coroutineScope run with cont should return the block result")
+    }
+
+    // MARK: - Test 18: supervisorScope run with continuation returns captured value
+
+    func testSupervisorScopeRunWithContReturnsCapturedValue() {
+        let continuation = kk_coroutine_continuation_new(8823)
+        _ = kk_coroutine_launcher_arg_set(continuation, 0, 9)
+        let entryRaw = unsafeBitCast(
+            advcoro_add_constant as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+
+        var outThrown = 0
+        let result = kk_supervisor_scope_run_with_cont(entryRaw, continuation, &outThrown)
+        XCTAssertEqual(outThrown, 0, "supervisorScope run with cont should not throw")
+        XCTAssertEqual(result, 109, "supervisorScope run with cont should return the block result")
+    }
+
+    // MARK: - Test 19: context_cancel_no_cause cancels a running job
+
+    func testContextCancelNoCauseCancelsRunningJob() {
+        let baseline = advancedCoroTestState.iterationsSnapshot()
+        let entryRaw = unsafeBitCast(
+            advcoro_cancel_loop as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let jobHandle = kk_kxmini_launch(entryRaw, advCoroCancelLoopFunctionID)
+        XCTAssertNotEqual(jobHandle, 0)
+
+        let deadline = Date().addingTimeInterval(2.0)
+        while advancedCoroTestState.iterationsSnapshot() == baseline && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        XCTAssertGreaterThan(
+            advancedCoroTestState.iterationsSnapshot(),
+            baseline,
+            "Cancellable coroutine should start before cancellation"
+        )
+
+        let contextHandle = kk_context_plus(jobHandle, kk_dispatcher_default())
+        defer { kk_context_release(contextHandle) }
+
+        _ = kk_context_cancel_no_cause(contextHandle)
+        XCTAssertEqual(kk_job_is_cancelled(jobHandle), 1, "Job should report cancellation after context cancel")
+
+        let joinResult = kk_job_join(jobHandle, 0)
+        XCTAssertEqual(
+            kk_is_cancellation_exception(joinResult),
+            1,
+            "Joined result should be a CancellationException after context cancel"
+        )
+    }
+
+    // MARK: - Test 20: produce returns a channel that streams values
+
+    func testProduceReturnsChannelThatStreamsCapturedValues() {
+        let entryRaw = unsafeBitCast(
+            advcoro_produce_values as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+
+        let channelHandle = kk_produce(entryRaw, 20)
+        XCTAssertNotEqual(channelHandle, 0)
+
+        var value = 0
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 20)
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 21)
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 22)
+
+        let finalStatus = kk_channel_receive(channelHandle, 0, &value)
+        XCTAssertEqual(kk_channel_is_closed_token(finalStatus), 1, "Channel should close after the producer completes")
+        XCTAssertEqual(kk_channel_is_closed_for_receive(channelHandle), 1, "Channel should report closed-for-receive after draining")
+    }
+
+    // MARK: - Test 21: produce with continuation uses the existing continuation
+
+    func testProduceWithContinuationUsesExistingContinuation() {
+        let continuation = kk_coroutine_continuation_new(8824)
+        _ = kk_coroutine_launcher_arg_set(continuation, 1, 77)
+        let entryRaw = unsafeBitCast(
+            advcoro_produce_values as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+
+        let channelHandle = kk_kxmini_produce_with_cont(entryRaw, continuation)
+        XCTAssertNotEqual(channelHandle, 0)
+
+        var value = 0
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 77)
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 78)
+        XCTAssertEqual(kk_channel_receive(channelHandle, 0, &value), kChannelResultSuccess)
+        XCTAssertEqual(value, 79)
+
+        let finalStatus = kk_channel_receive(channelHandle, 0, &value)
+        XCTAssertEqual(kk_channel_is_closed_token(finalStatus), 1, "Channel should close after the producer completes")
+        XCTAssertEqual(kk_channel_is_closed_for_receive(channelHandle), 1)
+    }
+
+    // MARK: - Test 22: Semaphore acquire / release / permit tracking
+
+    func testSemaphoreAcquireReleaseAndPermitTracking() {
+        let semaphoreHandle = kk_semaphore_create(1)
+        XCTAssertNotEqual(semaphoreHandle, 0)
+        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 1)
+        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 1)
+        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+
+        let continuation = kk_coroutine_continuation_new(8825)
+        defer { _ = kk_coroutine_state_exit(continuation, 0) }
+
+        let resumed = DispatchSemaphore(value: 0)
+        if let state = runtimeContinuationState(from: continuation) {
+            state.installResumeContinuation {
+                resumed.signal()
+            }
+        }
+
+        let suspendedToken = Int(bitPattern: kk_coroutine_suspended())
+        XCTAssertEqual(kk_semaphore_acquire(semaphoreHandle, continuation), suspendedToken)
+        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+
+        XCTAssertEqual(kk_semaphore_release(semaphoreHandle), 0)
+        XCTAssertEqual(resumed.wait(timeout: .now() + 2.0), .success, "Semaphore release should resume the suspended continuation")
+        XCTAssertEqual(kk_semaphore_availablePermits(semaphoreHandle), 0)
+        XCTAssertEqual(kk_semaphore_tryAcquire(semaphoreHandle), 0)
+    }
 }
 
 // MARK: - Private helpers
+
+private final class AdvResultBox: @unchecked Sendable {
+    var value: Int = -1
+    var thrown: Int = 0
+}
 
 /// Sendable capture box for a single Int value (used to capture state fields
 /// across @Sendable closures without making RuntimeContinuationState Sendable).
@@ -449,6 +678,12 @@ private final class AdvancedCoroutineTestState: @unchecked Sendable {
     func reset() {
         lock.lock()
         _iterations = 0
+        lock.unlock()
+    }
+
+    func recordIteration() {
+        lock.lock()
+        _iterations += 1
         lock.unlock()
     }
 

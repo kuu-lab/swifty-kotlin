@@ -19,11 +19,6 @@ extension LLVMCAPIBindings {
         buildCondBrFn(builder, condition, thenBlock, elseBlock)
     }
 
-    @discardableResult
-    func buildUnreachable(_ builder: LLVMBuilderRef?) -> LLVMValueRef? {
-        buildUnreachableFn(builder)
-    }
-
     func buildICmpEqual(_ builder: LLVMBuilderRef?, lhs: LLVMValueRef?, rhs: LLVMValueRef?, name: String) -> LLVMValueRef? {
         name.withCString { buildICmpFn(builder, 32, lhs, rhs, $0) }
     }

@@ -2,6 +2,14 @@
 import XCTest
 
 final class RuntimeStringLocaleTests: XCTestCase {
+    private func runtimeString(_ text: String) -> Int {
+        text.withCString { cstr in
+            cstr.withMemoryRebound(to: UInt8.self, capacity: max(1, text.utf8.count)) { ptr in
+                Int(bitPattern: kk_string_from_utf8(ptr, Int32(text.utf8.count)))
+            }
+        }
+    }
+
     private func stringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }
@@ -41,34 +49,6 @@ final class RuntimeStringLocaleTests: XCTestCase {
         return body(constData, length, byteCount, hash)
     }
 
-    private func flatLocaleStringValue(
-        _ value: String,
-        locale: Int,
-        using call: (
-            UnsafePointer<UInt8>?,
-            Int,
-            Int,
-            Int,
-            Int,
-            UnsafeMutablePointer<Int>?,
-            UnsafeMutablePointer<Int>?,
-            UnsafeMutablePointer<Int>?
-        ) -> UnsafeMutablePointer<UInt8>?
-    ) -> String {
-        withFlatString(value) { data, length, byteCount, hash in
-            var outLength = 0
-            var outByteCount = 0
-            var outHash = 0
-            let outData = call(data, length, byteCount, hash, locale, &outLength, &outByteCount, &outHash)
-            return runtimeStringFromFlatFields(
-                data: outData.map { UnsafePointer($0) },
-                length: outLength,
-                byteCount: outByteCount,
-                hash: outHash
-            )
-        }
-    }
-
     private func makeLocale(_ identifier: String) -> Int {
         withFlatString(identifier) { data, length, byteCount, hash in
             kk_locale_new_flat(data, length, byteCount, hash)
@@ -93,41 +73,19 @@ final class RuntimeStringLocaleTests: XCTestCase {
     }
 
     func testLocaleLowercaseUsesTurkishRules() {
-        let result = flatLocaleStringValue(
-            "I",
-            locale: makeLocale("tr"),
-            using: kk_string_lowercase_locale_flat
-        )
-        XCTAssertEqual(result, "ı")
+        let result = kk_string_lowercase_locale(runtimeString("I"), makeLocale("tr"))
+        XCTAssertEqual(stringValue(result), "ı")
     }
 
     func testLocaleUppercaseUsesTurkishRules() {
-        let result = flatLocaleStringValue(
-            "i",
-            locale: makeLocale("tr"),
-            using: kk_string_uppercase_locale_flat
-        )
-        XCTAssertEqual(result, "İ")
+        let result = kk_string_uppercase_locale(runtimeString("i"), makeLocale("tr"))
+        XCTAssertEqual(stringValue(result), "İ")
     }
 
-    func testLocaleCompareToFlatMatchesBasicOrdering() {
+    func testLocaleCompareToMatchesBasicOrdering() {
         let locale = makeLocale("en_US")
-        withFlatString("abc") { lhsData, lhsLength, lhsByteCount, lhsHash in
-            withFlatString("abd") { rhsData, rhsLength, rhsByteCount, rhsHash in
-                let result = kk_string_compareTo_locale_flat(
-                    lhsData,
-                    lhsLength,
-                    lhsByteCount,
-                    lhsHash,
-                    rhsData,
-                    rhsLength,
-                    rhsByteCount,
-                    rhsHash,
-                    locale
-                )
-                XCTAssertEqual(result, -1)
-            }
-        }
+        let result = kk_string_compareTo_locale(runtimeString("abc"), runtimeString("abd"), locale)
+        XCTAssertEqual(result, -1)
     }
 
     func testLocalePropertiesExposeLanguageCountryAndVariant() {

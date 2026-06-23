@@ -42,6 +42,23 @@ extension CallTypeChecker {
         let stringHOFReceiverType = safeCall
             ? sema.types.makeNonNullable(receiverType)
             : receiverType
+        if interner.resolve(calleeName) == "toCollection",
+           args.count == 1,
+           isSyntheticStringLikeType(stringHOFReceiverType, sema: sema)
+        {
+            let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            bindSyntheticStringMemberDirectlyIfAvailable(
+                id,
+                calleeName: calleeName,
+                argumentCount: args.count,
+                receiverType: stringHOFReceiverType,
+                sema: sema,
+                interner: interner
+            )
+            let finalType = safeCall ? sema.types.makeNullable(destinationType) : destinationType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
         if let boundType = tryBindStringChunkedSequenceTransform(
             id,
             calleeName: calleeName,

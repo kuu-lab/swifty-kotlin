@@ -16,9 +16,11 @@ final class RuntimeStringBuilderTests: XCTestCase {
     func testInsertObjInsertsValueAtIndexAndReturnsReceiver() {
         let builder = makeBuilder("ac")
         let value = makeRuntimeString("b")
+        var thrown = 0
 
-        let returned = kk_string_builder_insert_obj(builder, 1, value)
+        let returned = kk_string_builder_insert_obj(builder, 1, value, &thrown)
 
+        XCTAssertEqual(thrown, 0)
         XCTAssertEqual(returned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
     }
@@ -43,26 +45,40 @@ final class RuntimeStringBuilderTests: XCTestCase {
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
     }
 
+    func testAppendRangeUsesUTF16IndicesForMultibyteCharacters() {
+        let builder = kk_string_builder_new_from_string(makeRuntimeString(""))
+        let value = makeRuntimeString("你好世界")
+
+        let returned = kk_string_builder_appendRange_obj(builder, value, 1, 3)
+
+        XCTAssertEqual(returned, builder)
+        XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "好世")
+    }
+
     func testInsertObjAtBeginningPrependsValue() {
         let builder = makeBuilder("bc")
         let value = makeRuntimeString("a")
+        var thrown = 0
 
-        _ = kk_string_builder_insert_obj(builder, 0, value)
+        _ = kk_string_builder_insert_obj(builder, 0, value, &thrown)
 
+        XCTAssertEqual(thrown, 0)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
     }
 
     func testInsertObjAtEndAppendsValue() {
         let builder = makeBuilder("ab")
         let value = makeRuntimeString("c")
+        var thrown = 0
 
-        _ = kk_string_builder_insert_obj(builder, 2, value)
+        _ = kk_string_builder_insert_obj(builder, 2, value, &thrown)
 
+        XCTAssertEqual(thrown, 0)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "abc")
     }
 
     func testDeleteAtRemovesCharacterAndReturnsReceiver() {
-        let builder = makeBuilder("abc")
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
         var thrown = 0
 
         let returned = kk_string_builder_deleteAt(builder, 1, &thrown)
@@ -73,7 +89,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testDeleteRangeRemovesRangeAndReturnsReceiver() {
-        let builder = makeBuilder("abcdef")
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("abcdef"))
         var thrown = 0
 
         let returned = kk_string_builder_deleteRange(builder, 1, 4, &thrown)
@@ -86,9 +102,11 @@ final class RuntimeStringBuilderTests: XCTestCase {
     func testInsertRangeInsertsValueSliceAndReturnsReceiver() {
         let builder = makeBuilder("ab")
         let value = makeRuntimeString("WXYZ")
+        var thrown = 0
 
-        let returned = kk_string_builder_insertRange_obj(builder, 1, value, 1, 3)
+        let returned = kk_string_builder_insertRange_obj(builder, 1, value, 1, 3, &thrown)
 
+        XCTAssertEqual(thrown, 0)
         XCTAssertEqual(returned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aXYb")
     }
@@ -96,16 +114,18 @@ final class RuntimeStringBuilderTests: XCTestCase {
     func testSetRangeReplacesRangeAndReturnsReceiver() {
         let builder = makeBuilder("abcd")
         let value = makeRuntimeString("XYZ")
+        var thrown = 0
 
-        let returned = kk_string_builder_setRange(builder, 1, 3, value)
+        let returned = kk_string_builder_setRange(builder, 1, 3, value, &thrown)
 
+        XCTAssertEqual(thrown, 0)
         XCTAssertEqual(returned, builder)
         XCTAssertEqual(runtimeStringValue(kk_string_builder_toString(builder)), "aXYZd")
     }
 
     // STDLIB-TEXT-FN-064: operator fun set(index, value) — backed by kk_string_builder_setCharAt
     func testSetCharAtReplacesCharacterAtIndex() {
-        let builder = makeBuilder("abc")
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("abc"))
         var thrown = 0
 
         let returned = kk_string_builder_setCharAt(
@@ -121,7 +141,7 @@ final class RuntimeStringBuilderTests: XCTestCase {
     }
 
     func testSetCharAtFirstIndexReplacesCharacter() {
-        let builder = makeBuilder("hello")
+        let builder = kk_string_builder_new_from_string(makeRuntimeString("hello"))
         var thrown = 0
 
         _ = kk_string_builder_setCharAt(

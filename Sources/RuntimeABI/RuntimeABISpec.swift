@@ -39,17 +39,22 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
     public let parameters: [RuntimeABIParameter]
     public let returnType: RuntimeABICType
     public let section: String
+    /// Whether the runtime callee may throw (Kotlin exception propagation via `outThrown`).
+    /// Defaults to `true`; non-throwing callees omit the `outThrown` ABI lowering path.
+    public let isThrowing: Bool
 
     public init(
         name: String,
         parameters: [RuntimeABIParameter],
         returnType: RuntimeABICType,
-        section: String
+        section: String,
+        isThrowing: Bool = true
     ) {
         self.name = name
         self.parameters = parameters
         self.returnType = returnType
         self.section = section
+        self.isThrowing = isThrowing
     }
 
     public var cDeclaration: String {
@@ -74,7 +79,7 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
 
 // swiftlint:disable:next type_body_length
 public enum RuntimeABISpec {
-    public static let specVersion = "J33"
+    public static let specVersion = "J34"
 
 
 
@@ -92,7 +97,8 @@ public enum RuntimeABISpec {
             name: "kk_gc_collect",
             parameters: [],
             returnType: .void,
-            section: "Memory"
+            section: "Memory",
+            isThrowing: false,
         ),
     ]
 
@@ -167,7 +173,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "obj", type: .nullableOpaquePointer),
             ],
             returnType: .void,
-            section: "Print"
+            section: "Print",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_println_any",
@@ -175,7 +182,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "obj", type: .nullableOpaquePointer),
             ],
             returnType: .void,
-            section: "Print"
+            section: "Print",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_println_bool",
@@ -191,19 +199,22 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .void,
-            section: "Print"
+            section: "Print",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_print_noarg",
             parameters: [],
             returnType: .void,
-            section: "Print"
+            section: "Print",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_println_newline",
             parameters: [],
             returnType: .void,
-            section: "Print"
+            section: "Print",
+            isThrowing: false,
         ),
     ]
 
@@ -219,7 +230,8 @@ public enum RuntimeABISpec {
             name: "kk_readline",
             parameters: [],
             returnType: .intptr,
-            section: "IO"
+            section: "IO",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_readln",
@@ -241,7 +253,8 @@ public enum RuntimeABISpec {
             name: "kk_readlnOrNull",
             parameters: [],
             returnType: .intptr,
-            section: "IO"
+            section: "IO",
+            isThrowing: false,
         ),
     ]
 
@@ -253,43 +266,50 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "status", type: .intptr),
             ],
             returnType: .noreturn,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_currentTimeMillis",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_nanoTime",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_getTimeMicros",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_getTimeMillis",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_getTimeNanos",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_process_start_nanos",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_measureTimeMillis",
@@ -327,7 +347,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sys_write",
@@ -345,7 +366,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_osFamily",
@@ -353,7 +375,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_cpuArchitecture",
@@ -361,7 +384,8 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_platform_getAvailableProcessors",
@@ -369,37 +393,43 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "platformRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_system_gc",
             parameters: [],
             returnType: .void,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_runtime_getRuntime",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_runtime_totalMemory",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_runtime_freeMemory",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_runtime_maxMemory",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_clock_now",
@@ -407,13 +437,15 @@ public enum RuntimeABISpec {
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_clock_system_now",
             parameters: [],
             returnType: .intptr,
-            section: "System"
+            section: "System",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_instant_to_java_instant",
@@ -432,75 +464,11 @@ public enum RuntimeABISpec {
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_date_to_kotlin_instant",
-            parameters: [
-                RuntimeABIParameter(name: "dateRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_array_toList",
-            parameters: [
-                RuntimeABIParameter(name: "jsArrayRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_bigint_toLong",
-            parameters: [
-                RuntimeABIParameter(name: "jsBigIntRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_reference_get",
-            parameters: [
-                RuntimeABIParameter(name: "jsRefRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_toJsReference",
-            parameters: [
-                RuntimeABIParameter(name: "valueRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_double_toJsNumber",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .double),
             ],
             returnType: .intptr,
-            section: "System"
-        ),
-RuntimeABIFunctionSpec(
-            name: "kk_js_set_toMutableSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_set_toSet",
-            parameters: [
-                RuntimeABIParameter(name: "jsSetRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_js_number_toDouble",
-            parameters: [
-                RuntimeABIParameter(name: "jsNumberRaw", type: .intptr),
-            ],
-            returnType: .double,
             section: "System"
         ),
         RuntimeABIFunctionSpec(
@@ -512,25 +480,9 @@ RuntimeABIFunctionSpec(
             section: "System"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_js_boolean_toBoolean",
-            parameters: [
-                RuntimeABIParameter(name: "jsBooleanRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_jsclass_kotlin",
             parameters: [
                 RuntimeABIParameter(name: "jsClassRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_toJsBigInt",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .int64),
             ],
             returnType: .intptr,
             section: "System"
@@ -633,7 +585,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_box_bool",
@@ -641,7 +594,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_lateinit_is_initialized",
@@ -649,7 +603,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_lateinit_get_or_throw",
@@ -667,7 +622,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_bool",
@@ -675,7 +631,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_box_long",
@@ -683,7 +640,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_box_float",
@@ -691,7 +649,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_box_double",
@@ -699,7 +658,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_box_char",
@@ -707,7 +667,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_long",
@@ -715,7 +676,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_float",
@@ -723,7 +685,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_double",
@@ -731,7 +694,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_unbox_char",
@@ -739,7 +703,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "obj", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boxing"
+            section: "Boxing",
+            isThrowing: false
         ),
     ]
 
@@ -751,7 +716,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "length", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_of_nulls",
@@ -759,7 +725,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "length", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_new",
@@ -768,7 +735,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "classId", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_object_type_id",
@@ -776,7 +744,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_get",
@@ -795,7 +764,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_set",
@@ -829,7 +799,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "pairCount", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Array"
+            section: "Array",
+            isThrowing: false
         ),
     ]
 
@@ -846,7 +817,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "mode", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_lazy_of",
@@ -854,7 +826,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_lazy_get_value",
@@ -862,7 +835,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_lazy_is_initialized",
@@ -870,7 +844,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         // Observable
         RuntimeABIFunctionSpec(
@@ -880,7 +855,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "callbackFnPtr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_observable_get_value",
@@ -888,7 +864,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_observable_set_value",
@@ -897,7 +874,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         // Vetoable
         RuntimeABIFunctionSpec(
@@ -907,7 +885,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "callbackFnPtr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_vetoable_get_value",
@@ -915,7 +894,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_vetoable_set_value",
@@ -924,14 +904,16 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         // NotNull
         RuntimeABIFunctionSpec(
             name: "kk_notNull_create",
             parameters: [],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_notNull_get_value",
@@ -948,7 +930,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_custom_delegate_create",
@@ -958,7 +941,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "setValueFnPtr", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_custom_delegate_get_value",
@@ -968,7 +952,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "property", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_custom_delegate_set_value",
@@ -979,7 +964,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Delegate"
+            section: "Delegate",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_delegate_get_value",
@@ -1096,8 +1082,6 @@ RuntimeABIFunctionSpec(
             section: "Delegate"
         ),
     ]
-    /// Bitwise/Shift (P5-103)
-
     /// Boolean logical operators
 
     /// Boolean logical operators
@@ -1108,7 +1092,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "value", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Boolean"
+            section: "Boolean",
+            isThrowing: false
         ),
     ]
 
@@ -1141,7 +1126,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "rhsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Char"
+            section: "Char",
+            isThrowing: false
         ),
     ]
 
@@ -1158,7 +1144,17 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_create",
+            parameters: [
+                RuntimeABIParameter(name: "patternRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_matches_regex_flat",
@@ -1170,7 +1166,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_contains_regex_flat",
@@ -1182,7 +1179,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_find_flat",
@@ -1194,7 +1192,18 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_find",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_findAll_flat",
@@ -1206,7 +1215,18 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_findAll",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_replace_regex",
@@ -1216,7 +1236,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "replacement", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_split_regex_flat",
@@ -1228,9 +1249,29 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toRegex",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-TEXT-FN-105: String.toRegex(option) / String.toRegex(options)
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toRegex_with_option",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "optionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_option_flat",
             parameters: [
@@ -1241,7 +1282,18 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "optionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_toRegex_with_options",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "optionsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_toRegex_with_options_flat",
@@ -1264,7 +1316,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_pattern",
@@ -1272,7 +1325,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-REGEX-096: Regex.options: Set<RegexOption>
         RuntimeABIFunctionSpec(
@@ -1281,7 +1335,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regex", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_result_value",
@@ -1289,7 +1344,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "matchResult", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_result_groupValues",
@@ -1297,7 +1353,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "matchResult", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-351: Regex.replace lambda / STDLIB-350: Regex.matchEntire
         RuntimeABIFunctionSpec(
@@ -1322,9 +1379,30 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_matchEntire",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-480: Regex(pattern, option) constructor
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_create_with_option",
+            parameters: [
+                RuntimeABIParameter(name: "patternRaw", type: .intptr),
+                RuntimeABIParameter(name: "optionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_option_flat",
             parameters: [
@@ -1335,9 +1413,20 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "optionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-480: Regex(pattern, options: Set<RegexOption>) constructor
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_create_with_options",
+            parameters: [
+                RuntimeABIParameter(name: "patternRaw", type: .intptr),
+                RuntimeABIParameter(name: "optionsSetRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_create_with_options_flat",
             parameters: [
@@ -1348,9 +1437,20 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "optionsSetRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-480: Regex.containsMatchIn(input)
+        RuntimeABIFunctionSpec(
+            name: "kk_regex_containsMatchIn",
+            parameters: [
+                RuntimeABIParameter(name: "regexRaw", type: .intptr),
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Regex",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_regex_containsMatchIn_flat",
             parameters: [
@@ -1361,7 +1461,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // MatchResult.groups / MatchGroupCollection / MatchGroup
         RuntimeABIFunctionSpec(
@@ -1370,7 +1471,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "matchRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_get",
@@ -1379,7 +1481,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "nameRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_get_flat",
@@ -1400,7 +1503,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "index", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_collection_size",
@@ -1408,7 +1512,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_value",
@@ -1416,7 +1521,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "groupRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_match_group_range",
@@ -1424,7 +1530,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "groupRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
         ),
         // STDLIB-REGEX-094: Regex.matches(input)
         // STDLIB-REGEX-094: Regex.fromLiteral
@@ -1459,7 +1566,99 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "regexRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Regex"
+            section: "Regex",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_chunked",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_chunked_sequence",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_chunked_sequence_transform",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowed_default",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowed",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "step", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowed_partial",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "step", type: .intptr),
+                RuntimeABIParameter(name: "partialWindows", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowedSequence_partial",
+            parameters: [
+                RuntimeABIParameter(name: "str", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "step", type: .intptr),
+                RuntimeABIParameter(name: "partialWindows", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_string_windowedSequence_transform",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "size", type: .intptr),
+                RuntimeABIParameter(name: "step", type: .intptr),
+                RuntimeABIParameter(name: "partialWindows", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
         ),
         // STDLIB-318: commonPrefixWith / commonSuffixWith
         RuntimeABIFunctionSpec(
@@ -1478,7 +1677,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_commonSuffixWith_flat",
@@ -1496,7 +1696,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         // STDLIB-575/576: commonPrefixWith / commonSuffixWith (ignoreCase overloads)
         RuntimeABIFunctionSpec(
@@ -1516,7 +1717,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_string_commonSuffixWith_ignoreCase_flat",
@@ -1535,6 +1737,29 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
             ],
             returnType: .nullableUInt8Pointer,
+            section: "String",
+            isThrowing: false
+        ),
+        // STDLIB-316: String.zipWithNext()
+        RuntimeABIFunctionSpec(
+            name: "kk_string_zipWithNext",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        // STDLIB-316: String.zipWithNext(transform: (Char, Char) -> R)
+        RuntimeABIFunctionSpec(
+            name: "kk_string_zipWithNextTransform",
+            parameters: [
+                RuntimeABIParameter(name: "strRaw", type: .intptr),
+                RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
             section: "String"
         ),
         // STDLIB-317: String.asSequence / asIterable
@@ -1547,7 +1772,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "hash", type: .intptr),
             ],
             returnType: .intptr,
-            section: "String"
+            section: "String",
+            isThrowing: false
         ),
     ]
 
@@ -1653,8 +1879,8 @@ RuntimeABIFunctionSpec(
         RuntimeABIFunctionSpec(name: "kk_path_useDirectoryEntries_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_writeLines_sequence", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "linesRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_fileAttributesViewOrNull", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr)], returnType: .intptr, section: "Path"),
-        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "globRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
-        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr)], returnType: .intptr, section: "Path"),
+        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "globRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
+        RuntimeABIFunctionSpec(name: "kk_path_forEachDirectoryEntry_default", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_get_base_subpaths", parameters: [RuntimeABIParameter(name: "baseRaw", type: .intptr), RuntimeABIParameter(name: "subpathsRaw", type: .intptr)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_writer", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "optionsRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
         RuntimeABIFunctionSpec(name: "kk_path_forEachLine", parameters: [RuntimeABIParameter(name: "pathRaw", type: .intptr), RuntimeABIParameter(name: "charsetRaw", type: .intptr), RuntimeABIParameter(name: "actionRaw", type: .intptr), RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer)], returnType: .intptr, section: "Path"),
@@ -2159,7 +2385,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_source_monotonic_mark_now",
@@ -2167,7 +2394,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "receiver", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_elapsed_now",
@@ -2175,7 +2403,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "markRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_has_passed_now",
@@ -2183,7 +2412,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "markRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_has_not_passed_now",
@@ -2191,7 +2421,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "markRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_plus_duration",
@@ -2200,7 +2431,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_minus_duration",
@@ -2209,7 +2441,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_minus_mark",
@@ -2218,7 +2451,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "rhsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_time_mark_compare",
@@ -2227,14 +2461,16 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "rhsRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         // STDLIB-TIME-TYPE-009: TestTimeSource
         RuntimeABIFunctionSpec(
             name: "kk_test_time_source_new",
             parameters: [],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_test_time_source_plus_assign",
@@ -2243,7 +2479,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "durationRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_test_time_source_mark_now",
@@ -2251,7 +2488,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "sourceRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_test_time_source_read",
@@ -2259,7 +2497,8 @@ RuntimeABIFunctionSpec(
                 RuntimeABIParameter(name: "sourceRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Duration"
+            section: "Duration",
+            isThrowing: false
         ),
     ]
 

@@ -358,7 +358,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: lambdaBody,
                     isSuspend: functionType?.isSuspend ?? false,
-                    isInline: false
+                    isInline: false,
+                    usesRawCallbackABI: needsClosureParam
                 )
             )
         )
@@ -540,7 +541,8 @@ final class LambdaLowerer {
                     returnType: lambdaReturnType,
                     body: body,
                     isSuspend: functionType.isSuspend,
-                    isInline: false
+                    isInline: false,
+                    usesRawCallbackABI: true
                 )
             )
         )
@@ -1057,7 +1059,8 @@ final class LambdaLowerer {
                         returnType: returnType,
                         body: body,
                         isSuspend: functionType?.isSuspend ?? false,
-                        isInline: false
+                        isInline: false,
+                        usesRawCallbackABI: true
                     )
                 )
             )

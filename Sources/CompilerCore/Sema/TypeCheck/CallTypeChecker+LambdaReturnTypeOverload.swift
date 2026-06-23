@@ -454,7 +454,7 @@ extension CallTypeChecker {
         sema: SemaModule
     ) -> (type: TypeID?, isInputOnly: Bool, blocksRefinement: Bool) {
         // When all candidates share the same input-only HOF link name (e.g. String and
-                // CharSequence overloads of zip both map to kk_string_zipTransform_flat), pick the
+        // CharSequence overloads of zip both map to kk_string_zipTransform_flat), pick the
         // first candidate and treat the lambda as input-only so that its return type is
         // not used for constraint solving — matches what the single-candidate path does.
         if !candidates.isEmpty,

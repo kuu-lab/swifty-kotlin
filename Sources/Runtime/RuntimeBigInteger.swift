@@ -700,9 +700,7 @@ public func kk_biginteger_fromString(_ strRaw: Int, _ outThrown: UnsafeMutablePo
     // Validate integer format: optional leading sign followed by one or more digits
     var idx = str.startIndex
     guard idx < str.endIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NumberFormatException: For input string: \"\(str)\""
-        )
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
     if str[idx] == "+" || str[idx] == "-" {
@@ -713,9 +711,7 @@ public func kk_biginteger_fromString(_ strRaw: Int, _ outThrown: UnsafeMutablePo
         idx = str.index(after: idx)
     }
     guard idx > digitStart && idx == str.endIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "NumberFormatException: For input string: \"\(str)\""
-        )
+        outThrown?.pointee = runtimeAllocateNumberFormatException(message: "For input string: \"\(str)\"")
         return 0
     }
     // Normalize: remove leading zeros but keep sign

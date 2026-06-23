@@ -35,6 +35,10 @@ private let rangeReduceIndexedAccPlusIndexPlusValue: @convention(c) (Int, Int, I
     acc + index + value
 }
 
+private let rangePredicateEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
+    value % 2 == 0 ? 1 : 0
+}
+
 final class RuntimeRangeHOFTests: XCTestCase {
     func testRangeMapProducesMappedList() {
         let range = kk_op_rangeTo(1, 4)
@@ -299,6 +303,28 @@ final class RuntimeRangeHOFTests: XCTestCase {
         XCTAssertNotEqual(thrown, 0)
     }
 
+    func testRangeFirstPredicateOnEmptyRangeThrows() {
+        let emptyRange = kk_op_rangeTo(5, 1)
+        var thrown = 0
+        let result = kk_range_first_predicate(emptyRange, unsafeBitCast(rangePredicateEven, to: Int.self), 0, &thrown)
+        XCTAssertEqual(result, 0)
+        XCTAssertNotEqual(thrown, 0)
+    }
+
+    func testRangeFirstAndLastPredicatesOnSingleElementRange() {
+        let singleRange = kk_op_rangeTo(2, 2)
+        let predicate = unsafeBitCast(rangePredicateEven, to: Int.self)
+
+        XCTAssertEqual(kk_range_first_predicate(singleRange, predicate, 0, nil), 2)
+        XCTAssertEqual(kk_range_last_predicate(singleRange, predicate, 0, nil), 2)
+    }
+
+    func testRangeLastPredicateFindsLastMatchInDescendingProgression() {
+        let range = kk_op_downTo(5, 1)
+        let result = kk_range_last_predicate(range, unsafeBitCast(rangePredicateEven, to: Int.self), 0, nil)
+        XCTAssertEqual(result, 2)
+    }
+
     func testLongRangeForEachIteratesAllElements() {
         let range = kk_long_rangeTo(1, 4)
         var sum = 0
@@ -330,6 +356,33 @@ final class RuntimeRangeHOFTests: XCTestCase {
         let range = kk_long_rangeTo(1, 4)
         let avg = unsafeBitCast(kk_long_range_average(range), to: Double.self)
         XCTAssertEqual(avg, 2.5)
+    }
+
+    func testLongRangeForEachOnEmptyRangeIsNoOp() {
+        let emptyRange = kk_long_rangeTo(5, 1)
+        var sum = 0
+        withUnsafeMutablePointer(to: &sum) { ptr in
+            _ = kk_long_range_forEach(emptyRange, unsafeBitCast(rangeForEachAccumulate, to: Int.self), Int(bitPattern: ptr), nil)
+        }
+        XCTAssertEqual(sum, 0)
+    }
+
+    func testLongRangeDropOnEmptyRange() {
+        let emptyRange = kk_long_rangeTo(5, 1)
+        let dropped = kk_long_range_drop(emptyRange, 2)
+        XCTAssertEqual(kk_list_size(dropped), 0)
+    }
+
+    func testLongRangeTakeOnSingleElementRange() {
+        let singleRange = kk_long_rangeTo(7, 7)
+        let taken = kk_long_range_take(singleRange, 3)
+        XCTAssertEqual(listElements(taken), [7])
+    }
+
+    func testLongRangeAverageOnEmptyRangeProducesNaN() {
+        let emptyRange = kk_long_rangeTo(5, 1)
+        let avg = unsafeBitCast(kk_long_range_average(emptyRange), to: Double.self)
+        XCTAssertTrue(avg.isNaN)
     }
 
     private func listElements(_ listRaw: Int) -> [Int] {

@@ -187,7 +187,9 @@ public enum GoldenHarness {
         switch suite {
         case .sema:
             GoldenHarnessSemaComparisonNormalizer.normalize(output)
-        case .lexer, .parser, .diagnostics:
+        case .diagnostics:
+            GoldenHarnessDiagnosticsComparisonNormalizer.normalize(output)
+        case .lexer, .parser:
             output
         }
     }
@@ -284,6 +286,44 @@ public enum GoldenHarness {
             }
             accumulator.append(data)
         }
+    }
+}
+
+private enum GoldenHarnessDiagnosticsComparisonNormalizer {
+    // swiftlint:disable:next force_try
+    private static let symbolReferenceRegex = try! NSRegularExpression(pattern: "(Class#|T#)(\\d+)")
+
+    static func normalize(_ output: String) -> String {
+        let nsOutput = output as NSString
+        let range = NSRange(location: 0, length: nsOutput.length)
+        let matches = symbolReferenceRegex.matches(in: output, range: range)
+        guard !matches.isEmpty else {
+            return output
+        }
+
+        var remappedIDs: [String: Int] = [:]
+        for match in matches {
+            let fullRange = match.range
+            guard fullRange.location != NSNotFound else { continue }
+            let key = nsOutput.substring(with: fullRange)
+            if remappedIDs[key] == nil {
+                remappedIDs[key] = remappedIDs.count
+            }
+        }
+
+        let mutable = NSMutableString(string: output)
+        for match in matches.reversed() {
+            let prefixRange = match.range(at: 1)
+            let fullRange = match.range
+            guard prefixRange.location != NSNotFound,
+                  fullRange.location != NSNotFound
+            else { continue }
+            let key = nsOutput.substring(with: fullRange)
+            let prefix = nsOutput.substring(with: prefixRange)
+            guard let newID = remappedIDs[key] else { continue }
+            mutable.replaceCharacters(in: fullRange, with: "\(prefix)\(newID)")
+        }
+        return mutable as String
     }
 }
 

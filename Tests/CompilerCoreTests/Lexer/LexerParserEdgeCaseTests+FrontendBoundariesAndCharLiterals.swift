@@ -166,7 +166,7 @@ extension LexerParserEdgeCaseTests {
                 XCTAssertTrue(fileTokens.last.map { $0.kind == .eof } ?? false)
             }
 
-            // Skip bundled stdlib files (indices 0–1), user files at indices 2 and 3
+            // Skip bundled stdlib files (indices 0 and 1), user files at indices 2 and 3
             let file0 = ast.files[2]
             let file1 = ast.files[3]
             XCTAssertNotEqual(file0.fileID, file1.fileID)
@@ -220,8 +220,8 @@ extension LexerParserEdgeCaseTests {
             }
             XCTAssertTrue(allFunNames.contains("alpha"))
             XCTAssertTrue(allFunNames.contains("beta"))
-            // 2 user functions + 18 bundled stdlib functions (7 collections + 11 text)
-            XCTAssertEqual(allFunNames.count, 20)
+            // 2 user functions + 41 bundled stdlib functions (24 collections + 17 text)
+            XCTAssertEqual(allFunNames.count, 43)
 
             XCTAssertEqual(ctx.syntaxTrees.count, 4)
             for (_, cst, root) in ctx.syntaxTrees {

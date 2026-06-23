@@ -181,6 +181,15 @@ extension CallLowerer {
                     arguments: callableInfo.captureArguments,
                     result: actionResult, canThrow: true, thrownResult: thrownResult
                 ))
+                // Propagate exceptions thrown by callable references instead
+                // of continuing to measure an incomplete block.
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                let continueLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: thrownResult))
+                instructions.append(.label(continueLabel))
             } else {
                 // The sema phase guarantees the argument is a callable (lambda or
                 // callable reference) when .measureTimeMillis is marked. A nil
